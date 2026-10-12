@@ -160,3 +160,10 @@ dialog .opt input{margin-right:.4rem}
   #textBody{padding-right:1.2rem}
   #dictBody,#listBody{padding-left:.8rem;padding-top:18px}
 }
+
+#btnHl{line-height:0;padding:.25rem .45rem}
+#btnHl.on{background:#e8c22a;border-color:#e8c22a;color:#222}
+mark.hl{background:rgba(255,210,0,.45);color:inherit;border-radius:2px;padding:0 .5px}
+:root[data-theme=dark] mark.hl{background:rgba(230,190,40,.38)}
+body.hlmode #dictBody .eb{cursor:text;-webkit-user-select:text;user-select:text}
+body.hlmode #dictBody .gw{cursor:text}

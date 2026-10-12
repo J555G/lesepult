@@ -290,7 +290,7 @@ function wrapGreek(root) {      // make every Greek word in entries tappable
 }
 async function renderEntryHTML(e, depth = 0, seen = new Set()) {
   seen.add(e.d + ':' + e.i);
-  let h = `<div class="ent">${e.d === 'frisk' ? '' : `<div class="hw">${esc(e.h)}</div>`}${normalizeHTML(e.html)}`;
+  let h = `<div class="ent">${e.d === 'frisk' ? '' : `<div class="hw">${esc(e.h)}</div>`}<div class="eb" data-hl="${e.d}:${e.i}">${normalizeHTML(e.html)}</div>`;
   if (e.r && depth < 3) {
     for (const ref of e.r) {
       if (seen.has(e.d + ':' + ref[1])) continue;
@@ -300,6 +300,92 @@ async function renderEntryHTML(e, depth = 0, seen = new Set()) {
   }
   return h + '</div>';
 }
+// ---------------------------------------------------------------- highlighter (Apple Pencil / mouse)
+// highlights are stored per dictionary entry as character ranges of the entry text: settings 'hl|<dict>:<id>' -> [[start,end],…]
+function textNodes(root) { const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); const a = []; while (w.nextNode()) a.push(w.currentNode); return a; }
+function offsetIn(root, node, off) {          // character offset of (node, off) inside root
+  let n = 0;
+  for (const t of textNodes(root)) { if (t === node) return n + off; n += t.nodeValue.length; }
+  if (node.nodeType === 1) {                   // caret given relative to an element
+    const r = document.createRange(); r.setStart(root, 0); r.setEnd(node, off); return r.toString().length;
+  }
+  return n;
+}
+function wrapRange(root, start, end, idx) {
+  let n = 0;
+  for (const t of textNodes(root)) {
+    const len = t.nodeValue.length, a = Math.max(start, n), b = Math.min(end, n + len);
+    if (a < b && t.nodeValue.trim()) {
+      let mid = t; if (a > n) mid = t.splitText(a - n);
+      if (b < n + len) mid.splitText(b - a);
+      const m = document.createElement('mark'); m.className = 'hl'; m.dataset.r = idx;
+      mid.replaceWith(m); m.append(mid);
+    }
+    n += len; if (n >= end) break;
+  }
+}
+function unwrapMarks(root) { root.querySelectorAll('mark.hl').forEach(m => m.replaceWith(...m.childNodes)); root.normalize(); }
+async function paintEntry(eb) {
+  unwrapMarks(eb);
+  const ranges = (await setting('hl|' + eb.dataset.hl)) || [];
+  ranges.forEach(([a, b], i) => wrapRange(eb, a, b, i));
+}
+async function applyHighlights(root) { for (const eb of root.querySelectorAll('.eb[data-hl]')) await paintEntry(eb); }
+function mergeRanges(rs) {
+  rs.sort((x, y) => x[0] - y[0]); const out = [];
+  for (const r of rs) { const l = out[out.length - 1]; if (l && r[0] <= l[1]) l[1] = Math.max(l[1], r[1]); else out.push([...r]); }
+  return out;
+}
+function caretAt(x, y) {
+  if (document.caretRangeFromPoint) { const r = document.caretRangeFromPoint(x, y); return r && { node: r.startContainer, off: r.startOffset }; }
+  if (document.caretPositionFromPoint) { const p = document.caretPositionFromPoint(x, y); return p && { node: p.offsetNode, off: p.offset }; }
+  return null;
+}
+function setHlMode(on) {
+  S.hlMode = on; document.body.classList.toggle('hlmode', on); $('#btnHl').classList.toggle('on', on);
+  if (on) toast('Highlighter on: draw over dictionary text with the Pencil. Tap a highlight to remove it.');
+}
+function wireHighlighter() {
+  const pane = $('#dictPane');
+  let drag = null;
+  // keep the Pencil from scrolling while highlighting (fingers still scroll)
+  const stylus = e => S.hlMode && [...e.changedTouches].some(t => t.touchType === 'stylus');
+  pane.addEventListener('touchstart', e => { if (stylus(e)) e.preventDefault(); }, { passive: false });
+  pane.addEventListener('touchmove', e => { if (stylus(e)) e.preventDefault(); }, { passive: false });
+  pane.addEventListener('pointerdown', e => {
+    if (!S.hlMode || e.pointerType === 'touch') return;
+    const eb = e.target.closest('.eb'); if (!eb) return;
+    const c = caretAt(e.clientX, e.clientY); if (!c) return;
+    e.preventDefault();
+    drag = { eb, start: c, end: c, moved: false, mark: e.target.closest('mark.hl'), x: e.clientX, y: e.clientY };
+    pane.setPointerCapture?.(e.pointerId);
+  });
+  pane.addEventListener('pointermove', e => {
+    if (!drag) return;
+    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 4) drag.moved = true;
+    const c = caretAt(e.clientX, e.clientY); if (!c || !drag.eb.contains(c.node)) return;
+    drag.end = c;
+    try { window.getSelection().setBaseAndExtent(drag.start.node, drag.start.off, c.node, c.off); } catch (_) { }
+  });
+  const finish = async () => {
+    if (!drag) return; const d = drag; drag = null;
+    window.getSelection().removeAllRanges();
+    const key = 'hl|' + d.eb.dataset.hl;
+    let ranges = (await setting(key)) || [];
+    if (!d.moved) {                                     // a tap on a highlight removes it
+      if (d.mark) { ranges.splice(+d.mark.dataset.r, 1); await setting(key, ranges); await paintEntry(d.eb); }
+      return;
+    }
+    let a = offsetIn(d.eb, d.start.node, d.start.off), b = offsetIn(d.eb, d.end.node, d.end.off);
+    if (a > b) [a, b] = [b, a];
+    if (b - a < 1) return;
+    ranges = mergeRanges([...ranges, [a, b]]);
+    await setting(key, ranges); await paintEntry(d.eb);
+  };
+  pane.addEventListener('pointerup', finish);
+  pane.addEventListener('pointercancel', () => { drag = null; window.getSelection().removeAllRanges(); });
+}
+
 async function showWord(word, opts = {}) {
   if (S.view && !opts.replace) S.hist.push(S.view);
   S.fwd = [];
@@ -343,6 +429,7 @@ async function renderView() {
   }
   body.innerHTML = h;
   body.querySelectorAll('details.src').forEach(el => wrapGreek(el));
+  await applyHighlights(body);
   fillGlossBox();
   $('#dictPane').scrollTop = 0;
 }
@@ -554,7 +641,8 @@ async function importFiles(files) {
 }
 async function backupDialog() {
   // the export file is prepared first, so that the download link is tapped directly by the user (needed on iPad)
-  const data = { format: 'greekdict-backup-1', date: new Date().toISOString(), texts: await getAll('texts'), glosses: await getAll('glosses'), choices: await getAll('choices'), lemmaGlosses: S.lemmaGloss };
+  const data = { format: 'greekdict-backup-1', date: new Date().toISOString(), texts: await getAll('texts'), glosses: await getAll('glosses'), choices: await getAll('choices'), lemmaGlosses: S.lemmaGloss,
+    highlights: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('hl|', 'hl|\uffff'))).map(r => [r.k.slice(3), r.v])) };
   const href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
   const name = 'greek-reader-backup-' + new Date().toISOString().slice(0, 10) + '.json';
   await dialog(`<h3>Backup</h3><p>Save your texts (${data.texts.length}), glosses (${data.glosses.length}), default glosses (${Object.keys(S.lemmaGloss).length}) and lemma choices as a file (e.g. in Files or iCloud), or restore them from a backup. Dictionaries are not included.</p>`,
@@ -568,6 +656,7 @@ async function restoreBackup(file) {
   if (c.action !== 'ok') return;
   await bulkPut('texts', data.texts); await bulkPut('glosses', data.glosses); await bulkPut('choices', data.choices);
   for (const [k, t] of Object.entries(data.lemmaGlosses || {})) { S.lemmaGloss[k] = t; await setting('lg|' + k, t); }
+  for (const [k, r] of Object.entries(data.highlights || {})) await setting('hl|' + k, r);
   toast('Restored'); await openText(data.texts[0]?.id ?? null);
 }
 
@@ -598,6 +687,7 @@ function wire() {
     const pin = ev.target.closest('[data-pin]');
     if (pin) { await put('choices', { f: canon(S.view.form), lemma: pin.dataset.pin }); S.view.lemma = null; const f0 = canon(S.view.form); resetTokens(tk => canon(tk.s) === f0); await renderView(); resolveTokens(); renderText(); return; }
     const gw = ev.target.closest('.gw');
+    if (gw && S.hlMode && S.lastPointer !== 'touch') return;
     if (gw && !String(window.getSelection())) return showWord(gw.textContent, { openDict: gw.closest('details.src')?.dataset.d });
   });
   $('#dictBody').addEventListener('change', async ev => {
@@ -655,7 +745,11 @@ function wire() {
     saveText(f.name.replace(/\.[^.]+$/, ''), raw);
   };
   // selection inside the dictionary -> offer "add as gloss"
+  document.addEventListener('pointerdown', e => { S.lastPointer = e.pointerType; }, true);
+  $('#btnHl').onclick = () => setHlMode(!S.hlMode);
+  wireHighlighter();
   document.addEventListener('selectionchange', () => {
+    if (S.hlMode) { $('#fabBar').hidden = true; return; }
     const sel = window.getSelection(); const txt = String(sel).trim();
     const inDict = sel.rangeCount && $('#dictPane').contains(sel.getRangeAt(0).commonAncestorContainer);
     if (txt && inDict) S.lastSel = txt;
