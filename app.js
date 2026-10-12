@@ -679,15 +679,23 @@ function cycleSplit() {
   if (i === 2) S.splitDir = -1; else if (i === 0) S.splitDir = 1; else S.splitDir = S.splitDir || 1;
   setSplit(SPLITS[i + S.splitDir].toFixed(3) + '%');
 }
-function splitIcon() {   // small picture of the current arrangement: text part filled, dictionary part outlined
+function splitIcon() {   // an open book: the fold sits where the split is, the lines on both pages slope down toward it
   const b = $('#btnSplit'); if (!b) return;
-  const f = Math.min(0.9, Math.max(0.1, parseFloat(getSplit()) / 100));
+  const f = Math.min(0.85, Math.max(0.15, parseFloat(getSplit()) / 100));
   const portrait = matchMedia('(orientation:portrait),(max-width:760px)').matches;
-  const W = 26, H = 18, r = 'rx="1.5"';
-  const svg = portrait
-    ? `<rect x="1" y="1" width="${W - 2}" height="${(H - 2) * f}" ${r} fill="currentColor"/><rect x="1.5" y="${1.5 + (H - 2) * f}" width="${W - 3}" height="${(H - 2) * (1 - f) - 1}" ${r} fill="none" stroke="currentColor"/>`
-    : `<rect x="1" y="1" width="${(W - 2) * f}" height="${H - 2}" ${r} fill="currentColor"/><rect x="${1.5 + (W - 2) * f}" y="1.5" width="${(W - 2) * (1 - f) - 1}" height="${H - 3}" ${r} fill="none" stroke="currentColor"/>`;
-  b.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">${svg}</svg>`;
+  const W = 30, H = 20, x0 = 1.5, x1 = W - 1.5, fx = x0 + (x1 - x0) * f, dip = 2;
+  const p = [];
+  p.push(`M${x0} 3 Q${(x0 + fx) / 2} 2 ${fx} ${3 + dip} Q${(fx + x1) / 2} 2 ${x1} 3`);          // top edges
+  p.push(`M${x0} ${H - 3} Q${(x0 + fx) / 2} ${H - 4} ${fx} ${H - 3 + dip} Q${(fx + x1) / 2} ${H - 4} ${x1} ${H - 3}`); // bottom edges
+  p.push(`M${x0} 3 V${H - 3} M${x1} 3 V${H - 3} M${fx} ${3 + dip} V${H - 3 + dip}`);         // outer edges + fold
+  for (const y of [6.5, 9.5, 12.5, 15.5]) {                                                    // text lines
+    if (fx - x0 > 5) p.push(`M${x0 + 2} ${y} L${fx - 1.8} ${y + dip * 0.6}`);
+    if (x1 - fx > 5) p.push(`M${fx + 1.8} ${y + dip * 0.6} L${x1 - 2} ${y}`);
+  }
+  const g = `<path d="${p.join(' ')}" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>`;
+  b.innerHTML = portrait
+    ? `<svg width="${H}" height="${W}" viewBox="0 0 ${H} ${W}" aria-hidden="true"><g transform="translate(${H} 0) rotate(90)">${g}</g></svg>`
+    : `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">${g}</svg>`;
   const pct = Math.round(f * 100);
   b.title = `Text ${pct < 40 ? '1/3' : pct > 60 ? '2/3' : '1/2'} – tap to change the split`;
 }
