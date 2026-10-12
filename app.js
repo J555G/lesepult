@@ -62,6 +62,7 @@ const S = {
   hist: [], view: null,  // dictionary navigation
   lastSel: '', listSort: 'pos',
   posOn: false, posCfg: null, srcColors: true,
+  lemmaGloss: {},        // lemma key -> default gloss (all texts)
 };
 
 // ---------------------------------------------------------------- word classes
@@ -98,15 +99,23 @@ function applyPosColors() {
   document.body.classList.toggle('pos', S.posOn);
   $('#chkPos').checked = S.posOn;
 }
-async function classifyTokens() {
+async function resolveTokens() {      // lemma + word class for every word of the text
+  const run = (resolveTokens.run = (resolveTokens.run || 0) + 1);
+  let changed = false;
   for (const tk of S.tokens) {
-    if (tk.t !== 'w' || tk.pos) continue;
+    if (tk.t !== 'w' || tk.lemma !== undefined) continue;
     const A = await analyses(tk.s);
+    if (run !== resolveTokens.run) return;           // a newer run has started
     const l = A.pick; const x = A.lemmas.find(z => z.lemma === l);
-    tk.pos = posOf(l, x?.ana);
-    document.querySelector(`.w[data-i="${tk.i}"]`)?.classList.add('p-' + tk.pos);
+    tk.lemma = l || null; tk.pos = posOf(l, x?.ana);
+    const el = document.querySelector(`.w[data-i="${tk.i}"]`);
+    el?.classList.add('p-' + tk.pos);
+    if (l && S.lemmaGloss[gkey(l)]) changed = true;
   }
+  if (changed) renderText();
 }
+function resetTokens(pred = () => true) { for (const tk of S.tokens) if (pred(tk)) { delete tk.lemma; delete tk.pos; } }
+const classifyTokens = resolveTokens;
 
 // ---------------------------------------------------------------- package import
 async function readPackage(file) {
@@ -223,7 +232,8 @@ function renderText() {
       html += s0.split(/\n\s*\n/).map(p => esc(p).replace(/\n/g, '<br>')).join('</div><div class="para">');
       continue;
     }
-    const gs = (gl[tk.i] || []).map(g => `<span data-g="${g.id}"${g.e > g.s ? ` title="gloss for ${g.e - g.s + 1} words"` : ''}>${g.e > g.s ? '⟨' : ''}${esc(g.t)}${g.e > g.s ? '⟩' : ''}</span>`).join('');
+    let gs = (gl[tk.i] || []).map(g => `<span data-g="${g.id}"${g.e > g.s ? ` title="gloss for ${g.e - g.s + 1} words"` : ''}>${g.e > g.s ? '⟨' : ''}${esc(g.t)}${g.e > g.s ? '⟩' : ''}</span>`).join('');
+    if (!covered.has(tk.i) && tk.lemma) { const dg = S.lemmaGloss[gkey(tk.lemma)]; if (dg) gs = `<span class="dg" data-dg="${esc(gkey(tk.lemma))}" title="default gloss for ${esc(tk.lemma)}">${esc(dg)}</span>`; }
     // punctuation directly after the word stays on the same line as the word
     const nx = toks[n + 1]; let pu = '';
     if (nx && nx.t === 'p') { const m = nx.s.match(/^[^\sͰ-Ͽἀ-῿]+/); if (m) { pu = m[0]; nx.glued = pu.length; } }
@@ -247,7 +257,7 @@ async function openText(id) {
   renderText();
   if (t) await setting('currentText', t.id);
   if (!$('#listBody').hidden) renderList();
-  if (S.posOn) classifyTokens();
+  resolveTokens();
 }
 
 // ---------------------------------------------------------------- dictionary view
@@ -291,7 +301,7 @@ async function renderEntryHTML(e, depth = 0, seen = new Set()) {
 }
 async function showWord(word, opts = {}) {
   if (S.view && !opts.replace) S.hist.push(S.view);
-  S.view = { form: word, lemma: opts.lemma || null };
+  S.view = { form: word, lemma: opts.lemma || null, openDict: opts.openDict || null };
   $('#btnBack').disabled = !S.hist.length;
   showTab('entry');
   await renderView();
@@ -301,6 +311,7 @@ async function renderView() {
   if (!S.dicts.length) { body.innerHTML = '<p class="hint">No dictionaries installed yet. Open the menu ☰ → Dictionaries and import the packages (*.gdpkg.gz).</p>'; return; }
   const A = await analyses(v.form);
   const lemma = v.lemma || A.pick || v.form;
+  v.pick = lemma;
   const k = gkey(lemma);
   v.key = k;
   let h = `<div class="form">${esc(v.form)}</div>`;
@@ -322,7 +333,7 @@ async function renderView() {
       for (const ref of by[d.id + '#m']) { const e = await entryByRef(d.id, ref); if (e && !seen.has(d.id + ':' + e.i)) inner += await renderEntryHTML(e, 0, seen); }
     }
     if (!has) inner = '<p class="none">– no entry –</p>';
-    h += `<details class="src${has ? '' : ' empty'}" data-d="${d.id}"${has && openSet.has(d.id) ? ' open' : ''}><summary>${esc(d.name)} <small>${esc(d.title || '')}</small></summary>${inner}</details>`;
+    h += `<details class="src${has ? '' : ' empty'}" data-d="${d.id}"${has && (openSet.has(d.id) || v.openDict === d.id) ? ' open' : ''}><summary>${esc(d.name)} <small>${esc(d.title || '')}</small></summary>${inner}</details>`;
   }
   body.innerHTML = h;
   body.querySelectorAll('details.src').forEach(el => wrapGreek(el));
@@ -359,21 +370,41 @@ function showTab(which) {
 }
 
 // ---------------------------------------------------------------- glosses
-async function addGloss(text) {
+function targetLemma() {      // lemma of the single selected word (as chosen in the dictionary pane, if open)
+  if (!S.cur || S.cur[0] !== S.cur[1]) return null;
+  const tk = S.tokens.find(t => t.t === 'w' && t.i === S.cur[0]); if (!tk) return null;
+  if (S.view && canon(S.view.form) === canon(tk.s)) return S.view.lemma || S.view.pick || tk.lemma;
+  return tk.lemma;
+}
+async function addGloss(text, asDefault = false) {
   if (!S.text) return toast('Open a text first.');
   if (!S.cur) return toast('First tap the word in the text that the gloss belongs to.');
   text = text.replace(/\s+/g, ' ').trim(); if (!text) return;
+  if (asDefault) {
+    const l = targetLemma(); if (!l) return toast('A default gloss needs a single word with a known lemma.');
+    S.lemmaGloss[gkey(l)] = text; await setting('lg|' + gkey(l), text);
+    renderText(); return toast(`Default gloss for ${l} set`);
+  }
   const g = { textId: S.text.id, s: S.cur[0], e: S.cur[1], t: text, created: Date.now() };
   g.id = await put('glosses', g);
   S.glosses.push(g); renderText(); toast('Gloss added');
 }
-async function writeGloss() {     // type a gloss directly, without the dictionary
+async function writeGloss(prefill = '') {     // type a gloss directly, without the dictionary
   if (!S.text) return toast('Open a text first.');
   if (!S.cur) return toast('First tap a word (or select a phrase with “Range”).');
   const words = S.tokens.filter(t => t.t === 'w' && t.i >= S.cur[0] && t.i <= S.cur[1]).map(t => t.s).join(' ');
-  const r = await dialog(`<h3>New gloss for <span class="gk">${esc(words)}</span></h3><input type="text" name="t" autocomplete="off">`,
+  const l = targetLemma();
+  const r = await dialog(`<h3>New gloss for <span class="gk">${esc(words)}</span></h3><input type="text" name="t" value="${esc(prefill)}" autocomplete="off">` +
+    (l ? `<label class="opt"><input type="checkbox" name="def"${S.lastDefault ? ' checked' : ''}>Use as default gloss for <span class="gk">${esc(l)}</span> wherever it appears</label>` : ''),
     [['cancel', 'Cancel'], ['ok', 'Add']], 'ok');
-  if (r.action === 'ok' && r.data.t.trim()) addGloss(r.data.t);
+  if (r.action === 'ok' && (r.data.t || '').trim()) { S.lastDefault = r.data.def === 'on'; addGloss(r.data.t, S.lastDefault); }
+}
+async function editDefaultGloss(k) {
+  const r = await dialog(`<h3>Default gloss</h3><p class="hint">Shown under every form of this lemma that has no gloss of its own.</p><input type="text" name="t" value="${esc(S.lemmaGloss[k])}" autocomplete="off">`,
+    [['delete', 'Delete'], ['cancel', 'Cancel'], ['ok', 'Save']], 'ok');
+  if (r.action === 'ok' && (r.data.t || '').trim()) { S.lemmaGloss[k] = r.data.t.trim(); await setting('lg|' + k, S.lemmaGloss[k]); }
+  if (r.action === 'delete') { delete S.lemmaGloss[k]; await del('settings', 'lg|' + k); }
+  renderText();
 }
 async function editGloss(id) {
   const g = S.glosses.find(x => x.id === id); if (!g) return;
@@ -402,9 +433,9 @@ function dialog(inner, buttons = [['ok', 'OK']], defaultAction = null) {
     f.querySelectorAll('button[data-v]').forEach(b => b.addEventListener('click', () => finish(b.dataset.v)));
     f.querySelectorAll('label.btn,a.btn').forEach(el => el.addEventListener('click', () => setTimeout(() => finish('picked'), 50)));
     f.onsubmit = ev => { ev.preventDefault(); if (defaultAction) finish(defaultAction); };
-    f.querySelectorAll('input[type=text]').forEach(inp => inp.addEventListener('keydown', ev => {
-      if (ev.key === 'Enter' && !ev.isComposing) { ev.preventDefault(); if (defaultAction) finish(defaultAction); }
-    }));
+    f.onkeydown = ev => {
+      if (ev.key === 'Enter' && !ev.isComposing && ev.target.tagName !== 'TEXTAREA' && ev.target.tagName !== 'BUTTON') { ev.preventDefault(); if (defaultAction) finish(defaultAction); }
+    };
     d.onclose = () => { const data = Object.fromEntries(new FormData(f)); res({ action, data }); };
     d.showModal();
     const first = f.querySelector('input[type=text],textarea'); if (first) { first.focus(); first.select?.(); }
@@ -456,7 +487,7 @@ async function posDialog() {
   else if (r.action === 'ok') for (const [id] of POS) S.posCfg[id] = { on: r.data['on_' + id] === 'on', c: r.data['c_' + id] };
   else return;
   await setting('posCfg', S.posCfg); S.posOn = true; await setting('posOn', true);
-  applyPosColors(); classifyTokens();
+  applyPosColors();
 }
 function defaultPosCfg() { return Object.fromEntries(POS.map(([id, , c]) => [id, { on: true, c }])); }
 async function importFiles(files) {
@@ -469,14 +500,14 @@ async function importFiles(files) {
     d.close(); toast('Import finished');
   } catch (e) { $('#impMsg').textContent = 'Error: ' + e.message; f.insertAdjacentHTML('beforeend', '<div class="row"><button>OK</button></div>'); f.onsubmit = ev => { ev.preventDefault(); d.close(); }; }
   await loadDicts(); bucketCache.clear(); if (S.view) renderView();
-  for (const tk of S.tokens) delete tk.pos; if (S.posOn) classifyTokens();
+  resetTokens(); resolveTokens();
 }
 async function backupDialog() {
   // the export file is prepared first, so that the download link is tapped directly by the user (needed on iPad)
-  const data = { format: 'greekdict-backup-1', date: new Date().toISOString(), texts: await getAll('texts'), glosses: await getAll('glosses'), choices: await getAll('choices') };
+  const data = { format: 'greekdict-backup-1', date: new Date().toISOString(), texts: await getAll('texts'), glosses: await getAll('glosses'), choices: await getAll('choices'), lemmaGlosses: S.lemmaGloss };
   const href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
   const name = 'greek-reader-backup-' + new Date().toISOString().slice(0, 10) + '.json';
-  await dialog(`<h3>Backup</h3><p>Save your texts (${data.texts.length}), glosses (${data.glosses.length}) and lemma choices as a file (e.g. in Files or iCloud), or restore them from a backup. Dictionaries are not included.</p>`,
+  await dialog(`<h3>Backup</h3><p>Save your texts (${data.texts.length}), glosses (${data.glosses.length}), default glosses (${Object.keys(S.lemmaGloss).length}) and lemma choices as a file (e.g. in Files or iCloud), or restore them from a backup. Dictionaries are not included.</p>`,
     [['link', 'Save backup', { href, name }], ['file', 'Restore …', 'fileBackup'], ['cancel', 'Close']]);
   setTimeout(() => URL.revokeObjectURL(href), 60000);
 }
@@ -486,13 +517,15 @@ async function restoreBackup(file) {
   const c = await dialog(`<h3>Restore?</h3><p>${data.texts.length} texts and ${data.glosses.length} glosses. Existing items with the same number are overwritten.</p>`, [['cancel', 'Cancel'], ['ok', 'Restore']]);
   if (c.action !== 'ok') return;
   await bulkPut('texts', data.texts); await bulkPut('glosses', data.glosses); await bulkPut('choices', data.choices);
+  for (const [k, t] of Object.entries(data.lemmaGlosses || {})) { S.lemmaGloss[k] = t; await setting('lg|' + k, t); }
   toast('Restored'); await openText(data.texts[0]?.id ?? null);
 }
 
 // ---------------------------------------------------------------- events
 function wire() {
   $('#textBody').addEventListener('click', async ev => {
-    const gsp = ev.target.closest('.gl span'); if (gsp) return editGloss(+gsp.dataset.g);
+    const dg = ev.target.closest('.gl .dg'); if (dg) return editDefaultGloss(dg.dataset.dg);
+    const gsp = ev.target.closest('.gl span[data-g]'); if (gsp) return editGloss(+gsp.dataset.g);
     const w = ev.target.closest('.w'); if (!w) return;
     const i = +w.dataset.i;
     if (S.rangeMode && S.cur) {
@@ -506,9 +539,9 @@ function wire() {
   $('#dictBody').addEventListener('click', async ev => {
     const chip = ev.target.closest('.chip'); if (chip) { S.view.lemma = chip.dataset.lemma; return renderView(); }
     const pin = ev.target.closest('[data-pin]');
-    if (pin) { await put('choices', { f: canon(S.view.form), lemma: pin.dataset.pin }); S.view.lemma = null; for (const tk of S.tokens) if (canon(tk.s) === canon(S.view.form)) delete tk.pos; if (S.posOn) classifyTokens(); return renderView(); }
+    if (pin) { await put('choices', { f: canon(S.view.form), lemma: pin.dataset.pin }); S.view.lemma = null; const f0 = canon(S.view.form); resetTokens(tk => canon(tk.s) === f0); await renderView(); resolveTokens(); renderText(); return; }
     const gw = ev.target.closest('.gw');
-    if (gw && !String(window.getSelection())) return showWord(gw.textContent);
+    if (gw && !String(window.getSelection())) return showWord(gw.textContent, { openDict: gw.closest('details.src')?.dataset.d });
   });
   $('#dictBody').addEventListener('toggle', ev => { if (ev.target.matches?.('details.src')) saveOpenState(); }, true);
   $('#listBody').addEventListener('click', async ev => {
@@ -524,7 +557,8 @@ function wire() {
   $('#tabList').onclick = () => { showTab('list'); renderList(); };
   $('#search').addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.value.trim()) { showWord(ev.target.value.trim()); ev.target.blur(); } });
   $('#chkGloss').onchange = ev => { document.body.classList.toggle('nogloss', !ev.target.checked); setting('showGloss', ev.target.checked); };
-  $('#chkPos').onchange = async ev => { S.posOn = ev.target.checked; await setting('posOn', S.posOn); applyPosColors(); if (S.posOn) classifyTokens(); };
+  $('#chkPos').onchange = async ev => { S.posOn = ev.target.checked; await setting('posOn', S.posOn); applyPosColors(); };
+  $('#btnTheme').onclick = () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true);
   $('#btnAddGloss').onclick = writeGloss;
   $('#btnRange').onclick = () => {
     if (!S.cur) return toast('Tap the first word, then “Range”, then the last word.');
@@ -559,10 +593,12 @@ function wire() {
     const sel = window.getSelection(); const txt = String(sel).trim();
     const inDict = sel.rangeCount && $('#dictPane').contains(sel.getRangeAt(0).commonAncestorContainer);
     if (txt && inDict) S.lastSel = txt;
-    $('#fabGloss').hidden = !(txt && inDict);
+    $('#fabBar').hidden = !(txt && inDict);
   });
-  $('#fabGloss').addEventListener('pointerdown', ev => ev.preventDefault());
-  $('#fabGloss').onclick = () => { const t = S.lastSel; window.getSelection().removeAllRanges(); $('#fabGloss').hidden = true; addGloss(t); };
+  for (const id of ['#fabGloss', '#fabDefault']) $(id).addEventListener('pointerdown', ev => ev.preventDefault());
+  const fab = asDefault => { const t = S.lastSel; window.getSelection().removeAllRanges(); $('#fabBar').hidden = true; addGloss(t, asDefault); };
+  $('#fabGloss').onclick = () => fab(false);
+  $('#fabDefault').onclick = () => fab(true);
   // divider drag
   const dv = $('#divider');
   dv.addEventListener('pointerdown', ev => {
@@ -574,6 +610,12 @@ function wire() {
     dv.addEventListener('pointermove', mv); dv.addEventListener('pointerup', up);
   });
 }
+function setTheme(t, save) {
+  document.documentElement.dataset.theme = t;
+  $('#btnTheme').textContent = t === 'dark' ? '☀' : '☾';
+  document.querySelector('meta[name=theme-color]').content = t === 'dark' ? '#2a2926' : '#efe9da';
+  if (save) setting('theme', t);
+}
 function getSplit() { return document.documentElement.style.getPropertyValue('--split').trim() || '50%'; }
 function setSplit(v, save = true) { document.documentElement.style.setProperty('--split', v); if (save) setting('split', v); }
 
@@ -581,6 +623,8 @@ function setSplit(v, save = true) { document.documentElement.style.setProperty('
 (async function main() {
   db = await openDB();
   wire();
+  setTheme((await setting('theme')) || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+  for (const r of await getAll('settings', IDBKeyRange.bound('lg|', 'lg|\uffff'))) S.lemmaGloss[r.k.slice(3)] = r.v;
   await loadDicts();
   const sg = await setting('showGloss'); if (sg === false) { $('#chkGloss').checked = false; document.body.classList.add('nogloss'); }
   const sp = await setting('split'); if (sp) setSplit(sp, false);

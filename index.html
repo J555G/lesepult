@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -35,6 +35,7 @@
   <button id="btnAddGloss" title="Write a gloss for the selected word or phrase">＋ Gloss</button>
   <button id="btnRange" title="Phrase: tap the first word, then this, then the last word">Range</button>
   <label class="sw" title="Colour words by word class"><input type="checkbox" id="chkPos"> Colours</label>
+  <button id="btnTheme" title="Light / dark mode">☾</button>
 </header>
 
 <main id="panes">
@@ -48,7 +49,7 @@
   </section>
 </main>
 
-<button id="fabGloss" hidden>＋ Add as gloss</button>
+<div id="fabBar" hidden><button id="fabGloss">＋ Gloss</button><button id="fabDefault" title="Use as default gloss for this lemma wherever it appears">＋ Default for lemma</button></div>
 
 <dialog id="dlg"><form method="dialog" id="dlgForm"></form></dialog>
 <div id="toast" hidden></div>
