@@ -17,29 +17,32 @@
 </head>
 <body>
 <header id="top">
-  <button id="btnTexts" title="Texts">☰ <span id="textTitle">no text</span></button>
-  <span class="sp"></span>
+  <div class="menuwrap">
+    <button id="btnMenu" title="Menu" aria-haspopup="true">☰</button>
+    <div id="menu" hidden>
+      <button data-m="texts">Texts …</button>
+      <button data-m="dicts">Dictionaries …</button>
+      <button data-m="pos">Word-class colours …</button>
+      <button data-m="layout">Change split</button>
+      <button data-m="backup">Backup …</button>
+    </div>
+  </div>
+  <span id="textTitle" title="Current text">no text</span>
+  <button id="btnBack" title="Back" disabled>‹</button>
+  <div class="tabs"><button id="tabEntry" class="on">Entry</button><button id="tabList">Lemmata</button></div>
+  <input id="search" type="search" placeholder="Look up a word…" autocapitalize="off" autocomplete="off" spellcheck="false">
   <label class="sw" title="Show interlinear glosses"><input type="checkbox" id="chkGloss" checked> Glosses</label>
   <button id="btnAddGloss" title="Write a gloss for the selected word or phrase">＋ Gloss</button>
   <button id="btnRange" title="Phrase: tap the first word, then this, then the last word">Range</button>
-  <span class="grp"><label class="sw" title="Colour words by word class"><input type="checkbox" id="chkPos"> Colours</label><button id="btnPosCfg" title="Choose word-class colours">⚙</button></span>
-  <button id="btnLayout" title="Change the split">⇆</button>
-  <button id="btnDicts">Dictionaries</button>
-  <button id="btnBackup">Backup</button>
+  <label class="sw" title="Colour words by word class"><input type="checkbox" id="chkPos"> Colours</label>
 </header>
 
 <main id="panes">
   <section id="textPane" aria-label="Text">
-    <div id="textBody"><p class="hint">No text yet. Tap ☰ (top left) to paste or load a text.</p></div>
+    <div id="textBody"><p class="hint">No text yet. Open the menu ☰ (top left) → Texts to paste or load a text.</p></div>
   </section>
   <div id="divider" title="Drag to change the split"></div>
   <section id="dictPane" aria-label="Dictionary">
-    <div id="dictBar">
-      <button id="btnBack" title="Back" disabled>‹</button>
-      <div class="tabs"><button id="tabEntry" class="on">Entry</button><button id="tabList">Lemmata</button></div>
-      <input id="search" type="search" placeholder="Look up a word…" autocapitalize="off" autocomplete="off" spellcheck="false">
-    </div>
-    <div id="target"></div>
     <div id="dictBody"><p class="hint">Tap a word in the text.</p></div>
     <div id="listBody" hidden></div>
   </section>

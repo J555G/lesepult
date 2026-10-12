@@ -210,7 +210,7 @@ function tokenize(text) {
 }
 function renderText() {
   const body = $('#textBody');
-  if (!S.text) { body.innerHTML = '<p class="hint">No text yet. Tap ☰ (top left) to paste or load a text.</p>'; return; }
+  if (!S.text) { body.innerHTML = '<p class="hint">No text yet. Open the menu ☰ (top left) → Texts to paste or load a text.</p>'; return; }
   const gl = {}; for (const g of S.glosses) (gl[g.s] ??= []).push(g);
   const covered = new Set(); for (const g of S.glosses) for (let i = g.s; i <= g.e; i++) covered.add(i);
   let html = '<div class="para">';
@@ -234,11 +234,9 @@ function renderText() {
 }
 function markTarget() {
   document.querySelectorAll('.w.cur,.w.rng').forEach(e => e.classList.remove('cur', 'rng'));
-  if (!S.cur) { $('#target').innerHTML = ''; return; }
+  if (!S.cur) return;
   const [s, e] = S.cur;
   for (let i = s; i <= e; i++) document.querySelector(`.w[data-i="${i}"]`)?.classList.add(e > s ? 'rng' : 'cur');
-  const words = S.tokens.filter(t => t.t === 'w' && t.i >= s && t.i <= e).map(t => t.s).join(' ');
-  $('#target').innerHTML = `Gloss target: <b>${esc(words)}</b>` + (e > s ? ` (${e - s + 1} words)` : '') + ' <button id="btnGlossHere">＋ Write gloss</button>';
 }
 async function openText(id) {
   const t = id != null ? await get('texts', id) : null;
@@ -300,7 +298,7 @@ async function showWord(word, opts = {}) {
 }
 async function renderView() {
   const body = $('#dictBody'); const v = S.view; if (!v) return;
-  if (!S.dicts.length) { body.innerHTML = '<p class="hint">No dictionaries installed yet. Tap “Dictionaries” at the top and import the packages (*.gdpkg.gz).</p>'; return; }
+  if (!S.dicts.length) { body.innerHTML = '<p class="hint">No dictionaries installed yet. Open the menu ☰ → Dictionaries and import the packages (*.gdpkg.gz).</p>'; return; }
   const A = await analyses(v.form);
   const lemma = v.lemma || A.pick || v.form;
   const k = gkey(lemma);
@@ -505,7 +503,6 @@ function wire() {
     const tk = S.tokens.find(t => t.t === 'w' && t.i === i);
     S.hist = []; S.view = null; await showWord(tk.s);
   });
-  $('#target').addEventListener('click', ev => { if (ev.target.id === 'btnGlossHere') writeGloss(); });
   $('#dictBody').addEventListener('click', async ev => {
     const chip = ev.target.closest('.chip'); if (chip) { S.view.lemma = chip.dataset.lemma; return renderView(); }
     const pin = ev.target.closest('[data-pin]');
@@ -528,17 +525,22 @@ function wire() {
   $('#search').addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.value.trim()) { showWord(ev.target.value.trim()); ev.target.blur(); } });
   $('#chkGloss').onchange = ev => { document.body.classList.toggle('nogloss', !ev.target.checked); setting('showGloss', ev.target.checked); };
   $('#chkPos').onchange = async ev => { S.posOn = ev.target.checked; await setting('posOn', S.posOn); applyPosColors(); if (S.posOn) classifyTokens(); };
-  $('#btnPosCfg').onclick = posDialog;
   $('#btnAddGloss').onclick = writeGloss;
   $('#btnRange').onclick = () => {
     if (!S.cur) return toast('Tap the first word, then “Range”, then the last word.');
     S.rangeMode = !S.rangeMode; $('#btnRange').classList.toggle('on', S.rangeMode);
     if (S.rangeMode) toast('Now tap the last word of the phrase.');
   };
-  $('#btnLayout').onclick = () => setSplit(({ '50%': '62%', '62%': '38%', '38%': '50%' })[getSplit()] || '50%');
-  $('#btnTexts').onclick = textsDialog;
-  $('#btnDicts').onclick = dictsDialog;
-  $('#btnBackup').onclick = backupDialog;
+  // three-bar menu for everything that is not part of reading itself
+  const menu = $('#menu');
+  $('#btnMenu').onclick = ev => { ev.stopPropagation(); menu.hidden = !menu.hidden; };
+  document.addEventListener('click', ev => { if (!menu.hidden && !ev.target.closest('.menuwrap')) menu.hidden = true; });
+  menu.addEventListener('click', ev => {
+    const b = ev.target.closest('[data-m]'); if (!b) return;
+    menu.hidden = true;
+    ({ texts: textsDialog, dicts: dictsDialog, pos: posDialog, backup: backupDialog,
+       layout: () => setSplit(({ '50%': '62%', '62%': '38%', '38%': '50%' })[getSplit()] || '50%') })[b.dataset.m]();
+  });
   document.addEventListener('change', ev => { if (ev.target.id === 'optSrcCol') { S.srcColors = ev.target.checked; setting('srcColors', S.srcColors); document.body.classList.toggle('nosrccol', !S.srcColors); } });
   $('#fileDict').onchange = ev => { const fs = [...ev.target.files]; ev.target.value = ''; if (fs.length) importFiles(fs); };
   $('#fileBackup').onchange = ev => { const f = ev.target.files[0]; ev.target.value = ''; if (f) restoreBackup(f); };
@@ -587,7 +589,7 @@ function setSplit(v, save = true) { document.documentElement.style.setProperty('
   S.posOn = !!(await setting('posOn')); applyPosColors();
   const cur = await setting('currentText');
   if (cur != null) await openText(cur);
-  if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! Tap “Dictionaries” → “Import packages …” and choose the *.gdpkg.gz files (Frisk, Pape, LSJ, Bailly, morphology). Then add a text via ☰.</p>';
+  if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! Open the menu ☰ → Dictionaries → “Import packages …” and choose the *.gdpkg.gz files (Frisk, Pape, LSJ, Bailly, morphology). Then add a text via ☰ → Texts.</p>';
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => { });
   navigator.storage?.persist?.().catch(() => { });
 })();
