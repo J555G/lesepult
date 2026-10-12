@@ -402,3 +402,13 @@ dialog .cslider .eras span:first-child{border-left:0}
 #libSort{margin-top:.35rem}
 @media (max-width:600px){dialog .cslider{margin-left:.5rem}}
 @media (max-width:600px){dialog .cslider .eras span{font-size:9px}}
+/* larger grab area for the slider handles (finger-sized), the visible knob stays the same */
+dialog .cslider{height:3.3rem}
+dialog .cslider .track{top:15px}
+dialog .cslider input[type=range]{left:-17px;right:-17px;width:calc(100% + 34px);height:34px}
+dialog .cslider input[type=range]::-webkit-slider-runnable-track{height:34px}
+dialog .cslider input[type=range]::-webkit-slider-thumb{width:34px;height:34px;margin-top:0;border:0;border-radius:0;
+  background:radial-gradient(circle,var(--card) 0 6.5px,var(--acc) 7px 9px,transparent 9.5px)}
+dialog .cslider input[type=range]::-moz-range-thumb{width:34px;height:34px;border:0;border-radius:0;
+  background:radial-gradient(circle,var(--card) 0 6.5px,var(--acc) 7px 9px,transparent 9.5px)}
+dialog .cslider .eras{top:34px}
