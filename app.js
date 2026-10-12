@@ -1313,7 +1313,7 @@ const SORTS = [['author', 'Author', 1], ['title', 'Title', 1], ['date', 'Date', 
 const YMIN = -800, YMAX = 1500;
 const ERAS = [['Archaic', -800, -500], ['Classical', -500, -323], ['Hellenistic', -323, -31], ['Imperial', -31, 300], ['Late Antique', 300, 600], ['Byzantine', 600, 1500]];
 // favourites: a small flame (outline = not a favourite, filled = favourite)
-const FLAME = '<svg class="flame" width="15" height="18" viewBox="0 0 20 24" aria-hidden="true"><path d="M10 1.5c.6 3.6 3.2 5.6 5 8.2 1.9 2.7 2.4 6 .7 8.9A7.6 7.6 0 0 1 10 22.5a7.6 7.6 0 0 1-5.8-3.9c-1.6-3-.8-6.3 1.3-8.6.3 2 1.3 3.3 2.6 3.9-.6-4.3.6-8.6 1.9-12.4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+const FLAME = '<svg class="flame" width="15" height="20" viewBox="6.4 0.8 11.2 15.2" aria-hidden="true"><g transform="translate(12 0) scale(.82 1) translate(-12 0)" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"><path class="fo" vector-effect="non-scaling-stroke" d="M12 15.2c-3.6-.6-5.6-2.6-5.4-5.4.1-1.6.9-2.6 1.6-3.6.1 1.4.6 2.3 1.3 2.7-.4-2.4.2-5 1.5-7.4.4 2.4 1.4 3.6 2.4 4.6.4-1.4 1-2.4 2-3.2-.3 1.8 0 3.2.8 4.4.5-.6.8-1.4.9-2.4 1 1.4 1.4 3 1.2 4.6-.3 3.1-2.4 5.2-6.3 5.7z"/><path class="fi" vector-effect="non-scaling-stroke" d="M12 15c-1.6-.4-2.4-1.4-2.3-2.8 0-.8.4-1.4.8-1.9.1.7.4 1.1.7 1.2-.1-1.2.3-2.4.9-3.4.3 1 .9 1.7 1.4 2.4.6.8.8 1.6.6 2.4-.2 1.1-1 1.8-2.1 2.1z"/></g></svg>';
 function libView() {
   S.lib ??= {};
   S.lib = Object.assign({ mine: false, fav: false, src: [], form: [], from: YMIN, to: YMAX, undated: true, sort: 'author', dir: 1 }, S.lib);

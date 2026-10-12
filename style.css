@@ -418,11 +418,12 @@ dialog[open]{margin:max(4vh,24px) auto auto;max-height:calc(100dvh - max(4vh,24p
 
 /* favourites star in the Library */
 dialog .item .star{flex:none;background:none;border:0;padding:.25rem .35rem;line-height:0;color:var(--mut)}
-dialog .item .star .flame{fill:none}
+dialog .flame path{fill:none}
 dialog .item .star.on{color:#e0702a}
-dialog .item .star.on .flame{fill:#f0a030;stroke:#e0702a}
-dialog .chip2 .flame{width:11px;height:13px;fill:none;vertical-align:-2px;margin-right:.3rem}
-dialog .chip2.on .flame{fill:currentColor}
+dialog .item .star.on .flame .fo{fill:#f0a030}
+dialog .item .star.on .flame .fi{fill:#ffd36a}
+dialog .chip2 .flame{width:11px;height:15px;vertical-align:-3px;margin-right:.3rem}
+dialog .chip2.on .flame .fo{fill:currentColor}
 /* reading mode: the text alone, full screen */
 body.reading #top,body.reading #divider,body.reading #dictPane,body.reading #fabBar{display:none!important}
 body.reading #panes{grid-template-columns:1fr!important;grid-template-rows:1fr!important}
