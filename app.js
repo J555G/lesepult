@@ -202,7 +202,8 @@ async function importPackage(file, progress, version = null) {
     await put('dicts', { id: p.id, kind: p.kind, name: p.name, source: p.source, license: p.license, count: p.count, version, size: info.size });
     return;
   }
-  await deleteDict(p.id);
+  // no deletion first: buckets are overwritten one by one and stale ones removed at the end,
+  // so an interrupted update never leaves the dictionary missing
   const items = Object.entries(p.buckets).map(([b, v]) => Object.assign({ b }, v));
   progress(0, `${p.name}: ${p.count.toLocaleString('en')} ${p.kind === 'morph' ? 'forms' : 'entries'} …`);
   const ddb = await dictDB(p.id);
@@ -211,6 +212,10 @@ async function importPackage(file, progress, version = null) {
     for (const it of items.slice(i, i + 300)) os.put(it);
     await done(t); progress(Math.min(1, (i + 300) / items.length));
   }
+  { const keep = new Set(Object.keys(p.buckets)); const t = ddb.transaction('b', 'readwrite'); const os = t.objectStore('b');
+    for (const k of await req2p(os.getAllKeys())) if (!keep.has(k)) os.delete(k);
+    await done(t); }
+  bucketCache.clear();
   if (p.lemmapos) await setting('lemmapos', p.lemmapos);
   await put('dicts', { id: p.id, kind: p.kind, name: p.kind === 'morph' ? 'Morphological analysis' : p.name, title: p.title, lang: p.lang,
                        order: p.order ?? 99, source: p.source, license: p.license, count: p.count, split: p.split, version, size: info.size });
@@ -730,7 +735,7 @@ async function cleanStorage() {
 }
 // Frisk and Bailly may not be published: they live in a PRIVATE GitHub repository, read with a personal
 // access token that is stored only on this device (☰ → Dictionaries → Private dictionaries).
-async function privCfg() { return (await setting('privRepo')) || { repo: 'J555G/lesepult-private', token: '' }; }
+async function privCfg() { return (await setting('privRepo')) || { repo: 'J555G/lesepult_private', token: '' }; }
 async function privFetch(cfg, path) {
   const r = await fetch(`https://api.github.com/repos/${cfg.repo}/contents/${path}`, {
     cache: 'no-store', headers: { Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github.raw', 'X-GitHub-Api-Version': '2022-11-28' } });
@@ -863,6 +868,7 @@ function paintDL(id, text) {
 }
 function queueDownload(id) {
   if (DL.has(id)) return;
+  navigator.storage?.persist?.().catch(() => { });
   DL.set(id, -1); paintDL(id); runDownloads();
 }
 async function runDownloads() {
@@ -1239,12 +1245,14 @@ async function libraryDialog() {
   const [cat, inst] = await Promise.all([fetchCatalog(), libWorks()]);
   S.libInst = Object.fromEntries(inst.map(w => [w.id, w]));
   const tot = inst.reduce((a, w) => a + (w.size || 0), 0);
+  let pers = '';
+  try { pers = (await navigator.storage?.persisted?.()) ? ' Downloads stay on this device until you delete them.' : ' <b>Storage is not yet protected</b> – start the app from its Home Screen icon so that the device does not clear downloads automatically.'; } catch (_) { }
   dialog(`<h3>Library</h3>
     <div class="libtop"><input type="search" id="libSearch" placeholder="Search authors and works (English, Latin or Greek)…" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(S.libQ)}">
     <label class="sw"><input type="checkbox" id="libMine"${S.libMine ? ' checked' : ''}> On this device</label></div>
     <div class="list lib" id="libList"></div>
     ${!cat ? '<p class="hint">The catalogue could not be loaded (offline?). Downloaded works are listed below.</p>' : S.catOnline ? '' : '<p class="hint">Offline – showing the last known catalogue; downloads need a connection.</p>'}
-    <small>${inst.length} work${inst.length === 1 ? '' : 's'} on this device${tot ? ` (≈ ${mb(tot)})` : ''}${cat ? ` · ${cat.authors.length} authors, ${Object.keys(S.catWork).length.toLocaleString('en')} works available` : ''}.<br>
+    <small>${inst.length} work${inst.length === 1 ? '' : 's'} on this device${tot ? ` (≈ ${mb(tot)})` : ''}${cat ? ` · ${cat.authors.length} authors, ${Object.keys(S.catWork).length.toLocaleString('en')} works available` : ''}.${pers}<br>
     Greek texts: Perseus Digital Library (canonical-greekLit) and Open Greek and Latin (First1KGreek), licensed CC BY-SA 4.0. Long works are divided into books; small sections are grouped into parts.</small>`,
     [['cancel', 'Close']]).then(r => { if (r.action === 'cancel') S.libScroll = 0; });
   if (!cat && !inst.length) S.libMine = false;
@@ -1285,6 +1293,7 @@ function wireLibrary() {
     if (all) {
       ev.preventDefault();
       const a = libAuthors().find(x => x.id === all.dataset.all);
+      navigator.storage?.persist?.().catch(() => { });
       for (const w of libFilter(a)) if (!S.libInst[w.id]) { DL.set('work:' + w.id, -1); }
       S.libOpen.add(a.id); renderLibList(); runDownloads(); return;
     }
