@@ -124,7 +124,7 @@ const POS = [   // id, label, default colour
   ['article', 'Article', '#8a8a8a'], ['pron', 'Pronoun', '#b05a1f'], ['verb', 'Verb (finite)', '#c0262d'],
   ['part', 'Participle', '#d9762b'], ['inf', 'Infinitive', '#b8476f'], ['adv', 'Adverb', '#0f8a8a'],
   ['prep', 'Preposition', '#7a6a2e'], ['conj', 'Conjunction', '#4b6b2a'], ['ptcl', 'Particle', '#9a7b00'],
-  ['num', 'Numeral', '#555599'], ['other', 'Other / unknown', '#666666'],
+  ['num', 'Numeral', '#555599'], ['other', 'Other / unknown', '#666666'], ['punct', 'Punctuation marks', '#b4b4b4'],
 ];
 const UPOS2 = { NOUN: 'noun', PROPN: 'proper', ADJ: 'adj', PRON: 'pron', DET: 'pron', VERB: 'verb', AUX: 'verb', ADV: 'adv',
   ADP: 'prep', CCONJ: 'conj', SCONJ: 'conj', PART: 'ptcl', INTJ: 'ptcl', NUM: 'num' };
@@ -148,7 +148,8 @@ function posOf(lemma, anas) {
 function applyPosColors() {
   const st = $('#posStyle') || document.head.appendChild(Object.assign(document.createElement('style'), { id: 'posStyle' }));
   st.textContent = !S.posOn ? '' : POS.filter(([id]) => S.posCfg[id]?.on !== false)
-    .map(([id]) => `body.pos .w.p-${id}>.g{color:${S.posCfg[id]?.c || '#000'}}`).join('\n');
+    .map(([id]) => id === 'punct' ? `body.pos #textBody .pn,body.pos #textBody .w .pu{color:${S.posCfg[id]?.c || '#999'}}`
+      : `body.pos .w.p-${id}>.g{color:${S.posCfg[id]?.c || '#000'}}`).join('\n');
   document.body.classList.toggle('pos', S.posOn);
   $('#btnPos').classList.toggle('on', S.posOn); $('#btnPos').setAttribute('aria-pressed', S.posOn);
 }
@@ -348,7 +349,7 @@ function renderText() {
     if (tk.t === 'p') {
       const s0 = tk.glued ? tk.s.slice(tk.glued) : tk.s;
       if (!s0) continue;
-      html += s0.split(/\n\s*\n/).map(p => esc(p).replace(/\n/g, '<br>')).join('</div><div class="para">');
+      html += s0.split(/\n\s*\n/).map(p => punctHTML(p).replace(/\n/g, '<br>')).join('</div><div class="para">');
       continue;
     }
     let gs = (gl[tk.i] || []).map(g => `<span data-g="${g.id}"${g.e > g.s ? ` title="gloss for ${g.e - g.s + 1} words"` : ''}>${g.e > g.s ? '⟨' : ''}${glossHTML(g.t)}${g.e > g.s ? '⟩' : ''}</span>`).join('');
@@ -375,6 +376,8 @@ function glW(html) {
   return n > 70 ? ` style="--gw:${Math.round(n / 5)}em"` : '';
 }
 function setGlossMax() { const b = $('#textBody'); if (b) b.style.setProperty('--glmax', Math.round(b.clientWidth * 0.8) + 'px'); }
+// punctuation between words gets its own element, so that it can be coloured (Colours → Punctuation marks)
+const punctHTML = t => t.split(/(\s+)/).map(x => /\S/.test(x) ? `<span class="pn">${esc(x)}</span>` : esc(x)).join('');
 function dgHTML(tk) {
   const dg = tk.lemma && S.lemmaGloss[gkey(tk.lemma)];
   return dg ? `<span class="dg" data-dg="${esc(gkey(tk.lemma))}" title="default gloss for ${esc(tk.lemma)}">${glossHTML(dg)}</span>` : '';
