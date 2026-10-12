@@ -196,15 +196,17 @@ async function resolveTokens1(run) {
     if (run !== resolveTokens.run) return;           // a newer run has started
     const l = A.pick; const x = A.lemmas.find(z => z.lemma === l);
     tk.lemma = l || null; tk.pos = posOf(l, x?.ana);
+    tk.q = x?.q ? qCommon(x.q) : null;                 // Latin: the vowel quantities all analyses of the lemma agree on
     const el = S.wordEls?.[tk.i];          // words are numbered in document order (a selector per word is slow in long books)
     el?.classList.add('p-' + tk.pos);
+    if (el && tk.q && S.latQuant) { const t = el.querySelector('.g').firstChild; if (t?.nodeType === 3) t.nodeValue = tk.q; }
     if (el && l && S.lemmaGloss[gkey(l)]) {
       if (!S.covered?.has(tk.i)) { const g = el.querySelector('.gl'), h = dgHTML(tk); g.innerHTML = h; const m = glW(h).match(/--gw:(\d+em)/); if (m) g.style.setProperty('--gw', m[1]); }
       else if (S.glossMode === 'both') S.dgPending = true;          // words with their own gloss: redraw at the end
     }
   }
 }
-function resetTokens(pred = () => true) { for (const tk of S.tokens) if (pred(tk)) { delete tk.lemma; delete tk.pos; } }
+function resetTokens(pred = () => true) { for (const tk of S.tokens) if (pred(tk)) { delete tk.lemma; delete tk.pos; delete tk.q; } }
 const classifyTokens = resolveTokens;
 
 // ---------------------------------------------------------------- package import
@@ -238,7 +240,7 @@ async function importPackage(file, progress, version = null) {
     const ddb = await dictDB(p.id);
     { const t = ddb.transaction('b', 'readwrite'); t.objectStore('b').put({ b: 'engine', e: p.engine }); await done(t); }
     await put('dicts', { id: p.id, kind: p.kind, name: p.name, src: 'la', source: p.source, license: p.license, count: p.count, version, size: info.size });
-    S.latEngine = null; progress(1);
+    S.latEngine = null; S.colEngine = undefined; progress(1);
     return;
   }
   if (p.kind === 'morphhints') {               // small: preferred lemmata + word classes (treebank data)
@@ -324,9 +326,9 @@ function latAnalyzeKeyC(E, k) {         // Collatinus
   for (let i = 0; i <= k.length; i++) {
     const ds = E.D[k.slice(i)]; if (!ds) continue;
     const rs = E.R[k.slice(0, i)]; if (!rs) continue;
-    for (const [li, nr] of rs) {
+    for (const [li, nr, rq] of rs) {
       const m = E.L[li][1];
-      for (const [mi, mo, dnr] of ds) if (mi === m && dnr === nr && !(X[li] && X[li].includes(mo))) out.push([li, mo]);
+      for (const [mi, mo, dnr, dq] of ds) if (mi === m && dnr === nr && !(X[li] && X[li].includes(mo))) out.push([li, mo, rq != null && dq != null ? rq + dq : null]);
     }
   }
   for (const v of E.I[k] || []) out.push(v);
@@ -354,11 +356,35 @@ function wwAnalyzeKey(E, k) {
   return out;
 }
 const latFreq = (E, li) => typeof li !== 'number' ? 9 : E.type === 'whitaker' ? E.L[li][5] : E.L[li][3];
+// vowel quantities (graphy of radical + ending, e.g. rŏsā) put onto the form as it stands in the text:
+// its case, its i/j and u/v are kept; only macron and breve are taken over; an enclitic stays unmarked; null if the two do not match letter by letter
+const CONS = /^[bcdfghklmnpqrstvxzj]$/;
+function quantify(form, q) {
+  if (!q) return null;
+  const us = []; for (const ch of q.normalize('NFD')) { if (/\p{M}/u.test(ch)) { if (us.length && (ch === '\u0304' || ch === '\u0306')) us[us.length - 1].m += ch; } else us.push({ b: latkey(ch), m: '' }); }
+  let j = 0, out = '';
+  for (const c of form.normalize('NFC')) {
+    const kc = latkey(c), base = c.normalize('NFD')[0];
+    if (j >= us.length) { out += c; continue; }                                  // -que, -ne, -ve
+    if (kc.length !== 1) { if (us.slice(j, j + kc.length).map(u => u.b).join('') !== kc) return null; j += kc.length; out += c; continue; }   // æ, œ
+    const u = us[j++];
+    if (u.b !== kc && !(CONS.test(u.b) && CONS.test(kc))) return null;         // assimilated prefix: adc- / acc-
+    out += base + (u.b === kc ? u.m : '');
+  }
+  return j < us.length ? null : out.normalize('NFC');
+}
+// the marks all variants agree on (rŏsă / rŏsā -> rŏsa)
+function qCommon(qs) {
+  qs = [...new Set(qs.filter(Boolean))]; if (qs.length < 2) return qs[0] || null;
+  const sp = q => { const a = []; for (const ch of q.normalize('NFD')) /\p{M}/u.test(ch) && a.length ? a[a.length - 1] += ch : a.push(ch); return a; };
+  const A = qs.map(sp); if (A.some(a => a.length !== A[0].length)) return null;
+  return A[0].map((u, i) => A.every(a => a[i] === u) ? u : u[0]).join('').normalize('NFC');
+}
 function latAnalyze(E, form) {
   const k = latkey(form);
   const latAnalyzeKey = E.type === 'whitaker' ? wwAnalyzeKey : latAnalyzeKeyC;
   let r = latAnalyzeKey(E, k);
-  for (const [sh, lo] of E.C) if (k.endsWith(sh)) r = r.concat(latAnalyzeKey(E, k.slice(0, k.length - sh.length) + lo));   // amarunt = amaverunt
+  for (const [sh, lo] of E.C) if (k.endsWith(sh)) r = r.concat(latAnalyzeKey(E, k.slice(0, k.length - sh.length) + lo).map(([li, mo]) => [li, mo, null]));   // amarunt = amaverunt
   for (const [a, b] of E.A) {                                                                                          // adc- / acc-
     if (k.startsWith(a)) r = r.concat(latAnalyzeKey(E, b + k.slice(a.length)));
     else if (k.startsWith(b)) r = r.concat(latAnalyzeKey(E, a + k.slice(b.length)));
@@ -366,7 +392,7 @@ function latAnalyze(E, form) {
   let enc = '';
   if (!r.length) for (const e of ['que', 'ne', 've']) if (k.length > e.length + 1 && k.endsWith(e)) { r = latAnalyzeKey(E, k.slice(0, -e.length)); if (r.length) { enc = e; break; } }
   const seen = new Set(), res = [];
-  for (const [li, mo] of r) { const id = li + ':' + mo; if (!seen.has(id)) { seen.add(id); res.push([typeof li === 'number' ? E.L[li][0] : li, E.M[mo] + (enc ? ' + -' + enc : ''), li]); } }
+  for (const [li, mo, q] of r) { const id = li + ':' + mo; if (!seen.has(id)) { seen.add(id); res.push([typeof li === 'number' ? E.L[li][0] : li, E.M[mo] + (enc ? ' + -' + enc : ''), li, quantify(form, q)]); } }
   return res;
 }
 async function latEngine() {
@@ -384,14 +410,31 @@ async function latEngine() {
   })();
   return S.latEngineP;
 }
+// Whitaker's Words has no vowel quantities: they come from Collatinus (when installed), same lemma and the closest analysis
+async function colEngine() {
+  const d = S.latMorphs.find(x => x.id === 'morph-la'); if (!d) return null;
+  if (S.colEngine !== undefined && S.colEngineId === d.id) return S.colEngine;
+  const r = await req2p((await dictDB(d.id)).transaction('b').objectStore('b').get('engine'));
+  S.colEngineId = d.id; return (S.colEngine = r?.e?.type ? null : (r?.e || null));
+}
+const QTOK = new Set('nom voc acc gen dat abl loc sg pl masc fem neut 1st 2nd 3rd pres impf fut perf plup futperf ind subj imperat inf part act pass comp superl gerundive supine'.split(' '));
+function qFromCol(cres, lemma, label) {
+  const lk = latkey(lemma).replace(/\d+$/, ''), toks = new Set(label.split(/[\s,]+/).filter(t => QTOK.has(t)));
+  const cands = cres.filter(c => c[3] && latkey(c[0]).replace(/\d+$/, '') === lk);
+  if (!cands.length) return null;
+  const score = c => c[1].split(/[\s,]+/).filter(t => toks.has(t)).length;
+  const top = Math.max(...cands.map(score)), best = cands.filter(c => score(c) === top);
+  return qCommon(best.map(c => c[3]));
+}
 async function latAnalyses(form, choices) {
   const f = latkey(form), E = await latEngine();
-  const res = E ? latAnalyze(E, form) : [];
+  let res = E ? latAnalyze(E, form) : [];
+  if (E?.type === 'whitaker' && res.length) { const C = await colEngine(); if (C) { const cres = latAnalyze(C, form); res = res.map(([l, a, li]) => [l, a, li, qFromCol(cres, l, a)]); } }
   const choice = choices ? choices.get(f) : await get('choices', f);
   const lemmas = []; let best = null, bestN = -1;
-  for (const [l, a, li] of res) {
-    let x = lemmas.find(z => z.lemma === l); if (!x) lemmas.push(x = { lemma: l, ana: [] });
-    if (!x.ana.includes(a)) x.ana.push(a);
+  for (const [l, a, li, q] of res) {
+    let x = lemmas.find(z => z.lemma === l); if (!x) lemmas.push(x = { lemma: l, ana: [], q: [] });
+    if (!x.ana.includes(a)) { x.ana.push(a); x.q.push(q || null); }
     const fq = latFreq(E, li); if (fq > bestN) { bestN = fq; best = l; }    // the more frequent lemma first
   }
   lemmas.sort((a, b) => (a.lemma === best ? -1 : b.lemma === best ? 1 : 0));
@@ -465,7 +508,7 @@ function renderText() {
     const nx = toks[n + 1]; let pu = '';
     if (nx && nx.t === 'p') { const m = nx.s.match(/^[^\sͰ-Ͽἀ-῿A-Za-zÀ-ɏ]+/); if (m) { pu = m[0]; nx.glued = pu.length; } }
     if (S.marker === tk.i) html += '<span class="mkr" title="Marker"></span>';
-    html += `<span class="w${covered.has(tk.i) ? ' glossed' : ''}${tk.pos ? ' p-' + tk.pos : ''}" data-i="${tk.i}"><span class="g">${esc(tk.s)}${pu ? `<span class="pu">${esc(pu)}</span>` : ''}</span><span class="gl"${glW(gs)}>${gs}</span></span>`;
+    html += `<span class="w${covered.has(tk.i) ? ' glossed' : ''}${tk.pos ? ' p-' + tk.pos : ''}" data-i="${tk.i}"><span class="g">${esc(S.latQuant && tk.q ? tk.q : tk.s)}${pu ? `<span class="pu">${esc(pu)}</span>` : ''}</span><span class="gl"${glW(gs)}>${gs}</span></span>`;
   }
   const w = S.text.work, bi = S.text.bi;
   const bn = w && w.books.length > 1 ? `<div class="booknav">${bi > 0 ? `<button type="button" data-step="-1">◂ ${esc(w.books[bi - 1])}</button>` : '<span></span>'}${bi < w.books.length - 1 ? `<button type="button" data-step="1">${esc(w.books[bi + 1])} ▸</button>` : ''}</div>` : '';
@@ -721,9 +764,12 @@ async function renderView() {
   v.pick = lemma;
   const k = gkey(lemma);
   v.key = k;
-  let h = `<div class="form">${esc(v.form)}</div>`;
+  // Latin: the form with its vowel lengths (macron long, breve short) – one per distinct reading of the chosen lemma
+  const px = A.lemmas.find(x => x.lemma === lemma), qs = [...new Set((px?.q || []).filter(Boolean))];
+  let h = `<div class="form">${qs.length ? qs.slice(0, 3).map(esc).join(' <span class="qor">/</span> ') : esc(v.form)}</div>`;
   if (A.lemmas.length) {
-    h += '<div class="anas">' + A.lemmas.map(x => `<button class="chip${x.lemma === lemma ? ' on' : ''}" data-lemma="${esc(x.lemma)}"><b>${esc(x.lemma)}</b><small>${esc(x.ana.slice(0, 4).join(' · '))}${x.ana.length > 4 ? ' …' : ''}</small></button>`).join('') + '</div>';
+    const anaHTML = x => x.ana.slice(0, 4).map((a, i) => (x.q?.[i] ? `<span class="qf">${esc(x.q[i])}</span> ` : '') + esc(a)).join(' · ');
+    h += '<div class="anas">' + A.lemmas.map(x => `<button class="chip${x.lemma === lemma ? ' on' : ''}" data-lemma="${esc(x.lemma)}"><b>${esc(x.lemma)}</b><small>${anaHTML(x)}${x.ana.length > 4 ? ' …' : ''}</small></button>`).join('') + '</div>';
     if (A.lemmas.length > 1) h += `<div class="pin">${A.chosen && A.pick === lemma ? '★ default for this form' : `<button data-pin="${esc(lemma)}">★ always use ${esc(lemma)} for “${esc(A.f)}”</button>`}</div>`;
   } else if (lang === 'la' ? S.latMorph : S.morph) {
     h += '<p class="note">Form not found in the morphological analysis – looking up the form itself.</p>';
@@ -1070,7 +1116,7 @@ async function setLangTool(lang, id) {
   const off = new Set(S.dictPrefs.off);
   for (const d of langTools(lang)) d.id === id ? off.delete(d.id) : off.add(d.id);
   S.dictPrefs.off = [...off]; await setting('dictPrefs', S.dictPrefs);
-  await loadDicts(); bucketCache.clear(); S.latEngine = null;
+  await loadDicts(); bucketCache.clear(); S.latEngine = null; S.colEngine = undefined;
   resetTokens(); renderText(); resolveTokens(); if (S.view) renderView();
 }
 async function settingsDialog() {
@@ -1086,7 +1132,9 @@ async function settingsDialog() {
     <section class="dsec"><h4>Languages</h4>
       <p class="hint small">The language of each word follows from its alphabet. Choose the tool that finds lemma and form for each language; the dictionaries per language are in ☰ → Dictionaries.</p>
       <div class="langrow"><span>Greek</span>${toolSel('grc')}</div>
-      <div class="langrow"><span>Latin</span>${toolSel('la')}</div></section>
+      <div class="langrow"><span>Latin</span>${toolSel('la')}</div>
+      <label class="opt"><input type="checkbox" data-set="latQuant"${S.latQuant ? ' checked' : ''}> Show vowel lengths in Latin texts (ā long, ă short)</label>
+      <p class="hint small">Vowel lengths come from Collatinus; with Whitaker’s Words they need Collatinus installed as well. Where a form has several readings, only the lengths they share are marked in the text.</p></section>
     <section class="dsec"><h4>Glosses</h4>
       <p class="hint small">A word can have its own gloss, and its lemma can have a default gloss that applies everywhere.</p>
       <label class="opt"><input type="radio" name="glossMode" value="replace" data-set="glossMode"${S.glossMode !== 'both' ? ' checked' : ''}> A word’s own gloss replaces the default gloss</label>
@@ -1311,8 +1359,9 @@ function wire() {
   });
   document.addEventListener('change', ev => { const sl = ev.target.closest?.('select[data-langtool]'); if (sl) setLangTool(sl.dataset.langtool, sl.value); });
   document.addEventListener('change', async ev => {      // settings take effect immediately
-    const k = ev.target.dataset?.set; if (!k || !ev.target.checked) return;
+    const k = ev.target.dataset?.set; if (!k || (ev.target.type === 'radio' && !ev.target.checked)) return;
     if (k === 'theme') setTheme(ev.target.value, true);
+    if (k === 'latQuant') { S.latQuant = ev.target.checked; await setting('latQuant', S.latQuant); renderText(); }
     if (k === 'glossMode') { S.glossMode = ev.target.value; await setting('glossMode', S.glossMode); renderText(); }
   });
   document.addEventListener('change', ev => { if (ev.target.id === 'optSrcCol') { S.srcColors = ev.target.checked; setting('srcColors', S.srcColors); document.body.classList.toggle('nosrccol', !S.srcColors); } });
@@ -1867,6 +1916,7 @@ function wireMarker() {
   wire();
   setTheme((await setting('theme')) || 'dark');
   S.glossMode = (await setting('glossMode')) || 'replace';
+  S.latQuant = !!(await setting('latQuant'));
   for (const r of await getAll('settings', IDBKeyRange.bound('lg|', 'lg|\uffff'))) S.lemmaGloss[r.k.slice(3)] = r.v;
   await loadDicts();
   setGlossVisible((await setting('showGloss')) !== false);

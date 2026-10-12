@@ -76,6 +76,8 @@ body.nogloss .w.glossed>.g{text-decoration:none}
 .chip.on{background:var(--card);color:var(--fg);border-color:var(--acc);box-shadow:0 0 0 2px var(--acc)}
 .w .pu{color:var(--fg)}
 .chip small{color:var(--mut);display:block}
+.chip small .qf{color:var(--fg);font-style:italic}
+.form .qor{color:var(--mut);font-weight:400}
 .pin{font:12px var(--ui);color:var(--mut);margin:-.2rem 0 .5rem}
 .pin button{font-size:12px;padding:.1rem .45rem}
 details.src{border-top:1px solid var(--line);padding:.15rem 0}
