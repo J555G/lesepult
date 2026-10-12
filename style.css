@@ -447,3 +447,15 @@ dialog .cslider input[type=range]{-webkit-tap-highlight-color:transparent;outlin
 dialog .cslider .knob{position:absolute;top:8px;width:18px;height:18px;margin-left:-9px;border-radius:50%;background:var(--card);border:2px solid var(--acc);box-sizing:border-box;pointer-events:none}
 dialog .cslider .knob.ka{left:var(--a)}
 dialog .cslider .knob.kb{left:var(--b)}
+/* Latin dictionaries (Lewis & Short, Georges): senses as indented paragraphs */
+.ent-la .hw-o{font-size:17px}
+.ent-la .sn{margin:.25rem 0}
+.ent-la .sn.l2{margin-left:1em}.ent-la .sn.l3{margin-left:2em}.ent-la .sn.l4{margin-left:3em}.ent-la .sn.l5{margin-left:4em}
+.ent-la .it,.ent-la .gn,.ent-la .ps{color:var(--mut)}
+.ent-la .au{color:var(--mut)}
+.ent-la .au .au{color:inherit}
+.ent-la .q{color:var(--fg)}
+.ent-la .lab{font:11px var(--ui);color:var(--mut);border:1px solid var(--line);border-radius:4px;padding:0 .25rem;margin-right:.3rem}
+dialog .langrow{display:flex;align-items:center;gap:.8rem;margin:.35rem 0}
+dialog .langrow>span{width:4rem;color:var(--mut)}
+dialog .langrow select{font:15px var(--ui);padding:.3rem .5rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}

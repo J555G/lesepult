@@ -8,6 +8,10 @@ Only freely licensed material is published here.
 | `pape.gdpkg.gz` | W. Pape, *Handwörterbuch der griechischen Sprache*, 3rd ed. (1914) | Eulexis data (Philipp Roelli, rev. Chaeréphon / André Charbonnet and Jean-Paul Woitrain), https://github.com/PhVerkerk/Eulexis_off_line | GNU GPL v3 |
 | `lsj.gdpkg.gz` | Liddell–Scott–Jones, *A Greek–English Lexicon*, 9th ed. | Eulexis data (Philipp Roelli, rev. Chaeréphon / André Charbonnet), same repository | GNU GPL v3 |
 | `morph.gdpkg.gz` | Greek word forms → lemma + morphological analysis | Eulexis `analyses_gr.txt` (from Diogenes / Perseus Morpheus), same repository | GNU GPL v3 |
+| `ls.gdpkg.gz` | Lewis & Short, *A Latin Dictionary* (1879) | Perseus Digital Library, https://github.com/PerseusDL/lexica | CC BY-SA 4.0 (text provided by Perseus Digital Library, http://www.perseus.tufts.edu, with funding from The National Endowment for the Humanities) |
+| `georges.gdpkg.gz` | K. E. Georges, *Ausführliches lateinisch-deutsches Handwörterbuch*, 8th ed. (1913) | TEI edition by Thibault Clérice, https://github.com/PonteIneptique/K-E-Georges-1913-TEI | public domain (text) |
+| `collatinus.gdpkg.gz` | short meanings (English, German, French) of the Collatinus lexicon | Collatinus (Yves Ouvrard, Philippe Verkerk), https://github.com/biblissima/collatinus | GNU GPL v3 |
+| `morph-la.gdpkg.gz` | Latin morphology: lemmata, inflection models, irregular forms (the app analyses forms from them as Collatinus does) | Collatinus, same repository | GNU GPL v3 |
 | `morphhints.gdpkg.gz` | Preferred lemma for ambiguous forms; most frequent word class per lemma | Derived from the Universal Dependencies Ancient Greek treebanks (PROIEL, Perseus), https://universaldependencies.org | CC BY-NC-SA (as the treebanks) |
 
 The packages are a reformatted conversion of the sources above (grouped by lookup key, gzip-compressed JSON),

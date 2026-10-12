@@ -8,10 +8,22 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const GREEK_TOKEN = /[Ͱ-Ͽἀ-῿][Ͱ-Ͽἀ-῿̀-ͯ]*[ʼ’'᾽]?/g;
 const ELISION = /[ʼ'᾽]/g;
+// Latin words: the same tokenizer finds them; a word's language follows from its alphabet
+const LATIN_TOKEN = /[A-Za-zÀ-ɏ][A-Za-zÀ-ɏ\u0300-\u036f]*/;
+const WORD_TOKEN = new RegExp(GREEK_TOKEN.source + '|' + LATIN_TOKEN.source, 'g');
+const isGreek = s => /[Ͱ-Ͽἀ-῿]/.test(s || '');
+const langOf = s => isGreek(s) ? 'grc' : 'la';
+const LANGS = { grc: 'Greek', la: 'Latin' };
+function latkey(s) {              // Latin lookup key: lower case, no diacritics, j -> i, v -> u
+  return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/æ/g, 'ae').replace(/Æ/g, 'Ae').replace(/œ/g, 'oe').replace(/Œ/g, 'Oe')
+    .toLowerCase().replace(/j/g, 'i').replace(/v/g, 'u');
+}
 function canon(s) {               // exact form: circumflex fixed, grave -> acute, elision mark unified, lower case
+  if (!isGreek(s)) return latkey(s);
   return s.normalize('NFD').replace(/̃/g, '͂').replace(/̀/g, '́').normalize('NFC').replace(ELISION, '’').toLowerCase();
 }
 function gkey(s) {                // accent-insensitive key
+  if (!isGreek(s)) return latkey(s).replace(/[^a-z]/g, '');
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/ς/g, 'σ').replace(/[^Ͱ-Ͽ]/g, '');
 }
 function stripSecondAccent(f) {  // enclitic accent: αἴτιός -> αἴτιος, μεῖζόν -> μεῖζον
@@ -134,11 +146,12 @@ function posOf(lemma, anas) {
   if (k === 'ο') return 'article';
   if (PARTICLES.has(k)) return 'ptcl';
   const a = anas || [];
-  if (a.some(x => /\bpart\b/.test(x))) return 'part';
+  if (a.some(x => /\bpart\b|\bgerundive\b/.test(x))) return 'part';
+  if (a.some(x => /\bsupine\b/.test(x))) return 'inf';
   if (a.some(x => /\b(ind|subj|opt|imperat)\b/.test(x))) return 'verb';
   if (a.some(x => /\binf\b/.test(x))) return 'inf';
   if (lemma && lemma[0] !== lemma[0].toLowerCase()) return 'proper';
-  const u = S.lemmapos[k];
+  const u = isGreek(lemma) ? S.lemmapos[k] : S.latPos?.[k];
   if (u && UPOS2[u]) return UPOS2[u];
   const tag = a.map(x => (x.match(/indeclform \(([^)]+)\)/) || [])[1]).find(Boolean);
   if (tag) return { adverb: 'adv', particle: 'ptcl', conj: 'conj', prep: 'prep', article: 'article', numeral: 'num', exclam: 'ptcl' }[tag] || 'other';
@@ -167,6 +180,7 @@ async function resolveTokens1(run) {
     if (!S.morph) return;
     const need = new Set();
     for (const tk of todo.slice(from, from + 1500)) {
+      if (!isGreek(tk.s)) continue;
       const f = canon(tk.s);
       for (const x of [f, stripSecondAccent(f)]) if (x) { const b = bucketOf(gkey(x), S.morph.splitSet); if (!bmap.has(b)) need.add(b); }
     }
@@ -219,6 +233,14 @@ async function deleteDict(id) {
 async function importPackage(file, progress, version = null) {
   const info = {}; const p = await readPackage(file, info);
   if (p.format !== 'greekdict-pkg-2') throw new Error(file.name + ': not a (current) dictionary package');
+  if (p.kind === 'latmorph') {                 // Latin analysis engine: one record
+    progress(0.5, `${p.name} …`);
+    const ddb = await dictDB(p.id);
+    { const t = ddb.transaction('b', 'readwrite'); t.objectStore('b').put({ b: 'engine', e: p.engine }); await done(t); }
+    await put('dicts', { id: p.id, kind: p.kind, name: p.name, src: 'la', source: p.source, license: p.license, count: p.count, version, size: info.size });
+    S.latEngine = null; progress(1);
+    return;
+  }
   if (p.kind === 'morphhints') {               // small: preferred lemmata + word classes (treebank data)
     await setting('morphPref', p.pref || {}); await setting('lemmapos', p.lemmapos || {});
     await put('dicts', { id: p.id, kind: p.kind, name: p.name, source: p.source, license: p.license, count: p.count, version, size: info.size });
@@ -239,12 +261,12 @@ async function importPackage(file, progress, version = null) {
     await done(t); }
   bucketCache.clear();
   if (p.lemmapos) await setting('lemmapos', p.lemmapos);
-  await put('dicts', { id: p.id, kind: p.kind, name: p.kind === 'morph' ? 'Morphological analysis' : p.name, title: p.title, lang: p.lang,
+  await put('dicts', { id: p.id, kind: p.kind, name: p.kind === 'morph' ? 'Greek morphology' : p.name, title: p.title, lang: p.lang, src: p.src || 'grc',
                        order: p.order ?? 99, source: p.source, license: p.license, count: p.count, split: p.split, version, size: info.size });
 }
 async function loadDicts() {
   const all = await getAll('dicts');
-  for (const d of all) d.splitSet = new Set(d.split || []);
+  for (const d of all) { d.splitSet = new Set(d.split || []); d.src ||= ['ls', 'georges', 'collatinus', 'morph-la'].includes(d.id) ? 'la' : 'grc'; }
   S.dicts = all.filter(d => d.kind === 'dictionary').sort((a, b) => (a.order ?? 99) - (b.order ?? 99) || a.name.localeCompare(b.name));
   // user's order and on/off choice (menu ☰ → Dictionaries); new dictionaries go to the end, switched on
   S.dictPrefs = Object.assign({ order: [], off: [], locked: [] }, (await setting('dictPrefs')) || {});
@@ -255,6 +277,8 @@ async function loadDicts() {
   const on = d => d && !S.dictPrefs.off.includes(d.id) ? d : null;
   S.morphInst = all.find(d => d.kind === 'morph') || null; S.morph = on(S.morphInst);
   S.hintsInst = all.find(d => d.kind === 'morphhints') || null; S.hints = on(S.hintsInst);
+  S.latMorphInst = all.find(d => d.kind === 'latmorph') || null; S.latMorph = on(S.latMorphInst);
+  if (S.morphInst?.name === 'Morphological analysis') S.morphInst.name = 'Greek morphology';
   const hintsOff = S.hintsInst && !S.hints;
   S.lemmapos = hintsOff ? {} : (await setting('lemmapos')) || {};
   S.morphPref = hintsOff ? {} : (await setting('morphPref')) || {};
@@ -279,6 +303,7 @@ async function bucket(dict, k) {
 
 // ---------------------------------------------------------------- lookup
 async function analyses(form, choices = null, bmap = null) {
+  if (!isGreek(form)) return latAnalyses(form, choices);
   const f = canon(form);
   const m = async x => { if (!S.morph) return null; const b = bmap ? bmap.get(bucketOf(gkey(x), S.morph.splitSet)) : await bucket(S.morph, gkey(x)); return b?.f?.[x] ? { a: b.f[x], p: b.p?.[x] ?? S.morphPref?.[x] } : null; };
   let r = await m(f);
@@ -292,9 +317,64 @@ async function analyses(form, choices = null, bmap = null) {
   const pick = choice?.lemma || r?.p || lemmas[0]?.lemma || null;
   return { f, lemmas, pick, chosen: !!choice };
 }
-async function entriesFor(k) {
+// ---- Latin: analysis as in Collatinus – a form is a radical of a lemma + an ending of the lemma's inflection model
+function latAnalyzeKey(E, k) {
+  const out = [], X = E.X;
+  for (let i = 0; i <= k.length; i++) {
+    const ds = E.D[k.slice(i)]; if (!ds) continue;
+    const rs = E.R[k.slice(0, i)]; if (!rs) continue;
+    for (const [li, nr] of rs) {
+      const m = E.L[li][1];
+      for (const [mi, mo, dnr] of ds) if (mi === m && dnr === nr && !(X[li] && X[li].includes(mo))) out.push([li, mo]);
+    }
+  }
+  for (const v of E.I[k] || []) out.push(v);
+  return out;
+}
+function latAnalyze(E, form) {
+  const k = latkey(form);
+  let r = latAnalyzeKey(E, k);
+  for (const [sh, lo] of E.C) if (k.endsWith(sh)) r = r.concat(latAnalyzeKey(E, k.slice(0, k.length - sh.length) + lo));   // amarunt = amaverunt
+  for (const [a, b] of E.A) {                                                                                          // adc- / acc-
+    if (k.startsWith(a)) r = r.concat(latAnalyzeKey(E, b + k.slice(a.length)));
+    else if (k.startsWith(b)) r = r.concat(latAnalyzeKey(E, a + k.slice(b.length)));
+  }
+  let enc = '';
+  if (!r.length) for (const e of ['que', 'ne', 've']) if (k.length > e.length + 1 && k.endsWith(e)) { r = latAnalyzeKey(E, k.slice(0, -e.length)); if (r.length) { enc = e; break; } }
+  const seen = new Set(), res = [];
+  for (const [li, mo] of r) { const id = li + ':' + mo; if (!seen.has(id)) { seen.add(id); res.push([E.L[li][0], E.M[mo] + (enc ? ' + -' + enc : ''), li]); } }
+  return res;
+}
+async function latEngine() {
+  if (!S.latMorph) return null;
+  if (S.latEngine && S.latEngineId === S.latMorph.id) return S.latEngine;
+  S.latEngineP ??= (async () => {
+    const ddb = await dictDB(S.latMorph.id);
+    const r = await req2p(ddb.transaction('b').objectStore('b').get('engine'));
+    S.latEngine = r?.e || null; S.latEngineId = S.latMorph.id;
+    S.latPos = {};
+    if (S.latEngine) for (const l of S.latEngine.L) if (l[2]) S.latPos[latkey(l[0])] ??= l[2];       // word classes for the colours
+    S.latEngineP = null;
+    return S.latEngine;
+  })();
+  return S.latEngineP;
+}
+async function latAnalyses(form, choices) {
+  const f = latkey(form), E = await latEngine();
+  const res = E ? latAnalyze(E, form) : [];
+  const choice = choices ? choices.get(f) : await get('choices', f);
+  const lemmas = []; let best = null, bestN = -1;
+  for (const [l, a, li] of res) {
+    let x = lemmas.find(z => z.lemma === l); if (!x) lemmas.push(x = { lemma: l, ana: [] });
+    if (!x.ana.includes(a)) x.ana.push(a);
+    if (E.L[li][3] > bestN) { bestN = E.L[li][3]; best = l; }          // the more frequent lemma first
+  }
+  lemmas.sort((a, b) => (a.lemma === best ? -1 : b.lemma === best ? 1 : 0));
+  return { f, lemmas, pick: choice?.lemma || best || null, chosen: !!choice };
+}
+async function entriesFor(k, lang = 'grc') {
   const by = {};
-  for (const d of S.shown) {
+  for (const d of S.shown.filter(d => d.src === lang)) {
     const b = await bucket(d, k); if (!b) continue;
     const es = (b.e || []).filter(e => e.k.includes(k)).map(e => Object.assign({ d: d.id }, e));
     if (es.length) by[d.id] = es.sort((x, y) => x.i - y.i);
@@ -312,7 +392,7 @@ async function entryByRef(dictId, [k, id]) {
 function tokenize(text, wi = 0) {
   const toks = []; let last = 0;
   text = text.normalize('NFC');
-  for (const m of text.matchAll(GREEK_TOKEN)) {
+  for (const m of text.matchAll(WORD_TOKEN)) {
     if (m.index > last) toks.push({ t: 'p', s: text.slice(last, m.index) });
     toks.push({ t: 'w', s: m[0], i: wi++ });
     last = m.index + m[0].length;
@@ -358,7 +438,7 @@ function renderText() {
     else if (S.glossMode === 'both' && tk.lemma) { const dg = S.lemmaGloss[gkey(tk.lemma)]; if (dg && !(gl[tk.i] || []).some(g => g.t === dg)) gs += dgHTML(tk); }
     // punctuation directly after the word stays on the same line as the word
     const nx = toks[n + 1]; let pu = '';
-    if (nx && nx.t === 'p') { const m = nx.s.match(/^[^\sͰ-Ͽἀ-῿]+/); if (m) { pu = m[0]; nx.glued = pu.length; } }
+    if (nx && nx.t === 'p') { const m = nx.s.match(/^[^\sͰ-Ͽἀ-῿A-Za-zÀ-ɏ]+/); if (m) { pu = m[0]; nx.glued = pu.length; } }
     if (S.marker === tk.i) html += '<span class="mkr" title="Marker"></span>';
     html += `<span class="w${covered.has(tk.i) ? ' glossed' : ''}${tk.pos ? ' p-' + tk.pos : ''}" data-i="${tk.i}"><span class="g">${esc(tk.s)}${pu ? `<span class="pu">${esc(pu)}</span>` : ''}</span><span class="gl"${glW(gs)}>${gs}</span></span>`;
   }
@@ -578,6 +658,7 @@ function goFwd() { if (!S.fwd?.length) return; S.hist.push(S.view); S.view = S.f
 async function renderView() {
   const body = $('#dictBody'); const v = S.view; if (!v) return;
   if (!S.dicts.length) { body.innerHTML = '<p class="hint">No dictionaries installed yet. Open the menu ☰ → Dictionaries and import the packages (*.gdpkg.gz).</p>'; return; }
+  const lang = langOf(v.form);
   const A = await analyses(v.form);
   const lemma = v.lemma || A.pick || v.form;
   v.pick = lemma;
@@ -587,14 +668,15 @@ async function renderView() {
   if (A.lemmas.length) {
     h += '<div class="anas">' + A.lemmas.map(x => `<button class="chip${x.lemma === lemma ? ' on' : ''}" data-lemma="${esc(x.lemma)}"><b>${esc(x.lemma)}</b><small>${esc(x.ana.slice(0, 4).join(' · '))}${x.ana.length > 4 ? ' …' : ''}</small></button>`).join('') + '</div>';
     if (A.lemmas.length > 1) h += `<div class="pin">${A.chosen && A.pick === lemma ? '★ default for this form' : `<button data-pin="${esc(lemma)}">★ always use ${esc(lemma)} for “${esc(A.f)}”</button>`}</div>`;
-  } else if (S.morph) {
+  } else if (lang === 'la' ? S.latMorph : S.morph) {
     h += '<p class="note">Form not found in the morphological analysis – looking up the form itself.</p>';
   }
   h += '<div id="glossbox" hidden></div>';
-  const by = await entriesFor(k);
+  const by = await entriesFor(k, lang);
   const openSet = new Set((await setting('open|' + k)) || []);
-  if (!S.shown.length) h += '<p class="hint">All dictionaries are switched off (menu ☰ → Dictionaries).</p>';
-  for (const d of S.shown) {
+  const shown = S.shown.filter(d => d.src === lang);
+  if (!shown.length) h += `<p class="hint">${S.dicts.some(d => d.src === lang) ? `All ${LANGS[lang]} dictionaries are switched off` : `No ${LANGS[lang]} dictionary installed`} (menu ☰ → Dictionaries).</p>`;
+  for (const d of shown) {
     let inner = '', has = false;
     const ents = by[d.id] || [];
     if (ents.length) { has = true; for (const e of ents) inner += await renderEntryHTML(e); }
@@ -845,11 +927,13 @@ async function dictsDialog() {
   const onBox = (id, what) => `<label class="sw" title="Use this ${what}"><input type="checkbox" data-dict-on="${id}"${S.dictPrefs.off.includes(id) ? '' : ' checked'}></label>`;
   const missingRow = p => `<div class="item"><span class="t"><b>${esc(p.name)}</b> ${esc(p.title || '')}<br><small>not on this device · ${(p.bytes / 1e6).toFixed(1)} MB${p.priv ? ' · private repository' : ''}</small></span>${repoBtn(p.id)}</div>`;
   // 1. dictionaries (drag to reorder, tick to show)
-  const rows = S.dicts.map(d => `<div class="item dictrow" data-id="${d.id}"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span>${onBox(d.id, 'dictionary')}<span class="t"><b>${esc(d.name)}</b> ${esc(d.title || '')}<br><small>${d.count.toLocaleString('en')} entries${sizeOf(d)} · ${esc(d.source || '')}</small></span>${repoBtn(d.id)}${delBtn(d.id)}</div>`).join('');
-  const missD = Object.values(remote).filter(p => !S.installed[p.id] && p.kind === 'dictionary').map(missingRow).join('');
+  const srcOf = p => p.src || (['ls', 'georges', 'collatinus', 'morph-la'].includes(p.id) ? 'la' : 'grc');
+  const rowsFor = lang => S.dicts.filter(d => d.src === lang).map(d => `<div class="item dictrow" data-id="${d.id}"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span>${onBox(d.id, 'dictionary')}<span class="t"><b>${esc(d.name)}</b> ${esc(d.title || '')}<br><small>${d.count.toLocaleString('en')} entries${sizeOf(d)} · ${esc(d.source || '')}</small></span>${repoBtn(d.id)}${delBtn(d.id)}</div>`).join('');
+  const missFor = lang => Object.values(remote).filter(p => !S.installed[p.id] && p.kind === 'dictionary' && srcOf(p) === lang).map(missingRow).join('');
   // 2. analysis tools (tick to use)
-  const tools = [S.morphInst && [S.morphInst, 'Lemma and form for every word of the text', `${S.morphInst.count.toLocaleString('en')} forms${sizeOf(S.morphInst)}`],
-                 S.hintsInst && [S.hintsInst, 'Preferred lemma for ambiguous forms; word classes for the colours', '']].filter(Boolean)
+  const tools = [S.morphInst && [S.morphInst, 'Greek: lemma and form for every word', `${S.morphInst.count.toLocaleString('en')} forms${sizeOf(S.morphInst)}`],
+                 S.hintsInst && [S.hintsInst, 'Greek: preferred lemma for ambiguous forms; word classes for the colours', ''],
+                 S.latMorphInst && [S.latMorphInst, 'Latin: lemma and form for every word', `${S.latMorphInst.count.toLocaleString('en')} lemmata${sizeOf(S.latMorphInst)}`]].filter(Boolean)
     .map(([d, what, sub]) => `<div class="item toolrow"><span class="grip ph" aria-hidden="true">⠿</span>${onBox(d.id, 'tool')}<span class="t"><b>${esc(d.name)}</b> <small>${esc(what)}</small><br><small>${sub ? sub + ' · ' : ''}${esc(d.source || '')}</small></span>${repoBtn(d.id)}${delBtn(d.id)}</div>`).join('');
   const missT = Object.values(remote).filter(p => !S.installed[p.id] && p.kind !== 'dictionary').map(missingRow).join('');
   let est = '', pers = '';
@@ -857,8 +941,9 @@ async function dictsDialog() {
   try { pers = (await navigator.storage?.persisted?.()) ? ' · protected: downloads stay until you delete them' : ' · <b>not yet protected</b> – start the app from its Home Screen icon'; } catch (_) { }
   const privState = privCfgNow.token ? (S.privErr ? '<span class="bad">' + esc(S.privErr) + '</span>' : '<span class="ok">connected</span>') : 'not connected';
   const r = await dialog(`<h3>Dictionaries</h3>
-    <section class="dsec"><h4>Dictionaries <small>drag ⠿ to change the order · untick to hide</small></h4>
-      <div class="list plain">${rows || missD ? rows + missD : '<p class="hint">No dictionaries installed.</p>'}</div></section>
+    ${Object.entries(LANGS).map(([lang, name]) => { const rs = rowsFor(lang), ms = missFor(lang);
+      return `<section class="dsec"><h4>${name} dictionaries <small>drag ⠿ to change the order · untick to hide</small></h4>
+      <div class="list plain dictlist">${rs || ms ? rs + ms : `<p class="hint">No ${name} dictionaries installed.</p>`}</div></section>`; }).join('')}
     <section class="dsec"><h4>Analysis tools <small>untick to switch off</small></h4>
       <div class="list plain">${tools || missT ? tools + missT : '<p class="hint">No analysis tools installed.</p>'}</div></section>
     ${man ? '' : '<p class="hint">The website could not be reached (offline?) – download buttons are not available right now. Everything already installed works offline.</p>'}
@@ -915,18 +1000,35 @@ function wireDictDrag() {
     if (!drag || e.pointerId !== drag.id) return;
     const { row, list } = drag; drag = null;
     row.classList.remove('dragging'); row.style.transform = '';
-    S.dictPrefs.order = [...list.querySelectorAll('.dictrow')].map(x => x.dataset.id);
+    S.dictPrefs.order = [...document.querySelectorAll('#dlg .dictrow')].map(x => x.dataset.id);    // all languages
     await setting('dictPrefs', S.dictPrefs); await loadDicts(); if (S.view) renderView();
   };
   document.addEventListener('pointerup', end);
   document.addEventListener('pointercancel', end);
 }
+// analysis tools per language (Settings → Languages); switching one on switches the others of that language off
+function langTools(lang) { return Object.values(S.installed || {}).filter(d => (lang === 'la' ? d.kind === 'latmorph' : d.kind === 'morph')); }
+async function setLangTool(lang, id) {
+  const off = new Set(S.dictPrefs.off);
+  for (const d of langTools(lang)) d.id === id ? off.delete(d.id) : off.add(d.id);
+  S.dictPrefs.off = [...off]; await setting('dictPrefs', S.dictPrefs);
+  await loadDicts(); bucketCache.clear(); S.latEngine = null;
+  resetTokens(); renderText(); resolveTokens(); if (S.view) renderView();
+}
 async function settingsDialog() {
+  await loadDicts();
   const dark = document.documentElement.dataset.theme === 'dark';
+  const toolSel = lang => { const ts = langTools(lang), cur = ts.find(d => !S.dictPrefs.off.includes(d.id));
+    return ts.length ? `<select data-langtool="${lang}">${ts.map(d => `<option value="${d.id}"${d === cur ? ' selected' : ''}>${esc(d.name)}</option>`).join('')}<option value=""${cur ? '' : ' selected'}>None (no analysis)</option></select>`
+      : '<small class="hint">not installed – ☰ → Dictionaries</small>'; };
   const r = await dialog(`<h3>Settings</h3>
     <section class="dsec"><h4>Appearance</h4>
       <label class="opt"><input type="radio" name="theme" value="dark" data-set="theme"${dark ? ' checked' : ''}> Dark mode</label>
       <label class="opt"><input type="radio" name="theme" value="light" data-set="theme"${dark ? '' : ' checked'}> Light mode</label></section>
+    <section class="dsec"><h4>Languages</h4>
+      <p class="hint small">The language of each word follows from its alphabet. Choose the tool that finds lemma and form for each language; the dictionaries per language are in ☰ → Dictionaries.</p>
+      <div class="langrow"><span>Greek</span>${toolSel('grc')}</div>
+      <div class="langrow"><span>Latin</span>${toolSel('la')}</div></section>
     <section class="dsec"><h4>Glosses</h4>
       <p class="hint small">A word can have its own gloss, and its lemma can have a default gloss that applies everywhere.</p>
       <label class="opt"><input type="radio" name="glossMode" value="replace" data-set="glossMode"${S.glossMode !== 'both' ? ' checked' : ''}> A word’s own gloss replaces the default gloss</label>
@@ -1149,6 +1251,7 @@ function wire() {
     await setting('dictPrefs', S.dictPrefs); await loadDicts(); bucketCache.clear(); if (S.view) renderView();
     if (id === 'morph' || id === 'morphhints') { resetTokens(); renderText(); resolveTokens(); }
   });
+  document.addEventListener('change', ev => { const sl = ev.target.closest?.('select[data-langtool]'); if (sl) setLangTool(sl.dataset.langtool, sl.value); });
   document.addEventListener('change', async ev => {      // settings take effect immediately
     const k = ev.target.dataset?.set; if (!k || !ev.target.checked) return;
     if (k === 'theme') setTheme(ev.target.value, true);
@@ -1316,10 +1419,11 @@ const ERAS = [['Archaic', -800, -500], ['Classical', -500, -323], ['Hellenistic'
 const FLAME = '<svg class="flame" width="15" height="20" viewBox="6.4 0.8 11.2 15.2" aria-hidden="true"><g transform="translate(12 0) scale(.82 1) translate(-12 0)" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"><path class="fo" vector-effect="non-scaling-stroke" d="M12 15.2c-3.6-.6-5.6-2.6-5.4-5.4.1-1.6.9-2.6 1.6-3.6.1 1.4.6 2.3 1.3 2.7-.4-2.4.2-5 1.5-7.4.4 2.4 1.4 3.6 2.4 4.6.4-1.4 1-2.4 2-3.2-.3 1.8 0 3.2.8 4.4.5-.6.8-1.4.9-2.4 1 1.4 1.4 3 1.2 4.6-.3 3.1-2.4 5.2-6.3 5.7z"/><path class="fi" vector-effect="non-scaling-stroke" d="M12 15c-1.6-.4-2.4-1.4-2.3-2.8 0-.8.4-1.4.8-1.9.1.7.4 1.1.7 1.2-.1-1.2.3-2.4.9-3.4.3 1 .9 1.7 1.4 2.4.6.8.8 1.6.6 2.4-.2 1.1-1 1.8-2.1 2.1z"/></g></svg>';
 function libView() {
   S.lib ??= {};
-  S.lib = Object.assign({ mine: false, fav: false, src: [], form: [], from: YMIN, to: YMAX, undated: true, sort: 'author', dir: 1 }, S.lib);
+  S.lib = Object.assign({ mine: false, fav: false, langs: [], src: [], form: [], from: YMIN, to: YMAX, undated: true, sort: 'author', dir: 1 }, S.lib);
   return S.lib;
 }
-const filtersOn = v => v.mine || v.fav || v.src.length || v.form.length || v.from > YMIN || v.to < YMAX || !v.undated;
+const workLang = w => (w.lang === 'lat' || w.lang === 'la') ? 'la' : 'grc';
+const filtersOn = v => v.mine || v.fav || v.langs.length || v.src.length || v.form.length || v.from > YMIN || v.to < YMAX || !v.undated;
 function centLabel(y, end) {           // year at a century boundary -> "5th c. BC"
   const ord = n => n + ((n % 100 >= 11 && n % 100 <= 13) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' })[n % 10] || 'th');
   const c = end ? (y <= 0 ? -y / 100 + 1 : y / 100) : (y < 0 ? -y / 100 : y / 100 + 1);
@@ -1331,6 +1435,7 @@ function workPasses(w, q) {
   const v = libView(), a = authorOf(w);
   if (v.mine && !S.libInst[w.id]) return false;
   if (v.fav && !S.favs?.[w.id]) return false;
+  if (v.langs.length && !v.langs.includes(workLang(w))) return false;
   if (v.src.length && !v.src.includes(w.source)) return false;
   if (v.form.length && w.verse != null && !v.form.includes(w.verse ? 'verse' : 'prose')) return false;
   if (a.year == null) { if (!v.undated) return false; }
@@ -1355,9 +1460,13 @@ function sortBarHTML() {
   const dirBtn = `<button type="button" class="sortb dirb" data-dir="1" title="${v.dir > 0 ? 'Ascending – tap for descending' : 'Descending – tap for ascending'}" aria-label="${v.dir > 0 ? 'Ascending' : 'Descending'}"><span class="arr"><i class="${v.dir > 0 ? 'hi' : ''}">↑</i><i class="${v.dir < 0 ? 'hi' : ''}">↓</i></span></button>`;
   return `<div class="frow"><span class="fl">Sort</span>${SORTS.map(sortBtn).join('')}<span class="fsep"></span>${dirBtn}</div>`;
 }
+function libSources() {
+  const set = new Set(); for (const a of libAuthors()) for (const w of a.works) if (w.source) set.add(w.source);
+  return [...set].sort((a, b) => a === 'Perseus' ? -1 : b === 'Perseus' ? 1 : a.localeCompare(b));
+}
 function libControlsHTML() {
   const v = libView(), pct = y => ((y - YMIN) / (YMAX - YMIN) * 100).toFixed(2);
-  return `<div class="frow"><span class="fl">Show</span>${chip('fav', 1, 'Favourites')}${chip('mine', 1, 'On this device')}<span class="fsep"></span>${chip('src', 'Perseus', 'Perseus')}${chip('src', 'First1KGreek', 'First1KGreek')}<span class="fsep"></span>${chip('form', 'prose', 'Prose')}${chip('form', 'verse', 'Verse')}</div>
+  return `<div class="frow"><span class="fl">Show</span>${chip('fav', 1, 'Favourites')}${chip('mine', 1, 'On this device')}<span class="fsep"></span>${chip('langs', 'grc', 'Greek')}${chip('langs', 'la', 'Latin')}<span class="fsep"></span>${libSources().map(x => chip('src', x, x)).join('')}<span class="fsep"></span>${chip('form', 'prose', 'Prose')}${chip('form', 'verse', 'Verse')}</div>
     <div class="frow"><span class="fl">Date</span><span class="crange" id="centLabel">${centLabel(v.from)} – ${centLabel(v.to, true)}</span><span class="fsep"></span>${chip('undated', 1, 'Undated works', 'Show or hide works whose date is unknown')}${filtersOn(v) ? '<button type="button" class="chip2 reset" data-freset="1">Reset filters</button>' : ''}</div>
     <div class="cslider" style="--a:${pct(v.from)}%;--b:${pct(v.to)}%">
       <div class="track"><i></i></div><b class="knob ka"></b><b class="knob kb"></b>
@@ -1377,7 +1486,7 @@ function workRowHTML(w, flat = false) {
   const nb = w.books.length > 1 ? `${w.books.length} parts` : 'one part';
   const ed = w.id.split('.').pop().replace(/^perseus-|^1st1K-/, '');
   const a = authorOf(w), op = S.opened?.[w.id];
-  const who = flat ? `${esc(a.name)}${a.date ? ' · ' + esc(a.date) : ''} · ` : '';
+  const who = (flat ? `${esc(a.name)}${a.date ? ' · ' + esc(a.date) : ''} · ` : '') + (workLang(w) === 'la' ? 'Latin · ' : '');
   const fav = !!S.favs?.[w.id];
   return `<div class="item" data-w="${w.id}"><button type="button" class="star${fav ? ' on' : ''}" data-star="${w.id}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" aria-pressed="${fav}">${FLAME}</button><span class="t"><b>${esc(w.title)}</b> <span class="gk">${w.greek && w.greek !== w.title ? esc(w.greek) : ''}</span><br><small>${who}${w.verse ? 'verse' : 'prose'} · ${nb}${w.words ? ' · ' + w.words.toLocaleString('en') + ' words' : ''} · ${esc(w.source || '')} ${esc(ed)}${op ? ' · opened ' + new Date(op).toLocaleDateString('en-GB') : ''}</small></span>${btn}</div>`;
 }
@@ -1451,7 +1560,7 @@ async function libraryDialog() {
     <div class="list lib" id="libList"></div>
     ${!cat ? '<p class="hint">The catalogue could not be loaded (offline?). Downloaded works are listed below.</p>' : S.catOnline ? '' : '<p class="hint">Offline – showing the last known catalogue; downloads need a connection.</p>'}
     <small>${inst.length} work${inst.length === 1 ? '' : 's'} on this device${tot ? ` (≈ ${mb(tot)})` : ''}${cat ? ` · ${cat.authors.length} authors, ${Object.keys(S.catWork).length.toLocaleString('en')} works available` : ''}.${pers}<br>
-    Greek texts: Perseus Digital Library (canonical-greekLit) and Open Greek and Latin (First1KGreek), licensed CC BY-SA 4.0. Dates follow the TLG canon (author dates by century; a work is dated by its author).</small>`,
+    Texts: Perseus Digital Library (canonical-greekLit, canonical-latinLit) and Open Greek and Latin (First1KGreek, csel-dev), licensed CC BY-SA 4.0. Dates follow the TLG canon (author dates by century; a work is dated by its author).</small>`,
     [['cancel', 'Close']]).then(r => { if (r.action === 'cancel') S.libScroll = 0; });
   filterIcon();
   renderLibList();
@@ -1510,7 +1619,7 @@ function wireLibrary() {
       }
       if (so && v.sort !== so.dataset.sort) { v.sort = so.dataset.sort; v.dir = SORTS.find(s => s[0] === v.sort)[2]; }
       if (dr) v.dir = -v.dir;
-      if (rs) Object.assign(v, { mine: false, fav: false, src: [], form: [], from: YMIN, to: YMAX, undated: true });
+      if (rs) Object.assign(v, { mine: false, fav: false, langs: [], src: [], form: [], from: YMIN, to: YMAX, undated: true });
       S.libLimit = 250; saveLibView(); renderLibControls(); $('#libList').scrollTop = 0; renderLibList(); return;
     }
     if (ev.target.closest('#libList [data-more]')) { S.libLimit += 500; renderLibList(); return; }
@@ -1709,7 +1818,7 @@ function wireMarker() {
   S.posOn = !!(await setting('posOn')); applyPosColors();
   const cur = await setting('currentText');
   if (cur != null) await openText(cur);
-  if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! <button id="btnFirstSync">Download the free dictionaries</button> (Pape, LSJ, morphology, about 34 MB). More dictionaries: ☰ → Dictionaries. Then get a text via ☰ → Library, or paste your own via ☰ → My texts.</p>';
+  if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! <button id="btnFirstSync">Download the free dictionaries</button> (Greek: Pape, LSJ and morphology; Latin: Lewis &amp; Short, Georges and Collatinus – about 60 MB). More dictionaries: ☰ → Dictionaries. Then get a text via ☰ → Library, or paste your own via ☰ → My texts.</p>';
   $('#btnFirstSync')?.addEventListener('click', () => syncPackages());
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => { });
   navigator.storage?.persist?.().catch(() => { });

@@ -5,6 +5,8 @@ These reading packages are downloaded by the app (☰ → Library). They are a r
 
 - **Perseus Digital Library**, *canonical-greekLit* – https://github.com/PerseusDL/canonical-greekLit
 - **Open Greek and Latin**, *First1KGreek* – https://github.com/OpenGreekAndLatin/First1KGreek
+- **Perseus Digital Library**, *canonical-latinLit* – https://github.com/PerseusDL/canonical-latinLit
+- **Open Greek and Latin**, *csel-dev* (Corpus Scriptorum Ecclesiasticorum Latinorum) – https://github.com/OpenGreekAndLatin/csel-dev
 
 Both are licensed under the **Creative Commons Attribution-ShareAlike 4.0** licence
 (https://creativecommons.org/licenses/by-sa/4.0/). This conversion is shared under the same licence.
@@ -15,4 +17,5 @@ Notes, apparatus and translations of the source files are left out; references (
 sections, Stephanus pages, line numbers) are kept.
 
 Author dates and genre classes in `catalog.json` follow the TLG canon as distributed with the
-Classical Language Toolkit (https://github.com/cltk/cltk, MIT licence), with some additions by hand.
+Classical Language Toolkit (https://github.com/cltk/cltk, MIT licence), with some additions by hand;
+the dates and genres of the Latin authors were added by hand (approximate).
