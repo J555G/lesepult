@@ -655,6 +655,7 @@ function wire() {
   // divider drag
   const dv = $('#divider');
   dv.addEventListener('pointerdown', ev => {
+    ev.preventDefault();                         // no text selection while dragging
     dv.setPointerCapture(ev.pointerId);
     const portrait = matchMedia('(orientation:portrait),(max-width:760px)').matches;
     const r = $('#panes').getBoundingClientRect();

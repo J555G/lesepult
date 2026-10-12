@@ -18,12 +18,17 @@ button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
 #top .sp{flex:1}
 #textTitle{max-width:28vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom}
 .sw{display:flex;align-items:center;gap:.25rem;white-space:nowrap}
-#panes{flex:1;display:grid;grid-template-columns:var(--split) 8px 1fr;min-height:0}
+#panes{flex:1;display:grid;grid-template-columns:var(--split) 4px 1fr;min-height:0}
 #textPane,#dictPane{overflow:auto;-webkit-overflow-scrolling:touch;min-height:0;min-width:0}
-#divider{background:var(--line);cursor:col-resize;touch-action:none}
+#divider{background:var(--line);cursor:col-resize;touch-action:none;position:relative;z-index:5}
+/* wider invisible grab zone in the middle third, marked by a fine brighter line */
+#divider::before{content:"";position:absolute;top:33.33%;height:33.34%;left:-14px;right:-14px}
+#divider::after{content:"";position:absolute;top:33.33%;height:33.34%;left:50%;width:1px;transform:translateX(-50%);background:var(--mut);opacity:.55;pointer-events:none}
 @media (orientation:portrait),(max-width:760px){
-  #panes{grid-template-columns:1fr;grid-template-rows:var(--split) 8px 1fr}
+  #panes{grid-template-columns:1fr;grid-template-rows:var(--split) 4px 1fr}
   #divider{cursor:row-resize}
+  #divider::before{top:-14px;bottom:-14px;height:auto;left:33.33%;width:33.34%;right:auto}
+  #divider::after{top:50%;height:1px;left:33.33%;width:33.34%;transform:translateY(-50%)}
 }
 /* ---------- text ---------- */
 #textBody{padding:1rem 1.2rem 40vh;font-size:20px;line-height:1.5}
