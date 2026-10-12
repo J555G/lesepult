@@ -1168,7 +1168,7 @@ function splitIcon() {   // an open book: the fold sits where the split is, the 
   }
   const g = `<path d="${p.join(' ')}" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>`;
   b.innerHTML = portrait
-    ? `<svg width="${H}" height="${W}" viewBox="0 0 ${H} ${W}" aria-hidden="true"><g transform="translate(${H} 0) rotate(90)">${g}</g></svg>`
+    ? `<svg width="${(H * 0.75).toFixed(1)}" height="${(W * 0.75).toFixed(1)}" viewBox="0 0 ${H} ${W}" aria-hidden="true"><g transform="translate(${H} 0) rotate(90)">${g}</g></svg>`
     : `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">${g}</svg>`;
   const pct = Math.round(f * 100);
   b.title = `Text ${pct < 40 ? '1/3' : pct > 60 ? '2/3' : '1/2'} – tap to change the split`;

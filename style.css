@@ -318,3 +318,7 @@ dialog :focus:not(:focus-visible){outline:none}
 dialog .privf label{display:flex;flex-direction:column;gap:.2rem;font-size:13px;color:var(--mut)}
 dialog .privf label input{color:var(--fg)}
 dialog code{font-size:12px;background:var(--bg);padding:0 .25rem;border-radius:4px}
+/* no blue tap/focus boxes on touch screens (Android Chrome); keyboard focus stays visible */
+*{-webkit-tap-highlight-color:transparent}
+button:focus:not(:focus-visible),summary:focus:not(:focus-visible),label:focus:not(:focus-visible),[tabindex]:focus:not(:focus-visible){outline:none}
+#btnSplit{overflow:hidden;display:inline-flex;align-items:center;justify-content:center}
