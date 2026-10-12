@@ -423,6 +423,7 @@ async function writeGloss() {     // type a gloss directly, without the dictiona
   if (r.action === 'ok' && (r.data.t || '').trim()) { S.lastDefault = r.data.def === 'on'; addGloss(r.data.t, S.lastDefault); }
 }
 // gloss box at the top of the dictionary pane: gloss of the tapped word + default gloss of the lemma, editable in place
+function autoGrow(ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 2 + 'px'; }
 function fillGlossBox() {
   const box = $('#glossbox'); if (!box || !S.view) return;
   const v = S.view, k = v.pick ? gkey(v.pick) : null;
@@ -431,10 +432,12 @@ function fillGlossBox() {
   if (sel && S.text) {
     const g = spanGloss(sel[0], sel[1]);
     const words = S.tokens.filter(t => t.t === 'w' && t.i >= sel[0] && t.i <= sel[1]).map(t => t.s).join(' ');
-    h += `<label class="gb"><span>Gloss <i>${esc(words)}</i></span><input type="text" data-span="${sel[0]},${sel[1]}" value="${esc(g?.t || '')}" placeholder="– none –" autocomplete="off"></label>`;
+    h += `<label class="gb"><span>Gloss <i>${esc(words)}</i></span><textarea rows="1" data-span="${sel[0]},${sel[1]}" placeholder="– none –" autocomplete="off">${esc(g?.t || '')}</textarea></label>`;
   }
-  if (k) h += `<label class="gb"><span>Default <i>${esc(v.pick)}</i></span><input type="text" data-def="${esc(k)}" value="${esc(S.lemmaGloss[k] || '')}" placeholder="– none –" autocomplete="off"></label>`;
+  if (k) h += `<label class="gb"><span>Default <i>${esc(v.pick)}</i></span><textarea rows="1" data-def="${esc(k)}" placeholder="– none –" autocomplete="off">${esc(S.lemmaGloss[k] || '')}</textarea></label>`;
+  if (box.contains(document.activeElement)) return;   // do not disturb a field that is being edited
   box.innerHTML = h; box.hidden = !h;
+  box.querySelectorAll('textarea').forEach(autoGrow);
 }
 async function editGloss(id) {
   const g = S.glosses.find(x => x.id === id); if (!g) return;
@@ -554,8 +557,18 @@ async function restoreBackup(file) {
 // ---------------------------------------------------------------- events
 function wire() {
   $('#textBody').addEventListener('click', async ev => {
-    const dg = ev.target.closest('.gl .dg'); if (dg) return editDefaultGloss(dg.dataset.dg);
-    const gsp = ev.target.closest('.gl span[data-g]'); if (gsp) return editGloss(+gsp.dataset.g);
+    // tapping a gloss opens its word in the dictionary pane and puts the cursor into the gloss field there
+    const dg = ev.target.closest('.gl .dg'), gsp = ev.target.closest('.gl span[data-g]');
+    if (dg || gsp) {
+      const g = gsp ? S.glosses.find(x => x.id === +gsp.dataset.g) : null;
+      const i0 = g ? g.s : +ev.target.closest('.w').dataset.i;
+      S.cur = g ? [g.s, g.e] : [i0, i0]; markTarget();
+      const tk = S.tokens.find(t => t.t === 'w' && t.i === i0);
+      S.hist = []; S.view = null; await showWord(tk.s, { ti: i0, lemma: tk.lemma || null });
+      const inp = $(dg ? '#glossbox textarea[data-def]' : '#glossbox textarea[data-span]');
+      if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); inp.scrollIntoView({ block: 'nearest' }); }
+      return;
+    }
     const w = ev.target.closest('.w'); if (!w) return;
     const i = +w.dataset.i;
     if (S.rangeMode && S.cur) {
@@ -577,8 +590,10 @@ function wire() {
     const inp = ev.target; const t = inp.value.replace(/\s+/g, ' ').trim();
     if (inp.dataset.span) { const [a, b] = inp.dataset.span.split(',').map(Number); await saveSpanGloss(a, b, t); renderText(); toast(t ? 'Gloss saved' : 'Gloss removed'); }
     if (inp.dataset.def) { await setDefaultGloss(inp.dataset.def, t); renderText(); toast(t ? 'Default gloss saved' : 'Default gloss removed'); }
+    setTimeout(fillGlossBox, 0);
   });
-  $('#dictBody').addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.matches('#glossbox input')) ev.target.blur(); });
+  $('#dictBody').addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.shiftKey && ev.target.matches('#glossbox textarea')) { ev.preventDefault(); ev.target.blur(); } });
+  $('#dictBody').addEventListener('input', ev => { if (ev.target.matches('#glossbox textarea')) autoGrow(ev.target); });
   $('#dictBody').addEventListener('toggle', ev => { if (ev.target.matches?.('details.src')) saveOpenState(); }, true);
   $('#listBody').addEventListener('click', async ev => {
     const b = ev.target.closest('[data-sort]'); if (b) { S.listSort = b.dataset.sort; return renderList(); }
