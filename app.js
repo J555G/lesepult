@@ -336,6 +336,15 @@ function mergeRanges(rs) {
   for (const r of rs) { const l = out[out.length - 1]; if (l && r[0] <= l[1]) l[1] = Math.max(l[1], r[1]); else out.push([...r]); }
   return out;
 }
+function subtractRange(rs, [a, b]) {
+  const out = [];
+  for (const [x, y] of rs) {
+    if (y <= a || x >= b) { out.push([x, y]); continue; }
+    if (x < a) out.push([x, a]);
+    if (y > b) out.push([b, y]);
+  }
+  return out.filter(([x, y]) => y - x > 0);
+}
 function caretAt(x, y) {
   if (document.caretRangeFromPoint) { const r = document.caretRangeFromPoint(x, y); return r && { node: r.startContainer, off: r.startOffset }; }
   if (document.caretPositionFromPoint) { const p = document.caretPositionFromPoint(x, y); return p && { node: p.offsetNode, off: p.offset }; }
@@ -343,7 +352,7 @@ function caretAt(x, y) {
 }
 function setHlMode(on) {
   S.hlMode = on; document.body.classList.toggle('hlmode', on); $('#btnHl').classList.toggle('on', on);
-  if (on) toast('Highlighter on: draw over dictionary text with the Pencil. Tap a highlight to remove it.');
+  if (on) toast('Highlighter on: draw over dictionary text with the Pencil. Highlight marked text again to remove the marking.');
 }
 function wireHighlighter() {
   const pane = $('#dictPane');
@@ -372,14 +381,13 @@ function wireHighlighter() {
     window.getSelection().removeAllRanges();
     const key = 'hl|' + d.eb.dataset.hl;
     let ranges = (await setting(key)) || [];
-    if (!d.moved) {                                     // a tap on a highlight removes it
-      if (d.mark) { ranges.splice(+d.mark.dataset.r, 1); await setting(key, ranges); await paintEntry(d.eb); }
-      return;
-    }
+    if (!d.moved) return;                               // taps do nothing
     let a = offsetIn(d.eb, d.start.node, d.start.off), b = offsetIn(d.eb, d.end.node, d.end.off);
     if (a > b) [a, b] = [b, a];
     if (b - a < 1) return;
-    ranges = mergeRanges([...ranges, [a, b]]);
+    // highlighting text that is already highlighted removes the highlight from it; otherwise it is added
+    const covered = ranges.some(([x, y]) => x <= a + 1 && y >= b - 1);
+    ranges = covered ? subtractRange(ranges, [a, b]) : mergeRanges([...ranges, [a, b]]);
     await setting(key, ranges); await paintEntry(d.eb);
   };
   pane.addEventListener('pointerup', finish);
