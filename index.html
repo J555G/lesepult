@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Lexikon">
+<meta name="theme-color" content="#efe9da">
+<title>Griechisches Lesepult</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="top">
+  <button id="btnTexts" title="Texte">☰ <span id="textTitle">kein Text</span></button>
+  <span class="sp"></span>
+  <label class="sw" title="Interlinear-Glossen ein/aus"><input type="checkbox" id="chkGloss" checked> Glossen</label>
+  <button id="btnRange" title="Bereich: tippe danach auf das letzte Wort">Bereich</button>
+  <button id="btnLayout" title="Aufteilung ändern">⇆</button>
+  <button id="btnDicts" title="Wörterbücher">Wörterbücher</button>
+  <button id="btnBackup" title="Sicherung">Sicherung</button>
+</header>
+
+<main id="panes">
+  <section id="textPane" aria-label="Text">
+    <div id="textBody"><p class="hint">Noch kein Text. Tippe oben links auf ☰, um einen Text einzufügen oder zu laden.</p></div>
+  </section>
+  <div id="divider" title="Ziehen, um die Aufteilung zu ändern"></div>
+  <section id="dictPane" aria-label="Wörterbuch">
+    <div id="dictBar">
+      <button id="btnBack" title="Zurück" disabled>‹</button>
+      <div class="tabs"><button id="tabEntry" class="on">Eintrag</button><button id="tabList">Lemmata</button></div>
+      <input id="search" type="search" placeholder="Wort suchen…" autocapitalize="off" autocomplete="off" spellcheck="false">
+    </div>
+    <div id="target"></div>
+    <div id="dictBody"><p class="hint">Tippe auf ein Wort im Text.</p></div>
+    <div id="listBody" hidden></div>
+  </section>
+</main>
+
+<button id="fabGloss" hidden>＋ als Glosse übernehmen</button>
+
+<dialog id="dlg"><form method="dialog" id="dlgForm"></form></dialog>
+<div id="toast" hidden></div>
+<input type="file" id="fileDict" accept=".gz,.json,application/gzip,application/json" multiple hidden>
+<input type="file" id="fileText" accept=".txt,.json,text/plain,application/json" hidden>
+<input type="file" id="fileBackup" accept=".json,application/json" hidden>
+<script src="app.js"></script>
+</body>
+</html>
