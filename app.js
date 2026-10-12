@@ -1059,7 +1059,7 @@ function wire() {
   $('#btnPos').onclick = async () => { S.posOn = !S.posOn; await setting('posOn', S.posOn); applyPosColors(); };
 
   $('#btnSplit').onclick = cycleSplit;
-  matchMedia('(orientation:portrait),(max-width:760px)').addEventListener('change', splitIcon);
+  matchMedia('(orientation:portrait)').addEventListener('change', splitIcon);
 
   // three-bar menu for everything that is not part of reading itself
   const menu = $('#menu');
@@ -1113,7 +1113,7 @@ function wire() {
   dv.addEventListener('pointerdown', ev => {
     ev.preventDefault();                         // no text selection while dragging
     dv.setPointerCapture(ev.pointerId);
-    const portrait = matchMedia('(orientation:portrait),(max-width:760px)').matches;
+    const portrait = matchMedia('(orientation:portrait)').matches;
     const r = $('#panes').getBoundingClientRect();
     const mv = e => { const x = portrait ? (e.clientY - r.top) / r.height : (e.clientX - r.left) / r.width; setSplit(Math.min(85, Math.max(15, x * 100)).toFixed(1) + '%', false); };
     const up = () => { dv.removeEventListener('pointermove', mv); dv.removeEventListener('pointerup', up); setting('split', getSplit()); };
@@ -1144,7 +1144,7 @@ function cycleSplit() {
 function splitIcon() {   // an open book: the fold sits where the split is, the lines on both pages slope down toward it
   const b = $('#btnSplit'); if (!b) return;
   const f = Math.min(0.9, Math.max(0.1, parseFloat(getSplit()) / 100));
-  const portrait = matchMedia('(orientation:portrait),(max-width:760px)').matches;
+  const portrait = matchMedia('(orientation:portrait)').matches;
   const W = 30, H = 20, x0 = 1.5, x1 = W - 1.5, fx = x0 + (x1 - x0) * f, dip = 2;
   const p = [];
   const top = 2.5, bot = 17.5;                                                                   // pitch (bot-top)/5 = 3 exactly

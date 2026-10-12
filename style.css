@@ -39,7 +39,7 @@ button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
 /* wider invisible grab zone in the middle third, marked by a fine brighter line */
 #divider::before{content:"";position:absolute;top:33.33%;height:33.34%;left:-12px;right:-12px}
 #divider::after{content:"";position:absolute;top:33.33%;height:33.34%;left:50%;width:1px;transform:translateX(-50%);background:var(--mut);opacity:.55;pointer-events:none}
-@media (orientation:portrait),(max-width:760px){
+@media (orientation:portrait){
   #panes{grid-template-columns:1fr;grid-template-rows:var(--split) 4px 1fr}
   #divider{cursor:row-resize}
   #divider::before{top:-12px;bottom:-12px;height:auto;left:33.33%;width:33.34%;right:auto}
@@ -173,7 +173,7 @@ dialog .opt input{margin-right:.4rem}
 /* keep text clear of the divider's grab zone (12px on each side) */
 #textBody{padding-right:max(1.2rem,18px)}
 #dictBody,#listBody{padding-left:max(.8rem,18px)}
-@media (orientation:portrait),(max-width:760px){
+@media (orientation:portrait){
   #textBody{padding-right:1.2rem}
   #dictBody,#listBody{padding-left:.8rem;padding-top:18px}
 }
@@ -334,3 +334,22 @@ button:focus:not(:focus-visible),summary:focus:not(:focus-visible),label:focus:n
   #top .navgrp .bk{min-width:36px}
 }
 @media (max-width:420px){#textTitle .tw:not(:only-child),#textTitle .sep{display:none}}
+/* phones in landscape: little height – slimmer top bar and text */
+@media (orientation:landscape) and (max-height:500px){
+  #top{padding-top:.2rem;padding-bottom:.2rem}
+  #top button{height:30px}
+  #textBody{font-size:18px;padding-top:.6rem}
+  #textBody.lib{padding-left:3rem}
+}
+/* the title group never gets narrower than its two arrows plus a little title */
+#top .navgrp{min-width:calc(84px + 2.5rem)}
+@media (max-width:420px){#top .navgrp{min-width:calc(72px + 2rem)}}
+@media (max-width:760px){#textTitle .tw:not(:only-child),#textTitle .sep{display:none}}
+/* small phones in landscape: everything a little tighter so the bar stays one row */
+@media (orientation:landscape) and (max-width:760px){
+  #top{gap:.2rem}
+  #top button{padding:.25rem .38rem}
+  #top .navgrp .bk,#top #btnBack,#top #btnFwd{min-width:34px}
+  #top .navgrp{min-width:calc(68px + 2.5rem)}
+  #top #search{min-width:2.5rem}
+}
