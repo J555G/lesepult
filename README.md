@@ -1,4 +1,4 @@
-# Griechisches Lesepult (iPad app)
+# Greek Reader (iPad app)
 
 Offline web app: Greek text on one side, Frisk / Pape / LSJ / Bailly on the other.
 Everything you load (dictionaries, texts, glosses) stays on the device (IndexedDB).

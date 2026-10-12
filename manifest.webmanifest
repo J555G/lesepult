@@ -1,6 +1,6 @@
 {
-  "name": "Griechisches Lesepult",
-  "short_name": "Lexikon",
+  "name": "Greek Reader",
+  "short_name": "Greek Reader",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

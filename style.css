@@ -101,3 +101,15 @@ dialog .item small{color:var(--mut)}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(1.2rem + env(safe-area-inset-bottom));background:var(--fg);color:var(--bg);font:14px var(--ui);padding:.5rem .9rem;border-radius:8px;z-index:30;max-width:90vw}
 .btn{display:inline-block;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:.35rem .65rem;cursor:pointer;color:var(--fg);text-decoration:none;font-size:14px}
 .fileinput{position:fixed;left:-1000px;top:0;width:1px;height:1px;opacity:0}
+#top .grp{display:flex;align-items:center;gap:.25rem}
+#top{flex-wrap:wrap}
+#target button{font-size:12px;padding:.1rem .5rem;margin-left:.4rem}
+dialog .gk{font-family:var(--greek)}
+dialog input[type=color]{width:3rem;height:2rem;border:1px solid var(--line);border-radius:6px;padding:0;background:none}
+dialog .opt{display:block;margin:.6rem 0 .2rem}
+dialog .legend{font-size:13px;color:var(--mut);line-height:1.6}
+/* editors' colour marks (Eulexis) */
+.fc[data-c="#494"]{color:#4a8a4a}.fc[data-c=brown]{color:#9a4a1a}.fc[data-c=darkgreen]{color:#1f6b2a}.fc[data-c=blue]{color:#2a55b8}
+.fc[data-c=darkblue]{color:#1a2f80}.fc[data-c=darkorange]{color:#c26a00}.fc[data-c=red]{color:#c0262d}
+body.nosrccol .ent .fc,body.nosrccol .ent .au{color:inherit}
+@media (prefers-color-scheme:dark){.fc[data-c="#494"]{color:#8fcf8f}.fc[data-c=brown]{color:#e0a07a}.fc[data-c=darkgreen]{color:#7fd08a}.fc[data-c=blue]{color:#8fb3ff}.fc[data-c=darkblue]{color:#a8b8ff}.fc[data-c=darkorange]{color:#ffb050}.fc[data-c=red]{color:#ff8080}}
