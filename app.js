@@ -681,13 +681,14 @@ function cycleSplit() {
 }
 function splitIcon() {   // an open book: the fold sits where the split is, the lines on both pages slope down toward it
   const b = $('#btnSplit'); if (!b) return;
-  const f = Math.min(0.85, Math.max(0.15, parseFloat(getSplit()) / 100));
+  const f = Math.min(0.9, Math.max(0.1, parseFloat(getSplit()) / 100));
   const portrait = matchMedia('(orientation:portrait),(max-width:760px)').matches;
   const W = 30, H = 20, x0 = 1.5, x1 = W - 1.5, fx = x0 + (x1 - x0) * f, dip = 2;
   const p = [];
-  p.push(`M${x0} 3 Q${(x0 + fx) / 2} 2 ${fx} ${3 + dip} Q${(fx + x1) / 2} 2 ${x1} 3`);          // top edges
-  p.push(`M${x0} ${H - 3} Q${(x0 + fx) / 2} ${H - 4} ${fx} ${H - 3 + dip} Q${(fx + x1) / 2} ${H - 4} ${x1} ${H - 3}`); // bottom edges
-  p.push(`M${x0} 3 V${H - 3} M${x1} 3 V${H - 3} M${fx} ${3 + dip} V${H - 3 + dip}`);         // outer edges + fold
+  const top = 2.5, bot = 17.5;                                                                   // pitch (bot-top)/5 = 3 exactly
+  p.push(`M${x0} ${top} Q${(x0 + fx) / 2} ${top - 1} ${fx} ${top + dip} Q${(fx + x1) / 2} ${top - 1} ${x1} ${top}`);     // top edges
+  p.push(`M${x0} ${bot} Q${(x0 + fx) / 2} ${bot - 1} ${fx} ${bot + dip} Q${(fx + x1) / 2} ${bot - 1} ${x1} ${bot}`);     // bottom edges
+  p.push(`M${x0} ${top} V${bot} M${x1} ${top} V${bot} M${fx} ${top + dip} V${bot + dip}`);                                // outer edges + fold
   // text lines: the page-edge curve shifted down in equal steps (trimmed a little at both ends)
   const sub = (P0, P1, P2, t0, t1) => {          // part t0..t1 of a quadratic Bézier, again as a quadratic Bézier
     const at = t => [0, 1].map(k => (1 - t) ** 2 * P0[k] + 2 * (1 - t) * t * P1[k] + t * t * P2[k]);
@@ -696,13 +697,14 @@ function splitIcon() {   // an open book: the fold sits where the split is, the 
     return [A, [A[0] + dA[0] * h, A[1] + dA[1] * h], B];
   };
   const q = ([A, C, B]) => `M${A[0].toFixed(2)} ${A[1].toFixed(2)} Q${C[0].toFixed(2)} ${C[1].toFixed(2)} ${B[0].toFixed(2)} ${B[1].toFixed(2)}`;
-  const top = 3, bot = H - 3, n = 4;
+  const n = 4;
   for (let i = 1; i <= n; i++) {
     const dy = (bot - top) * i / (n + 1);
-    if (fx - x0 > 5) p.push(q(sub([x0, top + dy], [(x0 + fx) / 2, top - 1 + dy], [fx, top + dip + dy], 0.12, 0.9)));
-    if (x1 - fx > 5) p.push(q(sub([fx, top + dip + dy], [(fx + x1) / 2, top - 1 + dy], [x1, top + dy], 0.1, 0.88)));
+    // a narrow page keeps its lines; they only get shorter, down to dots (round caps)
+    p.push(q(sub([x0, top + dy], [(x0 + fx) / 2, top - 1 + dy], [fx, top + dip + dy], 0.12, 0.9)));
+    p.push(q(sub([fx, top + dip + dy], [(fx + x1) / 2, top - 1 + dy], [x1, top + dy], 0.1, 0.88)));
   }
-  const g = `<path d="${p.join(' ')}" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const g = `<path d="${p.join(' ')}" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>`;
   b.innerHTML = portrait
     ? `<svg width="${H}" height="${W}" viewBox="0 0 ${H} ${W}" aria-hidden="true"><g transform="translate(${H} 0) rotate(90)">${g}</g></svg>`
     : `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">${g}</svg>`;
