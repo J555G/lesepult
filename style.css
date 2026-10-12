@@ -355,3 +355,7 @@ button:focus:not(:focus-visible),summary:focus:not(:focus-visible),label:focus:n
 }
 dialog .dsec .opt{margin:.35rem 0}
 dialog .dsec .opt input{margin-right:.5rem}
+/* tappable Greek words in dictionary entries: a slight blue tint */
+.ent .gw{color:color-mix(in srgb,var(--fg) 55%,var(--acc2))}
+body:not(.nosrccol) .ent .fc .gw{color:inherit}
+.ent .gw:hover,.ent .gw:active{color:var(--acc2)}
