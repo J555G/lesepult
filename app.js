@@ -1171,6 +1171,7 @@ function wire() {
   wireDictDrag();
   document.addEventListener('click', e => { const b = e.target.closest('#dlg [data-get]'); if (b) { if (b.closest('summary')) e.preventDefault(); queueDownload(b.dataset.get); } });
   wireLibrary();
+  document.addEventListener('click', ev => { const b = ev.target.closest('#navBody [data-nav]'); if (b) navChoose(b.dataset.nav); });
   document.addEventListener('selectionchange', () => {
     clearTimeout(S.selT);
     S.selT = setTimeout(() => { S.sel = dictSelection(); if (S.sel) S.lastSel = S.sel.text; updateFab(); }, 60);
@@ -1545,29 +1546,42 @@ function stripCommon(labels) {     // "Book 1", "Book 2" … -> "1", "2" …
   p = p.slice(0, p.lastIndexOf(' ') + 1);
   return labels.map(l => l.slice(p.length) || l);
 }
-async function navDialog() {
+async function navHTML(keepOpen = null) {
   const t = S.text, w = t?.work;
   const [works, texts] = await Promise.all([libWorks(), getAll('texts')]);
+  const isOpen = (id, dflt) => keepOpen ? keepOpen.has(id) || (dflt && !keepOpen.size) : dflt;
   let html = '';
   if (w) {
-    const marks = new Set((await getAll('settings', IDBKeyRange.bound(`mk|w:${w.id}:`, `mk|w:${w.id}:￿`))).map(r => +r.k.split(':').pop()));
+    const marks = new Set((await getAll('settings', IDBKeyRange.bound(`mk|w:${w.id}:`, `mk|w:${w.id}:\uffff`))).map(r => +r.k.split(':').pop()));
     const short = stripCommon(w.books);
     html += `<h3>${esc(w.author)} · ${esc(w.title)} <span class="gk">${esc(w.greek || '')}</span></h3>
-      ${w.books.length > 1 ? `<div class="bookgrid">${short.map((l, i) => `<button type="button" data-v="book:${i}" title="${esc(w.books[i])}${marks.has(i) ? ' – has a marker' : ''}" class="${i === t.bi ? 'on' : ''}${marks.has(i) ? ' mk' : ''}">${esc(l)}</button>`).join('')}</div>` : ''}
+      ${w.books.length > 1 ? `<div class="bookgrid">${short.map((l, i) => `<button type="button" data-nav="book:${i}" title="${esc(w.books[i])}${marks.has(i) ? ' – has a marker' : ''}" class="${i === t.bi ? 'on' : ''}${marks.has(i) ? ' mk' : ''}">${esc(l)}</button>`).join('')}</div>` : ''}
       <p class="hint" style="font-size:13px">${esc(w.edition || '')}</p>`;
-  } else html += '<h3>Texts</h3>';
+  } else html += `<h3>${t ? esc(t.title) : 'Texts'}</h3>`;
   const by = {};
   for (const x of works) (by[x.authorId] ??= { id: x.authorId, name: x.author, works: [] }).works.push(x);
   const authors = Object.values(by).sort((a, b) => a.name.localeCompare(b.name));
-  html += '<div class="list nav">' + authors.map(a => `<details${a.id === w?.authorId ? ' open' : ''}><summary><b>${esc(a.name)}</b> <small>${a.works.length}</small></summary>${a.works.sort((x, y) => x.title.localeCompare(y.title)).map(x => `<div class="item"><span class="t">${esc(x.title)} <span class="gk">${esc(x.greek || '')}</span> <small>${x.books.length > 1 ? x.books.length + ' parts' : ''}</small></span><button type="button" data-v="work:${x.id}"${x.id === w?.id ? ' class="on"' : ''}>Open</button></div>`).join('')}</details>`).join('')
-    + (texts.length ? `<details${!w ? ' open' : ''}><summary><b>My texts</b> <small>${texts.length}</small></summary>${texts.map(x => `<div class="item"><span class="t">${esc(x.title)}</span><button type="button" data-v="text:${x.id}"${x.id === t?.id ? ' class="on"' : ''}>Open</button></div>`).join('')}</details>` : '')
+  html += '<div class="list nav">' + authors.map(a => `<details data-k="${a.id}"${isOpen(a.id, a.id === w?.authorId) ? ' open' : ''}><summary><b>${esc(a.name)}</b> <small>${a.works.length}</small></summary>${a.works.sort((x, y) => x.title.localeCompare(y.title)).map(x => `<div class="item"><span class="t">${esc(x.title)} <span class="gk">${esc(x.greek || '')}</span> <small>${x.books.length > 1 ? x.books.length + ' parts' : ''}</small></span><button type="button" data-nav="work:${x.id}"${x.id === w?.id ? ' class="on"' : ''}>Open</button></div>`).join('')}</details>`).join('')
+    + (texts.length ? `<details data-k="mytexts"${isOpen('mytexts', !w) ? ' open' : ''}><summary><b>My texts</b> <small>${texts.length}</small></summary>${texts.map(x => `<div class="item"><span class="t">${esc(x.title)}</span><button type="button" data-nav="text:${x.id}"${x.id === t?.id ? ' class="on"' : ''}>Open</button></div>`).join('')}</details>` : '')
     + (!authors.length && !texts.length ? '<p class="hint">Nothing here yet – get texts from the Library, or paste your own under My texts.</p>' : '') + '</div>';
-  const r = await dialog(html, [['library', 'Library …'], ['texts', 'My texts …'], ['cancel', 'Close']]);
-  if (r.action.startsWith('book:')) return openText(`w:${w.id}:${+r.action.slice(5)}`);
-  if (r.action.startsWith('work:')) return openWork(r.action.slice(5));
-  if (r.action.startsWith('text:')) return openText(+r.action.slice(5));
+  return html;
+}
+// text navigation: choosing a book, work or text opens it behind the menu; the menu stays open
+async function navDialog() {
+  const r = await dialog(`<div id="navBody">${await navHTML()}</div>`, [['library', 'Library'], ['texts', 'My texts'], ['cancel', 'Close']]);
   if (r.action === 'library') return libraryDialog();
   if (r.action === 'texts') return textsDialog();
+}
+async function navChoose(v) {
+  const t = S.text;
+  if (v.startsWith('book:')) await openText(`w:${t.work.id}:${+v.slice(5)}`);
+  else if (v.startsWith('work:')) await openWork(v.slice(5));
+  else if (v.startsWith('text:')) await openText(+v.slice(5));
+  const body = $('#navBody'); if (!body) return;
+  const open = new Set([...body.querySelectorAll('details[open]')].map(d => d.dataset.k));
+  const list = body.querySelector('.list.nav'), st = list?.scrollTop || 0;
+  body.innerHTML = await navHTML(open);
+  const l2 = body.querySelector('.list.nav'); if (l2) l2.scrollTop = st;
 }
 function stepBook(d) {
   const t = S.text, w = t?.work; if (!w) return;
