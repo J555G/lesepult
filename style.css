@@ -353,3 +353,5 @@ button:focus:not(:focus-visible),summary:focus:not(:focus-visible),label:focus:n
   #top .navgrp{min-width:calc(68px + 2.5rem)}
   #top #search{min-width:2.5rem}
 }
+dialog .dsec .opt{margin:.35rem 0}
+dialog .dsec .opt input{margin-right:.5rem}

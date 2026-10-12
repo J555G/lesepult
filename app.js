@@ -154,6 +154,10 @@ function applyPosColors() {
 }
 async function resolveTokens() {      // lemma + word class for every word of the text
   const run = (resolveTokens.run = (resolveTokens.run || 0) + 1);
+  await resolveTokens1(run);
+  if (run === resolveTokens.run && S.dgPending) { S.dgPending = false; renderText(); }
+}
+async function resolveTokens1(run) {
   const memo = new Map(), bmap = new Map();
   const choices = new Map((await getAll('choices')).map(c => [c.f, c]));    // read once, not once per word
   const todo = S.tokens.filter(tk => tk.t === 'w' && tk.lemma === undefined);
@@ -179,7 +183,10 @@ async function resolveTokens() {      // lemma + word class for every word of th
     tk.lemma = l || null; tk.pos = posOf(l, x?.ana);
     const el = S.wordEls?.[tk.i];          // words are numbered in document order (a selector per word is slow in long books)
     el?.classList.add('p-' + tk.pos);
-    if (el && l && S.lemmaGloss[gkey(l)] && !S.covered?.has(tk.i)) el.querySelector('.gl').innerHTML = dgHTML(tk);
+    if (el && l && S.lemmaGloss[gkey(l)]) {
+      if (!S.covered?.has(tk.i)) el.querySelector('.gl').innerHTML = dgHTML(tk);
+      else if (S.glossMode === 'both') S.dgPending = true;          // words with their own gloss: redraw at the end
+    }
   }
 }
 function resetTokens(pred = () => true) { for (const tk of S.tokens) if (pred(tk)) { delete tk.lemma; delete tk.pos; } }
@@ -345,7 +352,9 @@ function renderText() {
       continue;
     }
     let gs = (gl[tk.i] || []).map(g => `<span data-g="${g.id}"${g.e > g.s ? ` title="gloss for ${g.e - g.s + 1} words"` : ''}>${g.e > g.s ? '⟨' : ''}${glossHTML(g.t)}${g.e > g.s ? '⟩' : ''}</span>`).join('');
-    if (!covered.has(tk.i)) gs = dgHTML(tk);       // no gloss of its own: the lemma's default gloss
+    // the lemma's default gloss: only where the word has no gloss of its own, or always (Settings → Glosses)
+    if (!covered.has(tk.i)) gs = dgHTML(tk);
+    else if (S.glossMode === 'both' && tk.lemma) { const dg = S.lemmaGloss[gkey(tk.lemma)]; if (dg && !(gl[tk.i] || []).some(g => g.t === dg)) gs += dgHTML(tk); }
     // punctuation directly after the word stays on the same line as the word
     const nx = toks[n + 1]; let pu = '';
     if (nx && nx.t === 'p') { const m = nx.s.match(/^[^\sͰ-Ͽἀ-῿]+/); if (m) { pu = m[0]; nx.glued = pu.length; } }
@@ -872,6 +881,26 @@ function wireDictDrag() {
   document.addEventListener('pointerup', end);
   document.addEventListener('pointercancel', end);
 }
+async function settingsDialog() {
+  const dark = document.documentElement.dataset.theme === 'dark';
+  const r = await dialog(`<h3>Settings</h3>
+    <section class="dsec"><h4>Appearance</h4>
+      <label class="opt"><input type="radio" name="theme" value="dark" data-set="theme"${dark ? ' checked' : ''}> Dark mode</label>
+      <label class="opt"><input type="radio" name="theme" value="light" data-set="theme"${dark ? '' : ' checked'}> Light mode</label></section>
+    <section class="dsec"><h4>Glosses</h4>
+      <p class="hint small">A word can have its own gloss, and its lemma can have a default gloss that applies everywhere.</p>
+      <label class="opt"><input type="radio" name="glossMode" value="replace" data-set="glossMode"${S.glossMode !== 'both' ? ' checked' : ''}> A word’s own gloss replaces the default gloss</label>
+      <label class="opt"><input type="radio" name="glossMode" value="both" data-set="glossMode"${S.glossMode === 'both' ? ' checked' : ''}> Show both (the default gloss below the word’s own gloss)</label></section>
+    <section class="dsec"><h4>Word-class colours</h4>
+      <p class="hint small">Colours used by the “Colours” button in the top bar.</p>
+      <div class="row" style="justify-content:flex-start"><button type="button" data-v="pos">Choose colours</button></div></section>
+    <section class="dsec"><h4>Backup</h4>
+      <p class="hint small">Save or restore your texts, glosses, default glosses, markers and lemma choices.</p>
+      <div class="row" style="justify-content:flex-start"><button type="button" data-v="backup">Backup and restore</button></div></section>`,
+    [['cancel', 'Close']]);
+  if (r.action === 'pos') { await posDialog(); return settingsDialog(); }
+  if (r.action === 'backup') return backupDialog();
+}
 async function posDialog() {
   const rows = POS.map(([id, label]) => `<div class="item"><label class="t"><input type="checkbox" name="on_${id}"${S.posCfg[id]?.on !== false ? ' checked' : ''}> ${label}</label><input type="color" name="c_${id}" value="${S.posCfg[id]?.c}"></div>`).join('');
   const r = await dialog(`<h3>Word-class colours</h3><p class="hint">Word classes come from the morphological analysis and treebank data; ambiguous forms follow the lemma chosen in the dictionary pane.</p><div class="list">${rows}</div>`,
@@ -1068,7 +1097,7 @@ function wire() {
   menu.addEventListener('click', ev => {
     const b = ev.target.closest('[data-m]'); if (!b) return;
     menu.hidden = true;
-    ({ theme: () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true), texts: textsDialog, library: libraryDialog, dicts: dictsDialog, pos: posDialog, backup: backupDialog })[b.dataset.m]();
+    ({ settings: settingsDialog, texts: textsDialog, library: libraryDialog, dicts: dictsDialog, pos: posDialog, backup: backupDialog })[b.dataset.m]();
   });
   document.addEventListener('change', async ev => {
     const id = ev.target.dataset?.dictOn; if (!id) return;
@@ -1076,6 +1105,11 @@ function wire() {
     S.dictPrefs.off = [...off]; if (!S.dictPrefs.order.length) S.dictPrefs.order = S.dicts.map(d => d.id);
     await setting('dictPrefs', S.dictPrefs); await loadDicts(); bucketCache.clear(); if (S.view) renderView();
     if (id === 'morph' || id === 'morphhints') { resetTokens(); renderText(); resolveTokens(); }
+  });
+  document.addEventListener('change', async ev => {      // settings take effect immediately
+    const k = ev.target.dataset?.set; if (!k || !ev.target.checked) return;
+    if (k === 'theme') setTheme(ev.target.value, true);
+    if (k === 'glossMode') { S.glossMode = ev.target.value; await setting('glossMode', S.glossMode); renderText(); }
   });
   document.addEventListener('change', ev => { if (ev.target.id === 'optSrcCol') { S.srcColors = ev.target.checked; setting('srcColors', S.srcColors); document.body.classList.toggle('nosrccol', !S.srcColors); } });
   $('#fileDict').onchange = ev => { const fs = [...ev.target.files]; ev.target.value = ''; if (fs.length) importFiles(fs); };
@@ -1122,7 +1156,6 @@ function wire() {
 }
 function setTheme(t, save) {
   document.documentElement.dataset.theme = t;
-  $('#menu [data-m=theme]').textContent = t === 'dark' ? '☀ Light mode' : '☾ Dark mode';
   document.querySelector('meta[name=theme-color]').content = t === 'dark' ? '#2a2926' : '#efe9da';
   if (save) setting('theme', t);
 }
@@ -1447,6 +1480,7 @@ function wireMarker() {
   await migrateOld();
   wire();
   setTheme((await setting('theme')) || 'dark');
+  S.glossMode = (await setting('glossMode')) || 'replace';
   for (const r of await getAll('settings', IDBKeyRange.bound('lg|', 'lg|\uffff'))) S.lemmaGloss[r.k.slice(3)] = r.v;
   await loadDicts();
   setGlossVisible((await setting('showGloss')) !== false);
