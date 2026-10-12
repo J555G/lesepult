@@ -738,7 +738,7 @@ async function cleanStorage() {
 }
 // Frisk and Bailly may not be published: they live in a PRIVATE GitHub repository, read with a personal
 // access token that is stored only on this device (☰ → Dictionaries → Private dictionaries).
-async function privCfg() { return (await setting('privRepo')) || { repo: 'J555G/lesepult_private', token: '' }; }
+async function privCfg() { return (await setting('privRepo')) || { repo: '', token: '' }; }
 async function privFetch(cfg, path) {
   const r = await fetch(`https://api.github.com/repos/${cfg.repo}/contents/${path}`, {
     cache: 'no-store', headers: { Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github.raw', 'X-GitHub-Api-Version': '2022-11-28' } });
@@ -751,7 +751,7 @@ async function fetchManifest() {
   try { man = await (await fetch('packages/packages.json', { cache: 'no-cache' })).json(); } catch (_) { return null; }
   S.privErr = null;
   const cfg = await privCfg();
-  if (cfg.token) {
+  if (cfg.token && cfg.repo) {
     try { const pm = await (await privFetch(cfg, 'packages.json')).json(); for (const p of pm.packages) man.packages.push(Object.assign(p, { priv: cfg })); }
     catch (e) { S.privErr = e.message; }
   }
@@ -794,9 +794,11 @@ async function dictsDialog() {
       <div class="list plain">${tools || missT ? tools + missT : '<p class="hint">No analysis tools installed.</p>'}</div></section>
     ${man ? '' : '<p class="hint">The website could not be reached (offline?) – download buttons are not available right now. Everything already installed works offline.</p>'}
     <section class="dsec"><h4>Private dictionaries <small>${privState}</small></h4>
-      <p class="hint small">Frisk and Bailly come from your private repository (or from your own files with “Import packages …” below). Enter the repository and a read-only access token (GitHub → Settings → Developer settings → Fine-grained tokens: only this repository, “Contents: Read-only”). The token is stored only on this device.</p>
-      <div class="privf"><input type="text" name="privRepo" value="${esc(privCfgNow.repo)}" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="owner/repository">
-      <input type="password" name="privToken" value="${esc(privCfgNow.token)}" autocomplete="off" placeholder="github_pat_…"></div>
+      <p class="hint small">Dictionaries that may not be published can be downloaded from a private GitHub repository.</p>
+      <div class="privf"><label>GitHub repository<input type="text" name="privRepo" value="${esc(privCfgNow.repo)}" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="owner/repository"></label>
+      <label>Access token<input type="password" name="privToken" value="${esc(privCfgNow.token)}" autocomplete="off" placeholder="github_pat_…"></label></div>
+      <p class="hint small"><b>Repository:</b> owner and name of the private repository. <b>Token:</b> a GitHub fine-grained personal access token with access to that repository only and the permission “Contents: Read-only”; it is stored only on this device.<br>
+      <b>Format:</b> the repository contains dictionary packages (<code>*.gdpkg.gz</code>, format <code>greekdict-pkg-2</code>, as made by the toolkit’s <code>python gd.py packages</code>) and a <code>packages.json</code> next to them that lists them (id, file, name, kind, bytes, version) – the same layout as the app’s public <code>packages</code> folder.</p>
       <div class="row" style="justify-content:flex-start;margin-top:.4rem"><button type="button" data-v="privsave">Save and connect</button>${privCfgNow.token ? '<button type="button" class="danger" data-v="privforget">Forget token</button>' : ''}</div></section>
     <section class="dsec"><h4>Editors’ colour marks</h4>
       <label class="opt"><input type="checkbox" id="optSrcCol"${S.srcColors ? ' checked' : ''}> Show the colour marks of the Eulexis editors in Pape and LSJ</label>
@@ -1431,7 +1433,7 @@ function wireMarker() {
   S.posOn = !!(await setting('posOn')); applyPosColors();
   const cur = await setting('currentText');
   if (cur != null) await openText(cur);
-  if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! <button id="btnFirstSync">Download the free dictionaries</button> (Pape, LSJ, morphology, about 34 MB). Frisk and Bailly: ☰ → Dictionaries → Private dictionaries. Then get a text via ☰ → Library, or paste your own via ☰ → My texts.</p>';
+  if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! <button id="btnFirstSync">Download the free dictionaries</button> (Pape, LSJ, morphology, about 34 MB). More dictionaries: ☰ → Dictionaries. Then get a text via ☰ → Library, or paste your own via ☰ → My texts.</p>';
   $('#btnFirstSync')?.addEventListener('click', () => syncPackages());
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => { });
   navigator.storage?.persist?.().catch(() => { });

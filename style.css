@@ -315,3 +315,6 @@ dialog .toolrow .grip.ph{visibility:hidden;font-size:20px;line-height:1;padding:
 dialog .toolrow button{padding:.25rem .5rem;font-size:12px}
 #dlgForm:focus{outline:none}
 dialog :focus:not(:focus-visible){outline:none}
+dialog .privf label{display:flex;flex-direction:column;gap:.2rem;font-size:13px;color:var(--mut)}
+dialog .privf label input{color:var(--fg)}
+dialog code{font-size:12px;background:var(--bg);padding:0 .25rem;border-radius:4px}
