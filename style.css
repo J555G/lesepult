@@ -412,3 +412,5 @@ dialog .cslider input[type=range]::-webkit-slider-thumb{width:34px;height:34px;m
 dialog .cslider input[type=range]::-moz-range-thumb{width:34px;height:34px;border:0;border-radius:0;
   background:radial-gradient(circle,var(--card) 0 6.5px,var(--acc) 7px 9px,transparent 9.5px)}
 dialog .cslider .eras{top:34px}
+/* dialogs hang from a fixed top edge: changing their content never moves what is above */
+dialog[open]{margin:max(4vh,24px) auto auto;max-height:calc(100dvh - max(4vh,24px) - 16px);overflow:auto}
