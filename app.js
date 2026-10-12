@@ -156,6 +156,11 @@ async function loadDicts() {
   S.morph = all.find(d => d.kind === 'morph') || null;
   for (const d of all) d.splitSet = new Set(d.split || []);
   S.dicts = all.filter(d => d.kind === 'dictionary').sort((a, b) => (a.order ?? 99) - (b.order ?? 99) || a.name.localeCompare(b.name));
+  // user's order and on/off choice (menu ☰ → Dictionaries); new dictionaries go to the end, switched on
+  S.dictPrefs = (await setting('dictPrefs')) || { order: [], off: [] };
+  const pos = id => { const i = S.dictPrefs.order.indexOf(id); return i < 0 ? 1e6 : i; };
+  S.dicts.sort((a, b) => pos(a.id) - pos(b.id));
+  S.shown = S.dicts.filter(d => !S.dictPrefs.off.includes(d.id));
   S.lemmapos = (await setting('lemmapos')) || {};
 }
 // key -> bucket name; must match bucket_of() in greekdict/packages.py
@@ -191,7 +196,7 @@ async function analyses(form) {
 }
 async function entriesFor(k) {
   const by = {};
-  for (const d of S.dicts) {
+  for (const d of S.shown) {
     const b = await bucket(d, k); if (!b) continue;
     const es = (b.e || []).filter(e => e.k.includes(k)).map(e => Object.assign({ d: d.id }, e));
     if (es.length) by[d.id] = es.sort((x, y) => x.i - y.i);
@@ -423,7 +428,8 @@ async function renderView() {
   h += '<div id="glossbox" hidden></div>';
   const by = await entriesFor(k);
   const openSet = new Set((await setting('open|' + k)) || []);
-  for (const d of S.dicts) {
+  if (!S.shown.length) h += '<p class="hint">All dictionaries are switched off (menu ☰ → Dictionaries).</p>';
+  for (const d of S.shown) {
     let inner = '', has = false;
     const ents = by[d.id] || [];
     if (ents.length) { has = true; for (const e of ents) inner += await renderEntryHTML(e); }
@@ -614,7 +620,7 @@ async function saveText(title, text, choices) {
 async function dictsDialog() {
   await loadDicts();
   const m = S.morph;
-  const rows = S.dicts.map(d => `<div class="item"><span class="t"><b>${esc(d.name)}</b> ${esc(d.title || '')}<br><small>${d.count.toLocaleString('en')} entries · ${esc(d.source || '')}</small></span><button type="button" data-v="del:${d.id}">✕</button></div>`).join('') +
+  const rows = S.dicts.map((d, i) => `<div class="item dictrow"><label class="sw" title="Show this dictionary"><input type="checkbox" data-dict-on="${d.id}"${S.dictPrefs.off.includes(d.id) ? '' : ' checked'}></label><span class="t"><b>${esc(d.name)}</b> ${esc(d.title || '')}<br><small>${d.count.toLocaleString('en')} entries · ${esc(d.source || '')}</small></span><button type="button" data-v="up:${d.id}" title="Move up"${i ? '' : ' disabled'}>▲</button><button type="button" data-v="down:${d.id}" title="Move down"${i < S.dicts.length - 1 ? '' : ' disabled'}>▼</button><button type="button" data-v="del:${d.id}" title="Remove from this device">✕</button></div>`).join('') +
     (m ? `<div class="item"><span class="t"><b>${esc(m.name)}</b><br><small>${m.count.toLocaleString('en')} forms · ${esc(m.source || '')}</small></span></div>` : '<p class="hint">Morphological analysis missing (morph.gdpkg.gz) – without it only dictionary forms are found.</p>');
   let est = ''; try { const e = await navigator.storage?.estimate?.(); if (e) est = `Storage used: ${(e.usage / 1e6).toFixed(0)} MB`; } catch (_) { }
   const r = await dialog(`<h3>Dictionaries</h3><div class="list">${rows || '<p class="hint">No dictionaries installed.</p>'}</div>
@@ -622,7 +628,17 @@ async function dictsDialog() {
     <p class="legend">${Object.entries(FONT_MEANING).map(([c, t]) => `<span class="fc" data-c="${c}">■</span> ${esc(t)}`).join('<br>')}</p><small>${est}</small>`,
     [['file', 'Import packages …', 'fileDict'], ['persist', 'Make storage permanent'], ['cancel', 'Close']]);
   if (r.action === 'persist') { const ok = await navigator.storage?.persist?.(); toast(ok ? 'Storage is permanent.' : 'The browser did not confirm permanent storage – add the app to the Home Screen.'); }
-  if (r.action.startsWith('del:')) { await deleteDict(r.action.slice(4)); await loadDicts(); dictsDialog(); }
+  if (r.action.startsWith('del:')) {
+    const id = r.action.slice(4), d = S.dicts.find(x => x.id === id);
+    const c = await dialog(`<h3>Remove ${esc(d?.name || id)}?</h3><p>The dictionary is deleted from this device; you can import its package again later. To just hide it, untick it instead.</p>`, [['cancel', 'Cancel'], ['ok', 'Remove']]);
+    if (c.action === 'ok') { await deleteDict(id); await loadDicts(); if (S.view) renderView(); }
+    return dictsDialog();
+  }
+  if (r.action.startsWith('up:') || r.action.startsWith('down:')) {
+    const [dir, id] = r.action.split(':'); const ids = S.dicts.map(d => d.id); const i = ids.indexOf(id), j = dir === 'up' ? i - 1 : i + 1;
+    if (j >= 0 && j < ids.length) { [ids[i], ids[j]] = [ids[j], ids[i]]; S.dictPrefs.order = ids; await setting('dictPrefs', S.dictPrefs); await loadDicts(); if (S.view) renderView(); }
+    return dictsDialog();
+  }
 }
 async function posDialog() {
   const rows = POS.map(([id, label]) => `<div class="item"><label class="t"><input type="checkbox" name="on_${id}"${S.posCfg[id]?.on !== false ? ' checked' : ''}> ${label}</label><input type="color" name="c_${id}" value="${S.posCfg[id]?.c}"></div>`).join('');
@@ -738,6 +754,12 @@ function wire() {
     const b = ev.target.closest('[data-m]'); if (!b) return;
     menu.hidden = true;
     ({ theme: () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true), texts: textsDialog, dicts: dictsDialog, pos: posDialog, backup: backupDialog })[b.dataset.m]();
+  });
+  document.addEventListener('change', async ev => {
+    const id = ev.target.dataset?.dictOn; if (!id) return;
+    const off = new Set(S.dictPrefs.off); ev.target.checked ? off.delete(id) : off.add(id);
+    S.dictPrefs.off = [...off]; if (!S.dictPrefs.order.length) S.dictPrefs.order = S.dicts.map(d => d.id);
+    await setting('dictPrefs', S.dictPrefs); await loadDicts(); bucketCache.clear(); if (S.view) renderView();
   });
   document.addEventListener('change', ev => { if (ev.target.id === 'optSrcCol') { S.srcColors = ev.target.checked; setting('srcColors', S.srcColors); document.body.classList.toggle('nosrccol', !S.srcColors); } });
   $('#fileDict').onchange = ev => { const fs = [...ev.target.files]; ev.target.value = ''; if (fs.length) importFiles(fs); };
