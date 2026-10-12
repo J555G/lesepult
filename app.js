@@ -24,23 +24,77 @@ function stripSecondAccent(f) {  // enclitic accent: αἴτιός -> αἴτι�
 function toast(msg, ms = 2500) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, ms); }
 
 // ---------------------------------------------------------------- IndexedDB
-const DB_NAME = 'greekdict', DB_VER = 2;
+// Storage layout (since v3):
+//   'greekreader'           – your own data: texts, glosses, lemma choices, settings, list of installed dictionaries
+//   'greekreader-dict-<id>' – one database per dictionary (store 'b': key-prefix buckets)
+// Deleting a dictionary deletes its whole database, so the space is really given back.
+// Older versions kept everything in one database 'greekdict'; it is migrated once and then deleted.
+const DB_NAME = 'greekreader', DB_VER = 1, OLD_DB = 'greekdict', DICT_DB = 'greekreader-dict-';
 let db;
 function openDB() {
   return new Promise((res, rej) => {
     const r = indexedDB.open(DB_NAME, DB_VER);
     r.onupgradeneeded = () => {
-      const d = r.result, have = n => d.objectStoreNames.contains(n);
-      for (const old of ['entries', 'mentions', 'morph', 'dicts']) if (have(old)) d.deleteObjectStore(old);
+      const d = r.result;
       d.createObjectStore('dicts', { keyPath: 'id' });
-      d.createObjectStore('buckets', { keyPath: 'b' });     // "<dict>|<key prefix>" -> {e:[entries], m:{key:[[key,id]]}} or morph {f, p}
-      if (!have('texts')) d.createObjectStore('texts', { keyPath: 'id', autoIncrement: true });
-      if (!have('glosses')) d.createObjectStore('glosses', { keyPath: 'id', autoIncrement: true }).createIndex('textId', 'textId');
-      if (!have('choices')) d.createObjectStore('choices', { keyPath: 'f' });
-      if (!have('settings')) d.createObjectStore('settings', { keyPath: 'k' });
+      d.createObjectStore('texts', { keyPath: 'id', autoIncrement: true });
+      d.createObjectStore('glosses', { keyPath: 'id', autoIncrement: true }).createIndex('textId', 'textId');
+      d.createObjectStore('choices', { keyPath: 'f' });
+      d.createObjectStore('settings', { keyPath: 'k' });
     };
     r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
   });
+}
+const dictConns = new Map();
+function dictDB(id) {
+  if (dictConns.has(id)) return dictConns.get(id);
+  const p = new Promise((res, rej) => {
+    const r = indexedDB.open(DICT_DB + id, 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('b', { keyPath: 'b' });
+    r.onsuccess = () => { r.result.onversionchange = () => { r.result.close(); dictConns.delete(id); }; res(r.result); };
+    r.onerror = () => rej(r.error);
+  });
+  dictConns.set(id, p); return p;
+}
+async function dropDictDB(id) {
+  if (dictConns.has(id)) { try { (await dictConns.get(id)).close(); } catch (_) { } dictConns.delete(id); }
+  await new Promise(res => { const r = indexedDB.deleteDatabase(DICT_DB + id); r.onsuccess = r.onerror = r.onblocked = () => res(); });
+}
+async function listDBs() { try { return (await indexedDB.databases?.()) || null; } catch (_) { return null; } }
+// one-time move from the old single database into the new layout
+async function migrateOld() {
+  const dbs = await listDBs();
+  if (dbs && !dbs.some(d => d.name === OLD_DB)) return;
+  const old = await new Promise(res => { const r = indexedDB.open(OLD_DB); r.onsuccess = () => res(r.result); r.onerror = () => res(null); });
+  if (!old) return;
+  const has = n => old.objectStoreNames.contains(n);
+  if (!has('settings')) { old.close(); indexedDB.deleteDatabase(OLD_DB); return; }
+  const dlg = $('#dlg'), f = $('#dlgForm');
+  f.innerHTML = '<h3>Tidying up storage</h3><p id="impMsg">Moving your data into the new storage layout (only once) …</p><div class="prog"><i id="impBar"></i></div>'; dlg.showModal();
+  const oget = st => new Promise((res, rej) => { const r = old.transaction(st).objectStore(st).getAll(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  for (const st of ['texts', 'glosses', 'choices', 'settings', 'dicts']) if (has(st)) await bulkPut(st, await oget(st));
+  if (has('buckets') && has('dicts')) {
+    const metas = await oget('dicts');
+    for (const [n, m] of metas.entries()) {
+      if (m.kind === 'morphhints') continue;
+      $('#impMsg').textContent = `Moving ${m.name} …`;
+      const ddb = await dictDB(m.id);
+      let last = m.id + '|', size = 0;
+      for (;;) {      // copy in chunks: read 200 records after the last key, write them
+        const rows = await new Promise((res, rej) => { const r = old.transaction('buckets').objectStore('buckets').getAll(IDBKeyRange.bound(last, m.id + '|\uffff', true, false), 200); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+        if (!rows.length) break;
+        const t = ddb.transaction('b', 'readwrite'); const os = t.objectStore('b');
+        for (const row of rows) { os.put(Object.assign({}, row, { b: row.b.slice(m.id.length + 1) })); size += JSON.stringify(row).length; }
+        await done(t); last = rows[rows.length - 1].b;
+        if (rows.length < 200) break;
+      }
+      await put('dicts', Object.assign(m, { size }));
+      $('#impBar').style.width = ((n + 1) / metas.length * 100).toFixed(0) + '%';
+    }
+  }
+  old.close();
+  await new Promise(res => { const r = indexedDB.deleteDatabase(OLD_DB); r.onsuccess = r.onerror = r.onblocked = () => res(); });
+  dlg.close(); toast('Storage reorganised – the old copy was removed.');
 }
 function tx(stores, mode = 'readonly') { return db.transaction(stores, mode); }
 function req2p(r) { return new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
@@ -118,14 +172,16 @@ function resetTokens(pred = () => true) { for (const tk of S.tokens) if (pred(tk
 const classifyTokens = resolveTokens;
 
 // ---------------------------------------------------------------- package import
-async function readPackage(file) {
+async function readPackage(file, info = {}) {
   let stream = file.stream();
   const head = new Uint8Array(await file.slice(0, 2).arrayBuffer());
   if (head[0] === 0x1f && head[1] === 0x8b) {
     if (typeof DecompressionStream === 'undefined') throw new Error('This browser cannot unpack .gz files – please update iPadOS.');
     stream = stream.pipeThrough(new DecompressionStream('gzip'));
   }
-  return JSON.parse(await new Response(stream).text());
+  const txt = await new Response(stream).text();
+  info.size = txt.length;                      // ≈ size of the data on the device
+  return JSON.parse(txt);
 }
 async function bulkPut(store, items, onProgress, chunk = 2000) {
   for (let i = 0; i < items.length; i += chunk) {
@@ -135,26 +191,29 @@ async function bulkPut(store, items, onProgress, chunk = 2000) {
   }
 }
 async function deleteDict(id) {
-  const t = tx(['buckets', 'dicts'], 'readwrite');
-  t.objectStore('buckets').delete(IDBKeyRange.bound(id + '|', id + '|￿'));
-  t.objectStore('dicts').delete(id);
-  await done(t); bucketCache.clear();
+  await dropDictDB(id); await del('dicts', id); bucketCache.clear();
+  if (id === 'morphhints') { await del('settings', 'morphPref'); await del('settings', 'lemmapos'); }
 }
 async function importPackage(file, progress, version = null) {
-  const p = await readPackage(file);
+  const info = {}; const p = await readPackage(file, info);
   if (p.format !== 'greekdict-pkg-2') throw new Error(file.name + ': not a (current) dictionary package');
   if (p.kind === 'morphhints') {               // small: preferred lemmata + word classes (treebank data)
     await setting('morphPref', p.pref || {}); await setting('lemmapos', p.lemmapos || {});
-    await put('dicts', { id: p.id, kind: p.kind, name: p.name, source: p.source, license: p.license, count: p.count, version });
+    await put('dicts', { id: p.id, kind: p.kind, name: p.name, source: p.source, license: p.license, count: p.count, version, size: info.size });
     return;
   }
   await deleteDict(p.id);
-  const items = Object.entries(p.buckets).map(([b, v]) => Object.assign({ b: p.id + '|' + b }, v));
+  const items = Object.entries(p.buckets).map(([b, v]) => Object.assign({ b }, v));
   progress(0, `${p.name}: ${p.count.toLocaleString('en')} ${p.kind === 'morph' ? 'forms' : 'entries'} …`);
-  await bulkPut('buckets', items, x => progress(x), 300);
+  const ddb = await dictDB(p.id);
+  for (let i = 0; i < items.length; i += 300) {
+    const t = ddb.transaction('b', 'readwrite'); const os = t.objectStore('b');
+    for (const it of items.slice(i, i + 300)) os.put(it);
+    await done(t); progress(Math.min(1, (i + 300) / items.length));
+  }
   if (p.lemmapos) await setting('lemmapos', p.lemmapos);
   await put('dicts', { id: p.id, kind: p.kind, name: p.kind === 'morph' ? 'Morphological analysis' : p.name, title: p.title, lang: p.lang,
-                       order: p.order ?? 99, source: p.source, license: p.license, count: p.count, split: p.split, version });
+                       order: p.order ?? 99, source: p.source, license: p.license, count: p.count, split: p.split, version, size: info.size });
 }
 async function loadDicts() {
   const all = await getAll('dicts');
@@ -162,7 +221,7 @@ async function loadDicts() {
   for (const d of all) d.splitSet = new Set(d.split || []);
   S.dicts = all.filter(d => d.kind === 'dictionary').sort((a, b) => (a.order ?? 99) - (b.order ?? 99) || a.name.localeCompare(b.name));
   // user's order and on/off choice (menu ☰ → Dictionaries); new dictionaries go to the end, switched on
-  S.dictPrefs = (await setting('dictPrefs')) || { order: [], off: [] };
+  S.dictPrefs = Object.assign({ order: [], off: [], locked: [] }, (await setting('dictPrefs')) || {});
   const pos = id => { const i = S.dictPrefs.order.indexOf(id); return i < 0 ? 1e6 : i; };
   S.dicts.sort((a, b) => pos(a.id) - pos(b.id));
   S.shown = S.dicts.filter(d => !S.dictPrefs.off.includes(d.id));
@@ -180,9 +239,10 @@ function bucketOf(k, split) {
 }
 const bucketCache = new Map();
 async function bucket(dict, k) {
-  const id = dict.id + '|' + bucketOf(k, dict.splitSet);
+  const bk = bucketOf(k, dict.splitSet), id = dict.id + '|' + bk;
   if (bucketCache.has(id)) return bucketCache.get(id);
-  const r = await get('buckets', id) || null;
+  const ddb = await dictDB(dict.id);
+  const r = await req2p(ddb.transaction('b').objectStore('b').get(bk)) || null;
   bucketCache.set(id, r); if (bucketCache.size > 300) bucketCache.delete(bucketCache.keys().next().value);
   return r;
 }
@@ -602,11 +662,13 @@ function dialog(inner, buttons = [['ok', 'OK']], defaultAction = null) {
 }
 async function textsDialog() {
   const texts = await getAll('texts');
-  const list = texts.map(t => `<div class="item"><span class="t">${esc(t.title)} <small>${new Date(t.created).toLocaleDateString('en-GB')}</small></span><button type="button" data-v="open:${t.id}">Open</button><button type="button" data-v="del:${t.id}">✕</button></div>`).join('') || '<p class="hint">No texts yet.</p>';
+  const list = texts.map(t => `<div class="item"><span class="t">${esc(t.title)} <small>${new Date(t.created).toLocaleDateString('en-GB')}</small></span><button type="button" data-v="open:${t.id}">Open</button><button type="button" class="lock${t.locked ? ' on' : ''}" data-v="lock:${t.id}" title="${t.locked ? 'Protected – tap to allow deleting' : 'Protect against deletion'}">${t.locked ? '🔒' : '🔓'}</button><button type="button" data-v="del:${t.id}"${t.locked ? ' disabled title="Protected"' : ''}>✕</button></div>`).join('') || '<p class="hint">No texts yet.</p>';
   const r = await dialog(`<h3>Texts</h3><div class="list">${list}</div>`, [['new', 'New text (paste)'], ['file', 'Load file …', 'fileText'], ['cancel', 'Close']]);
   if (r.action.startsWith('open:')) return openText(+r.action.slice(5));
+  if (r.action.startsWith('lock:')) { const t = texts.find(x => x.id === +r.action.slice(5)); t.locked = !t.locked; await put('texts', t); return textsDialog(); }
   if (r.action.startsWith('del:')) {
     const id = +r.action.slice(4);
+    if (texts.find(x => x.id === id)?.locked) return textsDialog();
     const c = await dialog('<h3>Delete text?</h3><p>The text and all its glosses will be deleted.</p>', [['cancel', 'Cancel'], ['ok', 'Delete']]);
     if (c.action === 'ok') {
       const gl = await req2p(tx('glosses').objectStore('glosses').index('textId').getAll(id));
@@ -625,6 +687,24 @@ async function saveText(title, text, choices) {
   if (choices) for (const [f, lemma] of Object.entries(choices)) await put('choices', { f: canon(f), lemma });
   await openText(id); toast('Text saved');
 }
+// remove everything that is no longer needed: databases of removed dictionaries, the pre-v3 database, old app caches
+async function cleanStorage() {
+  const before = (await navigator.storage?.estimate?.().catch(() => null))?.usage;
+  let removed = [];
+  const dbs = await listDBs();
+  if (dbs) for (const { name } of dbs) {
+    if (name === OLD_DB || (name.startsWith(DICT_DB) && !S.installed[name.slice(DICT_DB.length)])) {
+      await new Promise(res => { const r = indexedDB.deleteDatabase(name); r.onsuccess = r.onerror = r.onblocked = () => res(); });
+      removed.push(name);
+    }
+  }
+  try {   // keep only the newest app cache (the service worker uses that one)
+    const keys = (await caches.keys()).filter(k => k.startsWith('lesepult-')).sort((a, b) => parseInt(b.split('-v')[1]) - parseInt(a.split('-v')[1]));
+    for (const k of keys.slice(1)) { await caches.delete(k); removed.push(k); }
+  } catch (_) { }
+  const after = (await navigator.storage?.estimate?.().catch(() => null))?.usage;
+  toast(removed.length ? `Removed ${removed.length} unused item(s)` + (before && after ? ` · ${(before / 1e6).toFixed(0)} → ${(after / 1e6).toFixed(0)} MB` : '') : 'Nothing to clean up.', 4000);
+}
 async function fetchManifest() {
   try { return await (await fetch('packages/packages.json', { cache: 'no-cache' })).json(); } catch (_) { return null; }
 }
@@ -640,25 +720,35 @@ async function dictsDialog() {
     if (S.installed[id].version !== p.version) return `<button type="button" data-v="get:${id}" title="${mb}">Update</button>`;
     return `<button type="button" disabled title="Same version as on the website">Up to date</button>`;
   };
-  const rows = S.dicts.map(d => `<div class="item dictrow" data-id="${d.id}"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span><label class="sw" title="Show this dictionary"><input type="checkbox" data-dict-on="${d.id}"${S.dictPrefs.off.includes(d.id) ? '' : ' checked'}></label><span class="t"><b>${esc(d.name)}</b> ${esc(d.title || '')}<br><small>${d.count.toLocaleString('en')} entries · ${esc(d.source || '')}</small></span>${repoBtn(d.id)}<button type="button" data-v="del:${d.id}" title="Remove from this device">✕</button></div>`).join('');
-  const extra = [S.morph && ['morph', S.morph.name, `${S.morph.count.toLocaleString('en')} forms · ${S.morph.source || ''}`],
+  const locked = id => S.dictPrefs.locked.includes(id);
+  const lockBtn = id => `<button type="button" class="lock${locked(id) ? ' on' : ''}" data-v="lock:${id}" title="${locked(id) ? 'Protected – tap to allow removing' : 'Protect against removal'}">${locked(id) ? '🔒' : '🔓'}</button>`;
+  const delBtn = id => `<button type="button" data-v="del:${id}" title="${locked(id) ? 'Protected' : 'Remove from this device'}"${locked(id) ? ' disabled' : ''}>✕</button>`;
+  const sizeOf = d => d.size ? ` · ≈ ${(d.size / 1e6).toFixed(0)} MB` : '';
+  const rows = S.dicts.map(d => `<div class="item dictrow" data-id="${d.id}"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span><label class="sw" title="Show this dictionary"><input type="checkbox" data-dict-on="${d.id}"${S.dictPrefs.off.includes(d.id) ? '' : ' checked'}></label><span class="t"><b>${esc(d.name)}</b> ${esc(d.title || '')}<br><small>${d.count.toLocaleString('en')} entries${sizeOf(d)} · ${esc(d.source || '')}</small></span>${repoBtn(d.id)}${lockBtn(d.id)}${delBtn(d.id)}</div>`).join('');
+  const extra = [S.morph && ['morph', S.morph.name, `${S.morph.count.toLocaleString('en')} forms${sizeOf(S.morph)} · ${S.morph.source || ''}`],
                  S.hints && ['morphhints', S.hints.name, S.hints.source || '']].filter(Boolean)
-    .map(([id, n, sub]) => `<div class="item"><span class="t"><b>${esc(n)}</b><br><small>${esc(sub)}</small></span>${repoBtn(id)}</div>`).join('');
+    .map(([id, n, sub]) => `<div class="item"><span class="t"><b>${esc(n)}</b><br><small>${esc(sub)}</small></span>${repoBtn(id)}${lockBtn(id)}${delBtn(id)}</div>`).join('');
   // packages on the website that are not on this device yet
   const missing = Object.values(remote).filter(p => !S.installed[p.id])
     .map(p => `<div class="item"><span class="t"><b>${esc(p.name)}</b> ${esc(p.title || '')}<br><small>not on this device · ${(p.bytes / 1e6).toFixed(1)} MB · ${esc(p.source || '')}</small></span>${repoBtn(p.id)}</div>`).join('');
   let est = '', pers = '';
-  try { const e = await navigator.storage?.estimate?.(); if (e) est = `Storage used: ${(e.usage / 1e6).toFixed(0)} MB`; } catch (_) { }
+  try { const e = await navigator.storage?.estimate?.(); if (e) est = `Storage used by the app: ${(e.usage / 1e6).toFixed(0)} MB`; } catch (_) { }
   try { pers = (await navigator.storage?.persisted?.()) ? ' · protected from automatic clean-up' : ' · not protected from automatic clean-up – start the app from the Home Screen'; } catch (_) { }
   const r = await dialog(`<h3>Dictionaries</h3><div class="list">${rows || '<p class="hint">No dictionaries installed.</p>'}${extra}${missing}</div>
     ${man ? '' : '<p class="hint">The website could not be reached (offline?) – download buttons are not available right now.</p>'}
     <label class="opt"><input type="checkbox" id="optSrcCol"${S.srcColors ? ' checked' : ''}> Show the editors’ colour marks in Pape and LSJ</label>
     <p class="hint">Pape, LSJ and the morphology data can be downloaded from the app’s website. Frisk and Bailly are imported from your own files with “Import packages …”.</p>
     <p class="legend">${Object.entries(FONT_MEANING).map(([c, t]) => `<span class="fc" data-c="${c}">■</span> ${esc(t)}`).join('<br>')}</p><small>${est}${pers}</small>`,
-    [['file', 'Import packages …', 'fileDict'], ['cancel', 'Close']]);
+    [['clean', 'Clean up storage'], ['file', 'Import packages …', 'fileDict'], ['cancel', 'Close']]);
+  if (r.action === 'clean') { await cleanStorage(); return dictsDialog(); }
+  if (r.action.startsWith('lock:')) {
+    const id = r.action.slice(5), l = new Set(S.dictPrefs.locked); l.has(id) ? l.delete(id) : l.add(id);
+    S.dictPrefs.locked = [...l]; await setting('dictPrefs', S.dictPrefs); return dictsDialog();
+  }
   if (r.action.startsWith('get:')) { await syncPackages([r.action.slice(4)]); return dictsDialog(); }
   if (r.action.startsWith('del:')) {
-    const id = r.action.slice(4), d = S.dicts.find(x => x.id === id);
+    const id = r.action.slice(4), d = S.installed[id];
+    if (S.dictPrefs.locked.includes(id)) return dictsDialog();
     const c = await dialog(`<h3>Remove ${esc(d?.name || id)}?</h3><p>The dictionary is deleted from this device; you can download or import it again later. To just hide it, untick it instead.</p>`, [['cancel', 'Cancel'], ['ok', 'Remove']]);
     if (c.action === 'ok') { await deleteDict(id); await loadDicts(); if (S.view) renderView(); }
     return dictsDialog();
@@ -946,6 +1036,7 @@ function splitIcon() {   // an open book: the fold sits where the split is, the 
 // ---------------------------------------------------------------- start
 (async function main() {
   db = await openDB();
+  await migrateOld();
   wire();
   setTheme((await setting('theme')) || 'dark');
   for (const r of await getAll('settings', IDBKeyRange.bound('lg|', 'lg|\uffff'))) S.lemmaGloss[r.k.slice(3)] = r.v;
