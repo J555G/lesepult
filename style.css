@@ -366,3 +366,18 @@ body:not(.nosrccol) .ent .fc .gw{color:inherit}
 
 /* gloss width: 14em, wider for long glosses (set per gloss), at most 80 % of the text column */
 .w>.gl{max-width:min(var(--gw,14em),var(--glmax,30em))}
+/* Library: filter chips (highlighted = on) and sort buttons (highlighted arrow = direction) */
+dialog .libctl{margin:.5rem 0 .2rem;display:grid;gap:.3rem}
+dialog .frow{display:flex;flex-wrap:wrap;gap:.3rem;align-items:center}
+dialog .frow .fl{font-size:12px;color:var(--mut);width:3.4rem;flex:none}
+dialog .frow .fsep{width:.4rem}
+dialog .chip2,dialog .sortb{font-size:12.5px;padding:.22rem .6rem;border-radius:14px;background:var(--bg);color:var(--mut);border:1px solid var(--line)}
+dialog .chip2.on,dialog .sortb.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+dialog .chip2.reset{border-style:dashed}
+dialog .sortb{display:inline-flex;align-items:center;gap:.35rem}
+dialog .sortb .arr{display:inline-flex;gap:1px;font-style:normal}
+dialog .sortb .arr i{font-style:normal;opacity:.35;font-weight:700}
+dialog .sortb .arr i.hi{opacity:1}
+dialog .libcount{font-size:12px;color:var(--mut);margin:.2rem 0 0}
+dialog .list.lib{max-height:46vh}
+@media (max-width:600px){dialog .frow .fl{width:100%}}

@@ -394,7 +394,7 @@ async function openText(id, scroll = true) {
   S.text = t || null; S.cur = null;
   S.tokens = t ? (t.blocks ? tokenizeBlocks(t.blocks) : tokenize(t.text)) : [];
   S.marker = t ? (await setting('mk|' + t.id)) ?? null : null;
-  if (t?.work) await setting('wk|' + t.work.id, t.bi);
+  if (t?.work) { await setting('wk|' + t.work.id, t.bi); S.opened = (await setting('opened')) || {}; S.opened[t.work.id] = Date.now(); await setting('opened', S.opened); }
   titleBar();
   S.glosses = t ? await req2p(tx('glosses').objectStore('glosses').index('textId').getAll(t.id)) : [];
   renderText();
@@ -1290,25 +1290,55 @@ async function fetchCatalog() {
     const r = await fetch('texts/catalog.json', { cache: 'no-cache' }); if (!r.ok) throw new Error();
     S.catalog = await r.json(); S.catOnline = true; setting('catalog', S.catalog);
   } catch (_) { S.catalog = S.catalog || (await setting('catalog')) || null; S.catOnline = false; }
-  S.catWork = {};
-  if (S.catalog) for (const a of S.catalog.authors) for (const w of a.works) S.catWork[w.id] = Object.assign(w, { author: a.name, authorId: a.id });
+  S.catWork = {}; S.catAuthor = {};
+  if (S.catalog) for (const a of S.catalog.authors) for (const w of a.works) { S.catWork[w.id] = Object.assign(w, { author: a.name, authorId: a.id }); S.catAuthor[w.id] = a; }
   return S.catalog;
 }
 const fold = s => String(s || '').normalize('NFD').replace(/[̀-ͯͅ]/g, '').replace(/ς/g, 'σ').toLowerCase();
 const mb = b => b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' kB';
+// ---- Library view: filters (highlighted when on) and sorting (arrow shows the direction)
+const GENRES = [['epic', 'Epic'], ['lyric', 'Lyric, elegy & epigram'], ['drama', 'Drama'], ['poetry', 'Other poetry'],
+  ['history', 'History & biography'], ['philosophy', 'Philosophy'], ['oratory', 'Oratory & rhetoric'], ['letters', 'Letters'],
+  ['novel', 'Novel, fable & myth'], ['science', 'Science, medicine & geography'], ['scholarship', 'Scholarship & lexica'], ['religion', 'Christian & Jewish']];
+const PERIODS = [['archaic', 'Archaic', 'before c. 500 BC'], ['classical', 'Classical', 'c. 500–323 BC'], ['hellenistic', 'Hellenistic', '323–31 BC'],
+  ['imperial', 'Imperial', '31 BC–AD 300'], ['late', 'Late Antique', 'AD 300–600'], ['byzantine', 'Byzantine', 'after AD 600'], ['undated', 'Undated', 'date uncertain']];
+const SORTS = [['author', 'Author', 1], ['title', 'Title', 1], ['date', 'Date', 1], ['recent', 'Recently opened', -1]];
+function libView() {
+  S.lib ??= { mine: false, src: [], form: [], genre: [], period: [], sort: 'author', dir: 1 };
+  return S.lib;
+}
+function saveLibView() { setting('libView', S.lib); }
+const authorOf = w => S.catAuthor?.[w.id] || { name: w.author, id: w.authorId, genres: [], period: null, year: null, date: '' };
+function workPasses(w, q) {
+  const v = libView(), a = authorOf(w);
+  if (v.mine && !S.libInst[w.id]) return false;
+  if (v.src.length && !v.src.includes(w.source)) return false;
+  if (v.form.length && w.verse != null && !v.form.includes(w.verse ? 'verse' : 'prose')) return false;
+  if (v.genre.length && !(a.genres || []).some(g => v.genre.includes(g))) return false;
+  if (v.period.length && !v.period.includes(a.period || 'undated')) return false;
+  if (q && !fold(a.name).includes(q) && !fold(w.title + ' ' + (w.greek || '') + ' ' + w.id).includes(q)) return false;
+  return true;
+}
 function libAuthors() {
   if (S.catalog) return S.catalog.authors;
   const by = {};
-  for (const w of Object.values(S.libInst)) (by[w.authorId] ??= { id: w.authorId, name: w.author, works: [] }).works.push(w);
-  return Object.values(by).sort((a, b) => a.name.localeCompare(b.name));
+  for (const w of Object.values(S.libInst)) (by[w.authorId] ??= { id: w.authorId, name: w.author, works: [], genres: [] }).works.push(w);
+  return Object.values(by);
 }
-function libFilter(a) {
-  const q = fold(S.libQ); let ws = a.works;
-  if (S.libMine) ws = ws.filter(w => S.libInst[w.id]);
-  if (q && !fold(a.name).includes(q)) ws = ws.filter(w => fold(w.title + ' ' + (w.greek || '') + ' ' + w.id).includes(q));
-  return ws;
+function libFilter(a) { const q = fold(S.libQ); return a.works.filter(w => workPasses(w, q)).sort((x, y) => (x.no ?? 0) - (y.no ?? 0) || x.title.localeCompare(y.title)); }
+function chip(f, val, label, title = '') {
+  const v = libView(), on = f === 'mine' ? v.mine : v[f].includes(val);
+  return `<button type="button" class="chip2${on ? ' on' : ''}" data-f="${f}" data-val="${val}"${title ? ` title="${esc(title)}"` : ''} aria-pressed="${on}">${esc(label)}</button>`;
 }
-function workRowHTML(w) {
+function libControlsHTML() {
+  const v = libView(), active = v.mine || v.src.length || v.form.length || v.genre.length || v.period.length;
+  const sortBtn = ([id, label]) => `<button type="button" class="sortb${v.sort === id ? ' on' : ''}" data-sort="${id}" title="Sort by ${label.toLowerCase()}${v.sort === id ? (v.dir > 0 ? ' (ascending)' : ' (descending)') : ''}">${label}<span class="arr"><i class="${v.sort === id && v.dir > 0 ? 'hi' : ''}">↑</i><i class="${v.sort === id && v.dir < 0 ? 'hi' : ''}">↓</i></span></button>`;
+  return `<div class="frow"><span class="fl">Show</span>${chip('mine', 1, 'On this device')}<span class="fsep"></span>${chip('src', 'Perseus', 'Perseus')}${chip('src', 'First1KGreek', 'First1KGreek')}<span class="fsep"></span>${chip('form', 'prose', 'Prose')}${chip('form', 'verse', 'Verse')}${active ? '<button type="button" class="chip2 reset" data-freset="1">Reset filters</button>' : ''}</div>
+    <div class="frow"><span class="fl">Genre</span>${GENRES.map(([id, l]) => chip('genre', id, l)).join('')}</div>
+    <div class="frow"><span class="fl">Period</span>${PERIODS.map(([id, l, t]) => chip('period', id, l, t)).join('')}</div>
+    <div class="frow"><span class="fl">Sort</span>${SORTS.map(sortBtn).join('')}</div>`;
+}
+function workRowHTML(w, flat = false) {
   const i = S.libInst[w.id], key = 'work:' + w.id;
   let btn;
   if (DL.has(key)) btn = dlButtonHTML(key, 'Download');
@@ -1317,42 +1347,73 @@ function workRowHTML(w) {
     + `<button type="button" data-lopen="${w.id}">Open</button><button type="button" class="danger" data-ldel="${w.id}">Delete</button>`;
   const nb = w.books.length > 1 ? `${w.books.length} parts` : 'one part';
   const ed = w.id.split('.').pop().replace(/^perseus-|^1st1K-/, '');
-  return `<div class="item" data-w="${w.id}"><span class="t"><b>${esc(w.title)}</b> <span class="gk">${w.greek && w.greek !== w.title ? esc(w.greek) : ''}</span><br><small>${nb}${w.words ? ' · ' + w.words.toLocaleString('en') + ' words' : ''} · ${esc(w.source || '')} ${esc(ed)}</small></span>${btn}</div>`;
+  const a = authorOf(w), op = S.opened?.[w.id];
+  const who = flat ? `${esc(a.name)}${a.date ? ' · ' + esc(a.date) : ''} · ` : '';
+  return `<div class="item" data-w="${w.id}"><span class="t"><b>${esc(w.title)}</b> <span class="gk">${w.greek && w.greek !== w.title ? esc(w.greek) : ''}</span><br><small>${who}${w.verse ? 'verse' : 'prose'} · ${nb}${w.words ? ' · ' + w.words.toLocaleString('en') + ' words' : ''} · ${esc(w.source || '')} ${esc(ed)}${op ? ' · opened ' + new Date(op).toLocaleDateString('en-GB') : ''}</small></span>${btn}</div>`;
 }
 function authorHTML(a, ws, open) {
   const inst = a.works.filter(w => S.libInst[w.id]).length;
   const todo = S.catalog ? ws.filter(w => !S.libInst[w.id] && !DL.has('work:' + w.id)) : [];
   const all = todo.length > 1 ? `<button type="button" class="dlbtn" data-all="${a.id}" title="${todo.length} works, ${mb(todo.reduce((x, w) => x + w.bytes, 0))}">Download all</button>` : '';
-  return `<details class="auth" data-a="${a.id}"${open ? ' open' : ''}><summary><span class="t"><b>${esc(a.name)}</b> <small>${a.works.length} work${a.works.length > 1 ? 's' : ''}${inst ? ` · <span class="ok">${inst} on this device</span>` : ''}</small></span>${all}</summary><div class="works">${open ? ws.map(workRowHTML).join('') : ''}</div></details>`;
+  const g = (a.genres || []).map(id => GENRES.find(x => x[0] === id)?.[1]).filter(Boolean).join(', ');
+  return `<details class="auth" data-a="${a.id}"${open ? ' open' : ''}><summary><span class="t"><b>${esc(a.name)}</b> <small>${a.date ? esc(a.date) + ' · ' : ''}${g ? esc(g) + ' · ' : ''}${ws.length < a.works.length ? `${ws.length} of ` : ''}${a.works.length} work${a.works.length > 1 ? 's' : ''}${inst ? ` · <span class="ok">${inst} on this device</span>` : ''}</small></span>${all}</summary><div class="works">${open ? ws.map(w => workRowHTML(w)).join('') : ''}</div></details>`;
+}
+function sortedWorks() {        // flat list for the sorts by title, date and recently opened
+  const v = libView(), q = fold(S.libQ), d = v.dir;
+  const ws = libAuthors().flatMap(a => a.works.filter(w => workPasses(w, q)));
+  const byTitle = (x, y) => x.title.localeCompare(y.title);
+  const cmp = {
+    title: (x, y) => d * byTitle(x, y) || authorOf(x).name.localeCompare(authorOf(y).name),
+    date: (x, y) => { const a = authorOf(x).year, b = authorOf(y).year;
+      if (a == null || b == null) return (a == null) - (b == null);              // undated works at the end
+      return d * (a - b) || authorOf(x).name.localeCompare(authorOf(y).name) || (x.no ?? 0) - (y.no ?? 0); },
+    recent: (x, y) => { const a = S.opened?.[x.id], b = S.opened?.[y.id];
+      if (!a || !b) return (!a) - (!b) || byTitle(x, y);                          // never opened at the end
+      return d * (a - b); },
+  }[v.sort];
+  return ws.sort(cmp);
 }
 function renderLibList() {
   const el = $('#libList'); if (!el) return;
-  const st = el.scrollTop, q = fold(S.libQ);
-  let html = '', n = 0;
-  for (const a of libAuthors()) {
-    const ws = libFilter(a); if (!ws.length) continue;
-    n++;
-    html += authorHTML(a, ws, S.libOpen.has(a.id) || S.libMine || (q && !fold(a.name).includes(q)));
+  const st = el.scrollTop, q = fold(S.libQ), v = libView();
+  S.libLimit ??= 250;
+  let html = '', n = 0, nw = 0;
+  if (v.sort === 'author') {
+    const as = libAuthors().slice().sort((x, y) => v.dir * x.name.localeCompare(y.name));
+    const filtering = v.src.length || v.form.length || v.genre.length || v.period.length;
+    for (const a of as) {
+      const ws = libFilter(a); if (!ws.length) continue;
+      n++; nw += ws.length;
+      html += authorHTML(a, ws, S.libOpen.has(a.id) || v.mine || (q && !fold(a.name).includes(q)) || (filtering && ws.length < 4 && n < 40));
+    }
+  } else {
+    const ws = sortedWorks(); nw = ws.length;
+    html = ws.slice(0, S.libLimit).map(w => workRowHTML(w, true)).join('')
+      + (ws.length > S.libLimit ? `<div class="row" style="justify-content:center"><button type="button" data-more="1">Show more (${ws.length - S.libLimit} further)</button></div>` : '');
   }
-  el.innerHTML = html || `<p class="hint">${S.libMine ? 'No downloaded works' : 'Nothing found'}${S.libQ ? ' for “' + esc(S.libQ) + '”' : ''}.</p>`;
+  $('#libCount').textContent = nw ? `${nw.toLocaleString('en')} work${nw === 1 ? '' : 's'}${v.sort === 'author' ? ` by ${n} author${n === 1 ? '' : 's'}` : ''}` : '';
+  el.innerHTML = html || `<p class="hint">Nothing found${S.libQ ? ' for “' + esc(S.libQ) + '”' : ''} with these filters.</p>`;
   el.scrollTop = st;
 }
+function renderLibControls() { const c = $('#libCtl'); if (c) c.innerHTML = libControlsHTML(); }
 async function libraryDialog() {
-  S.libOpen ??= new Set(); S.libQ ??= ''; S.libMine ??= false;
+  S.libOpen ??= new Set(); S.libQ ??= '';
+  S.lib = S.lib || (await setting('libView')) || null; libView();
+  S.opened = (await setting('opened')) || {};
   const [cat, inst] = await Promise.all([fetchCatalog(), libWorks()]);
   S.libInst = Object.fromEntries(inst.map(w => [w.id, w]));
   const tot = inst.reduce((a, w) => a + (w.size || 0), 0);
   let pers = '';
   try { pers = (await navigator.storage?.persisted?.()) ? ' Downloads stay on this device until you delete them.' : ' <b>Storage is not yet protected</b> – start the app from its Home Screen icon so that the device does not clear downloads automatically.'; } catch (_) { }
   dialog(`<h3>Library</h3>
-    <div class="libtop"><input type="search" id="libSearch" placeholder="Search authors and works (English, Latin or Greek)…" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(S.libQ)}">
-    <label class="sw"><input type="checkbox" id="libMine"${S.libMine ? ' checked' : ''}> On this device</label></div>
+    <div class="libtop"><input type="search" id="libSearch" placeholder="Search authors and works (English, Latin or Greek)…" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(S.libQ)}"></div>
+    <div id="libCtl" class="libctl">${libControlsHTML()}</div>
+    <div class="libcount" id="libCount"></div>
     <div class="list lib" id="libList"></div>
     ${!cat ? '<p class="hint">The catalogue could not be loaded (offline?). Downloaded works are listed below.</p>' : S.catOnline ? '' : '<p class="hint">Offline – showing the last known catalogue; downloads need a connection.</p>'}
     <small>${inst.length} work${inst.length === 1 ? '' : 's'} on this device${tot ? ` (≈ ${mb(tot)})` : ''}${cat ? ` · ${cat.authors.length} authors, ${Object.keys(S.catWork).length.toLocaleString('en')} works available` : ''}.${pers}<br>
-    Greek texts: Perseus Digital Library (canonical-greekLit) and Open Greek and Latin (First1KGreek), licensed CC BY-SA 4.0. Long works are divided into books; small sections are grouped into parts.</small>`,
+    Greek texts: Perseus Digital Library (canonical-greekLit) and Open Greek and Latin (First1KGreek), licensed CC BY-SA 4.0. Dates, periods and genres follow the TLG canon (author dates; a work is dated by its author).</small>`,
     [['cancel', 'Close']]).then(r => { if (r.action === 'cancel') S.libScroll = 0; });
-  if (!cat && !inst.length) S.libMine = false;
   renderLibList();
   if (S.libScroll) $('#libList').scrollTop = S.libScroll;
 }
@@ -1376,16 +1437,27 @@ async function downloadWork(key) {
 function wireLibrary() {
   document.addEventListener('input', ev => {
     if (ev.target.id !== 'libSearch') return;
-    clearTimeout(wireLibrary.t); wireLibrary.t = setTimeout(() => { S.libQ = ev.target.value.trim(); renderLibList(); }, 150);
+    clearTimeout(wireLibrary.t); wireLibrary.t = setTimeout(() => { S.libQ = ev.target.value.trim(); S.libLimit = 250; renderLibList(); }, 150);
   });
-  document.addEventListener('change', ev => { if (ev.target.id === 'libMine') { S.libMine = ev.target.checked; renderLibList(); } });
   document.addEventListener('toggle', ev => {
     const d = ev.target; if (!d.matches?.('#libList details.auth')) return;
     const id = d.dataset.a;
-    if (d.open) { S.libOpen.add(id); const a = libAuthors().find(x => x.id === id); d.querySelector('.works').innerHTML = libFilter(a).map(workRowHTML).join(''); }
+    if (d.open) { S.libOpen.add(id); const a = libAuthors().find(x => x.id === id); d.querySelector('.works').innerHTML = libFilter(a).map(w => workRowHTML(w)).join(''); }
     else S.libOpen.delete(id);
   }, true);
   document.addEventListener('click', async ev => {
+    const f = ev.target.closest('#libCtl [data-f]'), so = ev.target.closest('#libCtl [data-sort]'), rs = ev.target.closest('#libCtl [data-freset]');
+    if (f || so || rs) {
+      const v = libView();
+      if (f) {
+        if (f.dataset.f === 'mine') v.mine = !v.mine;
+        else { const arr = v[f.dataset.f], x = f.dataset.val, i = arr.indexOf(x); i < 0 ? arr.push(x) : arr.splice(i, 1); }
+      }
+      if (so) { const id = so.dataset.sort; if (v.sort === id) v.dir = -v.dir; else { v.sort = id; v.dir = SORTS.find(s => s[0] === id)[2]; } }
+      if (rs) Object.assign(v, { mine: false, src: [], form: [], genre: [], period: [] });
+      S.libLimit = 250; saveLibView(); renderLibControls(); $('#libList').scrollTop = 0; renderLibList(); return;
+    }
+    if (ev.target.closest('#libList [data-more]')) { S.libLimit += 500; renderLibList(); return; }
     const all = ev.target.closest('#libList [data-all]');
     if (all) {
       ev.preventDefault();

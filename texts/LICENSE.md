@@ -13,3 +13,6 @@ The printed edition each text is based on is named in the work's package (`editi
 Made with the `greekdict` toolkit: `python gd.py texts --perseus … --first1k …`.
 Notes, apparatus and translations of the source files are left out; references (books, chapters,
 sections, Stephanus pages, line numbers) are kept.
+
+Author dates and genre classes in `catalog.json` follow the TLG canon as distributed with the
+Classical Language Toolkit (https://github.com/cltk/cltk, MIT licence), with some additions by hand.
