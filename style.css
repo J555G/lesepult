@@ -386,3 +386,19 @@ dialog .libtop #libFilterBtn.open{color:var(--fg);border-color:var(--mut)}
 dialog .libtop #libFilterBtn.active{background:var(--acc);border-color:var(--acc);color:var(--bg)}
 dialog .libctl[hidden]{display:none}
 dialog .sortb.dirb{padding:.22rem .55rem;font-size:14px}
+/* century slider with two handles; period names faintly underneath */
+dialog .crange{font-size:13px;color:var(--fg)}
+dialog .cslider{position:relative;height:2.6rem;margin:.1rem .5rem .2rem 3.9rem}
+dialog .cslider .track{position:absolute;left:0;right:0;top:.55rem;height:4px;border-radius:2px;background:var(--line)}
+dialog .cslider .track i{position:absolute;top:0;bottom:0;left:var(--a);right:calc(100% - var(--b));background:var(--acc);border-radius:2px}
+dialog .cslider input[type=range]{position:absolute;left:-9px;right:-9px;width:calc(100% + 18px);top:0;height:1.2rem;margin:0;background:none;pointer-events:none;-webkit-appearance:none;appearance:none}
+dialog .cslider input[type=range]::-webkit-slider-runnable-track{background:none;height:1.2rem}
+dialog .cslider input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;pointer-events:auto;width:18px;height:18px;border-radius:50%;background:var(--card);border:2px solid var(--acc);margin-top:.05rem;cursor:pointer}
+dialog .cslider input[type=range]::-moz-range-thumb{pointer-events:auto;width:16px;height:16px;border-radius:50%;background:var(--card);border:2px solid var(--acc);cursor:pointer}
+dialog .cslider input[type=range]::-moz-range-track{background:none}
+dialog .cslider .eras{position:absolute;left:0;right:0;top:1.35rem;height:1.1rem}
+dialog .cslider .eras span{position:absolute;top:0;font-size:10px;color:var(--mut);opacity:.7;text-align:center;white-space:nowrap;overflow:visible;border-left:1px solid color-mix(in srgb,var(--mut) 40%,transparent)}
+dialog .cslider .eras span:first-child{border-left:0}
+#libSort{margin-top:.35rem}
+@media (max-width:600px){dialog .cslider{margin-left:.5rem}}
+@media (max-width:600px){dialog .cslider .eras span{font-size:9px}}

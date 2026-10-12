@@ -1300,12 +1300,20 @@ const mb = b => b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round
 const GENRES = [['epic', 'Epic'], ['lyric', 'Lyric, elegy & epigram'], ['drama', 'Drama'], ['poetry', 'Other poetry'],
   ['history', 'History & biography'], ['philosophy', 'Philosophy'], ['oratory', 'Oratory & rhetoric'], ['letters', 'Letters'],
   ['novel', 'Novel, fable & myth'], ['science', 'Science, medicine & geography'], ['scholarship', 'Scholarship & lexica'], ['religion', 'Christian & Jewish']];
-const PERIODS = [['archaic', 'Archaic', 'before c. 500 BC'], ['classical', 'Classical', 'c. 500–323 BC'], ['hellenistic', 'Hellenistic', '323–31 BC'],
-  ['imperial', 'Imperial', '31 BC–AD 300'], ['late', 'Late Antique', 'AD 300–600'], ['byzantine', 'Byzantine', 'after AD 600'], ['undated', 'Undated', 'date uncertain']];
 const SORTS = [['author', 'Author', 1], ['title', 'Title', 1], ['date', 'Date', 1], ['recent', 'Recently opened', -1]];
+// century slider: from the start of the 8th c. BC to the end of the 15th c. AD (years; 0 = start of the 1st c. AD)
+const YMIN = -800, YMAX = 1500;
+const ERAS = [['Archaic', -800, -500], ['Classical', -500, -323], ['Hellenistic', -323, -31], ['Imperial', -31, 300], ['Late Antique', 300, 600], ['Byzantine', 600, 1500]];
 function libView() {
-  S.lib ??= { mine: false, src: [], form: [], genre: [], period: [], sort: 'author', dir: 1 };
+  S.lib ??= {};
+  S.lib = Object.assign({ mine: false, src: [], form: [], from: YMIN, to: YMAX, undated: true, sort: 'author', dir: 1 }, S.lib);
   return S.lib;
+}
+const filtersOn = v => v.mine || v.src.length || v.form.length || v.from > YMIN || v.to < YMAX || !v.undated;
+function centLabel(y, end) {           // year at a century boundary -> "5th c. BC"
+  const ord = n => n + ((n % 100 >= 11 && n % 100 <= 13) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' })[n % 10] || 'th');
+  const c = end ? (y <= 0 ? -y / 100 + 1 : y / 100) : (y < 0 ? -y / 100 : y / 100 + 1);
+  return y < 0 || (end && y === 0) ? `${ord(Math.round(c))} c. BC` : `${ord(Math.round(c))} c. AD`;
 }
 function saveLibView() { setting('libView', S.lib); }
 const authorOf = w => S.catAuthor?.[w.id] || { name: w.author, id: w.authorId, genres: [], period: null, year: null, date: '' };
@@ -1314,8 +1322,8 @@ function workPasses(w, q) {
   if (v.mine && !S.libInst[w.id]) return false;
   if (v.src.length && !v.src.includes(w.source)) return false;
   if (v.form.length && w.verse != null && !v.form.includes(w.verse ? 'verse' : 'prose')) return false;
-  if (v.genre.length && !(a.genres || []).some(g => v.genre.includes(g))) return false;
-  if (v.period.length && !v.period.includes(a.period || 'undated')) return false;
+  if (a.year == null) { if (!v.undated) return false; }
+  else if (a.year < v.from || a.year > v.to) return false;
   if (q && !fold(a.name).includes(q) && !fold(w.title + ' ' + (w.greek || '') + ' ' + w.id).includes(q)) return false;
   return true;
 }
@@ -1327,17 +1335,25 @@ function libAuthors() {
 }
 function libFilter(a) { const q = fold(S.libQ); return a.works.filter(w => workPasses(w, q)).sort((x, y) => (x.no ?? 0) - (y.no ?? 0) || x.title.localeCompare(y.title)); }
 function chip(f, val, label, title = '') {
-  const v = libView(), on = f === 'mine' ? v.mine : v[f].includes(val);
+  const v = libView(), on = f === 'mine' ? v.mine : f === 'undated' ? v.undated : v[f].includes(val);
   return `<button type="button" class="chip2${on ? ' on' : ''}" data-f="${f}" data-val="${val}"${title ? ` title="${esc(title)}"` : ''} aria-pressed="${on}">${esc(label)}</button>`;
 }
-function libControlsHTML() {
-  const v = libView(), active = v.mine || v.src.length || v.form.length || v.genre.length || v.period.length;
+function sortBarHTML() {
+  const v = libView();
   const sortBtn = ([id, label]) => `<button type="button" class="chip2${v.sort === id ? ' on' : ''}" data-sort="${id}" title="Sort by ${label.toLowerCase()}" aria-pressed="${v.sort === id}">${label}</button>`;
   const dirBtn = `<button type="button" class="sortb dirb" data-dir="1" title="${v.dir > 0 ? 'Ascending – tap for descending' : 'Descending – tap for ascending'}" aria-label="${v.dir > 0 ? 'Ascending' : 'Descending'}"><span class="arr"><i class="${v.dir > 0 ? 'hi' : ''}">↑</i><i class="${v.dir < 0 ? 'hi' : ''}">↓</i></span></button>`;
-  return `<div class="frow"><span class="fl">Show</span>${chip('mine', 1, 'On this device')}<span class="fsep"></span>${chip('src', 'Perseus', 'Perseus')}${chip('src', 'First1KGreek', 'First1KGreek')}<span class="fsep"></span>${chip('form', 'prose', 'Prose')}${chip('form', 'verse', 'Verse')}${active ? '<button type="button" class="chip2 reset" data-freset="1">Reset filters</button>' : ''}</div>
-    <div class="frow"><span class="fl">Genre</span>${GENRES.map(([id, l]) => chip('genre', id, l)).join('')}</div>
-    <div class="frow"><span class="fl">Period</span>${PERIODS.map(([id, l, t]) => chip('period', id, l, t)).join('')}</div>
-    <div class="frow"><span class="fl">Sort</span>${SORTS.map(sortBtn).join('')}<span class="fsep"></span>${dirBtn}</div>`;
+  return `<div class="frow"><span class="fl">Sort</span>${SORTS.map(sortBtn).join('')}<span class="fsep"></span>${dirBtn}</div>`;
+}
+function libControlsHTML() {
+  const v = libView(), pct = y => ((y - YMIN) / (YMAX - YMIN) * 100).toFixed(2);
+  return `<div class="frow"><span class="fl">Show</span>${chip('mine', 1, 'On this device')}<span class="fsep"></span>${chip('src', 'Perseus', 'Perseus')}${chip('src', 'First1KGreek', 'First1KGreek')}<span class="fsep"></span>${chip('form', 'prose', 'Prose')}${chip('form', 'verse', 'Verse')}</div>
+    <div class="frow"><span class="fl">Date</span><span class="crange" id="centLabel">${centLabel(v.from)} – ${centLabel(v.to, true)}</span><span class="fsep"></span>${chip('undated', 1, 'Undated works', 'Show or hide works whose date is unknown')}${filtersOn(v) ? '<button type="button" class="chip2 reset" data-freset="1">Reset filters</button>' : ''}</div>
+    <div class="cslider" style="--a:${pct(v.from)}%;--b:${pct(v.to)}%">
+      <div class="track"><i></i></div>
+      <input type="range" id="centFrom" min="${YMIN}" max="${YMAX}" step="100" value="${v.from}" aria-label="From century">
+      <input type="range" id="centTo" min="${YMIN}" max="${YMAX}" step="100" value="${v.to}" aria-label="To century">
+      <div class="eras">${ERAS.map(([n, a, b]) => `<span style="left:${pct(a)}%;width:${(pct(b) - pct(a)).toFixed(2)}%" title="${n}">${n}</span>`).join('')}</div>
+    </div>`;
 }
 function workRowHTML(w, flat = false) {
   const i = S.libInst[w.id], key = 'work:' + w.id;
@@ -1381,7 +1397,7 @@ function renderLibList() {
   let html = '', n = 0, nw = 0;
   if (v.sort === 'author') {
     const as = libAuthors().slice().sort((x, y) => v.dir * x.name.localeCompare(y.name));
-    const filtering = v.src.length || v.form.length || v.genre.length || v.period.length;
+    const filtering = filtersOn(v) && !v.mine;
     for (const a of as) {
       const ws = libFilter(a); if (!ws.length) continue;
       n++; nw += ws.length;
@@ -1396,12 +1412,11 @@ function renderLibList() {
   el.innerHTML = html || `<p class="hint">Nothing found${S.libQ ? ' for “' + esc(S.libQ) + '”' : ''} with these filters.</p>`;
   el.scrollTop = st;
 }
-function renderLibControls() { const c = $('#libCtl'); if (c) c.innerHTML = libControlsHTML(); filterIcon(); }
+function renderLibControls() { const c = $('#libCtl'); if (c) c.innerHTML = libControlsHTML(); const so = $('#libSort'); if (so) so.innerHTML = sortBarHTML(); filterIcon(); }
 // the filter icon is highlighted while any filter is on (also when the panel is closed)
 function filterIcon() {
   const b = $('#libFilterBtn'); if (!b) return;
-  const v = libView(), active = v.mine || v.src.length || v.form.length || v.genre.length || v.period.length;
-  b.classList.toggle('active', !!active); b.classList.toggle('open', !$('#libCtl').hidden);
+  b.classList.toggle('active', !!filtersOn(libView())); b.classList.toggle('open', !$('#libCtl').hidden);
   b.setAttribute('aria-expanded', !$('#libCtl').hidden);
 }
 async function libraryDialog() {
@@ -1417,11 +1432,12 @@ async function libraryDialog() {
     <div class="libtop"><input type="search" id="libSearch" placeholder="Search authors and works (English, Latin or Greek)…" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(S.libQ)}">
       <button type="button" id="libFilterBtn" title="Filters and sorting" aria-expanded="false"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 5h17l-6.5 7.5v5.5l-4 2v-7.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></button></div>
     <div id="libCtl" class="libctl" hidden>${libControlsHTML()}</div>
+    <div id="libSort" class="libctl">${sortBarHTML()}</div>
     <div class="libcount" id="libCount"></div>
     <div class="list lib" id="libList"></div>
     ${!cat ? '<p class="hint">The catalogue could not be loaded (offline?). Downloaded works are listed below.</p>' : S.catOnline ? '' : '<p class="hint">Offline – showing the last known catalogue; downloads need a connection.</p>'}
     <small>${inst.length} work${inst.length === 1 ? '' : 's'} on this device${tot ? ` (≈ ${mb(tot)})` : ''}${cat ? ` · ${cat.authors.length} authors, ${Object.keys(S.catWork).length.toLocaleString('en')} works available` : ''}.${pers}<br>
-    Greek texts: Perseus Digital Library (canonical-greekLit) and Open Greek and Latin (First1KGreek), licensed CC BY-SA 4.0. Dates, periods and genres follow the TLG canon (author dates; a work is dated by its author).</small>`,
+    Greek texts: Perseus Digital Library (canonical-greekLit) and Open Greek and Latin (First1KGreek), licensed CC BY-SA 4.0. Dates follow the TLG canon (author dates by century; a work is dated by its author).</small>`,
     [['cancel', 'Close']]).then(r => { if (r.action === 'cancel') S.libScroll = 0; });
   filterIcon();
   renderLibList();
@@ -1449,6 +1465,18 @@ function wireLibrary() {
     if (ev.target.id !== 'libSearch') return;
     clearTimeout(wireLibrary.t); wireLibrary.t = setTimeout(() => { S.libQ = ev.target.value.trim(); S.libLimit = 250; renderLibList(); }, 150);
   });
+  // century slider: the two handles cannot cross; the list follows while dragging
+  document.addEventListener('input', ev => {
+    if (ev.target.id !== 'centFrom' && ev.target.id !== 'centTo') return;
+    const v = libView(), f = $('#centFrom'), t = $('#centTo');
+    if (+f.value > +t.value) { if (ev.target === f) f.value = t.value; else t.value = f.value; }
+    v.from = +f.value; v.to = +t.value;
+    const sl = f.closest('.cslider'), pct = y => ((y - YMIN) / (YMAX - YMIN) * 100).toFixed(2) + '%';
+    sl.style.setProperty('--a', pct(v.from)); sl.style.setProperty('--b', pct(v.to));
+    $('#centLabel').textContent = `${centLabel(v.from)} – ${centLabel(v.to, true)}`;
+    clearTimeout(wireLibrary.ts); wireLibrary.ts = setTimeout(() => { saveLibView(); filterIcon(); S.libLimit = 250; renderLibList(); }, 120);
+  });
+  document.addEventListener('change', ev => { if (ev.target.id === 'centFrom' || ev.target.id === 'centTo') renderLibControls(); });
   document.addEventListener('toggle', ev => {
     const d = ev.target; if (!d.matches?.('#libList details.auth')) return;
     const id = d.dataset.a;
@@ -1457,16 +1485,17 @@ function wireLibrary() {
   }, true);
   document.addEventListener('click', async ev => {
     if (ev.target.closest('#libFilterBtn')) { $('#libCtl').hidden = !$('#libCtl').hidden; filterIcon(); return; }
-    const f = ev.target.closest('#libCtl [data-f]'), so = ev.target.closest('#libCtl [data-sort]'), rs = ev.target.closest('#libCtl [data-freset]'), dr = ev.target.closest('#libCtl [data-dir]');
+    const f = ev.target.closest('#libCtl [data-f]'), so = ev.target.closest('#libSort [data-sort]'), rs = ev.target.closest('#libCtl [data-freset]'), dr = ev.target.closest('#libSort [data-dir]');
     if (f || so || rs || dr) {
       const v = libView();
       if (f) {
         if (f.dataset.f === 'mine') v.mine = !v.mine;
+        else if (f.dataset.f === 'undated') v.undated = !v.undated;
         else { const arr = v[f.dataset.f], x = f.dataset.val, i = arr.indexOf(x); i < 0 ? arr.push(x) : arr.splice(i, 1); }
       }
       if (so && v.sort !== so.dataset.sort) { v.sort = so.dataset.sort; v.dir = SORTS.find(s => s[0] === v.sort)[2]; }
       if (dr) v.dir = -v.dir;
-      if (rs) Object.assign(v, { mine: false, src: [], form: [], genre: [], period: [] });
+      if (rs) Object.assign(v, { mine: false, src: [], form: [], from: YMIN, to: YMAX, undated: true });
       S.libLimit = 250; saveLibView(); renderLibControls(); $('#libList').scrollTop = 0; renderLibList(); return;
     }
     if (ev.target.closest('#libList [data-more]')) { S.libLimit += 500; renderLibList(); return; }
