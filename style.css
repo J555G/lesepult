@@ -184,3 +184,15 @@ body.hlmode #dictBody .gw{cursor:text}
 :root[data-theme=dark] #btnPos.on span:nth-child(5){color:#ffb366}
 :root[data-theme=dark] #btnPos.on span:nth-child(6){color:#d0a6ff}
 
+
+/* "Glosses" toggle: the word with its own small gloss beneath (grey = off, light blue = on) */
+#btnGlossToggle{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;padding:0 .6rem}
+#btnGlossToggle .w1{font-size:13px}
+#btnGlossToggle .w2{font-size:8.5px;margin-top:1px;color:var(--mut);opacity:.6}
+#btnGlossToggle.on{background:var(--card);color:var(--fg);border-color:var(--line)}
+#btnGlossToggle.on .w2{color:#2f7fc4;opacity:1}
+:root[data-theme=dark] #btnGlossToggle.on .w2{color:#8fc6ff}
+/* all top-bar buttons share one height */
+#top button{height:34px;box-sizing:border-box}
+#menu button{height:auto}
+@media (max-width:900px){#top button{height:31px}}

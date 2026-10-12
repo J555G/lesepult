@@ -719,7 +719,7 @@ function wire() {
   $('#tabEntry').onclick = () => showTab('entry');
   $('#tabList').onclick = () => { showTab('list'); renderList(); };
   $('#search').addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.value.trim()) { showWord(ev.target.value.trim()); ev.target.blur(); } });
-  $('#chkGloss').onchange = ev => { document.body.classList.toggle('nogloss', !ev.target.checked); setting('showGloss', ev.target.checked); };
+  $('#btnGlossToggle').onclick = () => setGlossVisible(document.body.classList.contains('nogloss'), true);
   $('#btnPos').onclick = async () => { S.posOn = !S.posOn; await setting('posOn', S.posOn); applyPosColors(); };
 
   $('#btnAddGloss').onclick = () => openGlossField('span');
@@ -785,6 +785,11 @@ function setTheme(t, save) {
   document.querySelector('meta[name=theme-color]').content = t === 'dark' ? '#2a2926' : '#efe9da';
   if (save) setting('theme', t);
 }
+function setGlossVisible(on, save) {
+  document.body.classList.toggle('nogloss', !on);
+  $('#btnGlossToggle').classList.toggle('on', on); $('#btnGlossToggle').setAttribute('aria-pressed', on);
+  if (save) setting('showGloss', on);
+}
 function getSplit() { return document.documentElement.style.getPropertyValue('--split').trim() || '50%'; }
 function setSplit(v, save = true) { document.documentElement.style.setProperty('--split', v); splitIcon(); if (save) setting('split', v); }
 // split button: 1/2 -> 2/3 -> 1/2 -> 1/3 -> 1/2 … (bounces between the three arrangements)
@@ -835,7 +840,7 @@ function splitIcon() {   // an open book: the fold sits where the split is, the 
   setTheme((await setting('theme')) || 'dark');
   for (const r of await getAll('settings', IDBKeyRange.bound('lg|', 'lg|\uffff'))) S.lemmaGloss[r.k.slice(3)] = r.v;
   await loadDicts();
-  const sg = await setting('showGloss'); if (sg === false) { $('#chkGloss').checked = false; document.body.classList.add('nogloss'); }
+  setGlossVisible((await setting('showGloss')) !== false);
   const sp = await setting('split'); setSplit(sp || '50%', false);
   S.srcColors = (await setting('srcColors')) !== false; document.body.classList.toggle('nosrccol', !S.srcColors);
   S.posCfg = Object.assign(defaultPosCfg(), (await setting('posCfg')) || {});
