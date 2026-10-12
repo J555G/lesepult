@@ -232,8 +232,8 @@ function renderText() {
       html += s0.split(/\n\s*\n/).map(p => esc(p).replace(/\n/g, '<br>')).join('</div><div class="para">');
       continue;
     }
-    let gs = (gl[tk.i] || []).map(g => `<span data-g="${g.id}"${g.e > g.s ? ` title="gloss for ${g.e - g.s + 1} words"` : ''}>${g.e > g.s ? '⟨' : ''}${esc(g.t)}${g.e > g.s ? '⟩' : ''}</span>`).join('');
-    if (!covered.has(tk.i) && tk.lemma) { const dg = S.lemmaGloss[gkey(tk.lemma)]; if (dg) gs = `<span class="dg" data-dg="${esc(gkey(tk.lemma))}" title="default gloss for ${esc(tk.lemma)}">${esc(dg)}</span>`; }
+    let gs = (gl[tk.i] || []).map(g => `<span data-g="${g.id}"${g.e > g.s ? ` title="gloss for ${g.e - g.s + 1} words"` : ''}>${g.e > g.s ? '⟨' : ''}${glossHTML(g.t)}${g.e > g.s ? '⟩' : ''}</span>`).join('');
+    if (!covered.has(tk.i) && tk.lemma) { const dg = S.lemmaGloss[gkey(tk.lemma)]; if (dg) gs = `<span class="dg" data-dg="${esc(gkey(tk.lemma))}" title="default gloss for ${esc(tk.lemma)}">${glossHTML(dg)}</span>`; }
     // punctuation directly after the word stays on the same line as the word
     const nx = toks[n + 1]; let pu = '';
     if (nx && nx.t === 'p') { const m = nx.s.match(/^[^\sͰ-Ͽἀ-῿]+/); if (m) { pu = m[0]; nx.glued = pu.length; } }
@@ -384,6 +384,9 @@ function targetLemma() {      // lemma of the single selected word (as chosen in
   return tk.lemma;
 }
 function spanGloss(s0, e0) { return S.glosses.find(g => g.s === s0 && g.e === e0) || null; }
+// keep line breaks the user typed; tidy spaces and empty lines
+function cleanGloss(t) { return t.split('\n').map(l => l.replace(/[ \t]+/g, ' ').trim()).filter(Boolean).join('\n'); }
+const glossHTML = t => esc(t).replace(/\n/g, '<br>');
 function joinGloss(old, add) { return old ? (old.split(/;\s*/).includes(add) ? old : old + '; ' + add) : add; }
 async function setDefaultGloss(k, text) {
   if (text) { S.lemmaGloss[k] = text; await setting('lg|' + k, text); }
@@ -398,7 +401,7 @@ async function saveSpanGloss(s0, e0, text) {     // create, update or (empty tex
 // add = true: the text is appended to an existing gloss (used for selections from the dictionary)
 async function addGloss(text, asDefault = false, add = false) {
   if (!S.text && !asDefault) return toast('Open a text first.');
-  text = text.replace(/\s+/g, ' ').trim(); if (!text) return;
+  text = add ? text.replace(/\s+/g, ' ').trim() : cleanGloss(text); if (!text) return;
   if (asDefault) {
     const l = targetLemma(); if (!l) return toast('A default gloss needs a single word with a known lemma.');
     const k = gkey(l);
@@ -598,12 +601,11 @@ function wire() {
     if (gw && !String(window.getSelection())) return showWord(gw.textContent, { openDict: gw.closest('details.src')?.dataset.d });
   });
   $('#dictBody').addEventListener('change', async ev => {
-    const inp = ev.target; const t = inp.value.replace(/\s+/g, ' ').trim();
+    const inp = ev.target; const t = cleanGloss(inp.value);
     if (inp.dataset.span) { const [a, b] = inp.dataset.span.split(',').map(Number); await saveSpanGloss(a, b, t); renderText(); toast(t ? 'Gloss saved' : 'Gloss removed'); }
     if (inp.dataset.def) { await setDefaultGloss(inp.dataset.def, t); renderText(); toast(t ? 'Default gloss saved' : 'Default gloss removed'); }
     setTimeout(fillGlossBox, 0);
   });
-  $('#dictBody').addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.shiftKey && ev.target.matches('#glossbox textarea')) { ev.preventDefault(); ev.target.blur(); } });
   $('#dictBody').addEventListener('input', ev => { if (ev.target.matches('#glossbox textarea')) autoGrow(ev.target); });
   $('#dictBody').addEventListener('toggle', ev => { if (ev.target.matches?.('details.src')) saveOpenState(); }, true);
   $('#listBody').addEventListener('click', async ev => {
