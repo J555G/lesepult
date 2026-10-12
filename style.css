@@ -167,3 +167,20 @@ mark.hl{background:rgba(255,210,0,.45);color:inherit;border-radius:2px;padding:0
 :root[data-theme=dark] mark.hl{background:rgba(230,190,40,.38)}
 body.hlmode #dictBody .eb{cursor:text;-webkit-user-select:text;user-select:text}
 body.hlmode #dictBody .gw{cursor:text}
+
+/* "Colours" toggle: letters coloured when on (darker in light mode, lighter in dark mode) */
+#btnPos.on{background:var(--card);color:var(--fg);border-color:var(--line)}
+#btnPos span{transition:color .15s}
+#btnPos.on span:nth-child(1),#btnPos.on span:nth-child(7){color:#c0262d}
+#btnPos.on span:nth-child(2){color:#a87f00}
+#btnPos.on span:nth-child(3){color:#1f55b0}
+#btnPos.on span:nth-child(4){color:#227a3a}
+#btnPos.on span:nth-child(5){color:#c25e00}
+#btnPos.on span:nth-child(6){color:#7a3fb0}
+:root[data-theme=dark] #btnPos.on span:nth-child(1),:root[data-theme=dark] #btnPos.on span:nth-child(7){color:#ff8a8a}
+:root[data-theme=dark] #btnPos.on span:nth-child(2){color:#ffe066}
+:root[data-theme=dark] #btnPos.on span:nth-child(3){color:#8fb8ff}
+:root[data-theme=dark] #btnPos.on span:nth-child(4){color:#86e09a}
+:root[data-theme=dark] #btnPos.on span:nth-child(5){color:#ffb366}
+:root[data-theme=dark] #btnPos.on span:nth-child(6){color:#d0a6ff}
+#btnPos.on{font-weight:600}

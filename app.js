@@ -97,7 +97,7 @@ function applyPosColors() {
   st.textContent = !S.posOn ? '' : POS.filter(([id]) => S.posCfg[id]?.on !== false)
     .map(([id]) => `body.pos .w.p-${id}>.g{color:${S.posCfg[id]?.c || '#000'}}`).join('\n');
   document.body.classList.toggle('pos', S.posOn);
-  $('#chkPos').checked = S.posOn;
+  $('#btnPos').classList.toggle('on', S.posOn); $('#btnPos').setAttribute('aria-pressed', S.posOn);
 }
 async function resolveTokens() {      // lemma + word class for every word of the text
   const run = (resolveTokens.run = (resolveTokens.run || 0) + 1);
@@ -720,7 +720,7 @@ function wire() {
   $('#tabList').onclick = () => { showTab('list'); renderList(); };
   $('#search').addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.value.trim()) { showWord(ev.target.value.trim()); ev.target.blur(); } });
   $('#chkGloss').onchange = ev => { document.body.classList.toggle('nogloss', !ev.target.checked); setting('showGloss', ev.target.checked); };
-  $('#chkPos').onchange = async ev => { S.posOn = ev.target.checked; await setting('posOn', S.posOn); applyPosColors(); };
+  $('#btnPos').onclick = async () => { S.posOn = !S.posOn; await setting('posOn', S.posOn); applyPosColors(); };
 
   $('#btnAddGloss').onclick = () => openGlossField('span');
   $('#btnSplit').onclick = cycleSplit;
