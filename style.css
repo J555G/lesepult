@@ -16,7 +16,22 @@ button:disabled{opacity:.4}
 button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
 #top{display:flex;gap:.4rem;align-items:center;padding:.3rem .5rem;background:var(--bar);border-bottom:1px solid var(--line);font-family:var(--ui);font-size:14px;flex:none}
 #top .sp{flex:1}
-#textTitle{max-width:28vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom}
+#top{flex-wrap:nowrap}
+#top .navgrp{display:flex;min-width:0;flex:0 1 auto}
+#textTitle{max-width:26vw;display:inline-flex;align-items:baseline;gap:.25em;min-width:3rem;font-family:var(--greek);font-size:15px;white-space:nowrap;overflow:hidden}
+#textTitle .tw{overflow:hidden;text-overflow:ellipsis;min-width:0}
+#textTitle .tb{flex:none;font-weight:700}
+#textTitle .ta{color:var(--mut)}
+@media (max-width:1250px){#textTitle .ta{display:none}}
+#top .navgrp .bk{padding:0 .4rem;font-size:12px;color:var(--mut)}
+#top .navgrp .bk:not([hidden])+#textTitle{border-radius:0;border-left:0;border-right:0}
+#top .navgrp .bk:first-child{border-radius:8px 0 0 8px}
+#top .navgrp .bk:last-child{border-radius:0 8px 8px 0}
+#top .navgrp .bk[hidden]{display:none}
+#btnMark svg path{fill:none}
+#btnMark.set{color:var(--acc)}
+#btnMark.set svg path{fill:currentColor}
+#btnMark{-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
 .sw{display:flex;align-items:center;gap:.25rem;white-space:nowrap}
 #panes{flex:1;display:grid;grid-template-columns:var(--split) 4px 1fr;min-height:0}
 #textPane,#dictPane{overflow:auto;-webkit-overflow-scrolling:touch;min-height:0;min-width:0}
@@ -119,8 +134,8 @@ body.nosrccol .ent .fc,body.nosrccol .ent .au{color:inherit}
 /* single top bar */
 #top{gap:.35rem}
 #top .tabs{display:flex;gap:.2rem}
-#top #search{flex:1;min-width:8rem;max-width:22rem;padding:.3rem .55rem;border:1px solid var(--line);border-radius:8px;background:var(--card);font-family:var(--greek)}
-#textTitle{font-family:var(--greek);font-size:15px;color:var(--mut);max-width:16vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#top #search{flex:1;min-width:5rem;max-width:22rem;padding:.3rem .55rem;border:1px solid var(--line);border-radius:8px;background:var(--card);font-family:var(--greek)}
+
 #btnBack{font-size:18px;line-height:1;padding:.25rem .6rem}
 .menuwrap{position:relative}
 #btnMenu{font-size:18px;line-height:1;padding:.25rem .6rem}
@@ -130,7 +145,10 @@ body.nosrccol .ent .fc,body.nosrccol .ent .au{color:inherit}
 #menu button:active,#menu button:hover{background:var(--bar)}
 #dictBody,#listBody{padding-top:.6rem}
 @media (max-width:900px){
-  #textTitle{display:none}
+  #textTitle{max-width:19vw}
+  #textTitle .ta{display:none}
+  #top .navgrp .bk{display:none}
+  #top .navgrp #textTitle{border-radius:8px}
   #top #search{min-width:5rem}
   #top button,#top .sw{font-size:13px}
   #top button{padding:.3rem .5rem}
@@ -217,3 +235,50 @@ dialog .dlbtn[data-get]{background:var(--acc);border-color:var(--acc);color:var(
 dialog .dlbtn.busy{opacity:1;color:var(--fg);border-color:var(--acc);background:linear-gradient(90deg,color-mix(in srgb,var(--acc) 55%,transparent) var(--p),var(--card) var(--p))}
 dialog button.danger{font-size:12px;padding:.25rem .55rem;color:#c0262d;border-color:color-mix(in srgb,#c0262d 45%,var(--line))}
 :root[data-theme=dark] dialog button.danger{color:#ff8a8a}
+
+/* ---------- library texts: blocks, margin references, marker ---------- */
+#textBody{position:relative}
+#textBody.lib{padding-left:3.6rem}
+#textBody .blk{margin:0}
+#textBody .blk.k-p{margin:0 0 .9em}
+#textBody .blk.k-L{margin-top:.7em}
+#textBody .blk.k-h{text-align:center;font-weight:700;margin:.6em 0 .8em}
+#textBody .blk.k-s{font:600 14px var(--ui);letter-spacing:.04em;color:var(--acc);margin:.9em 0 .1em}
+#textBody .para:empty{display:none}
+/* the reference keeps its vertical place in the line but sits in the left margin */
+.rf{position:absolute;left:.5rem;width:2.8rem;font:12px/1.9 var(--ui);color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.mkr{position:absolute;left:0;width:7px;height:1.6em;margin-top:.15em;background:var(--acc);clip-path:polygon(0 0,100% 0,100% 100%,50% 82%,0 100%);pointer-events:none}
+.w.flash>.g{animation:flash 1.2s ease-out}
+@keyframes flash{0%,40%{background:var(--hl)}100%{background:transparent}}
+/* library and navigation dialogs */
+dialog .libtop{display:flex;gap:.6rem;align-items:center}
+dialog .libtop input[type=search]{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:.45rem .6rem;background:var(--bg);font-family:var(--greek);font-size:16px}
+dialog .list.lib{max-height:58vh}
+dialog details.auth{border-bottom:1px solid var(--line)}
+dialog details.auth>summary,dialog .nav details>summary{display:flex;align-items:center;gap:.5rem;padding:.45rem 0;cursor:pointer;list-style:none}
+dialog details>summary::-webkit-details-marker{display:none}
+dialog details.auth>summary::before,dialog .nav details>summary::before{content:"▸";color:var(--mut);width:.8em;flex:none}
+dialog details[open].auth>summary::before,dialog .nav details[open]>summary::before{content:"▾"}
+dialog details.auth .works{padding-left:1.3rem}
+dialog details.auth .works .item:last-child{border-bottom:0}
+dialog .ok{color:var(--acc2)}
+dialog .bookgrid{display:flex;flex-wrap:wrap;gap:.35rem;margin:.2rem 0 .6rem;max-height:30vh;overflow:auto}
+dialog .bookgrid button{min-width:2.6rem;font-family:var(--greek)}
+dialog .bookgrid button.mk{box-shadow:inset 0 3px 0 var(--acc)}
+dialog .nav details{border-bottom:1px solid var(--line)}
+dialog .nav .item{padding-left:1.3rem}
+
+/* end of a book: continue with the next one */
+.booknav{display:flex;justify-content:space-between;gap:1rem;margin:2.5rem 0 0;padding-top:1rem;border-top:1px solid var(--line)}
+.booknav button{font-size:14px}
+/* the top bar always stays one row: the title and the search field give way first */
+#top{flex-wrap:nowrap}
+#top>*{flex-shrink:0}
+#top .navgrp{flex-shrink:1;min-width:3rem}
+#top #search{flex:1 1 5rem;min-width:4rem;max-width:16rem}
+@media (max-width:800px){
+  #top{gap:.25rem;padding-left:.35rem;padding-right:.35rem}
+  #top button{padding:.3rem .42rem}
+  #top #search{min-width:3.2rem;padding:.3rem .4rem}
+  #textTitle{min-width:2.5rem}
+}

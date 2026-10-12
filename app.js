@@ -155,10 +155,10 @@ function applyPosColors() {
 }
 async function resolveTokens() {      // lemma + word class for every word of the text
   const run = (resolveTokens.run = (resolveTokens.run || 0) + 1);
-  let changed = false;
+  let changed = false; const memo = new Map();
   for (const tk of S.tokens) {
     if (tk.t !== 'w' || tk.lemma !== undefined) continue;
-    const A = await analyses(tk.s);
+    let A = memo.get(tk.s); if (!A) memo.set(tk.s, A = await analyses(tk.s));
     if (run !== resolveTokens.run) return;           // a newer run has started
     const l = A.pick; const x = A.lemmas.find(z => z.lemma === l);
     tk.lemma = l || null; tk.pos = posOf(l, x?.ana);
@@ -279,8 +279,8 @@ async function entryByRef(dictId, [k, id]) {
 }
 
 // ---------------------------------------------------------------- text rendering
-function tokenize(text) {
-  const toks = []; let last = 0, wi = 0;
+function tokenize(text, wi = 0) {
+  const toks = []; let last = 0;
   text = text.normalize('NFC');
   for (const m of text.matchAll(GREEK_TOKEN)) {
     if (m.index > last) toks.push({ t: 'p', s: text.slice(last, m.index) });
@@ -288,6 +288,18 @@ function tokenize(text) {
     last = m.index + m[0].length;
   }
   if (last < text.length) toks.push({ t: 'p', s: text.slice(last) });
+  return toks;
+}
+// library books: blocks [kind, [[ref, text], …]] -> block, reference and word tokens
+function tokenizeBlocks(blocks) {
+  const toks = []; let wi = 0;
+  for (const [k, runs] of blocks) {
+    toks.push({ t: 'b', k });
+    for (const [ref, txt] of runs) {
+      if (ref) toks.push({ t: 'r', s: ref, l: k === 'l' || k === 'L' });
+      for (const tk of tokenize(txt, wi)) { toks.push(tk); if (tk.t === 'w') wi = tk.i + 1; }
+    }
+  }
   return toks;
 }
 function renderText() {
@@ -299,6 +311,11 @@ function renderText() {
   const toks = S.tokens;
   for (let n = 0; n < toks.length; n++) {
     const tk = toks[n];
+    if (tk.t === 'b') { html += `</div><div class="blk k-${tk.k}">`; continue; }
+    if (tk.t === 'r') {        // reference in the margin; verse lines are numbered every 5th line
+      if (!tk.l || (/^\d+$/.test(tk.s) && +tk.s % 5 === 0)) html += `<span class="rf${tk.l ? ' ln' : ''}">${esc(tk.s)}</span>`;
+      continue;
+    }
     if (tk.t === 'p') {
       const s0 = tk.glued ? tk.s.slice(tk.glued) : tk.s;
       if (!s0) continue;
@@ -310,9 +327,13 @@ function renderText() {
     // punctuation directly after the word stays on the same line as the word
     const nx = toks[n + 1]; let pu = '';
     if (nx && nx.t === 'p') { const m = nx.s.match(/^[^\sͰ-Ͽἀ-῿]+/); if (m) { pu = m[0]; nx.glued = pu.length; } }
+    if (S.marker === tk.i) html += '<span class="mkr" title="Marker"></span>';
     html += `<span class="w${covered.has(tk.i) ? ' glossed' : ''}${tk.pos ? ' p-' + tk.pos : ''}" data-i="${tk.i}"><span class="g">${esc(tk.s)}${pu ? `<span class="pu">${esc(pu)}</span>` : ''}</span><span class="gl">${gs}</span></span>`;
   }
-  body.innerHTML = html + '</div>';
+  const w = S.text.work, bi = S.text.bi;
+  const bn = w && w.books.length > 1 ? `<div class="booknav">${bi > 0 ? `<button type="button" data-step="-1">◂ ${esc(w.books[bi - 1])}</button>` : '<span></span>'}${bi < w.books.length - 1 ? `<button type="button" data-step="1">${esc(w.books[bi + 1])} ▸</button>` : ''}</div>` : '';
+  body.innerHTML = html + '</div>' + bn;
+  body.classList.toggle('lib', !!S.text.blocks);
   markTarget();
   fillGlossBox();
 }
@@ -322,13 +343,17 @@ function markTarget() {
   const [s, e] = S.cur;
   for (let i = s; i <= e; i++) document.querySelector(`.w[data-i="${i}"]`)?.classList.add(e > s ? 'rng' : 'cur');
 }
-async function openText(id) {
-  const t = id != null ? await get('texts', id) : null;
+async function openText(id, scroll = true) {
+  saveReadPos();
+  const t = id == null ? null : isBook(id) ? await loadBook(id) : await get('texts', id);
   S.text = t || null; S.cur = null;
-  $('#textTitle').textContent = t ? t.title : 'no text';
-  S.tokens = t ? tokenize(t.text) : [];
+  S.tokens = t ? (t.blocks ? tokenizeBlocks(t.blocks) : tokenize(t.text)) : [];
+  S.marker = t ? (await setting('mk|' + t.id)) ?? null : null;
+  if (t?.work) await setting('wk|' + t.work.id, t.bi);
+  titleBar();
   S.glosses = t ? await req2p(tx('glosses').objectStore('glosses').index('textId').getAll(t.id)) : [];
   renderText();
+  if (scroll) { const y = t ? await setting('pos|' + t.id) : 0; $('#textPane').scrollTop = y || 0; }
   if (t) await setting('currentText', t.id);
   if (!$('#listBody').hidden) renderList();
   resolveTokens();
@@ -815,10 +840,13 @@ function queueDownload(id) {
 }
 async function runDownloads() {
   if (dlRunning) return; dlRunning = true;
-  const man = await fetchManifest();
-  if (!man) { DL.clear(); dlRunning = false; toast('Could not reach the website – are you online?'); return; }
+  let man = null, dicts = false;
   for (;;) {
     const id = [...DL.keys()].find(k => DL.get(k) < 0); if (!id) break;
+    if (id.startsWith('work:')) { await downloadWork(id); continue; }
+    dicts = true;
+    if (!man) man = await fetchManifest();
+    if (!man) { for (const k of [...DL.keys()]) if (!k.startsWith('work:')) { DL.delete(k); paintDL(k, 'Failed'); } toast('Could not reach the website – are you online?'); continue; }
     const p = man.packages.find(x => x.id === id);
     try {
       DL.set(id, 0); paintDL(id);
@@ -835,6 +863,7 @@ async function runDownloads() {
     await loadDicts(); bucketCache.clear();
   }
   dlRunning = false;
+  if (!dicts) return;
   if (S.view) renderView(); resetTokens(); resolveTokens();
   // refresh the open Dictionaries dialog so the new entries get their Delete button and size
   const d = $('#dlg');
@@ -882,10 +911,11 @@ async function importFiles(files) {
 async function backupDialog() {
   // the export file is prepared first, so that the download link is tapped directly by the user (needed on iPad)
   const data = { format: 'greekdict-backup-1', date: new Date().toISOString(), texts: await getAll('texts'), glosses: await getAll('glosses'), choices: await getAll('choices'), lemmaGlosses: S.lemmaGloss,
-    highlights: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('hl|', 'hl|\uffff'))).map(r => [r.k.slice(3), r.v])) };
+    highlights: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('hl|', 'hl|\uffff'))).map(r => [r.k.slice(3), r.v])),
+    markers: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('mk|', 'mk|\uffff'))).map(r => [r.k.slice(3), r.v])) };
   const href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
   const name = 'greek-reader-backup-' + new Date().toISOString().slice(0, 10) + '.json';
-  await dialog(`<h3>Backup</h3><p>Save your texts (${data.texts.length}), glosses (${data.glosses.length}), default glosses (${Object.keys(S.lemmaGloss).length}) and lemma choices as a file (e.g. in Files or iCloud), or restore them from a backup. Dictionaries are not included.</p>`,
+  await dialog(`<h3>Backup</h3><p>Save your texts (${data.texts.length}), glosses (${data.glosses.length}, including those in library texts), default glosses (${Object.keys(S.lemmaGloss).length}), markers and lemma choices as a file (e.g. in Files or iCloud), or restore them from a backup. Dictionaries and library texts are not included (they can be downloaded again).</p>`,
     [['link', 'Save backup', { href, name }], ['file', 'Restore …', 'fileBackup'], ['cancel', 'Close']]);
   setTimeout(() => URL.revokeObjectURL(href), 60000);
 }
@@ -897,6 +927,7 @@ async function restoreBackup(file) {
   await bulkPut('texts', data.texts); await bulkPut('glosses', data.glosses); await bulkPut('choices', data.choices);
   for (const [k, t] of Object.entries(data.lemmaGlosses || {})) { S.lemmaGloss[k] = t; await setting('lg|' + k, t); }
   for (const [k, r] of Object.entries(data.highlights || {})) await setting('hl|' + k, r);
+  for (const [k, r] of Object.entries(data.markers || {})) await setting('mk|' + k, r);
   toast('Restored'); await openText(data.texts[0]?.id ?? null);
 }
 
@@ -912,6 +943,7 @@ function wire() {
       S.view = null;                                  // always reopen the tapped word
       return openGlossField(dg ? 'def' : 'span');
     }
+    const st = ev.target.closest('[data-step]'); if (st) return stepBook(+st.dataset.step);
     const w = ev.target.closest('.w'); if (!w) return;
     const i = +w.dataset.i;
     if (S.rangeMode && S.cur) {
@@ -947,6 +979,12 @@ function wire() {
     S.hist = []; S.view = null; await showWord(tk.s, { lemma: r.dataset.lemma, ti: pos });
   });
   $('#btnBack').onclick = goBack;
+  $('#textTitle').onclick = navDialog;
+  $('#btnPrevBook').onclick = () => stepBook(-1);
+  $('#btnNextBook').onclick = () => stepBook(1);
+  wireMarker();
+  $('#textPane').addEventListener('scroll', () => { clearTimeout(S.posT); S.posT = setTimeout(saveReadPos, 500); }, { passive: true });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveReadPos(); });
   $('#btnFwd').onclick = goFwd;
   $('#tabEntry').onclick = () => showTab('entry');
   $('#tabList').onclick = () => { showTab('list'); renderList(); };
@@ -969,7 +1007,7 @@ function wire() {
   menu.addEventListener('click', ev => {
     const b = ev.target.closest('[data-m]'); if (!b) return;
     menu.hidden = true;
-    ({ theme: () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true), texts: textsDialog, dicts: dictsDialog, pos: posDialog, backup: backupDialog })[b.dataset.m]();
+    ({ theme: () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true), texts: textsDialog, library: libraryDialog, dicts: dictsDialog, pos: posDialog, backup: backupDialog })[b.dataset.m]();
   });
   document.addEventListener('change', async ev => {
     const id = ev.target.dataset?.dictOn; if (!id) return;
@@ -995,7 +1033,8 @@ function wire() {
   $('#btnHl').onclick = () => setHlMode(!S.hlMode);
   wireHighlighter();
   wireDictDrag();
-  document.addEventListener('click', e => { const b = e.target.closest('#dlg [data-get]'); if (b) queueDownload(b.dataset.get); });
+  document.addEventListener('click', e => { const b = e.target.closest('#dlg [data-get]'); if (b) { if (b.closest('summary')) e.preventDefault(); queueDownload(b.dataset.get); } });
+  wireLibrary();
   document.addEventListener('selectionchange', () => {
     if (S.hlMode) { $('#fabBar').hidden = true; return; }
     const sel = window.getSelection(); const txt = String(sel).trim();
@@ -1073,6 +1112,270 @@ function splitIcon() {   // an open book: the fold sits where the split is, the 
   b.title = `Text ${pct < 40 ? '1/3' : pct > 60 ? '2/3' : '1/2'} – tap to change the split`;
 }
 
+// ---------------------------------------------------------------- library (Perseus, First1KGreek)
+// Works are downloaded from the app's website (texts/works/<id>.json.gz) into their own database,
+// one record per reading unit ("book"), so that only the open book is loaded.
+const LIB_DB = 'greekreader-lib';
+let libConn = null;
+function libDB() {
+  if (libConn) return Promise.resolve(libConn);
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(LIB_DB, 1);
+    r.onupgradeneeded = () => { const d = r.result; d.createObjectStore('works', { keyPath: 'id' }); d.createObjectStore('books', { keyPath: 'k' }); };
+    r.onsuccess = () => res(libConn = r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function libGet(store, k) { const d = await libDB(); return req2p(d.transaction(store).objectStore(store).get(k)); }
+async function libWorks() { const d = await libDB(); return req2p(d.transaction('works').objectStore('works').getAll()); }
+async function installWork(file, version) {
+  const info = {}; const p = await readPackage(file, info);
+  if (p.format !== 'greekdict-work-1') throw new Error('not a text package');
+  const d = await libDB(); const t = d.transaction(['works', 'books'], 'readwrite'); const bs = t.objectStore('books');
+  bs.delete(IDBKeyRange.bound(p.id + '|', p.id + '|￿'));
+  p.books.forEach((b, i) => bs.put({ k: p.id + '|' + i, blocks: b.blocks }));
+  t.objectStore('works').put({ id: p.id, author: p.author, authorId: p.authorId, title: p.title, greek: p.greekTitle, edition: p.edition,
+    source: p.source, license: p.license, books: p.books.map(b => b.label), version, size: info.size, added: Date.now() });
+  await done(t);
+}
+async function deleteWork(id) {   // glosses and markers are kept, so they come back when the work is downloaded again
+  const d = await libDB(); const t = d.transaction(['works', 'books'], 'readwrite');
+  t.objectStore('books').delete(IDBKeyRange.bound(id + '|', id + '|￿')); t.objectStore('works').delete(id);
+  await done(t);
+  if (S.text?.work?.id === id) await openText(null);
+}
+const isBook = id => typeof id === 'string' && id.startsWith('w:');
+async function loadBook(id) {      // id = "w:<work id>:<book index>"
+  const j = id.lastIndexOf(':'), wid = id.slice(2, j), bi = +id.slice(j + 1);
+  const work = await libGet('works', wid); if (!work) return null;
+  const b = await libGet('books', wid + '|' + bi); if (!b) return null;
+  return { id, work, bi, blocks: b.blocks, title: `${work.title} · ${work.books[bi]}` };
+}
+async function openWork(id, bi) {
+  if (bi == null) bi = (await setting('wk|' + id)) ?? 0;
+  return openText(`w:${id}:${bi}`);
+}
+async function fetchCatalog() {
+  if (S.catalog && S.catOnline) return S.catalog;
+  try {
+    const r = await fetch('texts/catalog.json', { cache: 'no-cache' }); if (!r.ok) throw new Error();
+    S.catalog = await r.json(); S.catOnline = true; setting('catalog', S.catalog);
+  } catch (_) { S.catalog = S.catalog || (await setting('catalog')) || null; S.catOnline = false; }
+  S.catWork = {};
+  if (S.catalog) for (const a of S.catalog.authors) for (const w of a.works) S.catWork[w.id] = Object.assign(w, { author: a.name, authorId: a.id });
+  return S.catalog;
+}
+const fold = s => String(s || '').normalize('NFD').replace(/[̀-ͯͅ]/g, '').replace(/ς/g, 'σ').toLowerCase();
+const mb = b => b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' kB';
+function libAuthors() {
+  if (S.catalog) return S.catalog.authors;
+  const by = {};
+  for (const w of Object.values(S.libInst)) (by[w.authorId] ??= { id: w.authorId, name: w.author, works: [] }).works.push(w);
+  return Object.values(by).sort((a, b) => a.name.localeCompare(b.name));
+}
+function libFilter(a) {
+  const q = fold(S.libQ); let ws = a.works;
+  if (S.libMine) ws = ws.filter(w => S.libInst[w.id]);
+  if (q && !fold(a.name).includes(q)) ws = ws.filter(w => fold(w.title + ' ' + (w.greek || '') + ' ' + w.id).includes(q));
+  return ws;
+}
+function workRowHTML(w) {
+  const i = S.libInst[w.id], key = 'work:' + w.id;
+  let btn;
+  if (DL.has(key)) btn = dlButtonHTML(key, 'Download');
+  else if (!i) btn = S.catalog ? `<button type="button" class="dlbtn" data-get="${key}" title="${mb(w.bytes)}">Download</button>` : '';
+  else btn = (w.v && i.version !== w.v ? `<button type="button" class="dlbtn" data-get="${key}" title="A corrected version is available">Update</button>` : '')
+    + `<button type="button" data-lopen="${w.id}">Open</button><button type="button" class="danger" data-ldel="${w.id}">Delete</button>`;
+  const nb = w.books.length > 1 ? `${w.books.length} parts` : 'one part';
+  const ed = w.id.split('.').pop().replace(/^perseus-|^1st1K-/, '');
+  return `<div class="item" data-w="${w.id}"><span class="t"><b>${esc(w.title)}</b> <span class="gk">${w.greek && w.greek !== w.title ? esc(w.greek) : ''}</span><br><small>${nb}${w.words ? ' · ' + w.words.toLocaleString('en') + ' words' : ''} · ${esc(w.source || '')} ${esc(ed)}</small></span>${btn}</div>`;
+}
+function authorHTML(a, ws, open) {
+  const inst = a.works.filter(w => S.libInst[w.id]).length;
+  const todo = S.catalog ? ws.filter(w => !S.libInst[w.id] && !DL.has('work:' + w.id)) : [];
+  const all = todo.length > 1 ? `<button type="button" class="dlbtn" data-all="${a.id}" title="${todo.length} works, ${mb(todo.reduce((x, w) => x + w.bytes, 0))}">Download all</button>` : '';
+  return `<details class="auth" data-a="${a.id}"${open ? ' open' : ''}><summary><span class="t"><b>${esc(a.name)}</b> <small>${a.works.length} work${a.works.length > 1 ? 's' : ''}${inst ? ` · <span class="ok">${inst} on this device</span>` : ''}</small></span>${all}</summary><div class="works">${open ? ws.map(workRowHTML).join('') : ''}</div></details>`;
+}
+function renderLibList() {
+  const el = $('#libList'); if (!el) return;
+  const st = el.scrollTop, q = fold(S.libQ);
+  let html = '', n = 0;
+  for (const a of libAuthors()) {
+    const ws = libFilter(a); if (!ws.length) continue;
+    n++;
+    html += authorHTML(a, ws, S.libOpen.has(a.id) || S.libMine || (q && !fold(a.name).includes(q)));
+  }
+  el.innerHTML = html || `<p class="hint">${S.libMine ? 'No downloaded works' : 'Nothing found'}${S.libQ ? ' for “' + esc(S.libQ) + '”' : ''}.</p>`;
+  el.scrollTop = st;
+}
+async function libraryDialog() {
+  S.libOpen ??= new Set(); S.libQ ??= ''; S.libMine ??= false;
+  const [cat, inst] = await Promise.all([fetchCatalog(), libWorks()]);
+  S.libInst = Object.fromEntries(inst.map(w => [w.id, w]));
+  const tot = inst.reduce((a, w) => a + (w.size || 0), 0);
+  dialog(`<h3>Library</h3>
+    <div class="libtop"><input type="search" id="libSearch" placeholder="Search authors and works (English, Latin or Greek)…" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(S.libQ)}">
+    <label class="sw"><input type="checkbox" id="libMine"${S.libMine ? ' checked' : ''}> On this device</label></div>
+    <div class="list lib" id="libList"></div>
+    ${!cat ? '<p class="hint">The catalogue could not be loaded (offline?). Downloaded works are listed below.</p>' : S.catOnline ? '' : '<p class="hint">Offline – showing the last known catalogue; downloads need a connection.</p>'}
+    <small>${inst.length} work${inst.length === 1 ? '' : 's'} on this device${tot ? ` (≈ ${mb(tot)})` : ''}${cat ? ` · ${cat.authors.length} authors, ${Object.keys(S.catWork).length.toLocaleString('en')} works available` : ''}.<br>
+    Greek texts: Perseus Digital Library (canonical-greekLit) and Open Greek and Latin (First1KGreek), licensed CC BY-SA 4.0. Long works are divided into books; small sections are grouped into parts.</small>`,
+    [['cancel', 'Close']]).then(r => { if (r.action === 'cancel') S.libScroll = 0; });
+  if (!cat && !inst.length) S.libMine = false;
+  renderLibList();
+  if (S.libScroll) $('#libList').scrollTop = S.libScroll;
+}
+async function downloadWork(key) {
+  const id = key.slice(5), w = S.catWork?.[id];
+  try {
+    if (!w) throw new Error('not in the catalogue');
+    DL.set(key, 0); paintDL(key);
+    const r = await fetch('texts/works/' + id + '.json.gz', { cache: 'no-cache' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const reader = r.body.getReader(); const parts = []; let got = 0;
+    for (;;) { const { done: fin, value } = await reader.read(); if (fin) break; parts.push(value); got += value.length; DL.set(key, 0.9 * Math.min(1, got / w.bytes)); paintDL(key); }
+    DL.set(key, 0.9); paintDL(key);
+    await installWork(new File(parts, id + '.json.gz'), w.v);
+    DL.delete(key);
+    if (S.libInst) S.libInst[id] = await libGet('works', id);
+    if (S.text?.work?.id === id) await openText(S.text.id, false);
+  } catch (e) { DL.delete(key); toast(`${w?.title || id}: download failed (${e.message})`, 4000); paintDL(key, 'Failed'); }
+  if ($('#libList')) renderLibList();
+}
+function wireLibrary() {
+  document.addEventListener('input', ev => {
+    if (ev.target.id !== 'libSearch') return;
+    clearTimeout(wireLibrary.t); wireLibrary.t = setTimeout(() => { S.libQ = ev.target.value.trim(); renderLibList(); }, 150);
+  });
+  document.addEventListener('change', ev => { if (ev.target.id === 'libMine') { S.libMine = ev.target.checked; renderLibList(); } });
+  document.addEventListener('toggle', ev => {
+    const d = ev.target; if (!d.matches?.('#libList details.auth')) return;
+    const id = d.dataset.a;
+    if (d.open) { S.libOpen.add(id); const a = libAuthors().find(x => x.id === id); d.querySelector('.works').innerHTML = libFilter(a).map(workRowHTML).join(''); }
+    else S.libOpen.delete(id);
+  }, true);
+  document.addEventListener('click', async ev => {
+    const all = ev.target.closest('#libList [data-all]');
+    if (all) {
+      ev.preventDefault();
+      const a = libAuthors().find(x => x.id === all.dataset.all);
+      for (const w of libFilter(a)) if (!S.libInst[w.id]) { DL.set('work:' + w.id, -1); }
+      S.libOpen.add(a.id); renderLibList(); runDownloads(); return;
+    }
+    const op = ev.target.closest('#libList [data-lopen]');
+    if (op) { S.libScroll = $('#libList').scrollTop; $('#dlg').close(); return openWork(op.dataset.lopen); }
+    const dl = ev.target.closest('#libList [data-ldel]');
+    if (dl) {
+      const w = S.libInst[dl.dataset.ldel]; S.libScroll = $('#libList').scrollTop;
+      const c = await dialog(`<h3>Delete ${esc(w.title)}?</h3><p>The text is removed from this device. Your glosses and markers in it are kept and reappear if you download it again.</p>`, [['cancel', 'Cancel'], ['ok', 'Delete']]);
+      if (c.action === 'ok') await deleteWork(w.id);
+      return libraryDialog();
+    }
+  });
+}
+
+// ---------------------------------------------------------------- navigation between texts and books
+function titleBar() {
+  const t = S.text, w = t?.work, tt = $('#textTitle');
+  tt.innerHTML = !t ? '<span class="tw">no text</span>' : w
+    ? `<span class="tw"><span class="ta">${esc(w.author)} › </span>${esc(w.title)}</span><span class="tb">› ${esc(w.books[t.bi])}</span>`
+    : `<span class="tw">${esc(t.title)}</span>`;
+  tt.title = t ? (w ? `${w.author} › ${w.title} › ${w.books[t.bi]}` : t.title) + ' – tap to choose another text or book' : 'Choose a text';
+  const multi = !!w && w.books.length > 1;
+  $('#btnPrevBook').hidden = $('#btnNextBook').hidden = !multi;
+  if (multi) {
+    $('#btnPrevBook').disabled = t.bi === 0; $('#btnNextBook').disabled = t.bi >= w.books.length - 1;
+    $('#btnPrevBook').title = t.bi > 0 ? 'Previous: ' + w.books[t.bi - 1] : ''; $('#btnNextBook').title = t.bi < w.books.length - 1 ? 'Next: ' + w.books[t.bi + 1] : '';
+  }
+  markIcon();
+}
+function stripCommon(labels) {     // "Book 1", "Book 2" … -> "1", "2" …
+  if (labels.length < 2) return labels;
+  let p = labels[0];
+  for (const l of labels) while (p && !l.startsWith(p)) p = p.slice(0, -1);
+  p = p.slice(0, p.lastIndexOf(' ') + 1);
+  return labels.map(l => l.slice(p.length) || l);
+}
+async function navDialog() {
+  const t = S.text, w = t?.work;
+  const [works, texts] = await Promise.all([libWorks(), getAll('texts')]);
+  let html = '';
+  if (w) {
+    const marks = new Set((await getAll('settings', IDBKeyRange.bound(`mk|w:${w.id}:`, `mk|w:${w.id}:￿`))).map(r => +r.k.split(':').pop()));
+    const short = stripCommon(w.books);
+    html += `<h3>${esc(w.author)} · ${esc(w.title)} <span class="gk">${esc(w.greek || '')}</span></h3>
+      ${w.books.length > 1 ? `<div class="bookgrid">${short.map((l, i) => `<button type="button" data-v="book:${i}" title="${esc(w.books[i])}${marks.has(i) ? ' – has a marker' : ''}" class="${i === t.bi ? 'on' : ''}${marks.has(i) ? ' mk' : ''}">${esc(l)}</button>`).join('')}</div>` : ''}
+      <p class="hint" style="font-size:13px">${esc(w.edition || '')}</p>`;
+  } else html += '<h3>Texts</h3>';
+  const by = {};
+  for (const x of works) (by[x.authorId] ??= { id: x.authorId, name: x.author, works: [] }).works.push(x);
+  const authors = Object.values(by).sort((a, b) => a.name.localeCompare(b.name));
+  html += '<div class="list nav">' + authors.map(a => `<details${a.id === w?.authorId ? ' open' : ''}><summary><b>${esc(a.name)}</b> <small>${a.works.length}</small></summary>${a.works.sort((x, y) => x.title.localeCompare(y.title)).map(x => `<div class="item"><span class="t">${esc(x.title)} <span class="gk">${esc(x.greek || '')}</span> <small>${x.books.length > 1 ? x.books.length + ' parts' : ''}</small></span><button type="button" data-v="work:${x.id}"${x.id === w?.id ? ' class="on"' : ''}>Open</button></div>`).join('')}</details>`).join('')
+    + (texts.length ? `<details${!w ? ' open' : ''}><summary><b>My texts</b> <small>${texts.length}</small></summary>${texts.map(x => `<div class="item"><span class="t">${esc(x.title)}</span><button type="button" data-v="text:${x.id}"${x.id === t?.id ? ' class="on"' : ''}>Open</button></div>`).join('')}</details>` : '')
+    + (!authors.length && !texts.length ? '<p class="hint">Nothing here yet – get texts from the Library, or paste your own under My texts.</p>' : '') + '</div>';
+  const r = await dialog(html, [['library', 'Library …'], ['texts', 'My texts …'], ['cancel', 'Close']]);
+  if (r.action.startsWith('book:')) return openText(`w:${w.id}:${+r.action.slice(5)}`);
+  if (r.action.startsWith('work:')) return openWork(r.action.slice(5));
+  if (r.action.startsWith('text:')) return openText(+r.action.slice(5));
+  if (r.action === 'library') return libraryDialog();
+  if (r.action === 'texts') return textsDialog();
+}
+function stepBook(d) {
+  const t = S.text, w = t?.work; if (!w) return;
+  const bi = t.bi + d; if (bi < 0 || bi >= w.books.length) return;
+  openText(`w:${w.id}:${bi}`);
+}
+// reading position per text/book (restored when it is opened again)
+function saveReadPos() { if (S.text) setting('pos|' + S.text.id, Math.round($('#textPane').scrollTop)); }
+
+// ---------------------------------------------------------------- marker (one per book / text)
+function markIcon() {
+  const b = $('#btnMark'), has = S.marker != null;
+  b.disabled = !S.text; b.classList.toggle('set', has);
+  b.title = has ? 'Go to the marker · hold to move it here (hold again at the same place to remove it)' : 'Set a marker here (at the selected word, or the first line on screen)';
+}
+function anchorWord() {             // selected word if it is on screen, otherwise the first word at the top of the pane
+  const pane = $('#textPane').getBoundingClientRect();
+  const vis = e => { const r = e?.getBoundingClientRect(); return r && r.bottom > pane.top && r.top < pane.bottom; };
+  if (S.cur) { const e = document.querySelector(`#textBody .w[data-i="${S.cur[0]}"]`); if (vis(e)) return S.cur[0]; }
+  const ws = document.querySelectorAll('#textBody .w'); if (!ws.length) return null;
+  let lo = 0, hi = ws.length - 1;                 // words are in reading order: binary search for the first visible one
+  while (lo < hi) { const m = (lo + hi) >> 1; if (ws[m].getBoundingClientRect().bottom <= pane.top + 4) lo = m + 1; else hi = m; }
+  return +ws[lo].dataset.i;
+}
+function renderMarker() {
+  document.querySelectorAll('#textBody .mkr').forEach(e => e.remove());
+  if (S.marker != null) document.querySelector(`#textBody .w[data-i="${S.marker}"]`)?.insertAdjacentHTML('beforebegin', '<span class="mkr" title="Marker"></span>');
+}
+async function setMarker(i) {
+  if (!S.text) return;
+  S.marker = i;
+  if (i == null) await del('settings', 'mk|' + S.text.id); else await setting('mk|' + S.text.id, i);
+  renderMarker(); markIcon();
+}
+function goMarker() {
+  const e = document.querySelector(`#textBody .w[data-i="${S.marker}"]`); if (!e) return;
+  const pane = $('#textPane');
+  pane.scrollTop += e.getBoundingClientRect().top - pane.getBoundingClientRect().top - 56;
+  e.classList.add('flash'); setTimeout(() => e.classList.remove('flash'), 1200);
+}
+function wireMarker() {
+  const b = $('#btnMark'); let timer = null, long = false;
+  b.addEventListener('pointerdown', () => {
+    long = false; clearTimeout(timer);
+    timer = setTimeout(async () => {
+      long = true; const i = anchorWord(); if (i == null) return;
+      if (i === S.marker) { await setMarker(null); toast('Marker removed'); } else { await setMarker(i); toast('Marker moved here'); }
+    }, 550);
+  });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, () => clearTimeout(timer));
+  b.addEventListener('contextmenu', e => e.preventDefault());
+  b.addEventListener('click', async () => {
+    if (long) { long = false; return; }
+    if (S.marker == null) { const i = anchorWord(); if (i == null) return; await setMarker(i); toast('Marker set – tap the ribbon to come back here; hold it to move the marker.', 3500); }
+    else goMarker();
+  });
+}
+
 // ---------------------------------------------------------------- start
 (async function main() {
   db = await openDB();
@@ -1088,7 +1391,7 @@ function splitIcon() {   // an open book: the fold sits where the split is, the 
   S.posOn = !!(await setting('posOn')); applyPosColors();
   const cur = await setting('currentText');
   if (cur != null) await openText(cur);
-  if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! <button id="btnFirstSync">Download the free dictionaries</button> (Pape, LSJ, morphology, about 34 MB). Frisk and Bailly can be added via ☰ → Dictionaries → “Import packages …”. Then add a text via ☰ → Texts.</p>';
+  if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! <button id="btnFirstSync">Download the free dictionaries</button> (Pape, LSJ, morphology, about 34 MB). Frisk and Bailly can be added via ☰ → Dictionaries → “Import packages …”. Then get a text via ☰ → Library, or paste your own via ☰ → My texts.</p>';
   $('#btnFirstSync')?.addEventListener('click', () => syncPackages());
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => { });
   navigator.storage?.persist?.().catch(() => { });
