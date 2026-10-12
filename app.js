@@ -689,8 +689,10 @@ function splitIcon() {   // an open book: the fold sits where the split is, the 
   p.push(`M${x0} ${H - 3} Q${(x0 + fx) / 2} ${H - 4} ${fx} ${H - 3 + dip} Q${(fx + x1) / 2} ${H - 4} ${x1} ${H - 3}`); // bottom edges
   p.push(`M${x0} 3 V${H - 3} M${x1} 3 V${H - 3} M${fx} ${3 + dip} V${H - 3 + dip}`);         // outer edges + fold
   for (const y of [6.5, 9.5, 12.5, 15.5]) {                                                    // text lines
-    if (fx - x0 > 5) p.push(`M${x0 + 2} ${y} L${fx - 1.8} ${y + dip * 0.6}`);
-    if (x1 - fx > 5) p.push(`M${fx + 1.8} ${y + dip * 0.6} L${x1 - 2} ${y}`);
+    // same curve as the page edges: nearly flat at the outer edge, bending down into the fold
+    const lx0 = x0 + 2, lx1 = x1 - 2, d = dip * 0.85;
+    if (fx - x0 > 5) p.push(`M${lx0} ${y} Q${(lx0 + fx) / 2} ${y - 0.9} ${fx - 1.6} ${y + d}`);
+    if (x1 - fx > 5) p.push(`M${fx + 1.6} ${y + d} Q${(fx + lx1) / 2} ${y - 0.9} ${lx1} ${y}`);
   }
   const g = `<path d="${p.join(' ')}" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>`;
   b.innerHTML = portrait
