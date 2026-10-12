@@ -612,6 +612,8 @@ function wire() {
   $('#chkPos').onchange = async ev => { S.posOn = ev.target.checked; await setting('posOn', S.posOn); applyPosColors(); };
 
   $('#btnAddGloss').onclick = () => writeGloss();
+  $('#btnSplit').onclick = cycleSplit;
+  matchMedia('(orientation:portrait),(max-width:760px)').addEventListener('change', splitIcon);
   $('#btnRange').onclick = () => {
     if (!S.cur) return toast('Tap the first word, then “Range”, then the last word.');
     S.rangeMode = !S.rangeMode; $('#btnRange').classList.toggle('on', S.rangeMode);
@@ -624,8 +626,7 @@ function wire() {
   menu.addEventListener('click', ev => {
     const b = ev.target.closest('[data-m]'); if (!b) return;
     menu.hidden = true;
-    ({ theme: () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true), texts: textsDialog, dicts: dictsDialog, pos: posDialog, backup: backupDialog,
-       layout: () => setSplit(({ '50%': '62%', '62%': '38%', '38%': '50%' })[getSplit()] || '50%') })[b.dataset.m]();
+    ({ theme: () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true), texts: textsDialog, dicts: dictsDialog, pos: posDialog, backup: backupDialog })[b.dataset.m]();
   });
   document.addEventListener('change', ev => { if (ev.target.id === 'optSrcCol') { S.srcColors = ev.target.checked; setting('srcColors', S.srcColors); document.body.classList.toggle('nosrccol', !S.srcColors); } });
   $('#fileDict').onchange = ev => { const fs = [...ev.target.files]; ev.target.value = ''; if (fs.length) importFiles(fs); };
@@ -669,7 +670,27 @@ function setTheme(t, save) {
   if (save) setting('theme', t);
 }
 function getSplit() { return document.documentElement.style.getPropertyValue('--split').trim() || '50%'; }
-function setSplit(v, save = true) { document.documentElement.style.setProperty('--split', v); if (save) setting('split', v); }
+function setSplit(v, save = true) { document.documentElement.style.setProperty('--split', v); splitIcon(); if (save) setting('split', v); }
+// split button: 1/2 -> 2/3 -> 1/2 -> 1/3 -> 1/2 … (bounces between the three arrangements)
+const SPLITS = [100 / 3, 50, 200 / 3];
+function cycleSplit() {
+  const cur = parseFloat(getSplit());
+  let i = SPLITS.reduce((b, x, j) => Math.abs(x - cur) < Math.abs(SPLITS[b] - cur) ? j : b, 1);
+  if (i === 2) S.splitDir = -1; else if (i === 0) S.splitDir = 1; else S.splitDir = S.splitDir || 1;
+  setSplit(SPLITS[i + S.splitDir].toFixed(3) + '%');
+}
+function splitIcon() {   // small picture of the current arrangement: text part filled, dictionary part outlined
+  const b = $('#btnSplit'); if (!b) return;
+  const f = Math.min(0.9, Math.max(0.1, parseFloat(getSplit()) / 100));
+  const portrait = matchMedia('(orientation:portrait),(max-width:760px)').matches;
+  const W = 26, H = 18, r = 'rx="1.5"';
+  const svg = portrait
+    ? `<rect x="1" y="1" width="${W - 2}" height="${(H - 2) * f}" ${r} fill="currentColor"/><rect x="1.5" y="${1.5 + (H - 2) * f}" width="${W - 3}" height="${(H - 2) * (1 - f) - 1}" ${r} fill="none" stroke="currentColor"/>`
+    : `<rect x="1" y="1" width="${(W - 2) * f}" height="${H - 2}" ${r} fill="currentColor"/><rect x="${1.5 + (W - 2) * f}" y="1.5" width="${(W - 2) * (1 - f) - 1}" height="${H - 3}" ${r} fill="none" stroke="currentColor"/>`;
+  b.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">${svg}</svg>`;
+  const pct = Math.round(f * 100);
+  b.title = `Text ${pct < 40 ? '1/3' : pct > 60 ? '2/3' : '1/2'} – tap to change the split`;
+}
 
 // ---------------------------------------------------------------- start
 (async function main() {
@@ -679,7 +700,7 @@ function setSplit(v, save = true) { document.documentElement.style.setProperty('
   for (const r of await getAll('settings', IDBKeyRange.bound('lg|', 'lg|\uffff'))) S.lemmaGloss[r.k.slice(3)] = r.v;
   await loadDicts();
   const sg = await setting('showGloss'); if (sg === false) { $('#chkGloss').checked = false; document.body.classList.add('nogloss'); }
-  const sp = await setting('split'); if (sp) setSplit(sp, false);
+  const sp = await setting('split'); setSplit(sp || '50%', false);
   S.srcColors = (await setting('srcColors')) !== false; document.body.classList.toggle('nosrccol', !S.srcColors);
   S.posCfg = Object.assign(defaultPosCfg(), (await setting('posCfg')) || {});
   S.posOn = !!(await setting('posOn')); applyPosColors();

@@ -146,3 +146,5 @@ dialog .opt input{margin-right:.4rem}
 .gb{display:grid;grid-template-columns:minmax(7rem,auto) 1fr;gap:.5rem;align-items:center;font:13px var(--ui);color:var(--mut)}
 .gb i{font:italic 15px var(--greek);color:var(--fg)}
 .gb textarea{border:1px solid var(--line);border-radius:6px;padding:.3rem .5rem;background:var(--bg);color:var(--gloss);font:15px/1.35 var(--ui);resize:none;overflow:hidden;min-height:0;width:100%}
+#btnSplit{padding:.2rem .45rem;line-height:0;color:var(--fg)}
+#btnSplit svg{display:block}
