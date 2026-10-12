@@ -266,7 +266,7 @@ async function importPackage(file, progress, version = null) {
 }
 async function loadDicts() {
   const all = await getAll('dicts');
-  for (const d of all) { d.splitSet = new Set(d.split || []); d.src ||= ['ls', 'georges', 'collatinus', 'morph-la'].includes(d.id) ? 'la' : 'grc'; }
+  for (const d of all) { d.splitSet = new Set(d.split || []); d.src ||= ['ls', 'georges', 'collatinus', 'morph-la', 'whitaker', 'morph-la-ww'].includes(d.id) ? 'la' : 'grc'; }
   S.dicts = all.filter(d => d.kind === 'dictionary').sort((a, b) => (a.order ?? 99) - (b.order ?? 99) || a.name.localeCompare(b.name));
   // user's order and on/off choice (menu ☰ → Dictionaries); new dictionaries go to the end, switched on
   S.dictPrefs = Object.assign({ order: [], off: [], locked: [] }, (await setting('dictPrefs')) || {});
@@ -277,7 +277,8 @@ async function loadDicts() {
   const on = d => d && !S.dictPrefs.off.includes(d.id) ? d : null;
   S.morphInst = all.find(d => d.kind === 'morph') || null; S.morph = on(S.morphInst);
   S.hintsInst = all.find(d => d.kind === 'morphhints') || null; S.hints = on(S.hintsInst);
-  S.latMorphInst = all.find(d => d.kind === 'latmorph') || null; S.latMorph = on(S.latMorphInst);
+  S.latMorphs = all.filter(d => d.kind === 'latmorph').sort((a, b) => a.id.localeCompare(b.id));
+  S.latMorphInst = S.latMorphs[0] || null; S.latMorph = S.latMorphs.find(d => on(d)) || null;     // the one chosen in Settings → Languages
   if (S.morphInst?.name === 'Morphological analysis') S.morphInst.name = 'Greek morphology';
   const hintsOff = S.hintsInst && !S.hints;
   S.lemmapos = hintsOff ? {} : (await setting('lemmapos')) || {};
@@ -318,7 +319,7 @@ async function analyses(form, choices = null, bmap = null) {
   return { f, lemmas, pick, chosen: !!choice };
 }
 // ---- Latin: analysis as in Collatinus – a form is a radical of a lemma + an ending of the lemma's inflection model
-function latAnalyzeKey(E, k) {
+function latAnalyzeKeyC(E, k) {         // Collatinus
   const out = [], X = E.X;
   for (let i = 0; i <= k.length; i++) {
     const ds = E.D[k.slice(i)]; if (!ds) continue;
@@ -331,8 +332,31 @@ function latAnalyzeKey(E, k) {
   for (const v of E.I[k] || []) out.push(v);
   return out;
 }
+// Whitaker's Words: a form is a stem (1–4) of a dictionary entry + an ending that fits the entry's
+// part of speech, declension/conjugation (and variant), gender, comparison or deponent kind
+function wwFits(lem, inf) {
+  const [, p, which, vr, x] = lem, [pos, iw, iv, , , ex] = inf;
+  if (!(pos === p || (p === 'V' && (pos === 'VPAR' || pos === 'SUPINE')) || (p === 'PACK' && pos === 'PRON'))) return false;
+  if (!['ADV', 'PREP', 'CONJ', 'INTERJ', 'SUPINE'].includes(pos)) { if (iw && iw !== which) return false; if (iv && iv !== vr) return false; }
+  if (pos === 'N' && !(ex === 'X' || x === 'X' || ex === x || (ex === 'C' && (x === 'M' || x === 'F')) || (x === 'C' && (ex === 'M' || ex === 'F')))) return false;
+  if ((pos === 'ADJ' || pos === 'ADV' || pos === 'NUM') && x && x !== 'X' && ex && ex !== 'X' && ex !== x) return false;
+  if (pos === 'V' && x === 'DEP' && ex === 'A') return false;
+  return true;
+}
+function wwAnalyzeKey(E, k) {
+  const out = [];
+  for (let i = 0; i <= k.length; i++) {
+    const ds = E.D[k.slice(i)]; if (!ds) continue;
+    const rs = E.R[k.slice(0, i)]; if (!rs) continue;
+    for (const [li, n] of rs) for (const inf of ds) if (inf[3] === n && wwFits(E.L[li], inf)) out.push([li, inf[4]]);
+  }
+  for (const [form, mo] of E.I[k] || []) out.push([form, mo]);         // unique forms: [lemma text, morpho]
+  return out;
+}
+const latFreq = (E, li) => typeof li !== 'number' ? 9 : E.type === 'whitaker' ? E.L[li][5] : E.L[li][3];
 function latAnalyze(E, form) {
   const k = latkey(form);
+  const latAnalyzeKey = E.type === 'whitaker' ? wwAnalyzeKey : latAnalyzeKeyC;
   let r = latAnalyzeKey(E, k);
   for (const [sh, lo] of E.C) if (k.endsWith(sh)) r = r.concat(latAnalyzeKey(E, k.slice(0, k.length - sh.length) + lo));   // amarunt = amaverunt
   for (const [a, b] of E.A) {                                                                                          // adc- / acc-
@@ -342,7 +366,7 @@ function latAnalyze(E, form) {
   let enc = '';
   if (!r.length) for (const e of ['que', 'ne', 've']) if (k.length > e.length + 1 && k.endsWith(e)) { r = latAnalyzeKey(E, k.slice(0, -e.length)); if (r.length) { enc = e; break; } }
   const seen = new Set(), res = [];
-  for (const [li, mo] of r) { const id = li + ':' + mo; if (!seen.has(id)) { seen.add(id); res.push([E.L[li][0], E.M[mo] + (enc ? ' + -' + enc : ''), li]); } }
+  for (const [li, mo] of r) { const id = li + ':' + mo; if (!seen.has(id)) { seen.add(id); res.push([typeof li === 'number' ? E.L[li][0] : li, E.M[mo] + (enc ? ' + -' + enc : ''), li]); } }
   return res;
 }
 async function latEngine() {
@@ -353,7 +377,8 @@ async function latEngine() {
     const r = await req2p(ddb.transaction('b').objectStore('b').get('engine'));
     S.latEngine = r?.e || null; S.latEngineId = S.latMorph.id;
     S.latPos = {};
-    if (S.latEngine) for (const l of S.latEngine.L) if (l[2]) S.latPos[latkey(l[0])] ??= l[2];       // word classes for the colours
+    const E = S.latEngine;                                                                          // word classes for the colours
+    if (E) for (const l of E.L) { const pos = E.type === 'whitaker' ? E.P[l[1]] : l[2]; if (pos) S.latPos[latkey(l[0])] ??= pos; }
     S.latEngineP = null;
     return S.latEngine;
   })();
@@ -367,7 +392,7 @@ async function latAnalyses(form, choices) {
   for (const [l, a, li] of res) {
     let x = lemmas.find(z => z.lemma === l); if (!x) lemmas.push(x = { lemma: l, ana: [] });
     if (!x.ana.includes(a)) x.ana.push(a);
-    if (E.L[li][3] > bestN) { bestN = E.L[li][3]; best = l; }          // the more frequent lemma first
+    const fq = latFreq(E, li); if (fq > bestN) { bestN = fq; best = l; }    // the more frequent lemma first
   }
   lemmas.sort((a, b) => (a.lemma === best ? -1 : b.lemma === best ? 1 : 0));
   return { f, lemmas, pick: choice?.lemma || best || null, chosen: !!choice };
@@ -493,6 +518,38 @@ const FONT_MEANING = {
 function normalizeHTML(h) {
   return h.replace(/<font color="([^"]+)">/g, (_, c) => `<span class="fc" data-c="${esc(c)}" title="${esc(FONT_MEANING[c] || '')}">`)
           .replace(/<font[^>]*>/g, '<span>').replace(/<\/font>/g, '</span>');
+}
+// Latin words in Latin dictionary entries become tappable when the Latin analysis recognises them
+// (translations in italics, authors, references and Greek are left alone)
+// common English and German words that the Latin analysis would also accept
+const NOT_LATIN = new Set('der die das den dem des und oder mit von uom zum zur bei aus wie auch ist sind eine einer einem einen nicht the and of to is as an be by or it on at he his her use also are was were has had this that from with for which'.split(' '));
+async function wrapLatin(root) {
+  const E = await latEngine(); if (!E) return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
+  const known = new Map(), ok = w => { const k = latkey(w); if (!known.has(k)) known.set(k, !NOT_LATIN.has(k) && latAnalyze(E, w).length > 0); return known.get(k); };
+  for (const n of nodes) {
+    const pe = n.parentElement;
+    if (!/[A-Za-z]/.test(n.nodeValue) || pe.closest('.gw,summary,.au,.lab,.grk,.num,.us,.lb,.ps,.it,.gn,.hw,b')) continue;
+    const s = n.nodeValue;
+    // a stretch of text counts as Latin only if most of its words are Latin forms (English and German stay plain)
+    const toks = [...s.matchAll(new RegExp(LATIN_TOKEN.source, 'g'))].map(m => m[0]).filter(w => w.length > 1);
+    const latin = toks.length && toks.filter(ok).length / toks.length >= 0.7;
+    const frag = document.createDocumentFragment(); let last = 0;
+    for (const m of s.matchAll(new RegExp(LATIN_TOKEN.source, 'g'))) {
+      if (m[0].length < 2) continue;
+      // cross-references (v. / s. / cf. / vid. / = word) are always links; other words only in Latin stretches
+      const xref = /(?:\b(?:v|s|cf|vid|vgl|vergl)\.|=)\s*(?:\d+\.\s*)?$/.test(s.slice(Math.max(0, m.index - 14), m.index));
+      if (!ok(m[0]) || !(xref || latin)) continue;
+      if (!xref && s[m.index + m[0].length] === '.' && (m[0].length <= 3 || /^[A-Z]/.test(m[0]))) continue;     // abbreviations: Sal., ap., Cic.
+      if (m.index > last) frag.append(s.slice(last, m.index));
+      const sp = document.createElement('span'); sp.className = 'gw'; sp.textContent = m[0]; frag.append(sp);
+      last = m.index + m[0].length;
+    }
+    if (last === 0) continue;
+    if (last < s.length) frag.append(s.slice(last));
+    n.replaceWith(frag);
+  }
 }
 function wrapGreek(root) {      // make every Greek word in entries tappable
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
@@ -690,6 +747,7 @@ async function renderView() {
   }
   body.innerHTML = h;
   body.querySelectorAll('details.src').forEach(el => wrapGreek(el));
+  if (lang === 'la') for (const el of body.querySelectorAll('details.src')) await wrapLatin(el);
   await applyHighlights(body);
   fillGlossBox();
   $('#dictPane').scrollTop = 0;
@@ -927,13 +985,13 @@ async function dictsDialog() {
   const onBox = (id, what) => `<label class="sw" title="Use this ${what}"><input type="checkbox" data-dict-on="${id}"${S.dictPrefs.off.includes(id) ? '' : ' checked'}></label>`;
   const missingRow = p => `<div class="item"><span class="t"><b>${esc(p.name)}</b> ${esc(p.title || '')}<br><small>not on this device · ${(p.bytes / 1e6).toFixed(1)} MB${p.priv ? ' · private repository' : ''}</small></span>${repoBtn(p.id)}</div>`;
   // 1. dictionaries (drag to reorder, tick to show)
-  const srcOf = p => p.src || (['ls', 'georges', 'collatinus', 'morph-la'].includes(p.id) ? 'la' : 'grc');
+  const srcOf = p => p.src || (['ls', 'georges', 'collatinus', 'morph-la', 'whitaker', 'morph-la-ww'].includes(p.id) ? 'la' : 'grc');
   const rowsFor = lang => S.dicts.filter(d => d.src === lang).map(d => `<div class="item dictrow" data-id="${d.id}"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span>${onBox(d.id, 'dictionary')}<span class="t"><b>${esc(d.name)}</b> ${esc(d.title || '')}<br><small>${d.count.toLocaleString('en')} entries${sizeOf(d)} · ${esc(d.source || '')}</small></span>${repoBtn(d.id)}${delBtn(d.id)}</div>`).join('');
   const missFor = lang => Object.values(remote).filter(p => !S.installed[p.id] && p.kind === 'dictionary' && srcOf(p) === lang).map(missingRow).join('');
   // 2. analysis tools (tick to use)
   const tools = [S.morphInst && [S.morphInst, 'Greek: lemma and form for every word', `${S.morphInst.count.toLocaleString('en')} forms${sizeOf(S.morphInst)}`],
                  S.hintsInst && [S.hintsInst, 'Greek: preferred lemma for ambiguous forms; word classes for the colours', ''],
-                 S.latMorphInst && [S.latMorphInst, 'Latin: lemma and form for every word', `${S.latMorphInst.count.toLocaleString('en')} lemmata${sizeOf(S.latMorphInst)}`]].filter(Boolean)
+                 ...S.latMorphs.map(d => [d, 'Latin: lemma and form for every word (choose one in Settings → Languages)', `${d.count.toLocaleString('en')} lemmata${sizeOf(d)}`])].filter(Boolean)
     .map(([d, what, sub]) => `<div class="item toolrow"><span class="grip ph" aria-hidden="true">⠿</span>${onBox(d.id, 'tool')}<span class="t"><b>${esc(d.name)}</b> <small>${esc(what)}</small><br><small>${sub ? sub + ' · ' : ''}${esc(d.source || '')}</small></span>${repoBtn(d.id)}${delBtn(d.id)}</div>`).join('');
   const missT = Object.values(remote).filter(p => !S.installed[p.id] && p.kind !== 'dictionary').map(missingRow).join('');
   let est = '', pers = '';

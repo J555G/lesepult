@@ -12,6 +12,8 @@ Only freely licensed material is published here.
 | `georges.gdpkg.gz` | K. E. Georges, *Ausführliches lateinisch-deutsches Handwörterbuch*, 8th ed. (1913) | TEI edition by Thibault Clérice, https://github.com/PonteIneptique/K-E-Georges-1913-TEI | public domain (text) |
 | `collatinus.gdpkg.gz` | short meanings (English, German, French) of the Collatinus lexicon | Collatinus (Yves Ouvrard, Philippe Verkerk), https://github.com/biblissima/collatinus | GNU GPL v3 |
 | `morph-la.gdpkg.gz` | Latin morphology: lemmata, inflection models, irregular forms (the app analyses forms from them as Collatinus does) | Collatinus, same repository | GNU GPL v3 |
+| `whitaker.gdpkg.gz` | short English meanings of Whitaker's Words | Whitaker's Words (William Whitaker), https://github.com/mk270/whitakers-words | "Permission is hereby freely given for any and all use of program and data" |
+| `morph-la-ww.gdpkg.gz` | Latin morphology from Whitaker's Words (stems, endings, unique forms; analysed in the app as Words does) | same | same |
 | `morphhints.gdpkg.gz` | Preferred lemma for ambiguous forms; most frequent word class per lemma | Derived from the Universal Dependencies Ancient Greek treebanks (PROIEL, Perseus), https://universaldependencies.org | CC BY-NC-SA (as the treebanks) |
 
 The packages are a reformatted conversion of the sources above (grouped by lookup key, gzip-compressed JSON),

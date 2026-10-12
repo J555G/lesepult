@@ -96,6 +96,30 @@
    "license": "GPL-3.0",
    "bytes": 1177768,
    "version": "f2d9d7f7a26f"
+  },
+  {
+   "id": "whitaker",
+   "file": "whitaker.gdpkg.gz",
+   "name": "Whitaker",
+   "kind": "dictionary",
+   "src": "la",
+   "title": "Words – short English meanings",
+   "source": "Whitaker's Words (W. Whitaker), free for any use",
+   "license": "free (see LICENCE)",
+   "bytes": 1553549,
+   "version": "9afcc64863f2"
+  },
+  {
+   "id": "morph-la-ww",
+   "file": "morph-la-ww.gdpkg.gz",
+   "name": "Latin morphology (Whitaker's Words)",
+   "kind": "latmorph",
+   "src": "la",
+   "title": "",
+   "source": "Whitaker's Words (W. Whitaker), free for any use",
+   "license": "free (see LICENCE)",
+   "bytes": 564398,
+   "version": "6ca049d42668"
   }
  ]
 }
