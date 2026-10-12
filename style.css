@@ -322,3 +322,15 @@ dialog code{font-size:12px;background:var(--bg);padding:0 .25rem;border-radius:4
 *{-webkit-tap-highlight-color:transparent}
 button:focus:not(:focus-visible),summary:focus:not(:focus-visible),label:focus:not(:focus-visible),[tabindex]:focus:not(:focus-visible){outline:none}
 #btnSplit{overflow:hidden;display:inline-flex;align-items:center;justify-content:center}
+/* phones (portrait): exactly two rows – the title and the search field take whatever room is left
+   (a small flex-basis keeps them from pushing other buttons onto further rows) */
+@media (orientation:portrait) and (max-width:700px){
+  #top .navgrp{flex:1 1 60px;min-width:0}
+  #top #search{flex:1 1 60px;min-width:0}
+  #textTitle{min-width:0}
+}
+@media (max-width:420px){
+  #top{gap:.2rem}
+  #top .navgrp .bk{min-width:36px}
+}
+@media (max-width:420px){#textTitle .tw:not(:only-child),#textTitle .sep{display:none}}

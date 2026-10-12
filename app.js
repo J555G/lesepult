@@ -1342,7 +1342,7 @@ function wireLibrary() {
 function titleBar() {
   const t = S.text, w = t?.work, tt = $('#textTitle');
   tt.innerHTML = !t ? '<span class="tw">no text</span>' : w
-    ? `<span class="tw"><span class="ta">${esc(w.author)} › </span>${esc(w.title)}</span><span class="tb">› ${esc(w.books[t.bi])}</span>`
+    ? `<span class="tw"><span class="ta">${esc(w.author)} › </span>${esc(w.title)}</span><span class="tb"><span class="sep">› </span>${esc(w.books[t.bi])}</span>`
     : `<span class="tw">${esc(t.title)}</span>`;
   tt.title = t ? (w ? `${w.author} › ${w.title} › ${w.books[t.bi]}` : t.title) + ' – tap to choose another text or book' : 'Choose a text';
   const multi = !!w && w.books.length > 1;
