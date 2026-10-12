@@ -112,7 +112,6 @@ const S = {
   tokens: [],            // [{t:'w'|'p', s, i, pos}]  i = word index
   glosses: [],
   cur: null,             // [start,end] word indices of the gloss target
-  rangeMode: false,
   hist: [], fwd: [], view: null,  // dictionary navigation
   lastSel: '', listSort: 'pos',
   posOn: false, posCfg: null, srcColors: true,
@@ -617,7 +616,7 @@ async function addGloss(text, asDefault = false, add = false) {
 }
 async function writeGloss() {     // type a gloss directly, without the dictionary
   if (!S.text) return toast('Open a text first.');
-  if (!S.cur) return toast('First tap a word (or select a phrase with “Range”).');
+  if (!S.cur) return toast('First tap a word in the text.');
   const words = S.tokens.filter(t => t.t === 'w' && t.i >= S.cur[0] && t.i <= S.cur[1]).map(t => t.s).join(' ');
   const l = targetLemma();
   const existing = spanGloss(S.cur[0], S.cur[1])?.t;
@@ -630,7 +629,7 @@ async function writeGloss() {     // type a gloss directly, without the dictiona
 // open the selected word in the dictionary pane (if it is not shown already) and put the cursor into its gloss field
 async function openGlossField(kind = 'span', lemma = null) {
   if (!S.text) return toast('Open a text first.');
-  if (!S.cur) return toast('First tap a word (or select a phrase with “Range”).');
+  if (!S.cur) return toast('First tap a word in the text.');
   const i0 = S.cur[0];
   const shown = S.view && S.view.ti != null && S.cur[0] <= S.view.ti && S.view.ti <= S.cur[1] && !$('#dictBody').hidden;
   if (!shown) {
@@ -690,7 +689,8 @@ function dialog(inner, buttons = [['ok', 'OK']], defaultAction = null) {
     };
     d.onclose = () => { const data = Object.fromEntries(new FormData(f)); res({ action, data }); };
     d.showModal();
-    const first = f.querySelector('input[type=text]:not(.privf input),textarea'); if (first) { first.focus(); first.select?.(); }
+    const first = f.querySelector('input[type=text]:not(.privf input),textarea');
+    if (first) { first.focus(); first.select?.(); } else { f.tabIndex = -1; f.focus({ preventScroll: true }); }
   });
 }
 async function textsDialog() {
@@ -991,10 +991,6 @@ function wire() {
     const st = ev.target.closest('[data-step]'); if (st) return stepBook(+st.dataset.step);
     const w = ev.target.closest('.w'); if (!w) return;
     const i = +w.dataset.i;
-    if (S.rangeMode && S.cur) {
-      S.cur = [Math.min(S.cur[0], i), Math.max(S.cur[1], i)];
-      S.rangeMode = false; $('#btnRange').classList.remove('on'); markTarget(); return;
-    }
     S.cur = [i, i]; markTarget();
     const tk = S.tokens.find(t => t.t === 'w' && t.i === i);
     S.hist = []; S.view = null; await showWord(tk.s, { ti: i });
@@ -1037,14 +1033,9 @@ function wire() {
   $('#btnGlossToggle').onclick = () => setGlossVisible(document.body.classList.contains('nogloss'), true);
   $('#btnPos').onclick = async () => { S.posOn = !S.posOn; await setting('posOn', S.posOn); applyPosColors(); };
 
-  $('#btnAddGloss').onclick = () => openGlossField('span');
   $('#btnSplit').onclick = cycleSplit;
   matchMedia('(orientation:portrait),(max-width:760px)').addEventListener('change', splitIcon);
-  $('#btnRange').onclick = () => {
-    if (!S.cur) return toast('Tap the first word, then “Range”, then the last word.');
-    S.rangeMode = !S.rangeMode; $('#btnRange').classList.toggle('on', S.rangeMode);
-    if (S.rangeMode) toast('Now tap the last word of the phrase.');
-  };
+
   // three-bar menu for everything that is not part of reading itself
   const menu = $('#menu');
   $('#btnMenu').onclick = ev => { ev.stopPropagation(); menu.hidden = !menu.hidden; };
