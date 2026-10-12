@@ -1360,7 +1360,7 @@ function libControlsHTML() {
   return `<div class="frow"><span class="fl">Show</span>${chip('fav', 1, 'Favourites')}${chip('mine', 1, 'On this device')}<span class="fsep"></span>${chip('src', 'Perseus', 'Perseus')}${chip('src', 'First1KGreek', 'First1KGreek')}<span class="fsep"></span>${chip('form', 'prose', 'Prose')}${chip('form', 'verse', 'Verse')}</div>
     <div class="frow"><span class="fl">Date</span><span class="crange" id="centLabel">${centLabel(v.from)} – ${centLabel(v.to, true)}</span><span class="fsep"></span>${chip('undated', 1, 'Undated works', 'Show or hide works whose date is unknown')}${filtersOn(v) ? '<button type="button" class="chip2 reset" data-freset="1">Reset filters</button>' : ''}</div>
     <div class="cslider" style="--a:${pct(v.from)}%;--b:${pct(v.to)}%">
-      <div class="track"><i></i></div>
+      <div class="track"><i></i></div><b class="knob ka"></b><b class="knob kb"></b>
       <input type="range" id="centFrom" min="${YMIN}" max="${YMAX}" step="100" value="${v.from}" aria-label="From century">
       <input type="range" id="centTo" min="${YMIN}" max="${YMAX}" step="100" value="${v.to}" aria-label="To century">
       <div class="ticks">${ERAS.slice(1).map(([, a]) => `<i style="left:${pct(a)}%"></i>`).join('')}</div>

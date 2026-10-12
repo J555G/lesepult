@@ -438,3 +438,12 @@ dialog .cslider .ticks{position:absolute;left:0;right:0;top:21px;height:6px}
 dialog .cslider .ticks i{position:absolute;top:0;width:1px;height:6px;background:var(--mut);opacity:.5}
 dialog .cslider .eras span{border-left:0!important;width:auto!important;transform:translateX(-50%);overflow:visible}
 dialog .cslider .eras span.r1{top:13px}
+
+/* the slider's own handles are invisible (only a grab area); the visible knobs are drawn separately,
+   so that no browser (Safari on iPad) shows any part of the larger grab area */
+dialog .cslider input[type=range]::-webkit-slider-thumb{background:transparent!important;box-shadow:none!important;border:0!important;opacity:0}
+dialog .cslider input[type=range]::-moz-range-thumb{background:transparent!important;box-shadow:none!important;border:0!important;opacity:0}
+dialog .cslider input[type=range]{-webkit-tap-highlight-color:transparent;outline:none}
+dialog .cslider .knob{position:absolute;top:8px;width:18px;height:18px;margin-left:-9px;border-radius:50%;background:var(--card);border:2px solid var(--acc);box-sizing:border-box;pointer-events:none}
+dialog .cslider .knob.ka{left:var(--a)}
+dialog .cslider .knob.kb{left:var(--b)}
