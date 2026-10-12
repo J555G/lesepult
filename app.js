@@ -662,13 +662,11 @@ function dialog(inner, buttons = [['ok', 'OK']], defaultAction = null) {
 }
 async function textsDialog() {
   const texts = await getAll('texts');
-  const list = texts.map(t => `<div class="item"><span class="t">${esc(t.title)} <small>${new Date(t.created).toLocaleDateString('en-GB')}</small></span><button type="button" data-v="open:${t.id}">Open</button><button type="button" class="lock${t.locked ? ' on' : ''}" data-v="lock:${t.id}" title="${t.locked ? 'Protected – tap to allow deleting' : 'Protect against deletion'}">${t.locked ? '🔒' : '🔓'}</button><button type="button" data-v="del:${t.id}"${t.locked ? ' disabled title="Protected"' : ''}>✕</button></div>`).join('') || '<p class="hint">No texts yet.</p>';
+  const list = texts.map(t => `<div class="item"><span class="t">${esc(t.title)} <small>${new Date(t.created).toLocaleDateString('en-GB')}</small></span><button type="button" data-v="open:${t.id}">Open</button><button type="button" class="danger" data-v="del:${t.id}">Delete</button></div>`).join('') || '<p class="hint">No texts yet.</p>';
   const r = await dialog(`<h3>Texts</h3><div class="list">${list}</div>`, [['new', 'New text (paste)'], ['file', 'Load file …', 'fileText'], ['cancel', 'Close']]);
   if (r.action.startsWith('open:')) return openText(+r.action.slice(5));
-  if (r.action.startsWith('lock:')) { const t = texts.find(x => x.id === +r.action.slice(5)); t.locked = !t.locked; await put('texts', t); return textsDialog(); }
   if (r.action.startsWith('del:')) {
     const id = +r.action.slice(4);
-    if (texts.find(x => x.id === id)?.locked) return textsDialog();
     const c = await dialog('<h3>Delete text?</h3><p>The text and all its glosses will be deleted.</p>', [['cancel', 'Cancel'], ['ok', 'Delete']]);
     if (c.action === 'ok') {
       const gl = await req2p(tx('glosses').objectStore('glosses').index('textId').getAll(id));
@@ -716,40 +714,34 @@ async function dictsDialog() {
   const repoBtn = id => {
     const p = remote[id]; if (!p) return '';
     const mb = (p.bytes / 1e6).toFixed(1) + ' MB';
-    if (!S.installed[id]) return `<button type="button" data-v="get:${id}" title="${mb}">Download</button>`;
-    if (S.installed[id].version !== p.version) return `<button type="button" data-v="get:${id}" title="${mb}">Update</button>`;
-    return `<button type="button" disabled title="Same version as on the website">Up to date</button>`;
+    const label = !S.installed[id] ? 'Download' : S.installed[id].version !== p.version ? 'Update' : null;
+    if (DL.has(id)) return dlButtonHTML(id, label || 'Update');
+    if (!label) return `<button type="button" class="dlbtn" disabled title="Same version as on the website">Up to date</button>`;
+    return `<button type="button" class="dlbtn" data-get="${id}" title="${mb}">${label}</button>`;
   };
-  const locked = id => S.dictPrefs.locked.includes(id);
-  const lockBtn = id => `<button type="button" class="lock${locked(id) ? ' on' : ''}" data-v="lock:${id}" title="${locked(id) ? 'Protected – tap to allow removing' : 'Protect against removal'}">${locked(id) ? '🔒' : '🔓'}</button>`;
-  const delBtn = id => `<button type="button" data-v="del:${id}" title="${locked(id) ? 'Protected' : 'Remove from this device'}"${locked(id) ? ' disabled' : ''}>✕</button>`;
+  const delBtn = id => `<button type="button" class="danger" data-v="del:${id}" title="Remove from this device">Delete</button>`;
   const sizeOf = d => d.size ? ` · ≈ ${(d.size / 1e6).toFixed(0)} MB` : '';
-  const rows = S.dicts.map(d => `<div class="item dictrow" data-id="${d.id}"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span><label class="sw" title="Show this dictionary"><input type="checkbox" data-dict-on="${d.id}"${S.dictPrefs.off.includes(d.id) ? '' : ' checked'}></label><span class="t"><b>${esc(d.name)}</b> ${esc(d.title || '')}<br><small>${d.count.toLocaleString('en')} entries${sizeOf(d)} · ${esc(d.source || '')}</small></span>${repoBtn(d.id)}${lockBtn(d.id)}${delBtn(d.id)}</div>`).join('');
+  const rows = S.dicts.map(d => `<div class="item dictrow" data-id="${d.id}"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span><label class="sw" title="Show this dictionary"><input type="checkbox" data-dict-on="${d.id}"${S.dictPrefs.off.includes(d.id) ? '' : ' checked'}></label><span class="t"><b>${esc(d.name)}</b> ${esc(d.title || '')}<br><small>${d.count.toLocaleString('en')} entries${sizeOf(d)} · ${esc(d.source || '')}</small></span>${repoBtn(d.id)}${delBtn(d.id)}</div>`).join('');
   const extra = [S.morph && ['morph', S.morph.name, `${S.morph.count.toLocaleString('en')} forms${sizeOf(S.morph)} · ${S.morph.source || ''}`],
                  S.hints && ['morphhints', S.hints.name, S.hints.source || '']].filter(Boolean)
-    .map(([id, n, sub]) => `<div class="item"><span class="t"><b>${esc(n)}</b><br><small>${esc(sub)}</small></span>${repoBtn(id)}${lockBtn(id)}${delBtn(id)}</div>`).join('');
+    .map(([id, n, sub]) => `<div class="item"><span class="t"><b>${esc(n)}</b><br><small>${esc(sub)}</small></span>${repoBtn(id)}${delBtn(id)}</div>`).join('');
   // packages on the website that are not on this device yet
   const missing = Object.values(remote).filter(p => !S.installed[p.id])
     .map(p => `<div class="item"><span class="t"><b>${esc(p.name)}</b> ${esc(p.title || '')}<br><small>not on this device · ${(p.bytes / 1e6).toFixed(1)} MB · ${esc(p.source || '')}</small></span>${repoBtn(p.id)}</div>`).join('');
   let est = '', pers = '';
   try { const e = await navigator.storage?.estimate?.(); if (e) est = `Storage used by the app: ${(e.usage / 1e6).toFixed(0)} MB`; } catch (_) { }
   try { pers = (await navigator.storage?.persisted?.()) ? ' · protected from automatic clean-up' : ' · not protected from automatic clean-up – start the app from the Home Screen'; } catch (_) { }
-  const r = await dialog(`<h3>Dictionaries</h3><div class="list">${rows || '<p class="hint">No dictionaries installed.</p>'}${extra}${missing}</div>
+  const r = await dialog(`<h3>Dictionaries</h3><div class="list">${rows || extra ? '' : '<p class="hint">No dictionaries installed.</p>'}${rows}${extra}${missing}</div>
     ${man ? '' : '<p class="hint">The website could not be reached (offline?) – download buttons are not available right now.</p>'}
     <label class="opt"><input type="checkbox" id="optSrcCol"${S.srcColors ? ' checked' : ''}> Show the editors’ colour marks in Pape and LSJ</label>
     <p class="hint">Pape, LSJ and the morphology data can be downloaded from the app’s website. Frisk and Bailly are imported from your own files with “Import packages …”.</p>
     <p class="legend">${Object.entries(FONT_MEANING).map(([c, t]) => `<span class="fc" data-c="${c}">■</span> ${esc(t)}`).join('<br>')}</p><small>${est}${pers}</small>`,
     [['clean', 'Clean up storage'], ['file', 'Import packages …', 'fileDict'], ['cancel', 'Close']]);
   if (r.action === 'clean') { await cleanStorage(); return dictsDialog(); }
-  if (r.action.startsWith('lock:')) {
-    const id = r.action.slice(5), l = new Set(S.dictPrefs.locked); l.has(id) ? l.delete(id) : l.add(id);
-    S.dictPrefs.locked = [...l]; await setting('dictPrefs', S.dictPrefs); return dictsDialog();
-  }
-  if (r.action.startsWith('get:')) { await syncPackages([r.action.slice(4)]); return dictsDialog(); }
   if (r.action.startsWith('del:')) {
     const id = r.action.slice(4), d = S.installed[id];
-    if (S.dictPrefs.locked.includes(id)) return dictsDialog();
-    const c = await dialog(`<h3>Remove ${esc(d?.name || id)}?</h3><p>The dictionary is deleted from this device; you can download or import it again later. To just hide it, untick it instead.</p>`, [['cancel', 'Cancel'], ['ok', 'Remove']]);
+    if (DL.has(id)) { toast('Wait until the download has finished.'); return dictsDialog(); }
+    const c = await dialog(`<h3>Delete ${esc(d?.name || id)}?</h3><p>The dictionary is deleted from this device and its space is freed. You can download or import it again later. To just hide it, untick it instead.</p>`, [['cancel', 'Cancel'], ['ok', 'Delete']]);
     if (c.action === 'ok') { await deleteDict(id); await loadDicts(); if (S.view) renderView(); }
     return dictsDialog();
   }
@@ -801,6 +793,53 @@ async function posDialog() {
 }
 function defaultPosCfg() { return Object.fromEntries(POS.map(([id, , c]) => [id, { on: true, c }])); }
 // free dictionaries (Pape, LSJ, morphology) are published next to the app: packages/packages.json
+// ---- downloads inside the Dictionaries dialog: the button fills with colour as the download progresses.
+// Several can be started; they run one after the other, so the iPad is not overloaded.
+const DL = new Map();          // id -> progress 0..1 (or -1 = waiting)
+let dlRunning = false;
+function dlButtonHTML(id, label) {
+  const p = DL.get(id); const pct = p < 0 ? 0 : Math.round(p * 100);
+  return `<button type="button" class="dlbtn busy" data-dl="${id}" style="--p:${pct}%" disabled>${p < 0 ? 'Waiting…' : p >= 0.9 ? 'Installing…' : pct + ' %'}</button>`;
+}
+function paintDL(id, text) {
+  for (const b of document.querySelectorAll(`#dlg [data-get="${id}"], #dlg [data-dl="${id}"]`)) {
+    const p = DL.get(id);
+    b.removeAttribute('data-get'); b.dataset.dl = id; b.disabled = true; b.classList.add('busy');
+    b.style.setProperty('--p', Math.round(Math.max(0, p ?? 1) * 100) + '%');
+    b.textContent = text || (p < 0 ? 'Waiting…' : p >= 0.9 ? 'Installing…' : Math.round(p * 100) + ' %');
+  }
+}
+function queueDownload(id) {
+  if (DL.has(id)) return;
+  DL.set(id, -1); paintDL(id); runDownloads();
+}
+async function runDownloads() {
+  if (dlRunning) return; dlRunning = true;
+  const man = await fetchManifest();
+  if (!man) { DL.clear(); dlRunning = false; toast('Could not reach the website – are you online?'); return; }
+  for (;;) {
+    const id = [...DL.keys()].find(k => DL.get(k) < 0); if (!id) break;
+    const p = man.packages.find(x => x.id === id);
+    try {
+      DL.set(id, 0); paintDL(id);
+      const r = await fetch('packages/' + p.file, { cache: 'no-cache' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const reader = r.body.getReader(); const parts = []; let got = 0;
+      for (;;) { const { done: fin, value } = await reader.read(); if (fin) break; parts.push(value); got += value.length; DL.set(id, 0.9 * got / p.bytes); paintDL(id); }
+      DL.set(id, 0.9); paintDL(id);
+      await importPackage(new File(parts, p.file), x => { DL.set(id, 0.9 + 0.1 * x); paintDL(id); }, p.version);
+      DL.delete(id); paintDL(id, 'Up to date');
+      document.querySelectorAll(`#dlg [data-dl="${id}"]`).forEach(b => { b.classList.remove('busy'); b.style.removeProperty('--p'); });
+      toast(`${p.name} installed`);
+    } catch (e) { DL.delete(id); toast(`${p?.name || id}: download failed (${e.message})`, 4000); paintDL(id, 'Failed'); }
+    await loadDicts(); bucketCache.clear();
+  }
+  dlRunning = false;
+  if (S.view) renderView(); resetTokens(); resolveTokens();
+  // refresh the open Dictionaries dialog so the new entries get their Delete button and size
+  const d = $('#dlg');
+  if (d.open && $('#dlg h3')?.textContent === 'Dictionaries') { d.close(); dictsDialog(); }
+}
 // ids: download exactly these packages; without ids: everything that is new or changed (first start)
 async function syncPackages(ids = null) {
   const man = await fetchManifest();
@@ -956,6 +995,7 @@ function wire() {
   $('#btnHl').onclick = () => setHlMode(!S.hlMode);
   wireHighlighter();
   wireDictDrag();
+  document.addEventListener('click', e => { const b = e.target.closest('#dlg [data-get]'); if (b) queueDownload(b.dataset.get); });
   document.addEventListener('selectionchange', () => {
     if (S.hlMode) { $('#fabBar').hidden = true; return; }
     const sel = window.getSelection(); const txt = String(sel).trim();
