@@ -154,7 +154,7 @@ function applyPosColors() {
 }
 async function resolveTokens() {      // lemma + word class for every word of the text
   const run = (resolveTokens.run = (resolveTokens.run || 0) + 1);
-  let changed = false; const memo = new Map();
+  const memo = new Map();
   for (const tk of S.tokens) {
     if (tk.t !== 'w' || tk.lemma !== undefined) continue;
     let A = memo.get(tk.s); if (!A) memo.set(tk.s, A = await analyses(tk.s));
@@ -163,9 +163,9 @@ async function resolveTokens() {      // lemma + word class for every word of th
     tk.lemma = l || null; tk.pos = posOf(l, x?.ana);
     const el = document.querySelector(`.w[data-i="${tk.i}"]`);
     el?.classList.add('p-' + tk.pos);
-    if (l && S.lemmaGloss[gkey(l)]) changed = true;
+    if (l && S.lemmaGloss[gkey(l)]) S.dgPending = true;
   }
-  if (changed) renderText();
+  if (S.dgPending) { S.dgPending = false; renderText(); }
 }
 function resetTokens(pred = () => true) { for (const tk of S.tokens) if (pred(tk)) { delete tk.lemma; delete tk.pos; } }
 const classifyTokens = resolveTokens;
@@ -330,7 +330,10 @@ function renderText() {
       continue;
     }
     let gs = (gl[tk.i] || []).map(g => `<span data-g="${g.id}"${g.e > g.s ? ` title="gloss for ${g.e - g.s + 1} words"` : ''}>${g.e > g.s ? '⟨' : ''}${glossHTML(g.t)}${g.e > g.s ? '⟩' : ''}</span>`).join('');
-    if (!covered.has(tk.i) && tk.lemma) { const dg = S.lemmaGloss[gkey(tk.lemma)]; if (dg) gs = `<span class="dg" data-dg="${esc(gkey(tk.lemma))}" title="default gloss for ${esc(tk.lemma)}">${glossHTML(dg)}</span>`; }
+    if (tk.lemma) {      // the lemma's default gloss is shown too (below a gloss of the word itself, unless it says the same)
+      const dg = S.lemmaGloss[gkey(tk.lemma)];
+      if (dg && !(gl[tk.i] || []).some(g => g.t === dg)) gs += `<span class="dg" data-dg="${esc(gkey(tk.lemma))}" title="default gloss for ${esc(tk.lemma)}">${glossHTML(dg)}</span>`;
+    }
     // punctuation directly after the word stays on the same line as the word
     const nx = toks[n + 1]; let pu = '';
     if (nx && nx.t === 'p') { const m = nx.s.match(/^[^\sͰ-Ͽἀ-῿]+/); if (m) { pu = m[0]; nx.glued = pu.length; } }
@@ -346,7 +349,7 @@ function renderText() {
 }
 function markTarget() {
   document.querySelectorAll('.w.cur,.w.rng').forEach(e => e.classList.remove('cur', 'rng'));
-  if (!S.cur) return;
+  if (!S.cur || S.curHidden) return;
   const [s, e] = S.cur;
   for (let i = s; i <= e; i++) document.querySelector(`.w[data-i="${i}"]`)?.classList.add(e > s ? 'rng' : 'cur');
 }
@@ -986,12 +989,14 @@ function wire() {
     if (dg || gsp) {
       const g = gsp ? S.glosses.find(x => x.id === +gsp.dataset.g) : null;
       const i0 = g ? g.s : +ev.target.closest('.w').dataset.i;
-      S.cur = g ? [g.s, g.e] : [i0, i0]; markTarget();
+      S.cur = g ? [g.s, g.e] : [i0, i0]; S.curHidden = false; markTarget();
       S.view = null;                                  // always reopen the tapped word
       return openGlossField(dg ? 'def' : 'span');
     }
     const st = ev.target.closest('[data-step]'); if (st) return stepBook(+st.dataset.step);
-    const w = ev.target.closest('.w'); if (!w) return;
+    const w = ev.target.closest('.w');
+    if (!w) { if (!String(window.getSelection())) { S.curHidden = true; markTarget(); } return; }
+    S.curHidden = false;
     const i = +w.dataset.i;
     S.cur = [i, i]; markTarget();
     const tk = S.tokens.find(t => t.t === 'w' && t.i === i);
@@ -1016,11 +1021,12 @@ function wire() {
   $('#listBody').addEventListener('click', async ev => {
     const b = ev.target.closest('[data-sort]'); if (b) { S.listSort = b.dataset.sort; return renderList(); }
     const r = ev.target.closest('.lrow'); if (!r) return;
-    const pos = +r.dataset.pos; S.cur = [pos, pos]; markTarget();
+    const pos = +r.dataset.pos; S.cur = [pos, pos]; S.curHidden = false; markTarget();
     document.querySelector(`.w[data-i="${pos}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     const tk = S.tokens.find(t => t.t === 'w' && t.i === pos);
     S.hist = []; S.view = null; await showWord(tk.s, { lemma: r.dataset.lemma, ti: pos });
   });
+  $('#textPane').addEventListener('click', ev => { if (ev.target.id === 'textPane') { S.curHidden = true; markTarget(); } });
   $('#btnBack').onclick = goBack;
   $('#textTitle').onclick = navDialog;
   $('#btnPrevBook').onclick = () => stepBook(-1);
@@ -1378,7 +1384,7 @@ function markIcon() {
 function anchorWord() {             // selected word if it is on screen, otherwise the first word at the top of the pane
   const pane = $('#textPane').getBoundingClientRect();
   const vis = e => { const r = e?.getBoundingClientRect(); return r && r.bottom > pane.top && r.top < pane.bottom; };
-  if (S.cur) { const e = document.querySelector(`#textBody .w[data-i="${S.cur[0]}"]`); if (vis(e)) return S.cur[0]; }
+  if (S.cur && !S.curHidden) { const e = document.querySelector(`#textBody .w[data-i="${S.cur[0]}"]`); if (vis(e)) return S.cur[0]; }
   const ws = document.querySelectorAll('#textBody .w'); if (!ws.length) return null;
   let lo = 0, hi = ws.length - 1;                 // words are in reading order: binary search for the first visible one
   while (lo < hi) { const m = (lo + hi) >> 1; if (ws[m].getBoundingClientRect().bottom <= pane.top + 4) lo = m + 1; else hi = m; }
