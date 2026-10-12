@@ -620,7 +620,7 @@ async function saveText(title, text, choices) {
 async function dictsDialog() {
   await loadDicts();
   const m = S.morph;
-  const rows = S.dicts.map((d, i) => `<div class="item dictrow"><label class="sw" title="Show this dictionary"><input type="checkbox" data-dict-on="${d.id}"${S.dictPrefs.off.includes(d.id) ? '' : ' checked'}></label><span class="t"><b>${esc(d.name)}</b> ${esc(d.title || '')}<br><small>${d.count.toLocaleString('en')} entries · ${esc(d.source || '')}</small></span><button type="button" data-v="up:${d.id}" title="Move up"${i ? '' : ' disabled'}>▲</button><button type="button" data-v="down:${d.id}" title="Move down"${i < S.dicts.length - 1 ? '' : ' disabled'}>▼</button><button type="button" data-v="del:${d.id}" title="Remove from this device">✕</button></div>`).join('') +
+  const rows = S.dicts.map((d, i) => `<div class="item dictrow" data-id="${d.id}"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span><label class="sw" title="Show this dictionary"><input type="checkbox" data-dict-on="${d.id}"${S.dictPrefs.off.includes(d.id) ? '' : ' checked'}></label><span class="t"><b>${esc(d.name)}</b> ${esc(d.title || '')}<br><small>${d.count.toLocaleString('en')} entries · ${esc(d.source || '')}</small></span><button type="button" data-v="del:${d.id}" title="Remove from this device">✕</button></div>`).join('') +
     (m ? `<div class="item"><span class="t"><b>${esc(m.name)}</b><br><small>${m.count.toLocaleString('en')} forms · ${esc(m.source || '')}</small></span></div>` : '<p class="hint">Morphological analysis missing (morph.gdpkg.gz) – without it only dictionary forms are found.</p>');
   let est = ''; try { const e = await navigator.storage?.estimate?.(); if (e) est = `Storage used: ${(e.usage / 1e6).toFixed(0)} MB`; } catch (_) { }
   const r = await dialog(`<h3>Dictionaries</h3><div class="list">${rows || '<p class="hint">No dictionaries installed.</p>'}</div>
@@ -634,11 +634,42 @@ async function dictsDialog() {
     if (c.action === 'ok') { await deleteDict(id); await loadDicts(); if (S.view) renderView(); }
     return dictsDialog();
   }
-  if (r.action.startsWith('up:') || r.action.startsWith('down:')) {
-    const [dir, id] = r.action.split(':'); const ids = S.dicts.map(d => d.id); const i = ids.indexOf(id), j = dir === 'up' ? i - 1 : i + 1;
-    if (j >= 0 && j < ids.length) { [ids[i], ids[j]] = [ids[j], ids[i]]; S.dictPrefs.order = ids; await setting('dictPrefs', S.dictPrefs); await loadDicts(); if (S.view) renderView(); }
-    return dictsDialog();
-  }
+
+}
+function wireDictDrag() {
+  let drag = null;
+  document.addEventListener('pointerdown', e => {
+    const grip = e.target.closest('#dlg .dictrow .grip'); if (!grip) return;
+    e.preventDefault();
+    const row = grip.closest('.dictrow'), list = row.parentElement;
+    const r = row.getBoundingClientRect();
+    drag = { row, list, y0: e.clientY, off: e.clientY - r.top, id: e.pointerId };
+    row.classList.add('dragging'); grip.setPointerCapture(e.pointerId);
+  });
+  document.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const { row, list } = drag;
+    row.style.transform = `translateY(${e.clientY - drag.y0}px)`;
+    // move the row in the DOM when the pointer passes the middle of a neighbour
+    const others = [...list.querySelectorAll('.dictrow')].filter(x => x !== row);
+    const before = others.find(x => { const b = x.getBoundingClientRect(); return e.clientY < b.top + b.height / 2; });
+    const oldTop = row.getBoundingClientRect().top;
+    if (before && before.previousElementSibling !== row) list.insertBefore(row, before);
+    else if (!before && list.lastElementChild !== row && others.length) others[others.length - 1].after(row);
+    else return;
+    // keep the row under the finger after the DOM move
+    const shift = row.getBoundingClientRect().top - oldTop;
+    drag.y0 += shift; row.style.transform = `translateY(${e.clientY - drag.y0}px)`;
+  });
+  const end = async e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const { row, list } = drag; drag = null;
+    row.classList.remove('dragging'); row.style.transform = '';
+    S.dictPrefs.order = [...list.querySelectorAll('.dictrow')].map(x => x.dataset.id);
+    await setting('dictPrefs', S.dictPrefs); await loadDicts(); if (S.view) renderView();
+  };
+  document.addEventListener('pointerup', end);
+  document.addEventListener('pointercancel', end);
 }
 async function posDialog() {
   const rows = POS.map(([id, label]) => `<div class="item"><label class="t"><input type="checkbox" name="on_${id}"${S.posCfg[id]?.on !== false ? ' checked' : ''}> ${label}</label><input type="color" name="c_${id}" value="${S.posCfg[id]?.c}"></div>`).join('');
@@ -778,6 +809,7 @@ function wire() {
   document.addEventListener('pointerdown', e => { S.lastPointer = e.pointerType; }, true);
   $('#btnHl').onclick = () => setHlMode(!S.hlMode);
   wireHighlighter();
+  wireDictDrag();
   document.addEventListener('selectionchange', () => {
     if (S.hlMode) { $('#fabBar').hidden = true; return; }
     const sel = window.getSelection(); const txt = String(sel).trim();
