@@ -184,7 +184,7 @@ async function resolveTokens1(run) {
     const el = S.wordEls?.[tk.i];          // words are numbered in document order (a selector per word is slow in long books)
     el?.classList.add('p-' + tk.pos);
     if (el && l && S.lemmaGloss[gkey(l)]) {
-      if (!S.covered?.has(tk.i)) el.querySelector('.gl').innerHTML = dgHTML(tk);
+      if (!S.covered?.has(tk.i)) { const g = el.querySelector('.gl'), h = dgHTML(tk); g.innerHTML = h; const m = glW(h).match(/--gw:(\d+em)/); if (m) g.style.setProperty('--gw', m[1]); }
       else if (S.glossMode === 'both') S.dgPending = true;          // words with their own gloss: redraw at the end
     }
   }
@@ -359,7 +359,7 @@ function renderText() {
     const nx = toks[n + 1]; let pu = '';
     if (nx && nx.t === 'p') { const m = nx.s.match(/^[^\sͰ-Ͽἀ-῿]+/); if (m) { pu = m[0]; nx.glued = pu.length; } }
     if (S.marker === tk.i) html += '<span class="mkr" title="Marker"></span>';
-    html += `<span class="w${covered.has(tk.i) ? ' glossed' : ''}${tk.pos ? ' p-' + tk.pos : ''}" data-i="${tk.i}"><span class="g">${esc(tk.s)}${pu ? `<span class="pu">${esc(pu)}</span>` : ''}</span><span class="gl">${gs}</span></span>`;
+    html += `<span class="w${covered.has(tk.i) ? ' glossed' : ''}${tk.pos ? ' p-' + tk.pos : ''}" data-i="${tk.i}"><span class="g">${esc(tk.s)}${pu ? `<span class="pu">${esc(pu)}</span>` : ''}</span><span class="gl"${glW(gs)}>${gs}</span></span>`;
   }
   const w = S.text.work, bi = S.text.bi;
   const bn = w && w.books.length > 1 ? `<div class="booknav">${bi > 0 ? `<button type="button" data-step="-1">◂ ${esc(w.books[bi - 1])}</button>` : '<span></span>'}${bi < w.books.length - 1 ? `<button type="button" data-step="1">${esc(w.books[bi + 1])} ▸</button>` : ''}</div>` : '';
@@ -369,6 +369,12 @@ function renderText() {
   markTarget();
   fillGlossBox();
 }
+// long glosses get wider in proportion to their length (about three lines), never wider than the text column
+function glW(html) {
+  const n = html.replace(/<[^>]*>/g, '').replace(/&[a-z]+;/g, ' ').length;
+  return n > 70 ? ` style="--gw:${Math.round(n / 5)}em"` : '';
+}
+function setGlossMax() { const b = $('#textBody'); if (b) b.style.setProperty('--glmax', Math.round(b.clientWidth * 0.8) + 'px'); }
 function dgHTML(tk) {
   const dg = tk.lemma && S.lemmaGloss[gkey(tk.lemma)];
   return dg ? `<span class="dg" data-dg="${esc(gkey(tk.lemma))}" title="default gloss for ${esc(tk.lemma)}">${glossHTML(dg)}</span>` : '';
@@ -1099,6 +1105,7 @@ function wire() {
     S.hist = []; S.view = null; await showWord(tk.s, { lemma: r.dataset.lemma, ti: pos });
   });
   $('#textPane').addEventListener('click', ev => { if (ev.target.id === 'textPane') { S.curHidden = true; markTarget(); } });
+  new ResizeObserver(setGlossMax).observe($('#textBody'));
   $('#btnBack').onclick = goBack;
   $('#textTitle').onclick = navDialog;
   $('#btnPrevBook').onclick = () => stepBook(-1);

@@ -363,3 +363,6 @@ body:not(.nosrccol) .ent .fc .gw{color:inherit}
 #fabBar #fabHl{background:var(--bar);color:var(--fg);border:1.5px solid var(--mut);line-height:0;padding:.5rem .8rem}
 #fabBar #fabHl.on{background:#e8c22a;border-color:#e8c22a;color:#222}
 #fabBar #fabHl:disabled{opacity:.4}
+
+/* gloss width: 14em, wider for long glosses (set per gloss), at most 80 % of the text column */
+.w>.gl{max-width:min(var(--gw,14em),var(--glmax,30em))}
