@@ -1,0 +1,49 @@
+{
+ "format": "greekdict-manifest-1",
+ "packages": [
+  {
+   "id": "pape",
+   "file": "pape.gdpkg.gz",
+   "name": "Pape",
+   "kind": "dictionary",
+   "title": "Handwörterbuch der griechischen Sprache (3. Aufl. 1914)",
+   "source": "Eulexis (Roelli / Chaeréphon / Woitrain), GPL v3",
+   "license": "GPL-3.0",
+   "bytes": 9653599,
+   "version": "3d4b3cf81156"
+  },
+  {
+   "id": "lsj",
+   "file": "lsj.gdpkg.gz",
+   "name": "LSJ",
+   "kind": "dictionary",
+   "title": "A Greek–English Lexicon (9th ed.)",
+   "source": "Eulexis (Roelli / Chaeréphon), GPL v3",
+   "license": "GPL-3.0",
+   "bytes": 13708858,
+   "version": "8e6445177771"
+  },
+  {
+   "id": "morph",
+   "file": "morph.gdpkg.gz",
+   "name": "Morphological analysis",
+   "kind": "morph",
+   "title": "",
+   "source": "Eulexis analyses (Diogenes/Perseus), GPL v3",
+   "license": "GPL-3.0",
+   "bytes": 10339302,
+   "version": "9fc1300f95ba"
+  },
+  {
+   "id": "morphhints",
+   "file": "morphhints.gdpkg.gz",
+   "name": "Lemma & word-class hints",
+   "kind": "morphhints",
+   "title": "",
+   "source": "derived from UD Ancient Greek treebanks (PROIEL, Perseus), CC BY-NC-SA",
+   "license": "CC-BY-NC-SA",
+   "bytes": 149120,
+   "version": "6f57e4d76172"
+  }
+ ]
+}

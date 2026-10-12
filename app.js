@@ -140,16 +140,21 @@ async function deleteDict(id) {
   t.objectStore('dicts').delete(id);
   await done(t); bucketCache.clear();
 }
-async function importPackage(file, progress) {
+async function importPackage(file, progress, version = null) {
   const p = await readPackage(file);
   if (p.format !== 'greekdict-pkg-2') throw new Error(file.name + ': not a (current) dictionary package');
+  if (p.kind === 'morphhints') {               // small: preferred lemmata + word classes (treebank data)
+    await setting('morphPref', p.pref || {}); await setting('lemmapos', p.lemmapos || {});
+    await put('dicts', { id: p.id, kind: p.kind, name: p.name, source: p.source, license: p.license, count: p.count, version });
+    return;
+  }
   await deleteDict(p.id);
   const items = Object.entries(p.buckets).map(([b, v]) => Object.assign({ b: p.id + '|' + b }, v));
   progress(0, `${p.name}: ${p.count.toLocaleString('en')} ${p.kind === 'morph' ? 'forms' : 'entries'} …`);
   await bulkPut('buckets', items, x => progress(x), 300);
   if (p.lemmapos) await setting('lemmapos', p.lemmapos);
   await put('dicts', { id: p.id, kind: p.kind, name: p.kind === 'morph' ? 'Morphological analysis' : p.name, title: p.title, lang: p.lang,
-                       order: p.order ?? 99, source: p.source, count: p.count, split: p.split });
+                       order: p.order ?? 99, source: p.source, license: p.license, count: p.count, split: p.split, version });
 }
 async function loadDicts() {
   const all = await getAll('dicts');
@@ -162,6 +167,9 @@ async function loadDicts() {
   S.dicts.sort((a, b) => pos(a.id) - pos(b.id));
   S.shown = S.dicts.filter(d => !S.dictPrefs.off.includes(d.id));
   S.lemmapos = (await setting('lemmapos')) || {};
+  S.morphPref = (await setting('morphPref')) || {};
+  S.hints = all.find(d => d.kind === 'morphhints') || null;
+  S.installed = Object.fromEntries(all.map(d => [d.id, d]));
 }
 // key -> bucket name; must match bucket_of() in greekdict/packages.py
 function bucketOf(k, split) {
@@ -182,7 +190,7 @@ async function bucket(dict, k) {
 // ---------------------------------------------------------------- lookup
 async function analyses(form) {
   const f = canon(form);
-  const m = async x => { if (!S.morph) return null; const b = await bucket(S.morph, gkey(x)); return b?.f?.[x] ? { a: b.f[x], p: b.p?.[x] } : null; };
+  const m = async x => { if (!S.morph) return null; const b = await bucket(S.morph, gkey(x)); return b?.f?.[x] ? { a: b.f[x], p: b.p?.[x] ?? S.morphPref?.[x] } : null; };
   let r = await m(f);
   if (!r) { const f2 = stripSecondAccent(f); if (f2) r = await m(f2); }
   const choice = await get('choices', f);
@@ -621,12 +629,15 @@ async function dictsDialog() {
   await loadDicts();
   const m = S.morph;
   const rows = S.dicts.map((d, i) => `<div class="item dictrow" data-id="${d.id}"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span><label class="sw" title="Show this dictionary"><input type="checkbox" data-dict-on="${d.id}"${S.dictPrefs.off.includes(d.id) ? '' : ' checked'}></label><span class="t"><b>${esc(d.name)}</b> ${esc(d.title || '')}<br><small>${d.count.toLocaleString('en')} entries · ${esc(d.source || '')}</small></span><button type="button" data-v="del:${d.id}" title="Remove from this device">✕</button></div>`).join('') +
-    (m ? `<div class="item"><span class="t"><b>${esc(m.name)}</b><br><small>${m.count.toLocaleString('en')} forms · ${esc(m.source || '')}</small></span></div>` : '<p class="hint">Morphological analysis missing (morph.gdpkg.gz) – without it only dictionary forms are found.</p>');
+    (m ? `<div class="item"><span class="t"><b>${esc(m.name)}</b><br><small>${m.count.toLocaleString('en')} forms · ${esc(m.source || '')}</small></span></div>` : '<p class="hint">Morphological analysis missing – without it only dictionary forms are found.</p>') +
+    (S.hints ? `<div class="item"><span class="t"><b>${esc(S.hints.name)}</b><br><small>${esc(S.hints.source || '')}</small></span></div>` : '');
   let est = ''; try { const e = await navigator.storage?.estimate?.(); if (e) est = `Storage used: ${(e.usage / 1e6).toFixed(0)} MB`; } catch (_) { }
   const r = await dialog(`<h3>Dictionaries</h3><div class="list">${rows || '<p class="hint">No dictionaries installed.</p>'}</div>
     <label class="opt"><input type="checkbox" id="optSrcCol"${S.srcColors ? ' checked' : ''}> Show the editors’ colour marks in Pape and LSJ</label>
+    <p class="hint">“Download / update” fetches the freely licensed dictionaries (Pape, LSJ, morphology) from the app’s website. Frisk and Bailly are imported from your own files with “Import packages …”.</p>
     <p class="legend">${Object.entries(FONT_MEANING).map(([c, t]) => `<span class="fc" data-c="${c}">■</span> ${esc(t)}`).join('<br>')}</p><small>${est}</small>`,
-    [['file', 'Import packages …', 'fileDict'], ['persist', 'Make storage permanent'], ['cancel', 'Close']]);
+    [['sync', 'Download / update'], ['file', 'Import packages …', 'fileDict'], ['persist', 'Make storage permanent'], ['cancel', 'Close']]);
+  if (r.action === 'sync') return syncPackages();
   if (r.action === 'persist') { const ok = await navigator.storage?.persist?.(); toast(ok ? 'Storage is permanent.' : 'The browser did not confirm permanent storage – add the app to the Home Screen.'); }
   if (r.action.startsWith('del:')) {
     const id = r.action.slice(4), d = S.dicts.find(x => x.id === id);
@@ -682,6 +693,34 @@ async function posDialog() {
   applyPosColors();
 }
 function defaultPosCfg() { return Object.fromEntries(POS.map(([id, , c]) => [id, { on: true, c }])); }
+// free dictionaries (Pape, LSJ, morphology) are published next to the app: packages/packages.json
+async function syncPackages(silentIfCurrent = false) {
+  let man;
+  try { man = await (await fetch('packages/packages.json', { cache: 'no-cache' })).json(); }
+  catch (e) { return toast('Could not reach the server – are you online?'); }
+  await loadDicts();
+  const todo = man.packages.filter(p => S.installed[p.id]?.version !== p.version);
+  if (!todo.length) { if (!silentIfCurrent) toast('All downloadable dictionaries are up to date.'); return; }
+  const mb = todo.reduce((n, p) => n + p.bytes, 0) / 1e6;
+  const c = await dialog(`<h3>Download dictionaries</h3><p>${todo.map(p => `<b>${esc(p.name)}</b> ${S.installed[p.id] ? '(update)' : '(new)'}`).join('<br>')}</p><p class="hint">${mb.toFixed(0)} MB in total. Keep the app open until it is finished.</p>`,
+    [['cancel', 'Not now'], ['ok', 'Download']], 'ok');
+  if (c.action !== 'ok') return;
+  const d = $('#dlg'), f = $('#dlgForm');
+  f.innerHTML = '<h3>Download</h3><p id="impMsg">…</p><div class="prog"><i id="impBar"></i></div>'; d.showModal();
+  const prog = (x, msg) => { if (msg) $('#impMsg').textContent = msg; $('#impBar').style.width = (x * 100).toFixed(0) + '%'; };
+  try {
+    for (const p of todo) {
+      prog(0, `Downloading ${p.name} (${(p.bytes / 1e6).toFixed(1)} MB) …`);
+      const r = await fetch('packages/' + p.file, { cache: 'no-cache' });
+      if (!r.ok) throw new Error(p.file + ': HTTP ' + r.status);
+      const reader = r.body.getReader(); const parts = []; let got = 0;
+      for (;;) { const { done: fin, value } = await reader.read(); if (fin) break; parts.push(value); got += value.length; prog(got / p.bytes); }
+      await importPackage(new File(parts, p.file), prog, p.version);
+    }
+    d.close(); toast('Dictionaries downloaded');
+  } catch (e) { $('#impMsg').textContent = 'Error: ' + e.message; f.insertAdjacentHTML('beforeend', '<div class="row"><button>OK</button></div>'); f.onsubmit = ev => { ev.preventDefault(); d.close(); }; }
+  await loadDicts(); bucketCache.clear(); if (S.view) renderView(); resetTokens(); resolveTokens();
+}
 async function importFiles(files) {
   const d = $('#dlg'), f = $('#dlgForm');
   f.innerHTML = '<h3>Import</h3><p id="impMsg">…</p><div class="prog"><i id="impBar"></i></div>';
@@ -901,7 +940,8 @@ function splitIcon() {   // an open book: the fold sits where the split is, the 
   S.posOn = !!(await setting('posOn')); applyPosColors();
   const cur = await setting('currentText');
   if (cur != null) await openText(cur);
-  if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! Open the menu ☰ → Dictionaries → “Import packages …” and choose the *.gdpkg.gz files (Frisk, Pape, LSJ, Bailly, morphology). Then add a text via ☰ → Texts.</p>';
+  if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! <button id="btnFirstSync">Download the free dictionaries</button> (Pape, LSJ, morphology, about 34 MB). Frisk and Bailly can be added via ☰ → Dictionaries → “Import packages …”. Then add a text via ☰ → Texts.</p>';
+  $('#btnFirstSync')?.addEventListener('click', () => syncPackages());
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => { });
   navigator.storage?.persist?.().catch(() => { });
 })();
