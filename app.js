@@ -688,11 +688,19 @@ function splitIcon() {   // an open book: the fold sits where the split is, the 
   p.push(`M${x0} 3 Q${(x0 + fx) / 2} 2 ${fx} ${3 + dip} Q${(fx + x1) / 2} 2 ${x1} 3`);          // top edges
   p.push(`M${x0} ${H - 3} Q${(x0 + fx) / 2} ${H - 4} ${fx} ${H - 3 + dip} Q${(fx + x1) / 2} ${H - 4} ${x1} ${H - 3}`); // bottom edges
   p.push(`M${x0} 3 V${H - 3} M${x1} 3 V${H - 3} M${fx} ${3 + dip} V${H - 3 + dip}`);         // outer edges + fold
-  for (const y of [6.5, 9.5, 12.5, 15.5]) {                                                    // text lines
-    // same curve as the page edges: nearly flat at the outer edge, bending down into the fold
-    const lx0 = x0 + 2, lx1 = x1 - 2, d = dip * 0.85;
-    if (fx - x0 > 5) p.push(`M${lx0} ${y} Q${(lx0 + fx) / 2} ${y - 0.9} ${fx - 1.6} ${y + d}`);
-    if (x1 - fx > 5) p.push(`M${fx + 1.6} ${y + d} Q${(fx + lx1) / 2} ${y - 0.9} ${lx1} ${y}`);
+  // text lines: the page-edge curve shifted down in equal steps (trimmed a little at both ends)
+  const sub = (P0, P1, P2, t0, t1) => {          // part t0..t1 of a quadratic Bézier, again as a quadratic Bézier
+    const at = t => [0, 1].map(k => (1 - t) ** 2 * P0[k] + 2 * (1 - t) * t * P1[k] + t * t * P2[k]);
+    const dt = t => [0, 1].map(k => 2 * (1 - t) * (P1[k] - P0[k]) + 2 * t * (P2[k] - P1[k]));
+    const A = at(t0), B = at(t1), dA = dt(t0), h = (t1 - t0) / 2;
+    return [A, [A[0] + dA[0] * h, A[1] + dA[1] * h], B];
+  };
+  const q = ([A, C, B]) => `M${A[0].toFixed(2)} ${A[1].toFixed(2)} Q${C[0].toFixed(2)} ${C[1].toFixed(2)} ${B[0].toFixed(2)} ${B[1].toFixed(2)}`;
+  const top = 3, bot = H - 3, n = 4;
+  for (let i = 1; i <= n; i++) {
+    const dy = (bot - top) * i / (n + 1);
+    if (fx - x0 > 5) p.push(q(sub([x0, top + dy], [(x0 + fx) / 2, top - 1 + dy], [fx, top + dip + dy], 0.12, 0.9)));
+    if (x1 - fx > 5) p.push(q(sub([fx, top + dip + dy], [(fx + x1) / 2, top - 1 + dy], [x1, top + dy], 0.1, 0.88)));
   }
   const g = `<path d="${p.join(' ')}" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>`;
   b.innerHTML = portrait
