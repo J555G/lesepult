@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Greek Reader">
-<meta name="theme-color" content="#efe9da">
+<meta name="theme-color" content="#2a2926">
 <title>Greek Reader</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -25,6 +25,7 @@
       <button data-m="pos">Word-class colours …</button>
       <button data-m="layout">Change split</button>
       <button data-m="backup">Backup …</button>
+      <button data-m="theme">☀ Light mode</button>
     </div>
   </div>
   <span id="textTitle" title="Current text">no text</span>
@@ -32,9 +33,8 @@
   <button id="btnAddGloss" title="Write a gloss for the selected word or phrase">＋ Gloss</button>
   <button id="btnRange" title="Phrase: tap the first word, then this, then the last word">Range</button>
   <label class="sw" title="Colour words by word class"><input type="checkbox" id="chkPos"> Colours</label>
-  <button id="btnTheme" title="Light / dark mode">☾</button>
   <span class="sp"></span>
-  <button id="btnBack" title="Back" disabled>‹</button>
+  <button id="btnBack" title="Back" disabled>‹</button><button id="btnFwd" title="Forward" disabled>›</button>
   <div class="tabs"><button id="tabEntry" class="on">Entry</button><button id="tabList">Lemmata</button></div>
   <input id="search" type="search" placeholder="Look up a word…" autocapitalize="off" autocomplete="off" spellcheck="false">
 </header>

@@ -140,3 +140,9 @@ dialog .opt input{margin-right:.4rem}
 #top .sp{flex:1;min-width:.5rem}
 #top #search{flex:0 1 16rem}
 @media (max-width:900px){#top #search{flex:1 1 6rem}}
+#btnFwd{font-size:18px;line-height:1;padding:.25rem .6rem}
+#glossbox{display:grid;gap:.35rem;margin:.2rem 0 .7rem;padding:.5rem .6rem;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+#glossbox[hidden]{display:none}
+.gb{display:grid;grid-template-columns:minmax(7rem,auto) 1fr;gap:.5rem;align-items:center;font:13px var(--ui);color:var(--mut)}
+.gb i{font:italic 15px var(--greek);color:var(--fg)}
+.gb input{border:1px solid var(--line);border-radius:6px;padding:.3rem .5rem;background:var(--bg);color:var(--gloss);font:15px var(--ui)}
