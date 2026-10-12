@@ -22,12 +22,12 @@ button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
 #textPane,#dictPane{overflow:auto;-webkit-overflow-scrolling:touch;min-height:0;min-width:0}
 #divider{background:var(--line);cursor:col-resize;touch-action:none;position:relative;z-index:5}
 /* wider invisible grab zone in the middle third, marked by a fine brighter line */
-#divider::before{content:"";position:absolute;top:33.33%;height:33.34%;left:-14px;right:-14px}
+#divider::before{content:"";position:absolute;top:33.33%;height:33.34%;left:-12px;right:-12px}
 #divider::after{content:"";position:absolute;top:33.33%;height:33.34%;left:50%;width:1px;transform:translateX(-50%);background:var(--mut);opacity:.55;pointer-events:none}
 @media (orientation:portrait),(max-width:760px){
   #panes{grid-template-columns:1fr;grid-template-rows:var(--split) 4px 1fr}
   #divider{cursor:row-resize}
-  #divider::before{top:-14px;bottom:-14px;height:auto;left:33.33%;width:33.34%;right:auto}
+  #divider::before{top:-12px;bottom:-12px;height:auto;left:33.33%;width:33.34%;right:auto}
   #divider::after{top:50%;height:1px;left:33.33%;width:33.34%;transform:translateY(-50%)}
 }
 /* ---------- text ---------- */
@@ -153,3 +153,10 @@ dialog .opt input{margin-right:.4rem}
 .gb textarea{border:1px solid var(--line);border-radius:6px;padding:.3rem .5rem;background:var(--bg);color:var(--gloss);font:15px/1.35 var(--ui);resize:none;overflow:hidden;min-height:0;width:100%}
 #btnSplit{padding:.2rem .45rem;line-height:0;color:var(--fg)}
 #btnSplit svg{display:block}
+/* keep text clear of the divider's grab zone (12px on each side) */
+#textBody{padding-right:max(1.2rem,18px)}
+#dictBody,#listBody{padding-left:max(.8rem,18px)}
+@media (orientation:portrait),(max-width:760px){
+  #textBody{padding-right:1.2rem}
+  #dictBody,#listBody{padding-left:.8rem;padding-top:18px}
+}
