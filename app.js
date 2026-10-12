@@ -154,18 +154,33 @@ function applyPosColors() {
 }
 async function resolveTokens() {      // lemma + word class for every word of the text
   const run = (resolveTokens.run = (resolveTokens.run || 0) + 1);
-  const memo = new Map();
-  for (const tk of S.tokens) {
-    if (tk.t !== 'w' || tk.lemma !== undefined) continue;
-    let A = memo.get(tk.s); if (!A) memo.set(tk.s, A = await analyses(tk.s));
+  const memo = new Map(), bmap = new Map();
+  const choices = new Map((await getAll('choices')).map(c => [c.f, c]));    // read once, not once per word
+  const todo = S.tokens.filter(tk => tk.t === 'w' && tk.lemma === undefined);
+  // long books: the morphology buckets needed by the next 1500 words are read in one go
+  const prefetch = async from => {
+    if (!S.morph) return;
+    const need = new Set();
+    for (const tk of todo.slice(from, from + 1500)) {
+      const f = canon(tk.s);
+      for (const x of [f, stripSecondAccent(f)]) if (x) { const b = bucketOf(gkey(x), S.morph.splitSet); if (!bmap.has(b)) need.add(b); }
+    }
+    if (!need.size) return;
+    const os = (await dictDB(S.morph.id)).transaction('b').objectStore('b');
+    await Promise.all([...need].map(async b => bmap.set(b, await req2p(os.get(b)) || null)));
+  };
+  for (let n = 0; n < todo.length; n++) {
+    const tk = todo[n];
+    if (n % 1500 === 0) await prefetch(n);
+    if (tk.lemma !== undefined) continue;
+    let A = memo.get(tk.s); if (!A) memo.set(tk.s, A = await analyses(tk.s, choices, S.morph ? bmap : null));
     if (run !== resolveTokens.run) return;           // a newer run has started
     const l = A.pick; const x = A.lemmas.find(z => z.lemma === l);
     tk.lemma = l || null; tk.pos = posOf(l, x?.ana);
-    const el = document.querySelector(`.w[data-i="${tk.i}"]`);
+    const el = S.wordEls?.[tk.i];          // words are numbered in document order (a selector per word is slow in long books)
     el?.classList.add('p-' + tk.pos);
-    if (l && S.lemmaGloss[gkey(l)]) S.dgPending = true;
+    if (el && l && S.lemmaGloss[gkey(l)] && !S.covered?.has(tk.i)) el.querySelector('.gl').innerHTML = dgHTML(tk);
   }
-  if (S.dgPending) { S.dgPending = false; renderText(); }
 }
 function resetTokens(pred = () => true) { for (const tk of S.tokens) if (pred(tk)) { delete tk.lemma; delete tk.pos; } }
 const classifyTokens = resolveTokens;
@@ -255,12 +270,12 @@ async function bucket(dict, k) {
 }
 
 // ---------------------------------------------------------------- lookup
-async function analyses(form) {
+async function analyses(form, choices = null, bmap = null) {
   const f = canon(form);
-  const m = async x => { if (!S.morph) return null; const b = await bucket(S.morph, gkey(x)); return b?.f?.[x] ? { a: b.f[x], p: b.p?.[x] ?? S.morphPref?.[x] } : null; };
+  const m = async x => { if (!S.morph) return null; const b = bmap ? bmap.get(bucketOf(gkey(x), S.morph.splitSet)) : await bucket(S.morph, gkey(x)); return b?.f?.[x] ? { a: b.f[x], p: b.p?.[x] ?? S.morphPref?.[x] } : null; };
   let r = await m(f);
   if (!r) { const f2 = stripSecondAccent(f); if (f2) r = await m(f2); }
-  const choice = await get('choices', f);
+  const choice = choices ? choices.get(f) : await get('choices', f);
   const lemmas = [];
   for (const [l, a] of (r?.a || [])) {
     let x = lemmas.find(z => z.lemma === l); if (!x) lemmas.push(x = { lemma: l, ana: [] });
@@ -311,9 +326,9 @@ function tokenizeBlocks(blocks) {
 }
 function renderText() {
   const body = $('#textBody');
-  if (!S.text) { body.innerHTML = '<p class="hint">No text yet. Open the menu ☰ (top left) → Texts to paste or load a text.</p>'; return; }
+  if (!S.text) { body.innerHTML = '<p class="hint">No text yet. Open the menu ☰ (top left) → Library to download Greek texts, or → My texts to paste your own.</p>'; return; }
   const gl = {}; for (const g of S.glosses) (gl[g.s] ??= []).push(g);
-  const covered = new Set(); for (const g of S.glosses) for (let i = g.s; i <= g.e; i++) covered.add(i);
+  const covered = S.covered = new Set(); for (const g of S.glosses) for (let i = g.s; i <= g.e; i++) covered.add(i);
   let html = '<div class="para">';
   const toks = S.tokens;
   for (let n = 0; n < toks.length; n++) {
@@ -330,10 +345,7 @@ function renderText() {
       continue;
     }
     let gs = (gl[tk.i] || []).map(g => `<span data-g="${g.id}"${g.e > g.s ? ` title="gloss for ${g.e - g.s + 1} words"` : ''}>${g.e > g.s ? '⟨' : ''}${glossHTML(g.t)}${g.e > g.s ? '⟩' : ''}</span>`).join('');
-    if (tk.lemma) {      // the lemma's default gloss is shown too (below a gloss of the word itself, unless it says the same)
-      const dg = S.lemmaGloss[gkey(tk.lemma)];
-      if (dg && !(gl[tk.i] || []).some(g => g.t === dg)) gs += `<span class="dg" data-dg="${esc(gkey(tk.lemma))}" title="default gloss for ${esc(tk.lemma)}">${glossHTML(dg)}</span>`;
-    }
+    if (!covered.has(tk.i)) gs = dgHTML(tk);       // no gloss of its own: the lemma's default gloss
     // punctuation directly after the word stays on the same line as the word
     const nx = toks[n + 1]; let pu = '';
     if (nx && nx.t === 'p') { const m = nx.s.match(/^[^\sͰ-Ͽἀ-῿]+/); if (m) { pu = m[0]; nx.glued = pu.length; } }
@@ -344,8 +356,13 @@ function renderText() {
   const bn = w && w.books.length > 1 ? `<div class="booknav">${bi > 0 ? `<button type="button" data-step="-1">◂ ${esc(w.books[bi - 1])}</button>` : '<span></span>'}${bi < w.books.length - 1 ? `<button type="button" data-step="1">${esc(w.books[bi + 1])} ▸</button>` : ''}</div>` : '';
   body.innerHTML = html + '</div>' + bn;
   body.classList.toggle('lib', !!S.text.blocks);
+  S.wordEls = body.querySelectorAll('.w');
   markTarget();
   fillGlossBox();
+}
+function dgHTML(tk) {
+  const dg = tk.lemma && S.lemmaGloss[gkey(tk.lemma)];
+  return dg ? `<span class="dg" data-dg="${esc(gkey(tk.lemma))}" title="default gloss for ${esc(tk.lemma)}">${glossHTML(dg)}</span>` : '';
 }
 function markTarget() {
   document.querySelectorAll('.w.cur,.w.rng').forEach(e => e.classList.remove('cur', 'rng'));
