@@ -1430,7 +1430,7 @@ async function libraryDialog() {
   try { pers = (await navigator.storage?.persisted?.()) ? ' Downloads stay on this device until you delete them.' : ' <b>Storage is not yet protected</b> – start the app from its Home Screen icon so that the device does not clear downloads automatically.'; } catch (_) { }
   dialog(`<h3>Library</h3>
     <div class="libtop"><input type="search" id="libSearch" placeholder="Search authors and works (English, Latin or Greek)…" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(S.libQ)}">
-      <button type="button" id="libFilterBtn" title="Filters and sorting" aria-expanded="false"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 5h17l-6.5 7.5v5.5l-4 2v-7.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></button></div>
+      <button type="button" id="libFilterBtn" title="Filters" aria-label="Filters" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5.5h12M6 18.5h12"/><rect x="3" y="4" width="3.2" height="16" rx="1.6"/><rect x="17.8" y="4" width="3.2" height="16" rx="1.6"/><path d="M9 9.2h6M9 12h4.6M9 14.8h3" stroke-width="1.3"/></g></svg></button></div>
     <div id="libCtl" class="libctl" hidden>${libControlsHTML()}</div>
     <div id="libSort" class="libctl">${sortBarHTML()}</div>
     <div class="libcount" id="libCount"></div>
