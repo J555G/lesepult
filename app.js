@@ -1332,11 +1332,12 @@ function chip(f, val, label, title = '') {
 }
 function libControlsHTML() {
   const v = libView(), active = v.mine || v.src.length || v.form.length || v.genre.length || v.period.length;
-  const sortBtn = ([id, label]) => `<button type="button" class="sortb${v.sort === id ? ' on' : ''}" data-sort="${id}" title="Sort by ${label.toLowerCase()}${v.sort === id ? (v.dir > 0 ? ' (ascending)' : ' (descending)') : ''}">${label}<span class="arr"><i class="${v.sort === id && v.dir > 0 ? 'hi' : ''}">↑</i><i class="${v.sort === id && v.dir < 0 ? 'hi' : ''}">↓</i></span></button>`;
+  const sortBtn = ([id, label]) => `<button type="button" class="chip2${v.sort === id ? ' on' : ''}" data-sort="${id}" title="Sort by ${label.toLowerCase()}" aria-pressed="${v.sort === id}">${label}</button>`;
+  const dirBtn = `<button type="button" class="sortb dirb" data-dir="1" title="${v.dir > 0 ? 'Ascending – tap for descending' : 'Descending – tap for ascending'}" aria-label="${v.dir > 0 ? 'Ascending' : 'Descending'}"><span class="arr"><i class="${v.dir > 0 ? 'hi' : ''}">↑</i><i class="${v.dir < 0 ? 'hi' : ''}">↓</i></span></button>`;
   return `<div class="frow"><span class="fl">Show</span>${chip('mine', 1, 'On this device')}<span class="fsep"></span>${chip('src', 'Perseus', 'Perseus')}${chip('src', 'First1KGreek', 'First1KGreek')}<span class="fsep"></span>${chip('form', 'prose', 'Prose')}${chip('form', 'verse', 'Verse')}${active ? '<button type="button" class="chip2 reset" data-freset="1">Reset filters</button>' : ''}</div>
     <div class="frow"><span class="fl">Genre</span>${GENRES.map(([id, l]) => chip('genre', id, l)).join('')}</div>
     <div class="frow"><span class="fl">Period</span>${PERIODS.map(([id, l, t]) => chip('period', id, l, t)).join('')}</div>
-    <div class="frow"><span class="fl">Sort</span>${SORTS.map(sortBtn).join('')}</div>`;
+    <div class="frow"><span class="fl">Sort</span>${SORTS.map(sortBtn).join('')}<span class="fsep"></span>${dirBtn}</div>`;
 }
 function workRowHTML(w, flat = false) {
   const i = S.libInst[w.id], key = 'work:' + w.id;
@@ -1395,7 +1396,14 @@ function renderLibList() {
   el.innerHTML = html || `<p class="hint">Nothing found${S.libQ ? ' for “' + esc(S.libQ) + '”' : ''} with these filters.</p>`;
   el.scrollTop = st;
 }
-function renderLibControls() { const c = $('#libCtl'); if (c) c.innerHTML = libControlsHTML(); }
+function renderLibControls() { const c = $('#libCtl'); if (c) c.innerHTML = libControlsHTML(); filterIcon(); }
+// the filter icon is highlighted while any filter is on (also when the panel is closed)
+function filterIcon() {
+  const b = $('#libFilterBtn'); if (!b) return;
+  const v = libView(), active = v.mine || v.src.length || v.form.length || v.genre.length || v.period.length;
+  b.classList.toggle('active', !!active); b.classList.toggle('open', !$('#libCtl').hidden);
+  b.setAttribute('aria-expanded', !$('#libCtl').hidden);
+}
 async function libraryDialog() {
   S.libOpen ??= new Set(); S.libQ ??= '';
   S.lib = S.lib || (await setting('libView')) || null; libView();
@@ -1406,14 +1414,16 @@ async function libraryDialog() {
   let pers = '';
   try { pers = (await navigator.storage?.persisted?.()) ? ' Downloads stay on this device until you delete them.' : ' <b>Storage is not yet protected</b> – start the app from its Home Screen icon so that the device does not clear downloads automatically.'; } catch (_) { }
   dialog(`<h3>Library</h3>
-    <div class="libtop"><input type="search" id="libSearch" placeholder="Search authors and works (English, Latin or Greek)…" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(S.libQ)}"></div>
-    <div id="libCtl" class="libctl">${libControlsHTML()}</div>
+    <div class="libtop"><input type="search" id="libSearch" placeholder="Search authors and works (English, Latin or Greek)…" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(S.libQ)}">
+      <button type="button" id="libFilterBtn" title="Filters and sorting" aria-expanded="false"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 5h17l-6.5 7.5v5.5l-4 2v-7.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></button></div>
+    <div id="libCtl" class="libctl" hidden>${libControlsHTML()}</div>
     <div class="libcount" id="libCount"></div>
     <div class="list lib" id="libList"></div>
     ${!cat ? '<p class="hint">The catalogue could not be loaded (offline?). Downloaded works are listed below.</p>' : S.catOnline ? '' : '<p class="hint">Offline – showing the last known catalogue; downloads need a connection.</p>'}
     <small>${inst.length} work${inst.length === 1 ? '' : 's'} on this device${tot ? ` (≈ ${mb(tot)})` : ''}${cat ? ` · ${cat.authors.length} authors, ${Object.keys(S.catWork).length.toLocaleString('en')} works available` : ''}.${pers}<br>
     Greek texts: Perseus Digital Library (canonical-greekLit) and Open Greek and Latin (First1KGreek), licensed CC BY-SA 4.0. Dates, periods and genres follow the TLG canon (author dates; a work is dated by its author).</small>`,
     [['cancel', 'Close']]).then(r => { if (r.action === 'cancel') S.libScroll = 0; });
+  filterIcon();
   renderLibList();
   if (S.libScroll) $('#libList').scrollTop = S.libScroll;
 }
@@ -1446,14 +1456,16 @@ function wireLibrary() {
     else S.libOpen.delete(id);
   }, true);
   document.addEventListener('click', async ev => {
-    const f = ev.target.closest('#libCtl [data-f]'), so = ev.target.closest('#libCtl [data-sort]'), rs = ev.target.closest('#libCtl [data-freset]');
-    if (f || so || rs) {
+    if (ev.target.closest('#libFilterBtn')) { $('#libCtl').hidden = !$('#libCtl').hidden; filterIcon(); return; }
+    const f = ev.target.closest('#libCtl [data-f]'), so = ev.target.closest('#libCtl [data-sort]'), rs = ev.target.closest('#libCtl [data-freset]'), dr = ev.target.closest('#libCtl [data-dir]');
+    if (f || so || rs || dr) {
       const v = libView();
       if (f) {
         if (f.dataset.f === 'mine') v.mine = !v.mine;
         else { const arr = v[f.dataset.f], x = f.dataset.val, i = arr.indexOf(x); i < 0 ? arr.push(x) : arr.splice(i, 1); }
       }
-      if (so) { const id = so.dataset.sort; if (v.sort === id) v.dir = -v.dir; else { v.sort = id; v.dir = SORTS.find(s => s[0] === id)[2]; } }
+      if (so && v.sort !== so.dataset.sort) { v.sort = so.dataset.sort; v.dir = SORTS.find(s => s[0] === v.sort)[2]; }
+      if (dr) v.dir = -v.dir;
       if (rs) Object.assign(v, { mine: false, src: [], form: [], genre: [], period: [] });
       S.libLimit = 250; saveLibView(); renderLibControls(); $('#libList').scrollTop = 0; renderLibList(); return;
     }
