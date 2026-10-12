@@ -462,6 +462,7 @@ function unwrapMarks(root) { root.querySelectorAll('mark.hl').forEach(m => m.rep
 async function paintEntry(eb) {
   unwrapMarks(eb);
   const ranges = (await setting('hl|' + eb.dataset.hl)) || [];
+  (S.hlCache ??= {})[eb.dataset.hl] = ranges;
   ranges.forEach(([a, b], i) => wrapRange(eb, a, b, i));
 }
 async function applyHighlights(root) { for (const eb of root.querySelectorAll('.eb[data-hl]')) await paintEntry(eb); }
@@ -484,48 +485,74 @@ function caretAt(x, y) {
   if (document.caretPositionFromPoint) { const p = document.caretPositionFromPoint(x, y); return p && { node: p.offsetNode, off: p.offset }; }
   return null;
 }
-function setHlMode(on) {
-  S.hlMode = on; document.body.classList.toggle('hlmode', on); $('#btnHl').classList.toggle('on', on);
-  if (on) toast('Highlighter on: draw over dictionary text with the Pencil. Highlight marked text again to remove the marking.');
+function posAt(root, off) {                      // (text node, offset) at character offset off inside root
+  let n = 0, last = null;
+  for (const t of textNodes(root)) { const len = t.nodeValue.length; if (off <= n + len) return [t, off - n]; n += len; last = t; }
+  return last ? [last, last.nodeValue.length] : [root, 0];
 }
-function wireHighlighter() {
+// current selection inside ONE dictionary entry -> {eb, a, b, text}; anything else -> {text} or null
+function dictSelection() {
+  const sel = window.getSelection(); if (!sel.rangeCount) return null;
+  const text = String(sel).trim(); if (!text) return null;
+  const r = sel.getRangeAt(0);
+  if (!$('#dictPane').contains(r.commonAncestorContainer)) return null;
+  const el = n => n.nodeType === 1 ? n : n.parentElement;
+  const eb = el(r.startContainer)?.closest('.eb'), eb2 = el(r.endContainer)?.closest('.eb');
+  if (!eb || eb !== eb2 || !eb.dataset.hl) return { text };
+  let a = offsetIn(eb, r.startContainer, r.startOffset), b = offsetIn(eb, r.endContainer, r.endOffset);
+  if (a > b) [a, b] = [b, a];
+  return { eb, a, b, text };
+}
+// highlighter button: marks the selected text, or removes the marking if all of it is already marked
+async function toggleHighlight() {
+  const d = S.sel; if (!d?.eb || d.b - d.a < 1) return;
+  const key = 'hl|' + d.eb.dataset.hl;
+  let ranges = (await setting(key)) || [];
+  const covered = ranges.some(([x, y]) => x <= d.a + 1 && y >= d.b - 1);
+  ranges = covered ? subtractRange(ranges, [d.a, d.b]) : mergeRanges([...ranges, [d.a, d.b]]);
+  await setting(key, ranges); await paintEntry(d.eb);
+  // keep the same text selected, so that it can still be added as a gloss
+  const [n1, o1] = posAt(d.eb, d.a), [n2, o2] = posAt(d.eb, d.b);
+  try { window.getSelection().setBaseAndExtent(n1, o1, n2, o2); } catch (_) { }
+  updateFab();
+}
+function updateFab() {
+  const fb = $('#fabBar'), d = S.sel;
+  if (!d) { fb.hidden = true; return; }
+  const ranges = d.eb ? (S.hlCache?.[d.eb.dataset.hl] || []) : [];
+  const covered = d.eb && ranges.some(([x, y]) => x <= d.a + 1 && y >= d.b - 1);
+  $('#fabHl').disabled = !d.eb; $('#fabHl').classList.toggle('on', !!covered);
+  $('#fabHl').title = covered ? 'Remove the highlighting' : 'Highlight the selected text';
+  const r = $('#dictPane').getBoundingClientRect();         // float at the bottom of the dictionary section
+  Object.assign(fb.style, { left: r.left + 'px', width: r.width + 'px', bottom: Math.max(12, innerHeight - r.bottom + 14) + 'px' });
+  fb.hidden = false;
+}
+// Apple Pencil: dragging over dictionary text selects it (instead of scrolling); fingers scroll and select as usual
+function wirePencilSelect() {
   const pane = $('#dictPane');
   let drag = null;
-  // keep the Pencil from scrolling while highlighting (fingers still scroll)
-  const stylus = e => S.hlMode && [...e.changedTouches].some(t => t.touchType === 'stylus');
-  pane.addEventListener('touchstart', e => { if (stylus(e)) e.preventDefault(); }, { passive: false });
-  pane.addEventListener('touchmove', e => { if (stylus(e)) e.preventDefault(); }, { passive: false });
+  const stylusInEntry = e => [...e.changedTouches].some(t => t.touchType === 'stylus') && e.target.closest?.('.eb');
+  pane.addEventListener('touchstart', e => { if (stylusInEntry(e)) e.preventDefault(); }, { passive: false });
+  pane.addEventListener('touchmove', e => { if (drag) e.preventDefault(); }, { passive: false });
   pane.addEventListener('pointerdown', e => {
-    if (!S.hlMode || e.pointerType === 'touch') return;
+    if (e.pointerType !== 'pen') return;
     const eb = e.target.closest('.eb'); if (!eb) return;
     const c = caretAt(e.clientX, e.clientY); if (!c) return;
-    e.preventDefault();
-    drag = { eb, start: c, end: c, moved: false, mark: e.target.closest('mark.hl'), x: e.clientX, y: e.clientY };
+    drag = { eb, start: c, moved: false, x: e.clientX, y: e.clientY, target: e.target };
     pane.setPointerCapture?.(e.pointerId);
   });
   pane.addEventListener('pointermove', e => {
     if (!drag) return;
     if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 4) drag.moved = true;
+    if (!drag.moved) return;
     const c = caretAt(e.clientX, e.clientY); if (!c || !drag.eb.contains(c.node)) return;
-    drag.end = c;
     try { window.getSelection().setBaseAndExtent(drag.start.node, drag.start.off, c.node, c.off); } catch (_) { }
   });
-  const finish = async () => {
+  pane.addEventListener('pointerup', () => {
     if (!drag) return; const d = drag; drag = null;
-    window.getSelection().removeAllRanges();
-    const key = 'hl|' + d.eb.dataset.hl;
-    let ranges = (await setting(key)) || [];
-    if (!d.moved) return;                               // taps do nothing
-    let a = offsetIn(d.eb, d.start.node, d.start.off), b = offsetIn(d.eb, d.end.node, d.end.off);
-    if (a > b) [a, b] = [b, a];
-    if (b - a < 1) return;
-    // highlighting text that is already highlighted removes the highlight from it; otherwise it is added
-    const covered = ranges.some(([x, y]) => x <= a + 1 && y >= b - 1);
-    ranges = covered ? subtractRange(ranges, [a, b]) : mergeRanges([...ranges, [a, b]]);
-    await setting(key, ranges); await paintEntry(d.eb);
-  };
-  pane.addEventListener('pointerup', finish);
-  pane.addEventListener('pointercancel', () => { drag = null; window.getSelection().removeAllRanges(); });
+    if (!d.moved) { window.getSelection().removeAllRanges(); d.target.closest('.gw')?.click(); }    // a Pencil tap works like a finger tap
+  });
+  pane.addEventListener('pointercancel', () => { drag = null; });
 }
 
 async function showWord(word, opts = {}) {
@@ -1053,7 +1080,6 @@ function wire() {
     const pin = ev.target.closest('[data-pin]');
     if (pin) { await put('choices', { f: canon(S.view.form), lemma: pin.dataset.pin }); S.view.lemma = null; const f0 = canon(S.view.form); resetTokens(tk => canon(tk.s) === f0); await renderView(); resolveTokens(); renderText(); return; }
     const gw = ev.target.closest('.gw');
-    if (gw && S.hlMode && S.lastPointer !== 'touch') return;
     if (gw && !String(window.getSelection())) return showWord(gw.textContent, { openDict: gw.closest('details.src')?.dataset.d });
   });
   $('#dictBody').addEventListener('change', async ev => {
@@ -1126,20 +1152,19 @@ function wire() {
   };
   // selection inside the dictionary -> offer "add as gloss"
   document.addEventListener('pointerdown', e => { S.lastPointer = e.pointerType; }, true);
-  $('#btnHl').onclick = () => setHlMode(!S.hlMode);
-  wireHighlighter();
+  wirePencilSelect();
+  addEventListener('resize', () => { if (!$('#fabBar').hidden) updateFab(); });
   wireDictDrag();
   document.addEventListener('click', e => { const b = e.target.closest('#dlg [data-get]'); if (b) { if (b.closest('summary')) e.preventDefault(); queueDownload(b.dataset.get); } });
   wireLibrary();
   document.addEventListener('selectionchange', () => {
-    if (S.hlMode) { $('#fabBar').hidden = true; return; }
-    const sel = window.getSelection(); const txt = String(sel).trim();
-    const inDict = sel.rangeCount && $('#dictPane').contains(sel.getRangeAt(0).commonAncestorContainer);
-    if (txt && inDict) S.lastSel = txt;
-    $('#fabBar').hidden = !(txt && inDict);
+    clearTimeout(S.selT);
+    S.selT = setTimeout(() => { S.sel = dictSelection(); if (S.sel) S.lastSel = S.sel.text; updateFab(); }, 60);
   });
-  for (const id of ['#fabGloss', '#fabDefault']) $(id).addEventListener('pointerdown', ev => ev.preventDefault());
-  const fab = asDefault => { const t = S.lastSel; window.getSelection().removeAllRanges(); $('#fabBar').hidden = true; addGloss(t, asDefault, true); };
+
+  for (const id of ['#fabHl', '#fabGloss', '#fabDefault']) $(id).addEventListener('pointerdown', ev => ev.preventDefault());   // keep the selection
+  $('#fabHl').onclick = toggleHighlight;
+  const fab = asDefault => { const t = S.lastSel; window.getSelection().removeAllRanges(); S.sel = null; $('#fabBar').hidden = true; addGloss(t, asDefault, true); };
   $('#fabGloss').onclick = () => fab(false);
   $('#fabDefault').onclick = () => fab(true);
   // divider drag

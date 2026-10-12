@@ -154,7 +154,8 @@ body.nosrccol .ent .fc,body.nosrccol .ent .au{color:inherit}
 }
 
 .w>.gl .dg{color:var(--mut);font-style:italic}
-#fabBar{position:fixed;right:max(1rem,env(safe-area-inset-right));bottom:calc(1rem + env(safe-area-inset-bottom));z-index:20;display:flex;gap:.5rem}
+#fabBar{position:fixed;z-index:20;display:flex;gap:.5rem;justify-content:center;pointer-events:none}
+#fabBar button{pointer-events:auto}
 #fabBar[hidden]{display:none}
 #fabBar button{background:var(--acc);color:var(--bg);border-color:var(--acc);font-size:15px;padding:.6rem 1rem;border-radius:24px;box-shadow:0 4px 14px rgba(0,0,0,.25)}
 dialog .opt input{margin-right:.4rem}
@@ -178,8 +179,6 @@ dialog .opt input{margin-right:.4rem}
   #dictBody,#listBody{padding-left:.8rem;padding-top:18px}
 }
 
-#btnHl{line-height:0;padding:.25rem .45rem}
-#btnHl.on{background:#e8c22a;border-color:#e8c22a;color:#222}
 mark.hl{background:rgba(255,210,0,.45);color:inherit;border-radius:2px;padding:0 .5px}
 :root[data-theme=dark] mark.hl{background:rgba(230,190,40,.38)}
 body.hlmode #dictBody .eb{cursor:text;-webkit-user-select:text;user-select:text}
@@ -359,3 +358,8 @@ dialog .dsec .opt input{margin-right:.5rem}
 .ent .gw{color:color-mix(in srgb,var(--fg) 35%,var(--acc2))}
 body:not(.nosrccol) .ent .fc .gw{color:inherit}
 .ent .gw:hover,.ent .gw:active{color:var(--acc2)}
+
+/* floating selection buttons: highlighter (toggle), + Gloss, + Default */
+#fabBar #fabHl{background:var(--bar);color:var(--fg);border:1.5px solid var(--mut);line-height:0;padding:.5rem .8rem}
+#fabBar #fabHl.on{background:#e8c22a;border-color:#e8c22a;color:#222}
+#fabBar #fabHl:disabled{opacity:.4}
