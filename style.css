@@ -204,3 +204,6 @@ dialog .dictrow input[type=checkbox]{width:1.15rem;height:1.15rem}
 dialog .dictrow .grip{cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;font-size:20px;line-height:1;color:var(--mut);padding:.3rem .35rem}
 dialog .dictrow.dragging{position:relative;z-index:2;background:var(--card);box-shadow:0 6px 18px rgba(0,0,0,.25);border-radius:8px}
 dialog .dictrow.dragging .grip{cursor:grabbing}
+
+dialog .item button[data-v^="get:"]{background:var(--acc);border-color:var(--acc);color:var(--bg);font-size:12px;padding:.25rem .55rem}
+dialog .item button[disabled]{font-size:12px;padding:.25rem .55rem}
