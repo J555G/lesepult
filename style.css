@@ -23,7 +23,7 @@ button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
 #textTitle .tb{flex:none;font-weight:700}
 #textTitle .ta{color:var(--mut)}
 @media (max-width:1250px){#textTitle .ta{display:none}}
-#top .navgrp .bk{padding:0 .4rem;font-size:12px;color:var(--mut)}
+#top .navgrp .bk{min-width:42px;padding:0 .5rem;font-size:19px;line-height:1;color:var(--fg)}
 #top .navgrp .bk:not([hidden])+#textTitle{border-radius:0;border-left:0;border-right:0}
 #top .navgrp .bk:first-child{border-radius:8px 0 0 8px}
 #top .navgrp .bk:last-child{border-radius:0 8px 8px 0}
@@ -147,7 +147,6 @@ body.nosrccol .ent .fc,body.nosrccol .ent .au{color:inherit}
 @media (max-width:900px){
   #textTitle{max-width:19vw}
   #textTitle .ta{display:none}
-  #top .navgrp .bk{display:none}
   #top .navgrp #textTitle{border-radius:8px}
   #top #search{min-width:5rem}
   #top button,#top .sw{font-size:13px}
@@ -263,14 +262,14 @@ dialog details.auth .works{padding-left:1.3rem}
 dialog details.auth .works .item:last-child{border-bottom:0}
 dialog .ok{color:var(--acc2)}
 dialog .bookgrid{display:flex;flex-wrap:wrap;gap:.35rem;margin:.2rem 0 .6rem;max-height:30vh;overflow:auto}
-dialog .bookgrid button{min-width:2.6rem;font-family:var(--greek)}
+dialog .bookgrid button{min-width:46px;min-height:44px;font:16px var(--greek)}
 dialog .bookgrid button.mk{box-shadow:inset 0 3px 0 var(--acc)}
 dialog .nav details{border-bottom:1px solid var(--line)}
 dialog .nav .item{padding-left:1.3rem}
 
 /* end of a book: continue with the next one */
 .booknav{display:flex;justify-content:space-between;gap:1rem;margin:2.5rem 0 0;padding-top:1rem;border-top:1px solid var(--line)}
-.booknav button{font-size:14px}
+.booknav button{font-size:16px;padding:.7rem 1.1rem;min-height:46px}
 /* the top bar always stays one row: the title and the search field give way first */
 #top{flex-wrap:nowrap}
 #top>*{flex-shrink:0}
@@ -287,3 +286,30 @@ dialog details.priv>summary{cursor:pointer;padding:.25rem 0}
 dialog details.priv input{margin:.25rem 0;font-family:var(--ui);font-size:15px}
 dialog .bad{color:#c0262d}
 :root[data-theme=dark] dialog .bad{color:#ff8a8a}
+
+/* Dictionaries dialog: one section each for dictionaries, analysis tools, private dictionaries, colour marks, storage */
+dialog .dsec{border-top:1px solid var(--line);padding:.6rem 0 .3rem}
+dialog .dsec:first-of-type{border-top:0;padding-top:0}
+dialog .dsec h4{margin:.1rem 0 .3rem;font-size:15px}
+dialog .dsec h4 small{font-weight:400;color:var(--mut);margin-left:.4rem}
+dialog .list.plain{max-height:none;overflow:visible;margin:0}
+dialog .hint.small{font-size:13px;margin:.2rem 0 .4rem}
+dialog .privf{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
+dialog .privf input{margin:0;font-family:var(--ui);font-size:15px}
+@media (max-width:600px){dialog .privf{grid-template-columns:1fr}}
+dialog .dsec .legend{margin:.3rem 0 0 1.6rem}
+/* finger-sized navigation buttons */
+#top #btnBack,#top #btnFwd{min-width:40px;font-size:20px}
+/* portrait: two rows – reading tools above, dictionary tools below */
+@media (orientation:portrait) and (max-width:1100px){
+  #top{flex-wrap:wrap;row-gap:.3rem}
+  #top .sp{flex:0 0 100%;height:0;min-width:0}
+  #top #search{flex:1 1 auto;max-width:none}
+  #textTitle{max-width:none}
+  #top .navgrp{flex:1 1 auto}
+  #top .navgrp #textTitle{flex:1 1 auto;justify-content:center}
+}
+dialog .item input[data-dict-on]{width:1.15rem;height:1.15rem}
+dialog .toolrow{gap:.4rem}
+dialog .toolrow .grip.ph{visibility:hidden;font-size:20px;line-height:1;padding:.3rem .35rem}
+dialog .toolrow button{padding:.25rem .5rem;font-size:12px}

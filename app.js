@@ -222,7 +222,6 @@ async function importPackage(file, progress, version = null) {
 }
 async function loadDicts() {
   const all = await getAll('dicts');
-  S.morph = all.find(d => d.kind === 'morph') || null;
   for (const d of all) d.splitSet = new Set(d.split || []);
   S.dicts = all.filter(d => d.kind === 'dictionary').sort((a, b) => (a.order ?? 99) - (b.order ?? 99) || a.name.localeCompare(b.name));
   // user's order and on/off choice (menu ☰ → Dictionaries); new dictionaries go to the end, switched on
@@ -230,9 +229,13 @@ async function loadDicts() {
   const pos = id => { const i = S.dictPrefs.order.indexOf(id); return i < 0 ? 1e6 : i; };
   S.dicts.sort((a, b) => pos(a.id) - pos(b.id));
   S.shown = S.dicts.filter(d => !S.dictPrefs.off.includes(d.id));
-  S.lemmapos = (await setting('lemmapos')) || {};
-  S.morphPref = (await setting('morphPref')) || {};
-  S.hints = all.find(d => d.kind === 'morphhints') || null;
+  // analysis tools: installed (…Inst) and in use (switched on)
+  const on = d => d && !S.dictPrefs.off.includes(d.id) ? d : null;
+  S.morphInst = all.find(d => d.kind === 'morph') || null; S.morph = on(S.morphInst);
+  S.hintsInst = all.find(d => d.kind === 'morphhints') || null; S.hints = on(S.hintsInst);
+  const hintsOff = S.hintsInst && !S.hints;
+  S.lemmapos = hintsOff ? {} : (await setting('lemmapos')) || {};
+  S.morphPref = hintsOff ? {} : (await setting('morphPref')) || {};
   S.installed = Object.fromEntries(all.map(d => [d.id, d]));
 }
 // key -> bucket name; must match bucket_of() in greekdict/packages.py
@@ -687,7 +690,7 @@ function dialog(inner, buttons = [['ok', 'OK']], defaultAction = null) {
     };
     d.onclose = () => { const data = Object.fromEntries(new FormData(f)); res({ action, data }); };
     d.showModal();
-    const first = f.querySelector('input[type=text]:not(details input),textarea'); if (first) { first.focus(); first.select?.(); }
+    const first = f.querySelector('input[type=text]:not(.privf input),textarea'); if (first) { first.focus(); first.select?.(); }
   });
 }
 async function textsDialog() {
@@ -770,28 +773,37 @@ async function dictsDialog() {
   };
   const delBtn = id => `<button type="button" class="danger" data-v="del:${id}" title="Remove from this device">Delete</button>`;
   const sizeOf = d => d.size ? ` · ≈ ${(d.size / 1e6).toFixed(0)} MB` : '';
-  const rows = S.dicts.map(d => `<div class="item dictrow" data-id="${d.id}"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span><label class="sw" title="Show this dictionary"><input type="checkbox" data-dict-on="${d.id}"${S.dictPrefs.off.includes(d.id) ? '' : ' checked'}></label><span class="t"><b>${esc(d.name)}</b> ${esc(d.title || '')}<br><small>${d.count.toLocaleString('en')} entries${sizeOf(d)} · ${esc(d.source || '')}</small></span>${repoBtn(d.id)}${delBtn(d.id)}</div>`).join('');
-  const extra = [S.morph && ['morph', S.morph.name, `${S.morph.count.toLocaleString('en')} forms${sizeOf(S.morph)} · ${S.morph.source || ''}`],
-                 S.hints && ['morphhints', S.hints.name, S.hints.source || '']].filter(Boolean)
-    .map(([id, n, sub]) => `<div class="item"><span class="t"><b>${esc(n)}</b><br><small>${esc(sub)}</small></span>${repoBtn(id)}${delBtn(id)}</div>`).join('');
-  // packages on the website that are not on this device yet
-  const missing = Object.values(remote).filter(p => !S.installed[p.id])
-    .map(p => `<div class="item"><span class="t"><b>${esc(p.name)}</b> ${esc(p.title || '')}<br><small>not on this device · ${(p.bytes / 1e6).toFixed(1)} MB · ${esc(p.source || '')}</small></span>${repoBtn(p.id)}</div>`).join('');
+  const onBox = (id, what) => `<label class="sw" title="Use this ${what}"><input type="checkbox" data-dict-on="${id}"${S.dictPrefs.off.includes(id) ? '' : ' checked'}></label>`;
+  const missingRow = p => `<div class="item"><span class="t"><b>${esc(p.name)}</b> ${esc(p.title || '')}<br><small>not on this device · ${(p.bytes / 1e6).toFixed(1)} MB${p.priv ? ' · private repository' : ''}</small></span>${repoBtn(p.id)}</div>`;
+  // 1. dictionaries (drag to reorder, tick to show)
+  const rows = S.dicts.map(d => `<div class="item dictrow" data-id="${d.id}"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span>${onBox(d.id, 'dictionary')}<span class="t"><b>${esc(d.name)}</b> ${esc(d.title || '')}<br><small>${d.count.toLocaleString('en')} entries${sizeOf(d)} · ${esc(d.source || '')}</small></span>${repoBtn(d.id)}${delBtn(d.id)}</div>`).join('');
+  const missD = Object.values(remote).filter(p => !S.installed[p.id] && p.kind === 'dictionary').map(missingRow).join('');
+  // 2. analysis tools (tick to use)
+  const tools = [S.morphInst && [S.morphInst, 'Lemma and form for every word of the text', `${S.morphInst.count.toLocaleString('en')} forms${sizeOf(S.morphInst)}`],
+                 S.hintsInst && [S.hintsInst, 'Preferred lemma for ambiguous forms; word classes for the colours', '']].filter(Boolean)
+    .map(([d, what, sub]) => `<div class="item toolrow"><span class="grip ph" aria-hidden="true">⠿</span>${onBox(d.id, 'tool')}<span class="t"><b>${esc(d.name)}</b> <small>${esc(what)}</small><br><small>${sub ? sub + ' · ' : ''}${esc(d.source || '')}</small></span>${repoBtn(d.id)}${delBtn(d.id)}</div>`).join('');
+  const missT = Object.values(remote).filter(p => !S.installed[p.id] && p.kind !== 'dictionary').map(missingRow).join('');
   let est = '', pers = '';
-  try { const e = await navigator.storage?.estimate?.(); if (e) est = `Storage used by the app: ${(e.usage / 1e6).toFixed(0)} MB`; } catch (_) { }
-  try { pers = (await navigator.storage?.persisted?.()) ? ' · protected from automatic clean-up' : ' · not protected from automatic clean-up – start the app from the Home Screen'; } catch (_) { }
-  const r = await dialog(`<h3>Dictionaries</h3><div class="list">${rows || extra ? '' : '<p class="hint">No dictionaries installed.</p>'}${rows}${extra}${missing}</div>
-    ${man ? '' : '<p class="hint">The website could not be reached (offline?) – download buttons are not available right now.</p>'}
-    <label class="opt"><input type="checkbox" id="optSrcCol"${S.srcColors ? ' checked' : ''}> Show the editors’ colour marks in Pape and LSJ</label>
-    <p class="hint">Pape, LSJ and the morphology data come from the app’s website. Frisk and Bailly come from your private repository (below), or from your own files with “Import packages …”.</p>
-    <details class="priv"${privCfgNow.token && !S.privErr ? '' : ' open'}><summary><b>Private dictionaries</b> <small>${privCfgNow.token ? (S.privErr ? '<span class="bad">' + esc(S.privErr) + '</span>' : '<span class="ok">connected</span>') : 'not connected'}</small></summary>
-      <p class="hint" style="font-size:13px">Repository and a read-only access token (GitHub → Settings → Developer settings → Fine-grained tokens: only this repository, “Contents: Read-only”). The token is stored only on this device.</p>
-      <input type="text" name="privRepo" value="${esc(privCfgNow.repo)}" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="owner/repository">
-      <input type="password" name="privToken" value="${esc(privCfgNow.token)}" autocomplete="off" placeholder="github_pat_…">
-      <div class="row" style="justify-content:flex-start"><button type="button" data-v="privsave">Save and connect</button>${privCfgNow.token ? '<button type="button" class="danger" data-v="privforget">Forget token</button>' : ''}</div>
-    </details>
-    <p class="legend">${Object.entries(FONT_MEANING).map(([c, t]) => `<span class="fc" data-c="${c}">■</span> ${esc(t)}`).join('<br>')}</p><small>${est}${pers}</small>`,
-    [['clean', 'Clean up storage'], ['file', 'Import packages …', 'fileDict'], ['cancel', 'Close']]);
+  try { const e = await navigator.storage?.estimate?.(); if (e) est = `The app uses ${(e.usage / 1e6).toFixed(0)} MB on this device`; } catch (_) { }
+  try { pers = (await navigator.storage?.persisted?.()) ? ' · protected: downloads stay until you delete them' : ' · <b>not yet protected</b> – start the app from its Home Screen icon'; } catch (_) { }
+  const privState = privCfgNow.token ? (S.privErr ? '<span class="bad">' + esc(S.privErr) + '</span>' : '<span class="ok">connected</span>') : 'not connected';
+  const r = await dialog(`<h3>Dictionaries</h3>
+    <section class="dsec"><h4>Dictionaries <small>drag ⠿ to change the order · untick to hide</small></h4>
+      <div class="list plain">${rows || missD ? rows + missD : '<p class="hint">No dictionaries installed.</p>'}</div></section>
+    <section class="dsec"><h4>Analysis tools <small>untick to switch off</small></h4>
+      <div class="list plain">${tools || missT ? tools + missT : '<p class="hint">No analysis tools installed.</p>'}</div></section>
+    ${man ? '' : '<p class="hint">The website could not be reached (offline?) – download buttons are not available right now. Everything already installed works offline.</p>'}
+    <section class="dsec"><h4>Private dictionaries <small>${privState}</small></h4>
+      <p class="hint small">Frisk and Bailly come from your private repository (or from your own files with “Import packages …” below). Enter the repository and a read-only access token (GitHub → Settings → Developer settings → Fine-grained tokens: only this repository, “Contents: Read-only”). The token is stored only on this device.</p>
+      <div class="privf"><input type="text" name="privRepo" value="${esc(privCfgNow.repo)}" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="owner/repository">
+      <input type="password" name="privToken" value="${esc(privCfgNow.token)}" autocomplete="off" placeholder="github_pat_…"></div>
+      <div class="row" style="justify-content:flex-start;margin-top:.4rem"><button type="button" data-v="privsave">Save and connect</button>${privCfgNow.token ? '<button type="button" class="danger" data-v="privforget">Forget token</button>' : ''}</div></section>
+    <section class="dsec"><h4>Editors’ colour marks</h4>
+      <label class="opt"><input type="checkbox" id="optSrcCol"${S.srcColors ? ' checked' : ''}> Show the colour marks of the Eulexis editors in Pape and LSJ</label>
+      <p class="legend">${Object.entries(FONT_MEANING).map(([c, t]) => `<span class="fc" data-c="${c}">■</span> ${esc(t)}`).join('<br>')}</p></section>
+    <section class="dsec"><h4>Storage</h4><p class="hint small">${est}${pers}.</p>
+      <div class="row" style="justify-content:flex-start"><button type="button" data-v="clean">Clean up storage</button></div></section>`,
+    [['file', 'Import packages …', 'fileDict'], ['cancel', 'Close']]);
   if (r.action === 'clean') { await cleanStorage(); return dictsDialog(); }
   if (r.action === 'privsave') { await setting('privRepo', { repo: (r.data.privRepo || '').trim().replace(/^https:\/\/github\.com\//, '').replace(/\/$/, ''), token: (r.data.privToken || '').trim() }); return dictsDialog(); }
   if (r.action === 'privforget') { await setting('privRepo', { repo: privCfgNow.repo, token: '' }); return dictsDialog(); }
@@ -1047,6 +1059,7 @@ function wire() {
     const off = new Set(S.dictPrefs.off); ev.target.checked ? off.delete(id) : off.add(id);
     S.dictPrefs.off = [...off]; if (!S.dictPrefs.order.length) S.dictPrefs.order = S.dicts.map(d => d.id);
     await setting('dictPrefs', S.dictPrefs); await loadDicts(); bucketCache.clear(); if (S.view) renderView();
+    if (id === 'morph' || id === 'morphhints') { resetTokens(); renderText(); resolveTokens(); }
   });
   document.addEventListener('change', ev => { if (ev.target.id === 'optSrcCol') { S.srcColors = ev.target.checked; setting('srcColors', S.srcColors); document.body.classList.toggle('nosrccol', !S.srcColors); } });
   $('#fileDict').onchange = ev => { const fs = [...ev.target.files]; ev.target.value = ''; if (fs.length) importFiles(fs); };
