@@ -1363,7 +1363,8 @@ function libControlsHTML() {
       <div class="track"><i></i></div>
       <input type="range" id="centFrom" min="${YMIN}" max="${YMAX}" step="100" value="${v.from}" aria-label="From century">
       <input type="range" id="centTo" min="${YMIN}" max="${YMAX}" step="100" value="${v.to}" aria-label="To century">
-      <div class="eras">${ERAS.map(([n, a, b]) => `<span style="left:${pct(a)}%;width:${(pct(b) - pct(a)).toFixed(2)}%" title="${n}">${n}</span>`).join('')}</div>
+      <div class="ticks">${ERAS.slice(1).map(([, a]) => `<i style="left:${pct(a)}%"></i>`).join('')}</div>
+      <div class="eras">${ERAS.map(([n, a, b], i) => `<span class="r${i % 2}" style="left:${((+pct(a) + +pct(b)) / 2).toFixed(2)}%" title="${n}">${n}</span>`).join('')}</div>
     </div>`;
 }
 function workRowHTML(w, flat = false) {

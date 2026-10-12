@@ -431,3 +431,10 @@ body.reading #textBody{max-width:56em;margin:0 auto;padding-top:2rem}
 #readEdge{display:none}
 body.reading #readEdge{display:block;position:fixed;right:0;top:33.33%;height:33.34%;width:5px;border-radius:3px 0 0 3px;background:var(--mut);opacity:.25;z-index:30;pointer-events:none;transition:opacity .2s}
 body.reading #readEdge.pull{opacity:.6;width:calc(5px + var(--pull,0px));background:linear-gradient(90deg,transparent,var(--mut))}
+
+/* period names under the century slider: centred under their span, alternating between two lines, with boundary ticks */
+dialog .cslider{height:4.3rem}
+dialog .cslider .ticks{position:absolute;left:0;right:0;top:21px;height:6px}
+dialog .cslider .ticks i{position:absolute;top:0;width:1px;height:6px;background:var(--mut);opacity:.5}
+dialog .cslider .eras span{border-left:0!important;width:auto!important;transform:translateX(-50%);overflow:visible}
+dialog .cslider .eras span.r1{top:13px}
