@@ -327,7 +327,11 @@ async function editGloss(id) {
 function dialog(inner, buttons = [['ok', 'OK']]) {
   return new Promise(res => {
     const d = $('#dlg'), f = $('#dlgForm');
-    f.innerHTML = inner + '<div class="row">' + buttons.map(([v, l]) => `<button value="${v}">${l}</button>`).join('') + '</div>';
+    f.innerHTML = inner + '<div class="row">' + buttons.map(([v, l, extra]) =>
+      v === 'file' ? `<label class="btn" for="${extra}">${l}</label>`
+      : v === 'link' ? `<a class="btn" href="${extra.href}" download="${extra.name}">${l}</a>`
+      : `<button value="${v}">${l}</button>`).join('') + '</div>';
+    f.querySelectorAll('label.btn,a.btn').forEach(el => el.addEventListener('click', () => setTimeout(() => d.close('picked'), 50)));
     d.onclose = () => { const data = Object.fromEntries(new FormData(f)); res({ action: d.returnValue, data }); };
     d.returnValue = 'cancel'; d.showModal();
     f.querySelector('input,textarea')?.focus();
@@ -336,7 +340,7 @@ function dialog(inner, buttons = [['ok', 'OK']]) {
 async function textsDialog() {
   const texts = await getAll('texts');
   const list = texts.map(t => `<div class="item"><span class="t">${esc(t.title)} <small>${new Date(t.created).toLocaleDateString()}</small></span><button value="open:${t.id}">Öffnen</button><button value="del:${t.id}">✕</button></div>`).join('') || '<p class="hint">Noch keine Texte.</p>';
-  const r = await dialog(`<h3>Texte</h3><div class="list">${list}</div>`, [['new', 'Neuer Text (einfügen)'], ['file', 'Datei laden …'], ['cancel', 'Schließen']]);
+  const r = await dialog(`<h3>Texte</h3><div class="list">${list}</div>`, [['new', 'Neuer Text (einfügen)'], ['file', 'Datei laden …', 'fileText'], ['cancel', 'Schließen']]);
   if (r.action.startsWith('open:')) return openText(+r.action.slice(5));
   if (r.action.startsWith('del:')) {
     const id = +r.action.slice(4);
@@ -352,7 +356,6 @@ async function textsDialog() {
     const n = await dialog('<h3>Neuer Text</h3><input type="text" name="title" placeholder="Titel"><p></p><textarea name="text" placeholder="Griechischen Text hier einfügen …"></textarea>', [['cancel', 'Abbrechen'], ['ok', 'Speichern']]);
     if (n.action === 'ok' && n.data.text.trim()) await saveText(n.data.title.trim() || 'Text ' + new Date().toLocaleDateString(), n.data.text);
   }
-  if (r.action === 'file') $('#fileText').click();
 }
 async function saveText(title, text, choices) {
   const id = await put('texts', { title, text, created: Date.now() });
@@ -365,8 +368,7 @@ async function dictsDialog() {
   const rows = S.dicts.map(d => `<div class="item"><span class="t"><b>${esc(d.name)}</b> ${esc(d.title || '')}<br><small>${d.count.toLocaleString()} Einträge · ${esc(d.source || '')}</small></span><button value="del:${d.id}">✕</button></div>`).join('') +
     (morph ? `<div class="item"><span class="t"><b>${esc(morph.name)}</b><br><small>${morph.count.toLocaleString()} Formen · ${esc(morph.source || '')}</small></span></div>` : '<p class="hint">Formenanalyse fehlt (morph.gdpkg.gz) – ohne sie werden nur Grundformen gefunden.</p>');
   let est = ''; try { const e = await navigator.storage?.estimate?.(); if (e) est = `Speicher: ${(e.usage / 1e6).toFixed(0)} MB belegt`; } catch (_) {}
-  const r = await dialog(`<h3>Wörterbücher</h3><div class="list">${rows || '<p class="hint">Keine Wörterbücher installiert.</p>'}</div><small>${est}</small>`, [['import', 'Pakete importieren …'], ['persist', 'Speicher dauerhaft machen'], ['cancel', 'Schließen']]);
-  if (r.action === 'import') $('#fileDict').click();
+  const r = await dialog(`<h3>Wörterbücher</h3><div class="list">${rows || '<p class="hint">Keine Wörterbücher installiert.</p>'}</div><small>${est}</small>`, [['file', 'Pakete importieren …', 'fileDict'], ['persist', 'Speicher dauerhaft machen'], ['cancel', 'Schließen']]);
   if (r.action === 'persist') { const ok = await navigator.storage?.persist?.(); toast(ok ? 'Speicher ist dauerhaft.' : 'Browser hat dauerhaften Speicher nicht bestätigt – App zum Home-Bildschirm hinzufügen.'); }
   if (r.action.startsWith('del:')) { await deleteDict(r.action.slice(4)); await loadDicts(); dictsDialog(); }
 }
@@ -382,14 +384,13 @@ async function importFiles(files) {
   await loadDicts(); if (S.view) renderView();
 }
 async function backupDialog() {
-  const r = await dialog('<h3>Sicherung</h3><p>Texte, Glossen und deine Lemma-Entscheidungen als Datei sichern (z. B. in „Dateien“ oder iCloud) oder aus einer Sicherung wiederherstellen. Wörterbücher sind nicht enthalten.</p>', [['export', 'Sichern'], ['import', 'Wiederherstellen …'], ['cancel', 'Schließen']]);
-  if (r.action === 'export') {
-    const data = { format: 'greekdict-backup-1', date: new Date().toISOString(), texts: await getAll('texts'), glosses: await getAll('glosses'), choices: await getAll('choices') };
-    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = 'lesepult-sicherung-' + new Date().toISOString().slice(0, 10) + '.json'; document.body.append(a); a.click(); a.remove();
-  }
-  if (r.action === 'import') $('#fileBackup').click();
+  // the export file is prepared first, so that the download link is tapped directly by the user (needed on iPad)
+  const data = { format: 'greekdict-backup-1', date: new Date().toISOString(), texts: await getAll('texts'), glosses: await getAll('glosses'), choices: await getAll('choices') };
+  const href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
+  const name = 'lesepult-sicherung-' + new Date().toISOString().slice(0, 10) + '.json';
+  await dialog(`<h3>Sicherung</h3><p>Texte (${data.texts.length}), Glossen (${data.glosses.length}) und deine Lemma-Entscheidungen als Datei sichern (z. B. in „Dateien“ oder iCloud) oder aus einer Sicherung wiederherstellen. Wörterbücher sind nicht enthalten.</p>`,
+    [['link', 'Sichern', { href, name }], ['file', 'Wiederherstellen …', 'fileBackup'], ['cancel', 'Schließen']]);
+  setTimeout(() => URL.revokeObjectURL(href), 60000);
 }
 async function restoreBackup(file) {
   const data = JSON.parse(await file.text());
