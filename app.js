@@ -422,6 +422,20 @@ async function writeGloss() {     // type a gloss directly, without the dictiona
     [['cancel', 'Cancel'], ['ok', 'Save']], 'ok');
   if (r.action === 'ok' && (r.data.t || '').trim()) { S.lastDefault = r.data.def === 'on'; addGloss(r.data.t, S.lastDefault); }
 }
+// open the selected word in the dictionary pane (if it is not shown already) and put the cursor into its gloss field
+async function openGlossField(kind = 'span', lemma = null) {
+  if (!S.text) return toast('Open a text first.');
+  if (!S.cur) return toast('First tap a word (or select a phrase with “Range”).');
+  const i0 = S.cur[0];
+  const shown = S.view && S.view.ti != null && S.cur[0] <= S.view.ti && S.view.ti <= S.cur[1] && !$('#dictBody').hidden;
+  if (!shown) {
+    const tk = S.tokens.find(t => t.t === 'w' && t.i === i0);
+    S.hist = []; S.view = null; await showWord(tk.s, { ti: i0, lemma: lemma || tk.lemma || null });
+  }
+  fillGlossBox();
+  const inp = $(kind === 'def' ? '#glossbox textarea[data-def]' : '#glossbox textarea[data-span]');
+  if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); inp.scrollIntoView({ block: 'nearest' }); }
+}
 // gloss box at the top of the dictionary pane: gloss of the tapped word + default gloss of the lemma, editable in place
 function autoGrow(ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 2 + 'px'; }
 function fillGlossBox() {
@@ -563,11 +577,8 @@ function wire() {
       const g = gsp ? S.glosses.find(x => x.id === +gsp.dataset.g) : null;
       const i0 = g ? g.s : +ev.target.closest('.w').dataset.i;
       S.cur = g ? [g.s, g.e] : [i0, i0]; markTarget();
-      const tk = S.tokens.find(t => t.t === 'w' && t.i === i0);
-      S.hist = []; S.view = null; await showWord(tk.s, { ti: i0, lemma: tk.lemma || null });
-      const inp = $(dg ? '#glossbox textarea[data-def]' : '#glossbox textarea[data-span]');
-      if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); inp.scrollIntoView({ block: 'nearest' }); }
-      return;
+      S.view = null;                                  // always reopen the tapped word
+      return openGlossField(dg ? 'def' : 'span');
     }
     const w = ev.target.closest('.w'); if (!w) return;
     const i = +w.dataset.i;
@@ -611,7 +622,7 @@ function wire() {
   $('#chkGloss').onchange = ev => { document.body.classList.toggle('nogloss', !ev.target.checked); setting('showGloss', ev.target.checked); };
   $('#chkPos').onchange = async ev => { S.posOn = ev.target.checked; await setting('posOn', S.posOn); applyPosColors(); };
 
-  $('#btnAddGloss').onclick = () => writeGloss();
+  $('#btnAddGloss').onclick = () => openGlossField('span');
   $('#btnSplit').onclick = cycleSplit;
   matchMedia('(orientation:portrait),(max-width:760px)').addEventListener('change', splitIcon);
   $('#btnRange').onclick = () => {
