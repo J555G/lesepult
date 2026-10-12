@@ -935,7 +935,7 @@ async function settingsDialog() {
       <p class="hint small">Colours used by the “Colours” button in the top bar.</p>
       <div class="row" style="justify-content:flex-start"><button type="button" data-v="pos">Choose colours</button></div></section>
     <section class="dsec"><h4>Backup</h4>
-      <p class="hint small">Save or restore your texts, glosses, default glosses, markers and lemma choices.</p>
+      <p class="hint small">Save or restore your texts, glosses, default glosses, markers, favourites and lemma choices.</p>
       <div class="row" style="justify-content:flex-start"><button type="button" data-v="backup">Backup and restore</button></div></section>`,
     [['cancel', 'Close']]);
   if (r.action === 'pos') { await posDialog(); return settingsDialog(); }
@@ -1048,10 +1048,11 @@ async function backupDialog() {
   // the export file is prepared first, so that the download link is tapped directly by the user (needed on iPad)
   const data = { format: 'greekdict-backup-1', date: new Date().toISOString(), texts: await getAll('texts'), glosses: await getAll('glosses'), choices: await getAll('choices'), lemmaGlosses: S.lemmaGloss,
     highlights: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('hl|', 'hl|\uffff'))).map(r => [r.k.slice(3), r.v])),
-    markers: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('mk|', 'mk|\uffff'))).map(r => [r.k.slice(3), r.v])) };
+    markers: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('mk|', 'mk|\uffff'))).map(r => [r.k.slice(3), r.v])),
+    favourites: (await setting('favs')) || {} };
   const href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
   const name = 'greek-reader-backup-' + new Date().toISOString().slice(0, 10) + '.json';
-  await dialog(`<h3>Backup</h3><p>Save your texts (${data.texts.length}), glosses (${data.glosses.length}, including those in library texts), default glosses (${Object.keys(S.lemmaGloss).length}), markers and lemma choices as a file (e.g. in Files or iCloud), or restore them from a backup. Dictionaries and library texts are not included (they can be downloaded again).</p>`,
+  await dialog(`<h3>Backup</h3><p>Save your texts (${data.texts.length}), glosses (${data.glosses.length}, including those in library texts), default glosses (${Object.keys(S.lemmaGloss).length}), markers, favourites (${Object.keys(data.favourites).length}) and lemma choices as a file (e.g. in Files or iCloud), or restore them from a backup. Dictionaries and library texts are not included (they can be downloaded again).</p>`,
     [['link', 'Save backup', { href, name }], ['file', 'Restore …', 'fileBackup'], ['cancel', 'Close']]);
   setTimeout(() => URL.revokeObjectURL(href), 60000);
 }
@@ -1064,6 +1065,7 @@ async function restoreBackup(file) {
   for (const [k, t] of Object.entries(data.lemmaGlosses || {})) { S.lemmaGloss[k] = t; await setting('lg|' + k, t); }
   for (const [k, r] of Object.entries(data.highlights || {})) await setting('hl|' + k, r);
   for (const [k, r] of Object.entries(data.markers || {})) await setting('mk|' + k, r);
+  if (data.favourites) { S.favs = Object.assign((await setting('favs')) || {}, data.favourites); await setting('favs', S.favs); }
   toast('Restored'); await openText(data.texts[0]?.id ?? null);
 }
 
@@ -1118,6 +1120,7 @@ function wire() {
   $('#btnPrevBook').onclick = () => stepBook(-1);
   $('#btnNextBook').onclick = () => stepBook(1);
   wireMarker();
+  wireReading();
   $('#textPane').addEventListener('scroll', () => { clearTimeout(S.posT); S.posT = setTimeout(saveReadPos, 500); }, { passive: true });
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveReadPos(); });
   $('#btnFwd').onclick = goFwd;
@@ -1311,10 +1314,10 @@ const YMIN = -800, YMAX = 1500;
 const ERAS = [['Archaic', -800, -500], ['Classical', -500, -323], ['Hellenistic', -323, -31], ['Imperial', -31, 300], ['Late Antique', 300, 600], ['Byzantine', 600, 1500]];
 function libView() {
   S.lib ??= {};
-  S.lib = Object.assign({ mine: false, src: [], form: [], from: YMIN, to: YMAX, undated: true, sort: 'author', dir: 1 }, S.lib);
+  S.lib = Object.assign({ mine: false, fav: false, src: [], form: [], from: YMIN, to: YMAX, undated: true, sort: 'author', dir: 1 }, S.lib);
   return S.lib;
 }
-const filtersOn = v => v.mine || v.src.length || v.form.length || v.from > YMIN || v.to < YMAX || !v.undated;
+const filtersOn = v => v.mine || v.fav || v.src.length || v.form.length || v.from > YMIN || v.to < YMAX || !v.undated;
 function centLabel(y, end) {           // year at a century boundary -> "5th c. BC"
   const ord = n => n + ((n % 100 >= 11 && n % 100 <= 13) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' })[n % 10] || 'th');
   const c = end ? (y <= 0 ? -y / 100 + 1 : y / 100) : (y < 0 ? -y / 100 : y / 100 + 1);
@@ -1325,6 +1328,7 @@ const authorOf = w => S.catAuthor?.[w.id] || { name: w.author, id: w.authorId, g
 function workPasses(w, q) {
   const v = libView(), a = authorOf(w);
   if (v.mine && !S.libInst[w.id]) return false;
+  if (v.fav && !S.favs?.[w.id]) return false;
   if (v.src.length && !v.src.includes(w.source)) return false;
   if (v.form.length && w.verse != null && !v.form.includes(w.verse ? 'verse' : 'prose')) return false;
   if (a.year == null) { if (!v.undated) return false; }
@@ -1340,7 +1344,7 @@ function libAuthors() {
 }
 function libFilter(a) { const q = fold(S.libQ); return a.works.filter(w => workPasses(w, q)).sort((x, y) => (x.no ?? 0) - (y.no ?? 0) || x.title.localeCompare(y.title)); }
 function chip(f, val, label, title = '') {
-  const v = libView(), on = f === 'mine' ? v.mine : f === 'undated' ? v.undated : v[f].includes(val);
+  const v = libView(), on = f === 'mine' ? v.mine : f === 'fav' ? v.fav : f === 'undated' ? v.undated : v[f].includes(val);
   return `<button type="button" class="chip2${on ? ' on' : ''}" data-f="${f}" data-val="${val}"${title ? ` title="${esc(title)}"` : ''} aria-pressed="${on}">${esc(label)}</button>`;
 }
 function sortBarHTML() {
@@ -1351,7 +1355,7 @@ function sortBarHTML() {
 }
 function libControlsHTML() {
   const v = libView(), pct = y => ((y - YMIN) / (YMAX - YMIN) * 100).toFixed(2);
-  return `<div class="frow"><span class="fl">Show</span>${chip('mine', 1, 'On this device')}<span class="fsep"></span>${chip('src', 'Perseus', 'Perseus')}${chip('src', 'First1KGreek', 'First1KGreek')}<span class="fsep"></span>${chip('form', 'prose', 'Prose')}${chip('form', 'verse', 'Verse')}</div>
+  return `<div class="frow"><span class="fl">Show</span>${chip('fav', 1, '★ Favourites')}${chip('mine', 1, 'On this device')}<span class="fsep"></span>${chip('src', 'Perseus', 'Perseus')}${chip('src', 'First1KGreek', 'First1KGreek')}<span class="fsep"></span>${chip('form', 'prose', 'Prose')}${chip('form', 'verse', 'Verse')}</div>
     <div class="frow"><span class="fl">Date</span><span class="crange" id="centLabel">${centLabel(v.from)} – ${centLabel(v.to, true)}</span><span class="fsep"></span>${chip('undated', 1, 'Undated works', 'Show or hide works whose date is unknown')}${filtersOn(v) ? '<button type="button" class="chip2 reset" data-freset="1">Reset filters</button>' : ''}</div>
     <div class="cslider" style="--a:${pct(v.from)}%;--b:${pct(v.to)}%">
       <div class="track"><i></i></div>
@@ -1371,7 +1375,8 @@ function workRowHTML(w, flat = false) {
   const ed = w.id.split('.').pop().replace(/^perseus-|^1st1K-/, '');
   const a = authorOf(w), op = S.opened?.[w.id];
   const who = flat ? `${esc(a.name)}${a.date ? ' · ' + esc(a.date) : ''} · ` : '';
-  return `<div class="item" data-w="${w.id}"><span class="t"><b>${esc(w.title)}</b> <span class="gk">${w.greek && w.greek !== w.title ? esc(w.greek) : ''}</span><br><small>${who}${w.verse ? 'verse' : 'prose'} · ${nb}${w.words ? ' · ' + w.words.toLocaleString('en') + ' words' : ''} · ${esc(w.source || '')} ${esc(ed)}${op ? ' · opened ' + new Date(op).toLocaleDateString('en-GB') : ''}</small></span>${btn}</div>`;
+  const fav = !!S.favs?.[w.id];
+  return `<div class="item" data-w="${w.id}"><button type="button" class="star${fav ? ' on' : ''}" data-star="${w.id}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" aria-pressed="${fav}">${fav ? '★' : '☆'}</button><span class="t"><b>${esc(w.title)}</b> <span class="gk">${w.greek && w.greek !== w.title ? esc(w.greek) : ''}</span><br><small>${who}${w.verse ? 'verse' : 'prose'} · ${nb}${w.words ? ' · ' + w.words.toLocaleString('en') + ' words' : ''} · ${esc(w.source || '')} ${esc(ed)}${op ? ' · opened ' + new Date(op).toLocaleDateString('en-GB') : ''}</small></span>${btn}</div>`;
 }
 function authorHTML(a, ws, open) {
   const inst = a.works.filter(w => S.libInst[w.id]).length;
@@ -1428,6 +1433,7 @@ async function libraryDialog() {
   S.libOpen ??= new Set(); S.libQ ??= '';
   S.lib = S.lib || (await setting('libView')) || null; libView();
   S.opened = (await setting('opened')) || {};
+  S.favs = (await setting('favs')) || {};
   const [cat, inst] = await Promise.all([fetchCatalog(), libWorks()]);
   S.libInst = Object.fromEntries(inst.map(w => [w.id, w]));
   const tot = inst.reduce((a, w) => a + (w.size || 0), 0);
@@ -1496,14 +1502,24 @@ function wireLibrary() {
       if (f) {
         if (f.dataset.f === 'mine') v.mine = !v.mine;
         else if (f.dataset.f === 'undated') v.undated = !v.undated;
+        else if (f.dataset.f === 'fav') v.fav = !v.fav;
         else { const arr = v[f.dataset.f], x = f.dataset.val, i = arr.indexOf(x); i < 0 ? arr.push(x) : arr.splice(i, 1); }
       }
       if (so && v.sort !== so.dataset.sort) { v.sort = so.dataset.sort; v.dir = SORTS.find(s => s[0] === v.sort)[2]; }
       if (dr) v.dir = -v.dir;
-      if (rs) Object.assign(v, { mine: false, src: [], form: [], from: YMIN, to: YMAX, undated: true });
+      if (rs) Object.assign(v, { mine: false, fav: false, src: [], form: [], from: YMIN, to: YMAX, undated: true });
       S.libLimit = 250; saveLibView(); renderLibControls(); $('#libList').scrollTop = 0; renderLibList(); return;
     }
     if (ev.target.closest('#libList [data-more]')) { S.libLimit += 500; renderLibList(); return; }
+    const star = ev.target.closest('#libList [data-star]');
+    if (star) {                                   // favourite on/off (kept in the backup)
+      const id = star.dataset.star; S.favs ??= {};
+      if (S.favs[id]) delete S.favs[id]; else S.favs[id] = Date.now();
+      await setting('favs', S.favs);
+      const on = !!S.favs[id]; star.classList.toggle('on', on); star.textContent = on ? '★' : '☆'; star.title = on ? 'Remove from favourites' : 'Add to favourites';
+      if (libView().fav && !on) renderLibList();
+      return;
+    }
     const all = ev.target.closest('#libList [data-all]');
     if (all) {
       ev.preventDefault();
@@ -1555,7 +1571,7 @@ async function navHTML(keepOpen = null) {
     const marks = new Set((await getAll('settings', IDBKeyRange.bound(`mk|w:${w.id}:`, `mk|w:${w.id}:\uffff`))).map(r => +r.k.split(':').pop()));
     const short = stripCommon(w.books);
     html += `<h3>${esc(w.author)} · ${esc(w.title)} <span class="gk">${esc(w.greek || '')}</span></h3>
-      ${w.books.length > 1 ? `<div class="bookgrid">${short.map((l, i) => `<button type="button" data-nav="book:${i}" title="${esc(w.books[i])}${marks.has(i) ? ' – has a marker' : ''}" class="${i === t.bi ? 'on' : ''}${marks.has(i) ? ' mk' : ''}">${esc(l)}</button>`).join('')}</div>` : ''}
+      ${w.books.length > 1 ? `<div class="bookgrid">${short.map((l, i) => `<button type="button" data-nav="book:${i}" title="${esc(w.books[i])}${marks.has(i) ? ' – has a marker' : ''}" class="${i === t.bi ? 'on' : ''}${marks.has(i) ? ' mk' : ''}">${esc(l)}${marks.has(i) ? '<svg class="bm" width="8" height="11" viewBox="0 0 8 11" aria-hidden="true"><path d="M0 0h8v11L4 8 0 11z"/></svg>' : ''}</button>`).join('')}</div>` : ''}
       <p class="hint" style="font-size:13px">${esc(w.edition || '')}</p>`;
   } else html += `<h3>${t ? esc(t.title) : 'Texts'}</h3>`;
   const by = {};
@@ -1587,6 +1603,40 @@ function stepBook(d) {
   const t = S.text, w = t?.work; if (!w) return;
   const bi = t.bi + d; if (bi < 0 || bi >= w.books.length) return;
   openText(`w:${w.id}:${bi}`);
+}
+// ---- reading mode: only the text, full screen; leave with Esc or by swiping in from the middle of the right edge
+function setReading(on) {
+  document.body.classList.toggle('reading', on);
+  if (on) {
+    document.documentElement.requestFullscreen?.().catch(() => { });
+    toast('Reading mode – swipe in from the middle of the right edge, or press Esc, to leave.', 3500);
+  } else if (document.fullscreenElement) document.exitFullscreen?.().catch(() => { });
+  setGlossMax();
+}
+function wireReading() {
+  $('#btnRead').onclick = () => setReading(true);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('reading') && !$('#dlg').open) setReading(false); });
+  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.body.classList.contains('reading')) setReading(false); });
+  let sw = null;
+  document.addEventListener('pointerdown', e => {
+    if (!document.body.classList.contains('reading')) return;
+    const h = innerHeight;
+    if (e.clientX > innerWidth - 40 && e.clientY > h / 3 && e.clientY < 2 * h / 3) { sw = { x: e.clientX, id: e.pointerId }; $('#readEdge').classList.add('pull'); }
+  }, true);
+  document.addEventListener('pointermove', e => {
+    if (!sw || e.pointerId !== sw.id) return;
+    $('#readEdge').style.setProperty('--pull', Math.max(0, sw.x - e.clientX) + 'px');
+  }, true);
+  const end = e => {
+    if (!sw || e.pointerId !== sw.id) return;
+    const done = e.clientX <= innerWidth / 2; sw = null;
+    $('#readEdge').classList.remove('pull'); $('#readEdge').style.removeProperty('--pull');
+    if (done) setReading(false);
+  };
+  document.addEventListener('pointerup', end, true);
+  document.addEventListener('pointercancel', end, true);
+  // keep the browser from scrolling or going back while pulling from the edge
+  document.addEventListener('touchmove', e => { if (sw) e.preventDefault(); }, { passive: false });
 }
 // reading position per text/book (restored when it is opened again)
 function saveReadPos() { if (S.text) setting('pos|' + S.text.id, Math.round($('#textPane').scrollTop)); }
