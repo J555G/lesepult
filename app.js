@@ -682,7 +682,7 @@ function dialog(inner, buttons = [['ok', 'OK']], defaultAction = null) {
     };
     d.onclose = () => { const data = Object.fromEntries(new FormData(f)); res({ action, data }); };
     d.showModal();
-    const first = f.querySelector('input[type=text],textarea'); if (first) { first.focus(); first.select?.(); }
+    const first = f.querySelector('input[type=text]:not(details input),textarea'); if (first) { first.focus(); first.select?.(); }
   });
 }
 async function textsDialog() {
@@ -728,12 +728,31 @@ async function cleanStorage() {
   const after = (await navigator.storage?.estimate?.().catch(() => null))?.usage;
   toast(removed.length ? `Removed ${removed.length} unused item(s)` + (before && after ? ` · ${(before / 1e6).toFixed(0)} → ${(after / 1e6).toFixed(0)} MB` : '') : 'Nothing to clean up.', 4000);
 }
+// Frisk and Bailly may not be published: they live in a PRIVATE GitHub repository, read with a personal
+// access token that is stored only on this device (☰ → Dictionaries → Private dictionaries).
+async function privCfg() { return (await setting('privRepo')) || { repo: 'J555G/lesepult-private', token: '' }; }
+async function privFetch(cfg, path) {
+  const r = await fetch(`https://api.github.com/repos/${cfg.repo}/contents/${path}`, {
+    cache: 'no-store', headers: { Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github.raw', 'X-GitHub-Api-Version': '2022-11-28' } });
+  if (!r.ok) throw new Error(r.status === 401 ? 'the token is not valid (any more)' : r.status === 404 ? 'repository not found, or the token has no access to it' : 'HTTP ' + r.status);
+  return r;
+}
+function pkgFetch(p) { return p.priv ? privFetch(p.priv, p.file) : fetch('packages/' + p.file, { cache: 'no-cache' }); }
 async function fetchManifest() {
-  try { return await (await fetch('packages/packages.json', { cache: 'no-cache' })).json(); } catch (_) { return null; }
+  let man;
+  try { man = await (await fetch('packages/packages.json', { cache: 'no-cache' })).json(); } catch (_) { return null; }
+  S.privErr = null;
+  const cfg = await privCfg();
+  if (cfg.token) {
+    try { const pm = await (await privFetch(cfg, 'packages.json')).json(); for (const p of pm.packages) man.packages.push(Object.assign(p, { priv: cfg })); }
+    catch (e) { S.privErr = e.message; }
+  }
+  return man;
 }
 async function dictsDialog() {
   await loadDicts();
   const man = await fetchManifest();
+  const privCfgNow = await privCfg();
   const remote = Object.fromEntries((man?.packages || []).map(p => [p.id, p]));
   // download / update button for every package that is available on the app's website
   const repoBtn = id => {
@@ -759,10 +778,18 @@ async function dictsDialog() {
   const r = await dialog(`<h3>Dictionaries</h3><div class="list">${rows || extra ? '' : '<p class="hint">No dictionaries installed.</p>'}${rows}${extra}${missing}</div>
     ${man ? '' : '<p class="hint">The website could not be reached (offline?) – download buttons are not available right now.</p>'}
     <label class="opt"><input type="checkbox" id="optSrcCol"${S.srcColors ? ' checked' : ''}> Show the editors’ colour marks in Pape and LSJ</label>
-    <p class="hint">Pape, LSJ and the morphology data can be downloaded from the app’s website. Frisk and Bailly are imported from your own files with “Import packages …”.</p>
+    <p class="hint">Pape, LSJ and the morphology data come from the app’s website. Frisk and Bailly come from your private repository (below), or from your own files with “Import packages …”.</p>
+    <details class="priv"${privCfgNow.token && !S.privErr ? '' : ' open'}><summary><b>Private dictionaries</b> <small>${privCfgNow.token ? (S.privErr ? '<span class="bad">' + esc(S.privErr) + '</span>' : '<span class="ok">connected</span>') : 'not connected'}</small></summary>
+      <p class="hint" style="font-size:13px">Repository and a read-only access token (GitHub → Settings → Developer settings → Fine-grained tokens: only this repository, “Contents: Read-only”). The token is stored only on this device.</p>
+      <input type="text" name="privRepo" value="${esc(privCfgNow.repo)}" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="owner/repository">
+      <input type="password" name="privToken" value="${esc(privCfgNow.token)}" autocomplete="off" placeholder="github_pat_…">
+      <div class="row" style="justify-content:flex-start"><button type="button" data-v="privsave">Save and connect</button>${privCfgNow.token ? '<button type="button" class="danger" data-v="privforget">Forget token</button>' : ''}</div>
+    </details>
     <p class="legend">${Object.entries(FONT_MEANING).map(([c, t]) => `<span class="fc" data-c="${c}">■</span> ${esc(t)}`).join('<br>')}</p><small>${est}${pers}</small>`,
     [['clean', 'Clean up storage'], ['file', 'Import packages …', 'fileDict'], ['cancel', 'Close']]);
   if (r.action === 'clean') { await cleanStorage(); return dictsDialog(); }
+  if (r.action === 'privsave') { await setting('privRepo', { repo: (r.data.privRepo || '').trim().replace(/^https:\/\/github\.com\//, '').replace(/\/$/, ''), token: (r.data.privToken || '').trim() }); return dictsDialog(); }
+  if (r.action === 'privforget') { await setting('privRepo', { repo: privCfgNow.repo, token: '' }); return dictsDialog(); }
   if (r.action.startsWith('del:')) {
     const id = r.action.slice(4), d = S.installed[id];
     if (DL.has(id)) { toast('Wait until the download has finished.'); return dictsDialog(); }
@@ -850,7 +877,7 @@ async function runDownloads() {
     const p = man.packages.find(x => x.id === id);
     try {
       DL.set(id, 0); paintDL(id);
-      const r = await fetch('packages/' + p.file, { cache: 'no-cache' });
+      const r = await pkgFetch(p);
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const reader = r.body.getReader(); const parts = []; let got = 0;
       for (;;) { const { done: fin, value } = await reader.read(); if (fin) break; parts.push(value); got += value.length; DL.set(id, 0.9 * got / p.bytes); paintDL(id); }
@@ -883,7 +910,7 @@ async function syncPackages(ids = null) {
   try {
     for (const p of todo) {
       prog(0, `Downloading ${p.name} (${(p.bytes / 1e6).toFixed(1)} MB) …`);
-      const r = await fetch('packages/' + p.file, { cache: 'no-cache' });
+      const r = await pkgFetch(p);
       if (!r.ok) throw new Error(p.file + ': HTTP ' + r.status);
       const reader = r.body.getReader(); const parts = []; let got = 0;
       for (;;) { const { done: fin, value } = await reader.read(); if (fin) break; parts.push(value); got += value.length; prog(got / p.bytes); }
@@ -1391,7 +1418,7 @@ function wireMarker() {
   S.posOn = !!(await setting('posOn')); applyPosColors();
   const cur = await setting('currentText');
   if (cur != null) await openText(cur);
-  if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! <button id="btnFirstSync">Download the free dictionaries</button> (Pape, LSJ, morphology, about 34 MB). Frisk and Bailly can be added via ☰ → Dictionaries → “Import packages …”. Then get a text via ☰ → Library, or paste your own via ☰ → My texts.</p>';
+  if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! <button id="btnFirstSync">Download the free dictionaries</button> (Pape, LSJ, morphology, about 34 MB). Frisk and Bailly: ☰ → Dictionaries → Private dictionaries. Then get a text via ☰ → Library, or paste your own via ☰ → My texts.</p>';
   $('#btnFirstSync')?.addEventListener('click', () => syncPackages());
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => { });
   navigator.storage?.persist?.().catch(() => { });
