@@ -417,8 +417,12 @@ dialog .cslider .eras{top:34px}
 dialog[open]{margin:max(4vh,24px) auto auto;max-height:calc(100dvh - max(4vh,24px) - 16px);overflow:auto}
 
 /* favourites star in the Library */
-dialog .item .star{flex:none;background:none;border:0;padding:.2rem .3rem;font-size:19px;line-height:1;color:var(--mut)}
-dialog .item .star.on{color:#d9a520}
+dialog .item .star{flex:none;background:none;border:0;padding:.25rem .35rem;line-height:0;color:var(--mut)}
+dialog .item .star .flame{fill:none}
+dialog .item .star.on{color:#e0702a}
+dialog .item .star.on .flame{fill:#f0a030;stroke:#e0702a}
+dialog .chip2 .flame{width:11px;height:13px;fill:none;vertical-align:-2px;margin-right:.3rem}
+dialog .chip2.on .flame{fill:currentColor}
 /* reading mode: the text alone, full screen */
 body.reading #top,body.reading #divider,body.reading #dictPane,body.reading #fabBar{display:none!important}
 body.reading #panes{grid-template-columns:1fr!important;grid-template-rows:1fr!important}

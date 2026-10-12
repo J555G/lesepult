@@ -1312,6 +1312,8 @@ const SORTS = [['author', 'Author', 1], ['title', 'Title', 1], ['date', 'Date', 
 // century slider: from the start of the 8th c. BC to the end of the 15th c. AD (years; 0 = start of the 1st c. AD)
 const YMIN = -800, YMAX = 1500;
 const ERAS = [['Archaic', -800, -500], ['Classical', -500, -323], ['Hellenistic', -323, -31], ['Imperial', -31, 300], ['Late Antique', 300, 600], ['Byzantine', 600, 1500]];
+// favourites: a small flame (outline = not a favourite, filled = favourite)
+const FLAME = '<svg class="flame" width="15" height="18" viewBox="0 0 20 24" aria-hidden="true"><path d="M10 1.5c.6 3.6 3.2 5.6 5 8.2 1.9 2.7 2.4 6 .7 8.9A7.6 7.6 0 0 1 10 22.5a7.6 7.6 0 0 1-5.8-3.9c-1.6-3-.8-6.3 1.3-8.6.3 2 1.3 3.3 2.6 3.9-.6-4.3.6-8.6 1.9-12.4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
 function libView() {
   S.lib ??= {};
   S.lib = Object.assign({ mine: false, fav: false, src: [], form: [], from: YMIN, to: YMAX, undated: true, sort: 'author', dir: 1 }, S.lib);
@@ -1345,7 +1347,7 @@ function libAuthors() {
 function libFilter(a) { const q = fold(S.libQ); return a.works.filter(w => workPasses(w, q)).sort((x, y) => (x.no ?? 0) - (y.no ?? 0) || x.title.localeCompare(y.title)); }
 function chip(f, val, label, title = '') {
   const v = libView(), on = f === 'mine' ? v.mine : f === 'fav' ? v.fav : f === 'undated' ? v.undated : v[f].includes(val);
-  return `<button type="button" class="chip2${on ? ' on' : ''}" data-f="${f}" data-val="${val}"${title ? ` title="${esc(title)}"` : ''} aria-pressed="${on}">${esc(label)}</button>`;
+  return `<button type="button" class="chip2${on ? ' on' : ''}" data-f="${f}" data-val="${val}"${title ? ` title="${esc(title)}"` : ''} aria-pressed="${on}">${f === 'fav' ? FLAME : ''}${esc(label)}</button>`;
 }
 function sortBarHTML() {
   const v = libView();
@@ -1355,7 +1357,7 @@ function sortBarHTML() {
 }
 function libControlsHTML() {
   const v = libView(), pct = y => ((y - YMIN) / (YMAX - YMIN) * 100).toFixed(2);
-  return `<div class="frow"><span class="fl">Show</span>${chip('fav', 1, '★ Favourites')}${chip('mine', 1, 'On this device')}<span class="fsep"></span>${chip('src', 'Perseus', 'Perseus')}${chip('src', 'First1KGreek', 'First1KGreek')}<span class="fsep"></span>${chip('form', 'prose', 'Prose')}${chip('form', 'verse', 'Verse')}</div>
+  return `<div class="frow"><span class="fl">Show</span>${chip('fav', 1, 'Favourites')}${chip('mine', 1, 'On this device')}<span class="fsep"></span>${chip('src', 'Perseus', 'Perseus')}${chip('src', 'First1KGreek', 'First1KGreek')}<span class="fsep"></span>${chip('form', 'prose', 'Prose')}${chip('form', 'verse', 'Verse')}</div>
     <div class="frow"><span class="fl">Date</span><span class="crange" id="centLabel">${centLabel(v.from)} – ${centLabel(v.to, true)}</span><span class="fsep"></span>${chip('undated', 1, 'Undated works', 'Show or hide works whose date is unknown')}${filtersOn(v) ? '<button type="button" class="chip2 reset" data-freset="1">Reset filters</button>' : ''}</div>
     <div class="cslider" style="--a:${pct(v.from)}%;--b:${pct(v.to)}%">
       <div class="track"><i></i></div>
@@ -1376,7 +1378,7 @@ function workRowHTML(w, flat = false) {
   const a = authorOf(w), op = S.opened?.[w.id];
   const who = flat ? `${esc(a.name)}${a.date ? ' · ' + esc(a.date) : ''} · ` : '';
   const fav = !!S.favs?.[w.id];
-  return `<div class="item" data-w="${w.id}"><button type="button" class="star${fav ? ' on' : ''}" data-star="${w.id}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" aria-pressed="${fav}">${fav ? '★' : '☆'}</button><span class="t"><b>${esc(w.title)}</b> <span class="gk">${w.greek && w.greek !== w.title ? esc(w.greek) : ''}</span><br><small>${who}${w.verse ? 'verse' : 'prose'} · ${nb}${w.words ? ' · ' + w.words.toLocaleString('en') + ' words' : ''} · ${esc(w.source || '')} ${esc(ed)}${op ? ' · opened ' + new Date(op).toLocaleDateString('en-GB') : ''}</small></span>${btn}</div>`;
+  return `<div class="item" data-w="${w.id}"><button type="button" class="star${fav ? ' on' : ''}" data-star="${w.id}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" aria-pressed="${fav}">${FLAME}</button><span class="t"><b>${esc(w.title)}</b> <span class="gk">${w.greek && w.greek !== w.title ? esc(w.greek) : ''}</span><br><small>${who}${w.verse ? 'verse' : 'prose'} · ${nb}${w.words ? ' · ' + w.words.toLocaleString('en') + ' words' : ''} · ${esc(w.source || '')} ${esc(ed)}${op ? ' · opened ' + new Date(op).toLocaleDateString('en-GB') : ''}</small></span>${btn}</div>`;
 }
 function authorHTML(a, ws, open) {
   const inst = a.works.filter(w => S.libInst[w.id]).length;
@@ -1516,7 +1518,7 @@ function wireLibrary() {
       const id = star.dataset.star; S.favs ??= {};
       if (S.favs[id]) delete S.favs[id]; else S.favs[id] = Date.now();
       await setting('favs', S.favs);
-      const on = !!S.favs[id]; star.classList.toggle('on', on); star.textContent = on ? '★' : '☆'; star.title = on ? 'Remove from favourites' : 'Add to favourites';
+      const on = !!S.favs[id]; star.classList.toggle('on', on); star.setAttribute('aria-pressed', on); star.title = on ? 'Remove from favourites' : 'Add to favourites';
       if (libView().fav && !on) renderLibList();
       return;
     }
