@@ -197,8 +197,10 @@ async function resolveTokens1(run) {
     const l = A.pick; const x = A.lemmas.find(z => z.lemma === l);
     tk.lemma = l || null; tk.pos = posOf(l, x?.ana);
     tk.q = x?.q ? qCommon(x.q) : null;                 // Latin: the vowel quantities all analyses of the lemma agree on
+    tk.gram = gramText(x?.ana);                        // grammatical information beneath the word
     const el = S.wordEls?.[tk.i];          // words are numbered in document order (a selector per word is slow in long books)
     el?.classList.add('p-' + tk.pos);
+    if (el && tk.gram) { const gm = el.querySelector('.gm'); if (gm) gm.textContent = tk.gram; }
     if (el && tk.q && S.latQuant) { const t = el.querySelector('.g').firstChild; if (t?.nodeType === 3) t.nodeValue = tk.q; }
     if (el && l && S.lemmaGloss[gkey(l)]) {
       if (!S.covered?.has(tk.i)) { const g = el.querySelector('.gl'), h = dgHTML(tk); g.innerHTML = h; const m = glW(h).match(/--gw:(\d+em)/); if (m) g.style.setProperty('--gw', m[1]); }
@@ -206,7 +208,7 @@ async function resolveTokens1(run) {
     }
   }
 }
-function resetTokens(pred = () => true) { for (const tk of S.tokens) if (pred(tk)) { delete tk.lemma; delete tk.pos; delete tk.q; } }
+function resetTokens(pred = () => true) { for (const tk of S.tokens) if (pred(tk)) { delete tk.lemma; delete tk.pos; delete tk.q; delete tk.gram; } }
 const classifyTokens = resolveTokens;
 
 // ---------------------------------------------------------------- package import
@@ -508,7 +510,7 @@ function renderText() {
     const nx = toks[n + 1]; let pu = '';
     if (nx && nx.t === 'p') { const m = nx.s.match(/^[^\sͰ-Ͽἀ-῿A-Za-zÀ-ɏ]+/); if (m) { pu = m[0]; nx.glued = pu.length; } }
     if (S.marker === tk.i) html += '<span class="mkr" title="Marker"></span>';
-    html += `<span class="w${covered.has(tk.i) ? ' glossed' : ''}${tk.pos ? ' p-' + tk.pos : ''}" data-i="${tk.i}"><span class="g">${esc(S.latQuant && tk.q ? tk.q : tk.s)}${pu ? `<span class="pu">${esc(pu)}</span>` : ''}</span><span class="gl"${glW(gs)}>${gs}</span></span>`;
+    html += `<span class="w${covered.has(tk.i) ? ' glossed' : ''}${tk.pos ? ' p-' + tk.pos : ''}" data-i="${tk.i}"><span class="g">${esc(S.latQuant && tk.q ? tk.q : tk.s)}${pu ? `<span class="pu">${esc(pu)}</span>` : ''}</span><span class="gm">${esc(tk.gram || '')}</span><span class="gl"${glW(gs)}>${gs}</span></span>`;
   }
   const w = S.text.work, bi = S.text.bi;
   const bn = w && w.books.length > 1 ? `<div class="booknav">${bi > 0 ? `<button type="button" data-step="-1">◂ ${esc(w.books[bi - 1])}</button>` : '<span></span>'}${bi < w.books.length - 1 ? `<button type="button" data-step="1">${esc(w.books[bi + 1])} ▸</button>` : ''}</div>` : '';
@@ -1125,26 +1127,24 @@ async function settingsDialog() {
   const toolSel = lang => { const ts = langTools(lang), cur = ts.find(d => !S.dictPrefs.off.includes(d.id));
     return ts.length ? `<select data-langtool="${lang}">${ts.map(d => `<option value="${d.id}"${d === cur ? ' selected' : ''}>${esc(d.name)}</option>`).join('')}<option value=""${cur ? '' : ' selected'}>None (no analysis)</option></select>`
       : '<small class="hint">not installed – ☰ → Dictionaries</small>'; };
+  // a joined switch for either/or settings: Light | Dark
+  const sw = (k, cur, opts) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button type="button" class="${cur === v ? 'on' : ''}" data-setk="${k}" data-setv="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div>`;
+  const row = (label, ctl, hint = '') => `<div class="srow"><span class="sl">${label}</span><div class="sc">${ctl}${hint ? `<small class="sh">${hint}</small>` : ''}</div></div>`;
+  const cb = (k, on, label) => `<label class="sopt"><input type="checkbox" data-set="${k}"${on ? ' checked' : ''}> ${label}</label>`;
   const r = await dialog(`<h3>Settings</h3>
     <section class="dsec"><h4>Appearance</h4>
-      <label class="opt"><input type="radio" name="theme" value="dark" data-set="theme"${dark ? ' checked' : ''}> Dark mode</label>
-      <label class="opt"><input type="radio" name="theme" value="light" data-set="theme"${dark ? '' : ' checked'}> Light mode</label></section>
+      ${row('Theme', sw('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']]))}
+      ${row('Top bar', cb('gramBtn', S.gramBtn, 'Grammar button'), 'Shows the grammatical information beneath each word.')}
+      ${row('Colours', '<button type="button" data-v="pos">Word-class colours …</button>', 'Used by the “Colours” button in the top bar.')}</section>
     <section class="dsec"><h4>Languages</h4>
-      <p class="hint small">The language of each word follows from its alphabet. Choose the tool that finds lemma and form for each language; the dictionaries per language are in ☰ → Dictionaries.</p>
-      <div class="langrow"><span>Greek</span>${toolSel('grc')}</div>
-      <div class="langrow"><span>Latin</span>${toolSel('la')}</div>
-      <label class="opt"><input type="checkbox" data-set="latQuant"${S.latQuant ? ' checked' : ''}> Show vowel lengths in Latin texts (ā long, ă short)</label>
-      <p class="hint small">Vowel lengths come from Collatinus; with Whitaker’s Words they need Collatinus installed as well. Where a form has several readings, only the lengths they share are marked in the text.</p></section>
+      ${row('Greek', toolSel('grc'))}
+      ${row('Latin', toolSel('la'))}
+      ${row('Vowel lengths', cb('latQuant', S.latQuant, 'Mark them in Latin texts (ā long, ă short)'), 'From Collatinus (also needed with Whitaker’s Words). Where a form has several readings, only shared lengths are marked.')}
+      <small class="sh">The language of each word follows from its alphabet. Dictionaries per language: ☰ → Dictionaries.</small></section>
     <section class="dsec"><h4>Glosses</h4>
-      <p class="hint small">A word can have its own gloss, and its lemma can have a default gloss that applies everywhere.</p>
-      <label class="opt"><input type="radio" name="glossMode" value="replace" data-set="glossMode"${S.glossMode !== 'both' ? ' checked' : ''}> A word’s own gloss replaces the default gloss</label>
-      <label class="opt"><input type="radio" name="glossMode" value="both" data-set="glossMode"${S.glossMode === 'both' ? ' checked' : ''}> Show both (the default gloss below the word’s own gloss)</label></section>
-    <section class="dsec"><h4>Word-class colours</h4>
-      <p class="hint small">Colours used by the “Colours” button in the top bar.</p>
-      <div class="row" style="justify-content:flex-start"><button type="button" data-v="pos">Choose colours</button></div></section>
+      ${row('Own gloss', sw('glossMode', S.glossMode === 'both' ? 'both' : 'replace', [['replace', 'Replaces default'], ['both', 'Show both']]), 'A word can have its own gloss; its lemma can have a default gloss that applies everywhere.')}</section>
     <section class="dsec"><h4>Backup</h4>
-      <p class="hint small">Save or restore your texts, glosses, default glosses, markers, favourites and lemma choices.</p>
-      <div class="row" style="justify-content:flex-start"><button type="button" data-v="backup">Backup and restore</button></div></section>`,
+      ${row('Your data', '<button type="button" data-v="backup">Backup and restore …</button>', 'Texts, glosses, default glosses, markers, favourites, lemma choices, colours and display settings.')}</section>`,
     [['cancel', 'Close']]);
   if (r.action === 'pos') { await posDialog(); return settingsDialog(); }
   if (r.action === 'backup') return backupDialog();
@@ -1257,10 +1257,12 @@ async function backupDialog() {
   const data = { format: 'greekdict-backup-1', date: new Date().toISOString(), texts: await getAll('texts'), glosses: await getAll('glosses'), choices: await getAll('choices'), lemmaGlosses: S.lemmaGloss,
     highlights: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('hl|', 'hl|\uffff'))).map(r => [r.k.slice(3), r.v])),
     markers: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('mk|', 'mk|\uffff'))).map(r => [r.k.slice(3), r.v])),
-    favourites: (await setting('favs')) || {} };
+    favourites: (await setting('favs')) || {},
+    prefs: { theme: document.documentElement.dataset.theme, posCfg: S.posCfg, posOn: S.posOn, showGloss: !document.body.classList.contains('nogloss'),
+      glossMode: S.glossMode, latQuant: S.latQuant, gramBtn: S.gramBtn, showGram: S.gram } };
   const href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
   const name = 'greek-reader-backup-' + new Date().toISOString().slice(0, 10) + '.json';
-  await dialog(`<h3>Backup</h3><p>Save your texts (${data.texts.length}), glosses (${data.glosses.length}, including those in library texts), default glosses (${Object.keys(S.lemmaGloss).length}), markers, favourites (${Object.keys(data.favourites).length}) and lemma choices as a file (e.g. in Files or iCloud), or restore them from a backup. Dictionaries and library texts are not included (they can be downloaded again).</p>`,
+  await dialog(`<h3>Backup</h3><p>Save your texts (${data.texts.length}), glosses (${data.glosses.length}, including those in library texts), default glosses (${Object.keys(S.lemmaGloss).length}), markers, favourites (${Object.keys(data.favourites).length}), lemma choices, colours and display settings as a file (e.g. in Files or iCloud), or restore them from a backup. Dictionaries and library texts are not included (they can be downloaded again).</p>`,
     [['link', 'Save backup', { href, name }], ['file', 'Restore …', 'fileBackup'], ['cancel', 'Close']]);
   setTimeout(() => URL.revokeObjectURL(href), 60000);
 }
@@ -1274,6 +1276,18 @@ async function restoreBackup(file) {
   for (const [k, r] of Object.entries(data.highlights || {})) await setting('hl|' + k, r);
   for (const [k, r] of Object.entries(data.markers || {})) await setting('mk|' + k, r);
   if (data.favourites) { S.favs = Object.assign((await setting('favs')) || {}, data.favourites); await setting('favs', S.favs); }
+  const p = data.prefs;                           // colours and display settings
+  if (p) {
+    if (p.theme) setTheme(p.theme, true);
+    if (p.posCfg) { S.posCfg = Object.assign(defaultPosCfg(), p.posCfg); await setting('posCfg', S.posCfg); }
+    if (p.posOn != null) { S.posOn = !!p.posOn; await setting('posOn', S.posOn); }
+    applyPosColors();
+    if (p.showGloss != null) setGlossVisible(!!p.showGloss, true);
+    if (p.glossMode) { S.glossMode = p.glossMode; await setting('glossMode', p.glossMode); }
+    if (p.latQuant != null) { S.latQuant = !!p.latQuant; await setting('latQuant', S.latQuant); }
+    if (p.gramBtn != null) { S.gramBtn = !!p.gramBtn; await setting('gramBtn', S.gramBtn); applyTopButtons(); }
+    if (p.showGram != null) setGram(S.gramBtn && !!p.showGram, true);
+  }
   toast('Restored'); await openText(data.texts[0]?.id ?? null);
 }
 
@@ -1336,6 +1350,14 @@ function wire() {
   $('#tabList').onclick = () => { showTab('list'); renderList(); };
   $('#search').addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.value.trim()) { showWord(ev.target.value.trim()); ev.target.blur(); } });
   $('#btnGlossToggle').onclick = () => setGlossVisible(document.body.classList.contains('nogloss'), true);
+  $('#btnGram').onclick = () => setGram(!S.gram, true);
+  document.addEventListener('click', ev => {          // joined switches in Settings
+    const b = ev.target.closest('[data-setk]'); if (!b) return;
+    const k = b.dataset.setk, v = b.dataset.setv;
+    b.parentElement.querySelectorAll('button').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); });
+    if (k === 'theme') setTheme(v, true);
+    if (k === 'glossMode') { S.glossMode = v; setting('glossMode', v); renderText(); }
+  });
   $('#btnPos').onclick = async () => { S.posOn = !S.posOn; await setting('posOn', S.posOn); applyPosColors(); };
 
   $('#btnSplit').onclick = cycleSplit;
@@ -1362,6 +1384,7 @@ function wire() {
     const k = ev.target.dataset?.set; if (!k || (ev.target.type === 'radio' && !ev.target.checked)) return;
     if (k === 'theme') setTheme(ev.target.value, true);
     if (k === 'latQuant') { S.latQuant = ev.target.checked; await setting('latQuant', S.latQuant); renderText(); }
+    if (k === 'gramBtn') { S.gramBtn = ev.target.checked; await setting('gramBtn', S.gramBtn); if (!S.gramBtn) setGram(false, true); applyTopButtons(); }
     if (k === 'glossMode') { S.glossMode = ev.target.value; await setting('glossMode', S.glossMode); renderText(); }
   });
   document.addEventListener('change', ev => { if (ev.target.id === 'optSrcCol') { S.srcColors = ev.target.checked; setting('srcColors', S.srcColors); document.body.classList.toggle('nosrccol', !S.srcColors); } });
@@ -1411,6 +1434,25 @@ function setTheme(t, save) {
   document.documentElement.dataset.theme = t;
   document.querySelector('meta[name=theme-color]').content = t === 'dark' ? '#2a2926' : '#efe9da';
   if (save) setting('theme', t);
+}
+// grammatical information beneath each word (button in the top bar; whether the button is shown: Settings)
+function setGram(on, save) {
+  S.gram = on; document.body.classList.toggle('gram', on);
+  $('#btnGram').classList.toggle('on', on); $('#btnGram').setAttribute('aria-pressed', on);
+  if (save) setting('showGram', on);
+}
+function applyTopButtons() { $('#btnGram').hidden = !S.gramBtn; }
+// "nom sg", "voc sg", "abl sg" -> "nom/voc/abl sg"; otherwise the first reading and how many more
+function gramText(anas) {
+  const clean = a => a.replace(/\b(pro|en)clitic\s+/g, '').replace(/indeclform\s*\((\w+)\)/, '$1').replace(/\s*\((?:attic|epic|doric|ionic|aeolic|homeric|poetic|later|late|koine|contr|unaugmented|[a-z]+ [a-z ]*)\)/gi, '').replace(/\s+/g, ' ').trim();
+  const as = [...new Set((anas || []).map(clean).filter(Boolean))];
+  if (as.length < 2) return as[0] || '';
+  const t = as.map(a => a.split(' '));
+  if (t.every(x => x.length === t[0].length)) {
+    const diff = t[0].map((_, i) => new Set(t.map(x => x[i])).size > 1);
+    if (diff.filter(Boolean).length === 1) { const i = diff.indexOf(true); return t[0].map((w, j) => j === i ? [...new Set(t.map(x => x[i]))].join('/') : w).join(' '); }
+  }
+  return `${as[0]} (+${as.length - 1})`;
 }
 function setGlossVisible(on, save) {
   document.body.classList.toggle('nogloss', !on);
@@ -1992,6 +2034,8 @@ function wireMarker() {
   for (const r of await getAll('settings', IDBKeyRange.bound('lg|', 'lg|\uffff'))) S.lemmaGloss[r.k.slice(3)] = r.v;
   await loadDicts();
   setGlossVisible((await setting('showGloss')) !== false);
+  S.gramBtn = (await setting('gramBtn')) !== false; applyTopButtons();
+  setGram(S.gramBtn && !!(await setting('showGram')));
   const sp = await setting('split'); setSplit(sp || '50%', false);
   S.srcColors = (await setting('srcColors')) !== false; document.body.classList.toggle('nosrccol', !S.srcColors);
   S.posCfg = Object.assign(defaultPosCfg(), (await setting('posCfg')) || {});

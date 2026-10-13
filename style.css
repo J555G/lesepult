@@ -521,3 +521,33 @@ dialog .libfoot{display:block;margin-top:.5rem;color:var(--mut)}
   dialog .libbar .libcount{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
   dialog .sortsel{font-size:0;gap:0}dialog .sortsel select{font-size:13px;width:6.8rem!important;min-width:0!important}dialog .libbar .libcount{font-size:11.5px}
 }
+/* grammatical information beneath each word (top-bar button "Grammar") */
+.w>.gm{display:none;font:11px/1.2 var(--ui);color:var(--mut);max-width:11em;white-space:normal;letter-spacing:.01em}
+body.gram .w>.gm:not(:empty){display:block}
+#btnGram{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;padding:0 .6rem}
+#btnGram[hidden]{display:none}
+#btnGram .w1{font-size:13px}
+#btnGram .w2{font-size:8.5px;margin-top:1px;color:var(--mut);opacity:.6;font-style:italic}
+#btnGram.on{background:var(--card);color:var(--fg);border-color:var(--line)}
+#btnGram.on .w2{color:var(--fg);opacity:.85}
+/* Settings: label column + control, either/or settings as joined switches */
+dialog .srow{display:grid;grid-template-columns:7.5rem minmax(0,1fr);gap:.6rem;align-items:start;margin:.45rem 0}
+dialog .srow .sl{color:var(--mut);font-size:13.5px;padding-top:.35rem}
+dialog .srow .sc{display:flex;flex-direction:column;align-items:flex-start;gap:.25rem;min-width:0}
+dialog .srow .sc select{max-width:100%}
+dialog .sh{display:block;color:var(--mut);font-size:12px;line-height:1.35}
+dialog .sopt{display:inline-flex;align-items:center;gap:.45rem;padding-top:.3rem}
+dialog .sopt input{width:1.05rem;height:1.05rem;margin:0;accent-color:var(--acc)}
+dialog .dsec>.sh{margin-top:.2rem}
+@media (max-width:600px){dialog .srow{grid-template-columns:1fr;gap:.2rem}dialog .srow .sl{padding-top:0;font-size:12.5px}}
+/* phones in portrait: split and reading-mode buttons move to the second row, so the first row keeps room for Grammar */
+@media (orientation:portrait) and (max-width:700px){
+  #top .sp{order:1}
+  #top #btnSplit,#top #btnRead{order:2}
+  #top #btnBack,#top #btnFwd,#top .tabs,#top #search{order:3}
+}
+dialog .srow select{font:inherit;font-size:13.5px;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:.3rem 1.7rem .3rem .55rem;-webkit-appearance:none;appearance:none;
+  background-image:linear-gradient(45deg,transparent 50%,var(--mut) 50%),linear-gradient(135deg,var(--mut) 50%,transparent 50%);background-position:right .8rem center,right .5rem center;background-size:.3rem .3rem;background-repeat:no-repeat}
+/* the title never overflows: the book name shortens with an ellipsis; text toggles a bit narrower on small screens */
+#textTitle .tb{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:900px){#top #btnGlossToggle,#top #btnGram{padding:0 .4rem}#top #btnGlossToggle .w1,#top #btnGram .w1{font-size:12.5px}}
