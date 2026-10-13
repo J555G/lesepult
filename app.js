@@ -1377,10 +1377,10 @@ async function restoreBackup(file) {
 // grammatical information and glosses – each of the three can be switched on or off in the export dialog.
 function exportTitle() {
   const t = S.text, w = t?.work;
-  return !t ? 'Text' : w ? `${w.author} – ${w.title}${w.books.length > 1 ? ' – ' + w.books[t.bi] : ''}` : t.title;
+  return (!t ? 'Text' : w ? `${w.author} – ${w.title}${w.books.length > 1 ? ' – ' + w.books[t.bi] : ''}` : t.title) + (S.exportLabel ? ', ' + S.exportLabel : '');
 }
 // the displayed text as plain data: blocks of words, punctuation, line breaks and references
-function exportModel() {
+function exportModel(rng = null) {
   const posC = el => { const c = [...el.classList].find(x => x.startsWith('p-')); const id = c?.slice(2); return id && S.posCfg[id]?.on !== false ? S.posCfg[id].c : null; };
   const punctC = S.posCfg.punct?.on !== false ? S.posCfg.punct?.c : null;
   const blocks = [];
@@ -1397,7 +1397,7 @@ function exportModel() {
         else if (n.matches('.pn')) items.push({ t: 'p', s: n.textContent, c: punctC });
         else if (n.matches('.w')) {
           const g = n.querySelector('.g');
-          items.push({ t: 'w', s: g.firstChild?.nodeValue || '', pu: g.querySelector('.pu')?.textContent || '', c: posC(n), pc: punctC,
+          items.push({ t: 'w', i: +n.dataset.i, s: g.firstChild?.nodeValue || '', pu: g.querySelector('.pu')?.textContent || '', c: posC(n), pc: punctC,
             gram: n.querySelector('.gm')?.textContent || '',
             gloss: [...n.querySelectorAll('.gl>span')].map(x => ({ s: x.innerHTML.replace(/<br\s*\/?>/g, '\n').replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&'), dg: x.classList.contains('dg') })) });
         } else walk(n);
@@ -1406,7 +1406,50 @@ function exportModel() {
     walk(b);
     if (items.some(x => x.t === 'w' || (x.t === 'p' && x.s.trim()))) blocks.push({ kind, items });
   }
-  return blocks;
+  if (!rng) return blocks;
+  // only the words a…b; references and punctuation in between, punctuation right after the last word
+  const flat = blocks.flatMap(b => b.items); let prev;
+  for (const x of flat) { if (x.t === 'w') prev = x.i; else x.prev = prev; }
+  let next; for (let j = flat.length - 1; j >= 0; j--) { const x = flat[j]; if (x.t === 'w') next = x.i; else x.next = next; }
+  const inR = i => i != null && i >= rng.a && i <= rng.b;
+  return blocks.map(b => ({ kind: b.kind, items: b.items.filter(x => x.t === 'w' ? inR(x.i)
+      : inR(x.next) ? (inR(x.prev) || x.prev == null || x.prev < rng.a || x.t === 'ref')
+      : inR(x.prev) && x.t === 'p' && x.s.trim() !== '' && !/\S\s+\S/.test(x.s.trim())) }))
+    .filter(b => b.items.some(x => x.t === 'w'));
+}
+// the reference points of the current book for "from … to": lines for verse, sections for prose, paragraphs otherwise
+function exportRefs() {
+  const words = new Map(S.tokens.filter(t => t.t === 'w').map(t => [t.i, t.s]));
+  const list = []; let pend = null, nl = 0;
+  for (const tk of S.tokens) { if (tk.t === 'r') { pend = tk.s; if (tk.l) nl++; } else if (tk.t === 'w' && pend != null) { list.push({ s: pend, i: tk.i }); pend = null; } }
+  const verse = S.text.work?.verse ?? nl > list.length / 2;               // verse quotations in prose do not count
+  let kind = verse ? 'Line' : 'Section';
+  if (!list.length) {
+    kind = 'Paragraph'; let n = 0;
+    for (const b of $('#textBody').children) { const w = b.matches?.('.para,.blk') && b.querySelector('.w'); if (w) list.push({ s: '¶ ' + (++n), i: +w.dataset.i }); }
+  }
+  const last = Math.max(...words.keys());
+  list.forEach((r, j) => { r.end = (list[j + 1]?.i ?? last + 1) - 1; r.lab = [...Array(4).keys()].map(k => words.get(r.i + k)).filter(Boolean).join(' '); });
+  return { kind, list, words };
+}
+const exportSelLabel = (W, r) => { const a = [W.get(r.a), W.get(r.a + 1)].filter(Boolean).join(' '), b = [W.get(r.b - 1), W.get(r.b)].filter(Boolean).join(' ');
+  return r.b - r.a < 4 ? [...Array(r.b - r.a + 1).keys()].map(k => W.get(r.a + k)).join(' ') : `${a} … ${b}`; };
+// B: marking the range in the text – first tap = first word, second tap = last word
+function exportPickStart() {
+  S.exPick = { a: null, b: null }; document.body.classList.add('expick'); exportPickPaint();
+}
+function exportPickPaint() {
+  const p = S.exPick, els = S.wordEls || [];
+  document.querySelectorAll('#textBody .w.xsel').forEach(e => e.classList.remove('xsel'));
+  if (p && p.a != null) { const b = p.b ?? p.a; for (let i = Math.min(p.a, b); i <= Math.max(p.a, b); i++) els[i]?.classList.add('xsel'); }
+  let bar = $('#exBar');
+  if (!p) { bar?.remove(); document.body.classList.remove('expick'); return; }
+  if (!bar) { bar = document.createElement('div'); bar.id = 'exBar'; document.body.append(bar); }
+  const n = p.a == null ? 0 : p.b == null ? 1 : p.b - p.a + 1;
+  bar.innerHTML = `<span>${p.a == null ? 'Tap the first word of the passage' : p.b == null ? 'Now tap the last word' : `${n.toLocaleString('en')} word${n === 1 ? '' : 's'} marked`}</span>`
+    + `<button type="button" data-xp="ok"${p.a == null ? ' disabled' : ''}>Export …</button><button type="button" data-xp="cancel">Cancel</button>`;
+  const r = $('#textPane').getBoundingClientRect();
+  Object.assign(bar.style, { left: r.left + 'px', width: r.width + 'px' });
 }
 const EXPORT_CSS = `
 .xt{font-family:'Gentium Book Plus','Gentium Plus','Times New Roman',serif;font-size:13pt;line-height:1.5;color:#111;position:relative;padding-left:3.2em}
@@ -1583,22 +1626,40 @@ function zipStore(files) {
 }
 async function exportDialog() {
   if (!S.text) return toast('Open a text first.');
+  const O = S.exportOpts ??= { fmt: 'pdf', gloss: !document.body.classList.contains('nogloss'), gram: !!S.gram, colour: !!S.posOn, range: 'all', from: null, to: null };
+  const R = exportRefs(), sel = S.exRange && S.exRange.text === S.text.id ? S.exRange : null;
+  if (O.range === 'sel' && !sel) O.range = 'all';
   const cb = (n, on, label) => `<label class="sopt"><input type="checkbox" name="${n}"${on ? ' checked' : ''}> ${label}</label>`;
-  const fmt = S.exportFmt || 'pdf';
+  const seg = (name, cur, opts) => `<div class="seg segr">${opts.map(([v, l]) => `<label><input type="radio" name="${name}" value="${v}"${v === cur ? ' checked' : ''}>${l}</label>`).join('')}</div>`;
+  const opt = (r, j, cur) => `<option value="${j}"${j === cur ? ' selected' : ''}>${esc(r.s)}${r.lab ? ' – ' + esc(r.lab) : ''}</option>`;
+  const fi = Math.min(O.from ?? 0, R.list.length - 1), ti = Math.min(O.to ?? R.list.length - 1, R.list.length - 1);
   const r = await dialog(`<h3>Export text</h3>
-    <p class="hint small">${esc(exportTitle())} – as it is shown now.</p>
-    <div class="srow"><span class="sl">Format</span><div class="sc"><div class="seg segr">${[['pdf', 'PDF'], ['html', 'HTML'], ['docx', 'Word']].map(([v, l]) => `<label><input type="radio" name="fmt" value="${v}"${v === fmt ? ' checked' : ''}>${l}</label>`).join('')}</div>
+    <p class="hint small">${(S.exportLabel = '', esc(exportTitle()))} – as it is shown now.</p>
+    <div class="srow"><span class="sl">Format</span><div class="sc">${seg('fmt', O.fmt, [['pdf', 'PDF'], ['html', 'HTML'], ['docx', 'Word']])}
       <small class="sh">PDF opens the print dialog – choose “Save as PDF” (iPad: share icon → Save to Files).</small></div></div>
-    <div class="srow"><span class="sl">Include</span><div class="sc">${cb('gloss', !document.body.classList.contains('nogloss'), 'Glosses')}${cb('gram', !!S.gram, 'Grammatical information')}${cb('colour', !!S.posOn, 'Word-class colours')}</div></div>`,
+    <div class="srow"><span class="sl">Range</span><div class="sc">${seg('range', O.range, [['all', 'Whole text'], ['ft', 'From – to'], ['sel', 'Selection']])}
+      <div class="xr xr-ft">${R.list.length ? `<label>From ${R.kind.toLowerCase()} <select name="from">${R.list.map((x, j) => opt(x, j, fi)).join('')}</select></label>
+        <label>to ${R.kind.toLowerCase()} <select name="to">${R.list.map((x, j) => opt(x, j, ti)).join('')}</select></label>` : '<small class="sh">This text has no reference points.</small>'}</div>
+      <div class="xr xr-sel">${sel ? `<small class="sh">${(sel.b - sel.a + 1).toLocaleString('en')} words: ${esc(exportSelLabel(R.words, sel))}</small>` : '<small class="sh">No passage marked yet.</small>'}
+        <button type="button" data-v="pick">${sel ? 'Mark again in the text …' : 'Mark in the text …'}</button></div></div></div>
+    <div class="srow"><span class="sl">Include</span><div class="sc">${cb('gloss', O.gloss, 'Glosses')}${cb('gram', O.gram, 'Grammatical information')}${cb('colour', O.colour, 'Word-class colours')}</div></div>`,
     [['cancel', 'Cancel'], ['ok', 'Export']]);
-  if (r.action !== 'ok') return;
-  const o = { gloss: r.data.gloss === 'on', gram: r.data.gram === 'on', colour: r.data.colour === 'on' };
-  S.exportFmt = r.data.fmt || 'pdf';
-  const blocks = exportModel();
-  if (S.exportFmt === 'pdf') return exportPrint(blocks, o);
-  const base = exportTitle().replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'text';
-  const blob = S.exportFmt === 'html' ? new Blob([await exportHTMLFile(blocks, o)], { type: 'text/html' }) : await exportDocx(blocks, o);
-  const name = base + (S.exportFmt === 'html' ? '.html' : '.docx');
+  if (r.action === 'cancel') return;
+  Object.assign(O, { fmt: r.data.fmt || 'pdf', gloss: r.data.gloss === 'on', gram: r.data.gram === 'on', colour: r.data.colour === 'on', range: r.data.range || 'all',
+    from: r.data.from != null ? +r.data.from : O.from, to: r.data.to != null ? +r.data.to : O.to });
+  if (r.action === 'pick') { O.range = 'sel'; return exportPickStart(); }
+  const o = { gloss: O.gloss, gram: O.gram, colour: O.colour };
+  let rng = null; S.exportLabel = '';
+  if (O.range === 'ft' && R.list.length) {
+    let f = R.list[O.from ?? 0], t = R.list[O.to ?? R.list.length - 1]; if (t.i < f.i) [f, t] = [t, f];
+    rng = { a: f.i, b: t.end }; S.exportLabel = f === t ? f.s : `${f.s}–${t.s.replace(/^¶ /, '')}`;
+  } else if (O.range === 'sel' && sel) { rng = sel; S.exportLabel = exportSelLabel(R.words, sel); }
+  const blocks = exportModel(rng);
+  if (O.fmt === 'pdf') { exportPrint(blocks, o); S.exportLabel = ''; return; }
+  const base = exportTitle().replace(/[\\/:*?"<>|…]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 90) || 'text';
+  const blob = O.fmt === 'html' ? new Blob([await exportHTMLFile(blocks, o)], { type: 'text/html' }) : await exportDocx(blocks, o);
+  S.exportLabel = '';
+  const name = base + (O.fmt === 'html' ? '.html' : '.docx');
   const href = URL.createObjectURL(blob);
   // the file is saved by a tap on the link (on the iPad a download has to start from a tap)
   await dialog(`<h3>Export ready</h3><p>${esc(name)} (${mb(blob.size)})</p>`, [['link', 'Save file', { href, name }], ['cancel', 'Close']]);
@@ -1607,6 +1668,20 @@ async function exportDialog() {
 
 // ---------------------------------------------------------------- events
 function wire() {
+  // marking a passage for the export: taps on words set the first and the last word (nothing else happens)
+  $('#textBody').addEventListener('click', ev => {
+    const p = S.exPick; if (!p) return;
+    ev.stopPropagation(); ev.preventDefault();
+    const w = ev.target.closest('.w'); if (!w) return;
+    const i = +w.dataset.i;
+    if (p.a == null || p.b != null) { p.a = i; p.b = null; } else { p.b = i; if (p.b < p.a) [p.a, p.b] = [p.b, p.a]; }
+    exportPickPaint();
+  }, true);
+  document.addEventListener('click', ev => {
+    const b = ev.target.closest('#exBar [data-xp]'); if (!b) return;
+    const p = S.exPick; S.exPick = null; exportPickPaint();
+    if (b.dataset.xp === 'ok' && p?.a != null) { S.exRange = { a: p.a, b: p.b ?? p.a, text: S.text?.id }; exportDialog(); }
+  });
   $('#textBody').addEventListener('click', async ev => {
     // tapping a gloss opens its word in the dictionary pane and puts the cursor into the gloss field there
     const dg = ev.target.closest('.gl .dg'), gsp = ev.target.closest('.gl span[data-g]');
