@@ -826,6 +826,21 @@ function wireTouchSelect() {
   document.addEventListener('contextmenu', e => { if (e.target.closest('#dictPane,#textPane') && !e.target.closest('input,textarea')) e.preventDefault(); });
 }
 
+// ---- the dictionary pane remembers its scroll position: per tapped word of a text (kept on the device),
+// otherwise per lemma; Back/Forward return to the position the entry had when it was left
+const scrollKey = v => v.ti != null && S.text ? `sc|${S.text.id}|${v.ti}` : `sc|@${gkey(v.pick || v.form)}`;
+function flushDictScroll() {
+  const v = S.scPend; S.scPend = null; clearTimeout(S.scT);
+  if (v?.skey && v.scroll != null) setting(v.skey, v.scroll > 0 ? { l: v.scrollL, y: Math.round(v.scroll) } : null);
+}
+function wireDictScroll() {
+  const pane = $('#dictPane');
+  pane.addEventListener('scroll', () => {
+    const v = S.view; if (!v || S.dictRendering || !v.skey) return;
+    v.scroll = pane.scrollTop; v.scrollL = v.pick;
+    S.scPend = v; clearTimeout(S.scT); S.scT = setTimeout(flushDictScroll, 300);
+  }, { passive: true });
+}
 async function showWord(word, opts = {}) {
   if (S.view && !opts.replace) S.hist.push(S.view);
   S.fwd = [];
@@ -839,8 +854,11 @@ function goBack() { if (!S.hist.length) return; S.fwd.push(S.view); S.view = S.h
 function goFwd() { if (!S.fwd?.length) return; S.hist.push(S.view); S.view = S.fwd.pop(); navButtons(); showTab('entry'); renderView(); }
 async function renderView() {
   const body = $('#dictBody'); const v = S.view; if (!v) return;
+  flushDictScroll();
+  const keep = S.lastRendered === v ? $('#dictPane').scrollTop : null;     // the same entry drawn again: stay where it is
+  S.dictRendering = true;
   if (S.tsel) { S.tsel = null; paintTsel(); }
-  if (!S.dicts.length) { body.innerHTML = '<p class="hint">No dictionaries installed yet. Open the menu ☰ → Dictionaries and import the packages (*.gdpkg.gz).</p>'; return; }
+  if (!S.dicts.length) { body.innerHTML = '<p class="hint">No dictionaries installed yet. Open the menu ☰ → Dictionaries and import the packages (*.gdpkg.gz).</p>'; S.dictRendering = false; return; }
   const lang = langOf(v.form);
   const A = await analyses(v.form);
   const lemma = v.lemma || A.pick || v.form;
@@ -879,7 +897,12 @@ async function renderView() {
   if (lang === 'la') for (const el of body.querySelectorAll('details.src')) await wrapLatin(el);
   await applyHighlights(body);
   fillGlossBox();
-  $('#dictPane').scrollTop = 0;
+  v.skey = scrollKey(v);
+  let y = keep ?? (v.scroll != null && v.scrollL === lemma ? v.scroll : null);
+  if (y == null) { const st = await setting(v.skey); if (st && st.l === lemma) { y = st.y; v.scroll = y; v.scrollL = lemma; } }
+  $('#dictPane').scrollTop = y || 0;
+  S.lastRendered = v;
+  requestAnimationFrame(() => requestAnimationFrame(() => { if (S.view === v) S.dictRendering = false; }));
 }
 async function saveOpenState() {   // remembered per lemma
   if (!S.view?.key) return;
@@ -1804,6 +1827,7 @@ function wire() {
   // selection inside the dictionary -> offer "add as gloss"
   document.addEventListener('pointerdown', e => { S.lastPointer = e.pointerType; }, true);
   wirePencilSelect();
+  wireDictScroll();
   if (/Android/i.test(navigator.userAgent) || S.forceTouchSel) { document.body.classList.add('android'); wireTouchSelect(); }
   addEventListener('resize', () => { if (!$('#fabBar').hidden) updateFab(); });
   wireDictDrag();
