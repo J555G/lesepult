@@ -567,7 +567,7 @@ function normalizeHTML(h) {
 // Latin words in Latin dictionary entries become tappable when the Latin analysis recognises them
 // (translations in italics, authors, references and Greek are left alone)
 // common English and German words that the Latin analysis would also accept
-const NOT_LATIN = new Set('der die das den dem des und oder mit von uom zum zur bei aus wie auch ist sind eine einer einem einen nicht the and of to is as an be by or it on at he his her use also are was were has had this that from with for which'.split(' '));
+const NOT_LATIN = new Set('der die das den dem des und oder mit von uom zum zur bei aus wie auch ist sind eine einer einem einen nicht als auf nach wenn mich dich sich sein seine ihr ihm ihn wir uns euch man dah übh etw jmd usw bes eig übtr übertr sprichw ggstz gew zw bzw ders dass daß the and of to is as an be by or it on at he his her use also are was were has had this that from with for which'.split(' '));
 async function wrapLatin(root) {
   const E = await latEngine(); if (!E) return;
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
@@ -575,14 +575,25 @@ async function wrapLatin(root) {
   const known = new Map(), ok = w => { const k = latkey(w); if (!known.has(k)) known.set(k, !NOT_LATIN.has(k) && latAnalyze(E, w).length > 0); return known.get(k); };
   for (const n of nodes) {
     const pe = n.parentElement;
-    if (!/[A-Za-z]/.test(n.nodeValue) || pe.closest('.gw,summary,.au,.lab,.grk,.num,.us,.lb,.ps,.it,.gn,.hw,b')) continue;
+    if (!/[A-Za-z]/.test(n.nodeValue) || pe.closest('.gw,summary,.au,.lab,.grk,.num,.us,.lb,.ps,.it,.gn,.hw,.tr,b')) continue;
     const s = n.nodeValue;
-    // a stretch of text counts as Latin only if most of its words are Latin forms (English and German stay plain)
-    const toks = [...s.matchAll(new RegExp(LATIN_TOKEN.source, 'g'))].map(m => m[0]).filter(w => w.length > 1);
-    const latin = toks.length && toks.filter(ok).length / toks.length >= 0.7;
-    const frag = document.createDocumentFragment(); let last = 0;
+    // Georges and Lewis & Short run German/English and Latin together in one line ("frutex rosae, Rosenstock, Colum.:
+    // in rosa, mit Rosen bekränzt"). The line is cut into short stretches at punctuation; a stretch counts as Latin
+    // if most of its words are Latin forms – so German and English stay plain, the Latin phrases between them are linked.
+    const isAbbr = (w, i) => s[i + w.length] === '.' && (w.length <= 3 || /^[A-Z]/.test(w));
+    const segOf = [], segLatin = [];
+    { let seg = 0; const SEP = /[,:;–—()\[\]!?«»„“”"]|\s-\s|\.\s/g; const cuts = [...s.matchAll(SEP)].map(m => m.index);
+      const words = [...s.matchAll(new RegExp(LATIN_TOKEN.source, 'g'))];
+      const stat = [];
+      for (const m of words) { while (seg < cuts.length && cuts[seg] < m.index) seg++; segOf.push(seg);
+        if (m[0].length < 2 || isAbbr(m[0], m.index)) continue;
+        const st = stat[seg] ??= [0, 0]; st[1]++; if (ok(m[0])) st[0]++; }
+      stat.forEach((st, i) => { segLatin[i] = st && st[1] && st[0] / st[1] >= 0.6; }); }
+    const frag = document.createDocumentFragment(); let last = 0, wi = -1;
     for (const m of s.matchAll(new RegExp(LATIN_TOKEN.source, 'g'))) {
+      wi++;
       if (m[0].length < 2) continue;
+      const latin = segLatin[segOf[wi]];
       // cross-references (v. / s. / cf. / vid. / = word) are always links; other words only in Latin stretches
       const xref = /(?:\b(?:v|s|cf|vid|vgl|vergl)\.|=)\s*(?:\d+\.\s*)?$/.test(s.slice(Math.max(0, m.index - 14), m.index));
       if (!ok(m[0]) || !(xref || latin)) continue;
