@@ -1515,9 +1515,6 @@ async function fetchCatalog() {
 const fold = s => String(s || '').normalize('NFD').replace(/[̀-ͯͅ]/g, '').replace(/ς/g, 'σ').toLowerCase();
 const mb = b => b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' kB';
 // ---- Library view: filters (highlighted when on) and sorting (arrow shows the direction)
-const GENRES = [['epic', 'Epic'], ['lyric', 'Lyric, elegy & epigram'], ['drama', 'Drama'], ['poetry', 'Other poetry'],
-  ['history', 'History & biography'], ['philosophy', 'Philosophy'], ['oratory', 'Oratory & rhetoric'], ['letters', 'Letters'],
-  ['novel', 'Novel, fable & myth'], ['science', 'Science, medicine & geography'], ['scholarship', 'Scholarship & lexica'], ['religion', 'Christian & Jewish']];
 const SORTS = [['author', 'Author', 1], ['title', 'Title', 1], ['date', 'Date', 1], ['recent', 'Recently opened', -1]];
 // century slider: from the start of the 8th c. BC to the end of the 15th c. AD (years; 0 = start of the 1st c. AD)
 const YMIN = -800, YMAX = 1500;
@@ -1526,22 +1523,26 @@ const ERAS = [['Archaic', -800, -500], ['Classical', -500, -323], ['Hellenistic'
 const FLAME = '<svg class="flame" width="15" height="20" viewBox="6.4 0.8 11.2 15.2" aria-hidden="true"><g transform="translate(12 0) scale(.82 1) translate(-12 0)" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"><path class="fo" vector-effect="non-scaling-stroke" d="M12 15.2c-3.6-.6-5.6-2.6-5.4-5.4.1-1.6.9-2.6 1.6-3.6.1 1.4.6 2.3 1.3 2.7-.4-2.4.2-5 1.5-7.4.4 2.4 1.4 3.6 2.4 4.6.4-1.4 1-2.4 2-3.2-.3 1.8 0 3.2.8 4.4.5-.6.8-1.4.9-2.4 1 1.4 1.4 3 1.2 4.6-.3 3.1-2.4 5.2-6.3 5.7z"/><path class="fi" vector-effect="non-scaling-stroke" d="M12 15c-1.6-.4-2.4-1.4-2.3-2.8 0-.8.4-1.4.8-1.9.1.7.4 1.1.7 1.2-.1-1.2.3-2.4.9-3.4.3 1 .9 1.7 1.4 2.4.6.8.8 1.6.6 2.4-.2 1.1-1 1.8-2.1 2.1z"/></g></svg>';
 function libView() {
   S.lib ??= {};
-  S.lib = Object.assign({ mine: false, fav: false, langs: [], src: [], form: [], from: YMIN, to: YMAX, undated: true, sort: 'author', dir: 1 }, S.lib);
+  if (S.lib.mine || S.lib.fav) S.lib.view ??= S.lib.mine ? 'mine' : 'fav';         // older settings: these were filters
+  delete S.lib.mine; delete S.lib.fav;
+  S.lib = Object.assign({ view: 'all', langs: [], src: [], form: [], from: YMIN, to: YMAX, undated: true, sort: 'author', dir: 1 }, S.lib);
   return S.lib;
 }
 const workLang = w => (w.lang === 'lat' || w.lang === 'la') ? 'la' : 'grc';
-const filtersOn = v => v.mine || v.fav || v.langs.length || v.src.length || v.form.length || v.from > YMIN || v.to < YMAX || !v.undated;
+// the tabs (all / favourites / on this device) are views, not filters
+const filtersOn = v => v.langs.length || v.src.length || v.form.length || v.from > YMIN || v.to < YMAX || !v.undated;
 function centLabel(y, end) {           // year at a century boundary -> "5th c. BC"
   const ord = n => n + ((n % 100 >= 11 && n % 100 <= 13) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' })[n % 10] || 'th');
   const c = end ? (y <= 0 ? -y / 100 + 1 : y / 100) : (y < 0 ? -y / 100 : y / 100 + 1);
   return y < 0 || (end && y === 0) ? `${ord(Math.round(c))} c. BC` : `${ord(Math.round(c))} c. AD`;
 }
+const rangeLabel = v => `${centLabel(v.from)} – ${centLabel(v.to, true)}`;
 function saveLibView() { setting('libView', S.lib); }
-const authorOf = w => S.catAuthor?.[w.id] || { name: w.author, id: w.authorId, genres: [], period: null, year: null, date: '' };
+const authorOf = w => S.catAuthor?.[w.id] || { name: w.author, id: w.authorId, period: null, year: null, date: '' };
 function workPasses(w, q) {
   const v = libView(), a = authorOf(w);
-  if (v.mine && !S.libInst[w.id]) return false;
-  if (v.fav && !S.favs?.[w.id]) return false;
+  if (v.view === 'mine' && !S.libInst[w.id]) return false;
+  if (v.view === 'fav' && !S.favs?.[w.id]) return false;
   if (v.langs.length && !v.langs.includes(workLang(w))) return false;
   if (v.src.length && !v.src.includes(w.source)) return false;
   if (v.form.length && w.verse != null && !v.form.includes(w.verse ? 'verse' : 'prose')) return false;
@@ -1553,36 +1554,75 @@ function workPasses(w, q) {
 function libAuthors() {
   if (S.catalog) return S.catalog.authors;
   const by = {};
-  for (const w of Object.values(S.libInst)) (by[w.authorId] ??= { id: w.authorId, name: w.author, works: [], genres: [] }).works.push(w);
+  for (const w of Object.values(S.libInst)) (by[w.authorId] ??= { id: w.authorId, name: w.author, works: [] }).works.push(w);
   return Object.values(by);
 }
 function libFilter(a) { const q = fold(S.libQ); return a.works.filter(w => workPasses(w, q)).sort((x, y) => (x.no ?? 0) - (y.no ?? 0) || x.title.localeCompare(y.title)); }
-function chip(f, val, label, title = '') {
-  const v = libView(), on = f === 'mine' ? v.mine : f === 'fav' ? v.fav : f === 'undated' ? v.undated : v[f].includes(val);
-  return `<button type="button" class="chip2${on ? ' on' : ''}" data-f="${f}" data-val="${val}"${title ? ` title="${esc(title)}"` : ''} aria-pressed="${on}">${f === 'fav' ? FLAME : ''}${esc(label)}</button>`;
+function chip(f, val, label) {
+  const on = libView()[f].includes(val);
+  return `<button type="button" class="chip2${on ? ' on' : ''}" data-f="${f}" data-val="${val}" aria-pressed="${on}">${esc(label)}</button>`;
+}
+// either/or choices as one joined switch: All | Greek | Latin
+function seg(f, opts) {
+  const cur = libView()[f][0] || '';
+  return `<div class="seg" role="group">${opts.map(([val, label]) => `<button type="button" class="${cur === val ? 'on' : ''}" data-seg="${f}" data-val="${val}" aria-pressed="${cur === val}">${label}</button>`).join('')}</div>`;
+}
+function libTabsHTML() {
+  const v = libView(), nf = Object.keys(S.favs || {}).length, ni = Object.keys(S.libInst || {}).length;
+  const tab = (id, label, n) => `<button type="button" role="tab" class="${v.view === id ? 'on' : ''}" data-view="${id}" aria-selected="${v.view === id}">${label}${n != null ? ` <small>${n}</small>` : ''}</button>`;
+  return tab('all', 'All') + tab('fav', FLAME + 'Favourites', nf) + tab('mine', 'On this device', ni);
 }
 function sortBarHTML() {
   const v = libView();
-  const sortBtn = ([id, label]) => `<button type="button" class="chip2${v.sort === id ? ' on' : ''}" data-sort="${id}" title="Sort by ${label.toLowerCase()}" aria-pressed="${v.sort === id}">${label}</button>`;
-  const dirBtn = `<button type="button" class="sortb dirb" data-dir="1" title="${v.dir > 0 ? 'Ascending – tap for descending' : 'Descending – tap for ascending'}" aria-label="${v.dir > 0 ? 'Ascending' : 'Descending'}"><span class="arr"><i class="${v.dir > 0 ? 'hi' : ''}">↑</i><i class="${v.dir < 0 ? 'hi' : ''}">↓</i></span></button>`;
-  return `<div class="frow"><span class="fl">Sort</span>${SORTS.map(sortBtn).join('')}<span class="fsep"></span>${dirBtn}</div>`;
+  return `<label class="sortsel">Sort <select id="libSortSel" aria-label="Sort by">${SORTS.map(([id, label]) => `<option value="${id}"${v.sort === id ? ' selected' : ''}>${label}</option>`).join('')}</select></label>`
+    + `<button type="button" class="sortb dirb" data-dir="1" title="${v.dir > 0 ? 'Ascending – tap for descending' : 'Descending – tap for ascending'}" aria-label="${v.dir > 0 ? 'Ascending' : 'Descending'}"><span class="arr"><i class="${v.dir > 0 ? 'hi' : ''}">↑</i><i class="${v.dir < 0 ? 'hi' : ''}">↓</i></span></button>`;
 }
 function libSources() {
   const set = new Set(); for (const a of libAuthors()) for (const w of a.works) if (w.source) set.add(w.source);
   return [...set].sort((a, b) => a === 'Perseus' ? -1 : b === 'Perseus' ? 1 : a.localeCompare(b));
 }
-function libControlsHTML() {
-  const v = libView(), pct = y => ((y - YMIN) / (YMAX - YMIN) * 100).toFixed(2);
-  return `<div class="frow"><span class="fl">Show</span>${chip('fav', 1, 'Favourites')}${chip('mine', 1, 'On this device')}<span class="fsep"></span>${chip('langs', 'grc', 'Greek')}${chip('langs', 'la', 'Latin')}<span class="fsep"></span>${libSources().map(x => chip('src', x, x)).join('')}<span class="fsep"></span>${chip('form', 'prose', 'Prose')}${chip('form', 'verse', 'Verse')}</div>
-    <div class="frow"><span class="fl">Date</span><span class="crange" id="centLabel">${centLabel(v.from)} – ${centLabel(v.to, true)}</span><span class="fsep"></span>${chip('undated', 1, 'Undated works', 'Show or hide works whose date is unknown')}${filtersOn(v) ? '<button type="button" class="chip2 reset" data-freset="1">Reset filters</button>' : ''}</div>
-    <div class="cslider" style="--a:${pct(v.from)}%;--b:${pct(v.to)}%">
-      <div class="track"><i></i></div><b class="knob ka"></b><b class="knob kb"></b>
-      <input type="range" id="centFrom" min="${YMIN}" max="${YMAX}" step="100" value="${v.from}" aria-label="From century">
-      <input type="range" id="centTo" min="${YMIN}" max="${YMAX}" step="100" value="${v.to}" aria-label="To century">
-      <div class="ticks">${ERAS.slice(1).map(([, a]) => `<i style="left:${pct(a)}%"></i>`).join('')}</div>
-      <div class="eras">${ERAS.map(([n, a, b], i) => `<span class="r${i % 2}" style="left:${((+pct(a) + +pct(b)) / 2).toFixed(2)}%" title="${n}">${n}</span>`).join('')}</div>
-    </div>`;
+const yPct = y => ((y - YMIN) / (YMAX - YMIN) * 100);
+const eraOf = y => (ERAS.find(([, a, b]) => y >= a && y < b) || ERAS[ERAS.length - 1])[0];
+// the era names sit under the knobs (one combined name when the knobs are close together)
+function eraLabelsHTML(v) {
+  const a = yPct(v.from), b = yPct(v.to), ea = eraOf(v.from), eb = eraOf(Math.max(v.from, v.to - 1));
+  const at = (p, t) => `<span style="left:${p.toFixed(2)}%;transform:translateX(-${p.toFixed(2)}%)">${esc(t)}</span>`;
+  if (ea === eb) return at((a + b) / 2, ea);
+  if (b - a < 30) return at((a + b) / 2, `${ea} – ${eb}`);
+  return at(a, ea) + at(b, eb);
 }
+function libControlsHTML() {
+  const v = libView();
+  return `<div class="fhead"><b>Filters</b><button type="button" data-fdone="1">Close</button></div>
+    <div class="fgrid">
+      <span class="fl">Language</span>${seg('langs', [['', 'All'], ['grc', 'Greek'], ['la', 'Latin']])}
+      <span class="fl">Source</span><div class="fchips">${libSources().map(x => chip('src', x, x)).join('')}</div>
+      <span class="fl">Form</span>${seg('form', [['', 'All'], ['prose', 'Prose'], ['verse', 'Verse']])}
+      <span class="fl">Date</span><div class="fdate"><span class="crange" id="centLabel">${rangeLabel(v)}</span>
+        <label class="undl"><input type="checkbox" id="libUndated"${v.undated ? ' checked' : ''}> include undated</label></div>
+      <span></span><div class="cslider" style="--a:${yPct(v.from).toFixed(2)}%;--b:${yPct(v.to).toFixed(2)}%">
+        <div class="track"><i></i></div><b class="knob ka"></b><b class="knob kb"></b>
+        <input type="range" id="centFrom" min="${YMIN}" max="${YMAX}" step="100" value="${v.from}" aria-label="From century">
+        <input type="range" id="centTo" min="${YMIN}" max="${YMAX}" step="100" value="${v.to}" aria-label="To century">
+        <div class="ticks">${ERAS.slice(1).map(([, a]) => `<i style="left:${yPct(a).toFixed(2)}%"></i>`).join('')}</div>
+        <div class="eras" id="eraLab">${eraLabelsHTML(v)}</div>
+      </div>
+    </div>
+    <div class="fbottom"><button type="button" class="linkb" data-freset="1"${filtersOn(v) ? '' : ' hidden'}>Reset filters</button><button type="button" class="fshow" data-fdone="1" id="libShowN">Show works</button></div>`;
+}
+// what is filtered, as small removable chips (while the filter panel is closed)
+function libActiveHTML() {
+  const v = libView(), out = [];
+  const x = (label, f, val = '') => out.push(`<button type="button" class="chip2 on" data-unf="${f}" data-val="${esc(val)}" title="Remove this filter">${esc(label)} <span aria-hidden="true">×</span></button>`);
+  for (const l of v.langs) x(l === 'la' ? 'Latin' : 'Greek', 'langs', l);
+  for (const s of v.src) x(s, 'src', s);
+  for (const f of v.form) x(f === 'verse' ? 'Verse' : 'Prose', 'form', f);
+  if (v.from > YMIN || v.to < YMAX) x(rangeLabel(v), 'date');
+  if (!v.undated) x('Dated works only', 'undated');
+  if (out.length > 1) out.push('<button type="button" class="linkb" data-freset="1">Clear all</button>');
+  return out.join('');
+}
+const DLICON = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/></g></svg>';
 function workRowHTML(w, flat = false) {
   const i = S.libInst[w.id], key = 'work:' + w.id;
   let btn;
@@ -1597,12 +1637,14 @@ function workRowHTML(w, flat = false) {
   const fav = !!S.favs?.[w.id];
   return `<div class="item" data-w="${w.id}"><button type="button" class="star${fav ? ' on' : ''}" data-star="${w.id}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" aria-pressed="${fav}">${FLAME}</button><span class="t"><b>${esc(w.title)}</b> <span class="gk">${w.greek && w.greek !== w.title ? esc(w.greek) : ''}</span><br><small>${who}${w.verse ? 'verse' : 'prose'} · ${nb}${w.words ? ' · ' + w.words.toLocaleString('en') + ' words' : ''} · ${esc(w.source || '')} ${esc(ed)}${op ? ' · opened ' + new Date(op).toLocaleDateString('en-GB') : ''}</small></span>${btn}</div>`;
 }
+// author row: name, below it the dates; the number of works and a download icon in columns of their own
 function authorHTML(a, ws, open) {
   const inst = a.works.filter(w => S.libInst[w.id]).length;
   const todo = S.catalog ? ws.filter(w => !S.libInst[w.id] && !DL.has('work:' + w.id)) : [];
-  const all = todo.length > 1 ? `<button type="button" class="dlbtn" data-all="${a.id}" title="${todo.length} works, ${mb(todo.reduce((x, w) => x + w.bytes, 0))}">Download all</button>` : '';
-  const g = (a.genres || []).map(id => GENRES.find(x => x[0] === id)?.[1]).filter(Boolean).join(', ');
-  return `<details class="auth" data-a="${a.id}"${open ? ' open' : ''}><summary><span class="t"><b>${esc(a.name)}</b> <small>${a.date ? esc(a.date) + ' · ' : ''}${g ? esc(g) + ' · ' : ''}${ws.length < a.works.length ? `${ws.length} of ` : ''}${a.works.length} work${a.works.length > 1 ? 's' : ''}${inst ? ` · <span class="ok">${inst} on this device</span>` : ''}</small></span>${all}</summary><div class="works">${open ? ws.map(w => workRowHTML(w)).join('') : ''}</div></details>`;
+  const all = todo.length ? `<button type="button" class="dlall" data-all="${a.id}" title="Download ${todo.length === 1 ? 'the work' : `all ${todo.length} works`} (${mb(todo.reduce((x, w) => x + w.bytes, 0))})" aria-label="Download ${todo.length === 1 ? 'the work' : `all ${todo.length} works`}">${DLICON}</button>` : '';
+  const n = ws.length < a.works.length ? `${ws.length} of ${a.works.length}` : `${a.works.length} work${a.works.length > 1 ? 's' : ''}`;
+  const sub = [a.date ? esc(a.date) : '', inst ? `<span class="ok">${inst} on this device</span>` : ''].filter(Boolean).join(' · ');
+  return `<details class="auth" data-a="${a.id}"${open ? ' open' : ''}><summary><span class="t"><b>${esc(a.name)}</b>${sub ? `<small>${sub}</small>` : ''}</span><span class="wn">${n}</span><span class="dlc">${all}</span></summary><div class="works">${open ? ws.map(w => workRowHTML(w)).join('') : ''}</div></details>`;
 }
 function sortedWorks() {        // flat list for the sorts by title, date and recently opened
   const v = libView(), q = fold(S.libQ), d = v.dir;
@@ -1626,27 +1668,40 @@ function renderLibList() {
   let html = '', n = 0, nw = 0;
   if (v.sort === 'author') {
     const as = libAuthors().slice().sort((x, y) => v.dir * x.name.localeCompare(y.name));
-    const filtering = filtersOn(v) && !v.mine;
+    const filtering = filtersOn(v) || v.view === 'fav';
     for (const a of as) {
       const ws = libFilter(a); if (!ws.length) continue;
       n++; nw += ws.length;
-      html += authorHTML(a, ws, S.libOpen.has(a.id) || v.mine || (q && !fold(a.name).includes(q)) || (filtering && ws.length < 4 && n < 40));
+      html += authorHTML(a, ws, S.libOpen.has(a.id) || v.view === 'mine' || (q && !fold(a.name).includes(q)) || (filtering && ws.length < 4 && n < 40));
     }
   } else {
     const ws = sortedWorks(); nw = ws.length;
     html = ws.slice(0, S.libLimit).map(w => workRowHTML(w, true)).join('')
       + (ws.length > S.libLimit ? `<div class="row" style="justify-content:center"><button type="button" data-more="1">Show more (${ws.length - S.libLimit} further)</button></div>` : '');
   }
-  $('#libCount').textContent = nw ? `${nw.toLocaleString('en')} work${nw === 1 ? '' : 's'}${v.sort === 'author' ? ` by ${n} author${n === 1 ? '' : 's'}` : ''}` : '';
-  el.innerHTML = html || `<p class="hint">Nothing found${S.libQ ? ' for “' + esc(S.libQ) + '”' : ''} with these filters.</p>`;
+  const cnt = `${nw.toLocaleString('en')} work${nw === 1 ? '' : 's'}`;
+  $('#libCount').textContent = nw ? cnt + (v.sort === 'author' ? ` by ${n} author${n === 1 ? '' : 's'}` : '') : '';
+  const sh = $('#libShowN'); if (sh) sh.textContent = nw ? `Show ${cnt}` : 'No works match';
+  const empty = v.view === 'fav' && !Object.keys(S.favs || {}).length ? 'No favourites yet – tap the flame next to a work to add it.'
+    : v.view === 'mine' && !Object.keys(S.libInst || {}).length ? 'Nothing downloaded yet.'
+    : `Nothing found${S.libQ ? ' for “' + esc(S.libQ) + '”' : ''} with these filters.`;
+  el.innerHTML = html || `<p class="hint">${empty}</p>`;
   el.scrollTop = st;
 }
-function renderLibControls() { const c = $('#libCtl'); if (c) c.innerHTML = libControlsHTML(); const so = $('#libSort'); if (so) so.innerHTML = sortBarHTML(); filterIcon(); }
-// the filter icon is highlighted while any filter is on (also when the panel is closed)
+function renderLibControls() {
+  const c = $('#libCtl'); if (c) c.innerHTML = libControlsHTML();
+  const so = $('#libSort'); if (so) so.innerHTML = sortBarHTML();
+  const tb = $('#libTabs'); if (tb) tb.innerHTML = libTabsHTML();
+  filterIcon();
+}
+// the filter icon is highlighted while any filter is on; the active filters show as chips while the panel is closed
 function filterIcon() {
   const b = $('#libFilterBtn'); if (!b) return;
-  b.classList.toggle('active', !!filtersOn(libView())); b.classList.toggle('open', !$('#libCtl').hidden);
-  b.setAttribute('aria-expanded', !$('#libCtl').hidden);
+  const open = !$('#libCtl').hidden;
+  b.classList.toggle('active', !!filtersOn(libView())); b.classList.toggle('open', open);
+  b.setAttribute('aria-expanded', open);
+  const ac = $('#libActive'); if (ac) { ac.innerHTML = open ? '' : libActiveHTML(); ac.hidden = !ac.innerHTML; }
+  document.body.classList.toggle('libsheet', open);
 }
 async function libraryDialog() {
   S.libOpen ??= new Set(); S.libQ ??= '';
@@ -1656,19 +1711,22 @@ async function libraryDialog() {
   const [cat, inst] = await Promise.all([fetchCatalog(), libWorks()]);
   S.libInst = Object.fromEntries(inst.map(w => [w.id, w]));
   const tot = inst.reduce((a, w) => a + (w.size || 0), 0);
-  let pers = '';
-  try { pers = (await navigator.storage?.persisted?.()) ? ' Downloads stay on this device until you delete them.' : ' <b>Storage is not yet protected</b> – start the app from its Home Screen icon so that the device does not clear downloads automatically.'; } catch (_) { }
+  // only when something is downloaded and the device may still clear it: a note that can be dismissed
+  let note = '';
+  try { if (inst.length && !(await navigator.storage?.persisted?.()) && !(await setting('persistNoteOff'))) note = '<div class="libnote" id="libNote"><span>Downloads are not yet protected: start the app from its Home Screen icon, so that the device does not clear them.</span><button type="button" data-notex="1" aria-label="Dismiss">×</button></div>'; } catch (_) { }
   dialog(`<h3>Library</h3>
+    <div class="libtabs" id="libTabs" role="tablist">${libTabsHTML()}</div>
     <div class="libtop"><input type="search" id="libSearch" placeholder="Search authors and works (English, Latin or Greek)…" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(S.libQ)}">
       <button type="button" id="libFilterBtn" title="Filters" aria-label="Filters" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5.5h12M6 18.5h12"/><rect x="3" y="4" width="3.2" height="16" rx="1.6"/><rect x="17.8" y="4" width="3.2" height="16" rx="1.6"/><path d="M9 9.2h6M9 12h4.6M9 14.8h3" stroke-width="1.3"/></g></svg></button></div>
+    <div id="libActive" class="libactive" hidden></div>
     <div id="libCtl" class="libctl" hidden>${libControlsHTML()}</div>
-    <div id="libSort" class="libctl">${sortBarHTML()}</div>
-    <div class="libcount" id="libCount"></div>
+    <div class="libbar"><span class="libcount" id="libCount"></span><span class="libsort" id="libSort">${sortBarHTML()}</span></div>
+    ${note}
     <div class="list lib" id="libList"></div>
     ${!cat ? '<p class="hint">The catalogue could not be loaded (offline?). Downloaded works are listed below.</p>' : S.catOnline ? '' : '<p class="hint">Offline – showing the last known catalogue; downloads need a connection.</p>'}
-    <small>${inst.length} work${inst.length === 1 ? '' : 's'} on this device${tot ? ` (≈ ${mb(tot)})` : ''}${cat ? ` · ${cat.authors.length} authors, ${Object.keys(S.catWork).length.toLocaleString('en')} works available` : ''}.${pers}<br>
+    <small class="libfoot">${inst.length} work${inst.length === 1 ? '' : 's'} on this device${tot ? ` (≈ ${mb(tot)})` : ''}${cat ? ` · ${cat.authors.length} authors, ${Object.keys(S.catWork).length.toLocaleString('en')} works available` : ''}.<br>
     Texts: Perseus Digital Library (canonical-greekLit, canonical-latinLit) and Open Greek and Latin (First1KGreek, csel-dev), licensed CC BY-SA 4.0. Dates follow the TLG canon (author dates by century; a work is dated by its author).</small>`,
-    [['cancel', 'Close']]).then(r => { if (r.action === 'cancel') S.libScroll = 0; });
+    [['cancel', 'Close']]).then(r => { document.body.classList.remove('libsheet'); if (r.action === 'cancel') S.libScroll = 0; });
   filterIcon();
   renderLibList();
   if (S.libScroll) $('#libList').scrollTop = S.libScroll;
@@ -1703,10 +1761,18 @@ function wireLibrary() {
     v.from = +f.value; v.to = +t.value;
     const sl = f.closest('.cslider'), pct = y => ((y - YMIN) / (YMAX - YMIN) * 100).toFixed(2) + '%';
     sl.style.setProperty('--a', pct(v.from)); sl.style.setProperty('--b', pct(v.to));
-    $('#centLabel').textContent = `${centLabel(v.from)} – ${centLabel(v.to, true)}`;
+    $('#centLabel').textContent = rangeLabel(v); $('#eraLab').innerHTML = eraLabelsHTML(v);
     clearTimeout(wireLibrary.ts); wireLibrary.ts = setTimeout(() => { saveLibView(); filterIcon(); S.libLimit = 250; renderLibList(); }, 120);
   });
-  document.addEventListener('change', ev => { if (ev.target.id === 'centFrom' || ev.target.id === 'centTo') renderLibControls(); });
+  document.addEventListener('change', ev => {
+    if (ev.target.id === 'centFrom' || ev.target.id === 'centTo') renderLibControls();
+    else if (ev.target.id === 'libUndated' || ev.target.id === 'libSortSel') {
+      const v = libView();
+      if (ev.target.id === 'libUndated') v.undated = ev.target.checked;
+      else { v.sort = ev.target.value; v.dir = SORTS.find(s => s[0] === v.sort)[2]; }
+      S.libLimit = 250; saveLibView(); renderLibControls(); $('#libList').scrollTop = 0; renderLibList();
+    }
+  });
   document.addEventListener('toggle', ev => {
     const d = ev.target; if (!d.matches?.('#libList details.auth')) return;
     const id = d.dataset.a;
@@ -1715,18 +1781,23 @@ function wireLibrary() {
   }, true);
   document.addEventListener('click', async ev => {
     if (ev.target.closest('#libFilterBtn')) { $('#libCtl').hidden = !$('#libCtl').hidden; filterIcon(); return; }
-    const f = ev.target.closest('#libCtl [data-f]'), so = ev.target.closest('#libSort [data-sort]'), rs = ev.target.closest('#libCtl [data-freset]'), dr = ev.target.closest('#libSort [data-dir]');
-    if (f || so || rs || dr) {
+    if (ev.target.closest('#libCtl [data-fdone]')) { $('#libCtl').hidden = true; filterIcon(); return; }
+    if (ev.target.closest('#libNote [data-notex]')) { $('#libNote').remove(); setting('persistNoteOff', true); return; }
+    const f = ev.target.closest('#libCtl [data-f]'), sg = ev.target.closest('#libCtl [data-seg]'), rs = ev.target.closest('[data-freset]'),
+      dr = ev.target.closest('#libSort [data-dir]'), tb = ev.target.closest('#libTabs [data-view]'), un = ev.target.closest('#libActive [data-unf]');
+    if (f || sg || rs || dr || tb || un) {
       const v = libView();
-      if (f) {
-        if (f.dataset.f === 'mine') v.mine = !v.mine;
-        else if (f.dataset.f === 'undated') v.undated = !v.undated;
-        else if (f.dataset.f === 'fav') v.fav = !v.fav;
-        else { const arr = v[f.dataset.f], x = f.dataset.val, i = arr.indexOf(x); i < 0 ? arr.push(x) : arr.splice(i, 1); }
+      if (f) { const arr = v[f.dataset.f], x = f.dataset.val, i = arr.indexOf(x); i < 0 ? arr.push(x) : arr.splice(i, 1); }
+      if (sg) v[sg.dataset.seg] = sg.dataset.val ? [sg.dataset.val] : [];
+      if (tb) v.view = tb.dataset.view;
+      if (un) {
+        const k = un.dataset.unf;
+        if (k === 'date') Object.assign(v, { from: YMIN, to: YMAX });
+        else if (k === 'undated') v.undated = true;
+        else v[k] = v[k].filter(x => x !== un.dataset.val);
       }
-      if (so && v.sort !== so.dataset.sort) { v.sort = so.dataset.sort; v.dir = SORTS.find(s => s[0] === v.sort)[2]; }
       if (dr) v.dir = -v.dir;
-      if (rs) Object.assign(v, { mine: false, fav: false, langs: [], src: [], form: [], from: YMIN, to: YMAX, undated: true });
+      if (rs) Object.assign(v, { langs: [], src: [], form: [], from: YMIN, to: YMAX, undated: true });
       S.libLimit = 250; saveLibView(); renderLibControls(); $('#libList').scrollTop = 0; renderLibList(); return;
     }
     if (ev.target.closest('#libList [data-more]')) { S.libLimit += 500; renderLibList(); return; }
@@ -1736,7 +1807,8 @@ function wireLibrary() {
       if (S.favs[id]) delete S.favs[id]; else S.favs[id] = Date.now();
       await setting('favs', S.favs);
       const on = !!S.favs[id]; star.classList.toggle('on', on); star.setAttribute('aria-pressed', on); star.title = on ? 'Remove from favourites' : 'Add to favourites';
-      if (libView().fav && !on) renderLibList();
+      const tb = $('#libTabs'); if (tb) tb.innerHTML = libTabsHTML();
+      if (libView().view === 'fav' && !on) renderLibList();
       return;
     }
     const all = ev.target.closest('#libList [data-all]');
