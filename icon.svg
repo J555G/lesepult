@@ -1,49 +1,62 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <radialGradient id="bg" cx="50%" cy="35%" r="80%"><stop offset="0" stop-color="#f6eedb"/><stop offset="1" stop-color="#d8c7a0"/></radialGradient>
-    <linearGradient id="wood" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4e301b"/><stop offset=".5" stop-color="#7c4f2c"/><stop offset="1" stop-color="#4a2d19"/></linearGradient>
-    <linearGradient id="woodv" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7c4f2c"/><stop offset="1" stop-color="#5a381e"/></linearGradient>
-    <linearGradient id="desk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5e3a1f"/><stop offset="1" stop-color="#8a5a33"/></linearGradient>
+    <pattern id="diaper" width="36" height="36" patternUnits="userSpaceOnUse" patternTransform="rotate(45 256 256)">
+      <rect width="36" height="36" fill="#d9ae3e"/>
+      <path d="M0 0H36M0 0V36" stroke="#a97c1e" stroke-width="3"/>
+      <circle cx="18" cy="18" r="3.4" fill="#a97c1e"/><circle cx="18" cy="18" r="1.4" fill="#f5d77a"/>
+    </pattern>
+    <clipPath id="arch"><path d="M50 466 V196 C50 124 150 70 256 58 C362 70 462 124 462 196 V466 Z"/></clipPath>
   </defs>
-  <rect width="512" height="512" fill="url(#bg)"/>
-  <ellipse cx="256" cy="466" rx="210" ry="16" fill="#000" opacity=".14"/>
-  <!-- back of the case between the end panels -->
-  <rect x="134" y="262" width="244" height="100" fill="#3e2614"/>
-  <!-- books standing on the shelf -->
-  <rect x="146" y="296" width="18" height="60" fill="#2e4a4a" stroke="#2a1a0e" stroke-width="2.5"/><path d="M148 305h14M148 346h14" stroke="#d6b26a" stroke-width="2.5"/>
-    <rect x="165" y="300" width="14" height="56" fill="#3b4e6e" stroke="#2a1a0e" stroke-width="2.5"/><path d="M167 309h10M167 346h10" stroke="#d6b26a" stroke-width="2.5"/>
-    <rect x="180" y="298" width="18" height="58" fill="#7a2e2e" stroke="#2a1a0e" stroke-width="2.5"/><path d="M182 307h14M182 346h14" stroke="#d6b26a" stroke-width="2.5"/>
-    <rect x="199" y="296" width="22" height="60" fill="#7a2e2e" stroke="#2a1a0e" stroke-width="2.5"/><path d="M201 305h18M201 346h18" stroke="#d6b26a" stroke-width="2.5"/>
-    <rect x="222" y="304" width="14" height="52" fill="#2e4a4a" stroke="#2a1a0e" stroke-width="2.5"/><path d="M224 313h10M224 346h10" stroke="#d6b26a" stroke-width="2.5"/>
-    <rect x="237" y="296" width="14" height="60" fill="#3b4e6e" stroke="#2a1a0e" stroke-width="2.5"/><path d="M239 305h10M239 346h10" stroke="#d6b26a" stroke-width="2.5"/>
-    <rect x="252" y="304" width="22" height="52" fill="#7a2e2e" stroke="#2a1a0e" stroke-width="2.5"/><path d="M254 313h18M254 346h18" stroke="#d6b26a" stroke-width="2.5"/>
-    <rect x="275" y="300" width="22" height="56" fill="#8a6a2a" stroke="#2a1a0e" stroke-width="2.5"/><path d="M277 309h18M277 346h18" stroke="#d6b26a" stroke-width="2.5"/>
-    <rect x="298" y="300" width="22" height="56" fill="#2e4a4a" stroke="#2a1a0e" stroke-width="2.5"/><path d="M300 309h18M300 346h18" stroke="#d6b26a" stroke-width="2.5"/>
-    <rect x="321" y="296" width="14" height="60" fill="#7a2e2e" stroke="#2a1a0e" stroke-width="2.5"/><path d="M323 305h10M323 346h10" stroke="#d6b26a" stroke-width="2.5"/>
-    <rect x="336" y="296" width="22" height="60" fill="#5a3a5e" stroke="#2a1a0e" stroke-width="2.5"/><path d="M338 305h18M338 346h18" stroke="#d6b26a" stroke-width="2.5"/>
-  <rect x="128" y="354" width="256" height="16" fill="url(#woodv)" stroke="#2f1c0f" stroke-width="4"/>
-  <!-- the sloping reading desk -->
-  <path d="M138 160 L374 160 L396 246 L116 246 Z" fill="url(#desk)" stroke="#2f1c0f" stroke-width="6" stroke-linejoin="round"/>
-  <!-- chained books lying on the desk -->
-  <g stroke="#2a1a0e" stroke-width="3.5" stroke-linejoin="round">
-    <path d="M152 170 L222 170 L226 234 L146 234 Z" fill="#7a2e2e"/>
-    <path d="M234 170 L296 170 L300 234 L232 234 Z" fill="#2f5a3a"/>
-    <path d="M308 170 L362 170 L374 234 L314 234 Z" fill="#3b4e6e"/>
+  <!-- border: ultramarine with a white pearl line, vermilion inner fillet -->
+  <rect width="512" height="512" fill="#2a4c9e"/>
+  <rect x="20" y="20" width="472" height="472" rx="10" fill="none" stroke="#f3e7c9" stroke-width="7" stroke-dasharray="0.1 15" stroke-linecap="round"/>
+  <rect x="36" y="36" width="440" height="440" fill="#c4351f" stroke="#1d140c" stroke-width="5"/>
+  <!-- the miniature under a pointed arch: gold diaper ground, green floor -->
+  <g clip-path="url(#arch)">
+    <rect width="512" height="512" fill="url(#diaper)"/>
+    <rect x="0" y="420" width="512" height="60" fill="#4e7a35"/>
+    <path d="M70 438 l6 -10 l6 10 M140 450 l6 -10 l6 10 M372 446 l6 -10 l6 10 M430 436 l6 -10 l6 10 M250 456 l6 -10 l6 10" fill="none" stroke="#2f5420" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M0 420 H512" stroke="#1d140c" stroke-width="5"/>
+
+    <!-- the pluteus -->
+    <rect x="134" y="262" width="244" height="100" fill="#4a2a12" stroke="#1d140c" stroke-width="5"/>
+    <rect x="146" y="298" width="16" height="58" fill="#c4351f" stroke="#1d140c" stroke-width="3.5"/><path d="M149 307h10M149 347h10" stroke="#f3e7c9" stroke-width="2.5"/>
+    <rect x="162" y="294" width="18" height="62" fill="#2a4c9e" stroke="#1d140c" stroke-width="3.5"/><path d="M165 303h12M165 347h12" stroke="#f3e7c9" stroke-width="2.5"/>
+    <rect x="180" y="302" width="14" height="54" fill="#4e7a35" stroke="#1d140c" stroke-width="3.5"/><path d="M183 311h8M183 347h8" stroke="#f3e7c9" stroke-width="2.5"/>
+    <rect x="194" y="296" width="16" height="60" fill="#e0b13c" stroke="#1d140c" stroke-width="3.5"/><path d="M197 305h10M197 347h10" stroke="#f3e7c9" stroke-width="2.5"/>
+    <rect x="210" y="292" width="20" height="64" fill="#c4351f" stroke="#1d140c" stroke-width="3.5"/><path d="M213 301h14M213 347h14" stroke="#f3e7c9" stroke-width="2.5"/>
+    <rect x="230" y="300" width="14" height="56" fill="#2a4c9e" stroke="#1d140c" stroke-width="3.5"/><path d="M233 309h8M233 347h8" stroke="#f3e7c9" stroke-width="2.5"/>
+    <rect x="244" y="296" width="18" height="60" fill="#6d3a6e" stroke="#1d140c" stroke-width="3.5"/><path d="M247 305h12M247 347h12" stroke="#f3e7c9" stroke-width="2.5"/>
+    <rect x="262" y="298" width="16" height="58" fill="#4e7a35" stroke="#1d140c" stroke-width="3.5"/><path d="M265 307h10M265 347h10" stroke="#f3e7c9" stroke-width="2.5"/>
+    <rect x="278" y="304" width="14" height="52" fill="#c4351f" stroke="#1d140c" stroke-width="3.5"/><path d="M281 313h8M281 347h8" stroke="#f3e7c9" stroke-width="2.5"/>
+    <rect x="292" y="294" width="18" height="62" fill="#2a4c9e" stroke="#1d140c" stroke-width="3.5"/><path d="M295 303h12M295 347h12" stroke="#f3e7c9" stroke-width="2.5"/>
+    <rect x="310" y="300" width="16" height="56" fill="#e0b13c" stroke="#1d140c" stroke-width="3.5"/><path d="M313 309h10M313 347h10" stroke="#f3e7c9" stroke-width="2.5"/>
+    <rect x="326" y="296" width="14" height="60" fill="#6d3a6e" stroke="#1d140c" stroke-width="3.5"/><path d="M329 305h8M329 347h8" stroke="#f3e7c9" stroke-width="2.5"/>
+    <rect x="126" y="354" width="260" height="16" fill="#a3642c" stroke="#1d140c" stroke-width="6"/>
+    <path d="M138 158 L374 158 L398 246 L114 246 Z" fill="#7a4720" stroke="#1d140c" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M146 166 L366 166" stroke="#c98a48" stroke-width="3"/>
+    <g stroke="#1d140c" stroke-width="5" stroke-linejoin="round">
+      <path d="M152 170 L222 170 L227 234 L146 234 Z" fill="#c4351f"/>
+      <path d="M234 170 L296 170 L301 234 L231 234 Z" fill="#2a4c9e"/>
+      <path d="M308 170 L362 170 L375 234 L314 234 Z" fill="#4e7a35"/>
+    </g>
+    <g fill="#f0c94a" stroke="#1d140c" stroke-width="3"><rect x="178" y="194" width="18" height="14" rx="2"/><rect x="257" y="194" width="18" height="14" rx="2"/><rect x="334" y="194" width="18" height="14" rx="2"/></g>
+    <rect x="104" y="242" width="304" height="20" rx="4" fill="#a3642c" stroke="#1d140c" stroke-width="6"/>
+    <g fill="none" stroke="#3a3c42" stroke-width="4" stroke-dasharray="5 3" stroke-linecap="round"><path d="M187 234 C185 256 197 268 193 284"/><path d="M266 234 C264 256 276 268 272 284"/><path d="M344 234 C342 256 354 268 350 284"/></g>
+    <path d="M134 286 L378 286" stroke="#1d140c" stroke-width="6" stroke-linecap="round"/>
+    <!-- carved end panels -->
+    <g fill="#a3642c" stroke="#1d140c" stroke-width="7" stroke-linejoin="round">
+      <path d="M88 452 L88 196 C88 150 104 124 134 122 C154 122 162 140 151 153 C142 162 130 156 133 146 L138 452 Z"/>
+      <path d="M424 452 L424 196 C424 150 408 124 378 122 C358 122 350 140 361 153 C370 162 382 156 379 146 L374 452 Z"/>
+    </g>
+    <g fill="none" stroke="#1d140c" stroke-width="3.5"><path d="M100 440 V216 Q100 188 113 176 Q126 188 126 216 V440"/><path d="M412 440 V216 Q412 188 399 176 Q386 188 386 216 V440"/></g>
+    <g fill="#c98a48"><circle cx="113" cy="300" r="5"/><circle cx="399" cy="300" r="5"/></g>
+    <!-- bench -->
+    <rect x="60" y="396" width="392" height="20" rx="4" fill="#a3642c" stroke="#1d140c" stroke-width="6"/>
+    <path d="M70 402 H442" stroke="#c98a48" stroke-width="3"/>
+    <g fill="#7a4720" stroke="#1d140c" stroke-width="6"><rect x="94" y="414" width="24" height="46"/><rect x="394" y="414" width="24" height="46"/></g>
   </g>
-  <g fill="#d6b26a"><rect x="180" y="196" width="16" height="12" rx="2"/><rect x="258" y="196" width="16" height="12" rx="2"/><rect x="334" y="196" width="16" height="12" rx="2"/></g>
-  <rect x="106" y="242" width="300" height="20" rx="5" fill="url(#wood)" stroke="#2f1c0f" stroke-width="5"/>
-  <!-- chains to the iron rod -->
-  <g fill="none" stroke="#5d5f63" stroke-width="3.5" stroke-dasharray="5 3" stroke-linecap="round">
-    <path d="M186 234 C184 256 196 268 192 284"/><path d="M266 234 C264 256 276 268 272 284"/><path d="M344 234 C342 256 354 268 350 284"/>
-  </g>
-  <path d="M134 286 L378 286" stroke="#6b6e73" stroke-width="5" stroke-linecap="round"/>
-  <!-- carved end panels -->
-  <g fill="url(#wood)" stroke="#2f1c0f" stroke-width="6" stroke-linejoin="round">
-    <path d="M90 452 L90 196 C90 150 106 126 134 124 C152 124 160 140 150 152 C142 160 132 154 134 146 L136 452 Z"/>
-    <path d="M422 452 L422 196 C422 150 406 126 378 124 C360 124 352 140 362 152 C370 160 380 154 378 146 L376 452 Z"/>
-  </g>
-  <g fill="none" stroke="#2f1c0f" stroke-width="3" opacity=".7"><path d="M100 440 V214 Q100 186 113 176 Q126 186 126 214 V440"/><path d="M412 440 V214 Q412 186 399 176 Q386 186 386 214 V440"/></g>
-  <!-- bench in front -->
-  <rect x="62" y="396" width="388" height="20" rx="5" fill="url(#woodv)" stroke="#2f1c0f" stroke-width="5"/>
-  <g fill="url(#wood)" stroke="#2f1c0f" stroke-width="5"><rect x="96" y="414" width="22" height="44"/><rect x="394" y="414" width="22" height="44"/></g>
+  <path d="M50 466 V196 C50 124 150 70 256 58 C362 70 462 124 462 196 V466 Z" fill="none" stroke="#1d140c" stroke-width="7" stroke-linejoin="round"/>
+  <!-- small gold bosses in the spandrels -->
+  <g fill="#d9ae3e" stroke="#1d140c" stroke-width="3"><circle cx="76" cy="76" r="11"/><circle cx="436" cy="76" r="11"/></g>
 </svg>
