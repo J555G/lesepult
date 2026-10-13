@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%"><stop offset="0" stop-color="#f6eedb"/><stop offset="1" stop-color="#dccdaa"/></radialGradient>
+    <linearGradient id="wood" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4e301b"/><stop offset=".45" stop-color="#7a4d2b"/><stop offset="1" stop-color="#4a2d19"/></linearGradient>
+    <linearGradient id="desk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6e4526"/><stop offset="1" stop-color="#8a5a33"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <ellipse cx="256" cy="462" rx="150" ry="14" fill="#000" opacity=".13"/>
+  <!-- feet -->
+  <path d="M146 456 C170 430 214 420 244 420 L268 420 C298 420 342 430 366 456 L366 466 L146 466 Z" fill="url(#wood)" stroke="#3a2313" stroke-width="5" stroke-linejoin="round"/>
+  <!-- turned column -->
+  <rect x="242" y="318" width="28" height="104" fill="url(#wood)" stroke="#3a2313" stroke-width="5"/>
+  <ellipse cx="256" cy="340" rx="27" ry="11" fill="url(#wood)" stroke="#3a2313" stroke-width="5"/>
+  <ellipse cx="256" cy="378" rx="21" ry="9" fill="url(#wood)" stroke="#3a2313" stroke-width="5"/>
+  <ellipse cx="256" cy="414" rx="26" ry="10" fill="url(#wood)" stroke="#3a2313" stroke-width="5"/>
+  <!-- slanted desk with ledge -->
+  <path d="M148 186 L364 186 L404 296 L108 296 Z" fill="url(#desk)" stroke="#3a2313" stroke-width="6" stroke-linejoin="round"/>
+  <rect x="96" y="292" width="320" height="24" rx="6" fill="url(#wood)" stroke="#3a2313" stroke-width="6"/>
+  <!-- open book -->
+  <path d="M256 214 C222 198 186 196 160 204 L134 286 C166 278 214 280 256 296 Z" fill="#fbf5e6" stroke="#3a2313" stroke-width="4.5" stroke-linejoin="round"/>
+  <path d="M256 214 C290 198 326 196 352 204 L378 286 C346 278 298 280 256 296 Z" fill="#fbf5e6" stroke="#3a2313" stroke-width="4.5" stroke-linejoin="round"/>
+  <g stroke="#a99677" stroke-width="5" stroke-linecap="round">
+    <path d="M176 222 L236 230 M170 240 L234 248 M164 258 L232 266"/>
+    <path d="M276 230 L336 222 M278 248 L342 240 M280 266 L348 258"/>
+  </g>
+  <path d="M172 222 L180 223" stroke="#a3262a" stroke-width="7" stroke-linecap="round"/>
+  <path d="M256 296 C258 312 254 326 262 344" fill="none" stroke="#a3262a" stroke-width="7" stroke-linecap="round"/>
+</svg>
