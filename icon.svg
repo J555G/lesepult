@@ -1,28 +1,49 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <radialGradient id="bg" cx="50%" cy="38%" r="75%"><stop offset="0" stop-color="#f6eedb"/><stop offset="1" stop-color="#dccdaa"/></radialGradient>
-    <linearGradient id="wood" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4e301b"/><stop offset=".45" stop-color="#7a4d2b"/><stop offset="1" stop-color="#4a2d19"/></linearGradient>
-    <linearGradient id="desk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6e4526"/><stop offset="1" stop-color="#8a5a33"/></linearGradient>
+    <radialGradient id="bg" cx="50%" cy="35%" r="80%"><stop offset="0" stop-color="#f6eedb"/><stop offset="1" stop-color="#d8c7a0"/></radialGradient>
+    <linearGradient id="wood" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4e301b"/><stop offset=".5" stop-color="#7c4f2c"/><stop offset="1" stop-color="#4a2d19"/></linearGradient>
+    <linearGradient id="woodv" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7c4f2c"/><stop offset="1" stop-color="#5a381e"/></linearGradient>
+    <linearGradient id="desk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5e3a1f"/><stop offset="1" stop-color="#8a5a33"/></linearGradient>
   </defs>
   <rect width="512" height="512" fill="url(#bg)"/>
-  <ellipse cx="256" cy="462" rx="150" ry="14" fill="#000" opacity=".13"/>
-  <!-- feet -->
-  <path d="M146 456 C170 430 214 420 244 420 L268 420 C298 420 342 430 366 456 L366 466 L146 466 Z" fill="url(#wood)" stroke="#3a2313" stroke-width="5" stroke-linejoin="round"/>
-  <!-- turned column -->
-  <rect x="242" y="318" width="28" height="104" fill="url(#wood)" stroke="#3a2313" stroke-width="5"/>
-  <ellipse cx="256" cy="340" rx="27" ry="11" fill="url(#wood)" stroke="#3a2313" stroke-width="5"/>
-  <ellipse cx="256" cy="378" rx="21" ry="9" fill="url(#wood)" stroke="#3a2313" stroke-width="5"/>
-  <ellipse cx="256" cy="414" rx="26" ry="10" fill="url(#wood)" stroke="#3a2313" stroke-width="5"/>
-  <!-- slanted desk with ledge -->
-  <path d="M148 186 L364 186 L404 296 L108 296 Z" fill="url(#desk)" stroke="#3a2313" stroke-width="6" stroke-linejoin="round"/>
-  <rect x="96" y="292" width="320" height="24" rx="6" fill="url(#wood)" stroke="#3a2313" stroke-width="6"/>
-  <!-- open book -->
-  <path d="M256 214 C222 198 186 196 160 204 L134 286 C166 278 214 280 256 296 Z" fill="#fbf5e6" stroke="#3a2313" stroke-width="4.5" stroke-linejoin="round"/>
-  <path d="M256 214 C290 198 326 196 352 204 L378 286 C346 278 298 280 256 296 Z" fill="#fbf5e6" stroke="#3a2313" stroke-width="4.5" stroke-linejoin="round"/>
-  <g stroke="#a99677" stroke-width="5" stroke-linecap="round">
-    <path d="M176 222 L236 230 M170 240 L234 248 M164 258 L232 266"/>
-    <path d="M276 230 L336 222 M278 248 L342 240 M280 266 L348 258"/>
+  <ellipse cx="256" cy="466" rx="210" ry="16" fill="#000" opacity=".14"/>
+  <!-- back of the case between the end panels -->
+  <rect x="134" y="262" width="244" height="100" fill="#3e2614"/>
+  <!-- books standing on the shelf -->
+  <rect x="146" y="296" width="18" height="60" fill="#2e4a4a" stroke="#2a1a0e" stroke-width="2.5"/><path d="M148 305h14M148 346h14" stroke="#d6b26a" stroke-width="2.5"/>
+    <rect x="165" y="300" width="14" height="56" fill="#3b4e6e" stroke="#2a1a0e" stroke-width="2.5"/><path d="M167 309h10M167 346h10" stroke="#d6b26a" stroke-width="2.5"/>
+    <rect x="180" y="298" width="18" height="58" fill="#7a2e2e" stroke="#2a1a0e" stroke-width="2.5"/><path d="M182 307h14M182 346h14" stroke="#d6b26a" stroke-width="2.5"/>
+    <rect x="199" y="296" width="22" height="60" fill="#7a2e2e" stroke="#2a1a0e" stroke-width="2.5"/><path d="M201 305h18M201 346h18" stroke="#d6b26a" stroke-width="2.5"/>
+    <rect x="222" y="304" width="14" height="52" fill="#2e4a4a" stroke="#2a1a0e" stroke-width="2.5"/><path d="M224 313h10M224 346h10" stroke="#d6b26a" stroke-width="2.5"/>
+    <rect x="237" y="296" width="14" height="60" fill="#3b4e6e" stroke="#2a1a0e" stroke-width="2.5"/><path d="M239 305h10M239 346h10" stroke="#d6b26a" stroke-width="2.5"/>
+    <rect x="252" y="304" width="22" height="52" fill="#7a2e2e" stroke="#2a1a0e" stroke-width="2.5"/><path d="M254 313h18M254 346h18" stroke="#d6b26a" stroke-width="2.5"/>
+    <rect x="275" y="300" width="22" height="56" fill="#8a6a2a" stroke="#2a1a0e" stroke-width="2.5"/><path d="M277 309h18M277 346h18" stroke="#d6b26a" stroke-width="2.5"/>
+    <rect x="298" y="300" width="22" height="56" fill="#2e4a4a" stroke="#2a1a0e" stroke-width="2.5"/><path d="M300 309h18M300 346h18" stroke="#d6b26a" stroke-width="2.5"/>
+    <rect x="321" y="296" width="14" height="60" fill="#7a2e2e" stroke="#2a1a0e" stroke-width="2.5"/><path d="M323 305h10M323 346h10" stroke="#d6b26a" stroke-width="2.5"/>
+    <rect x="336" y="296" width="22" height="60" fill="#5a3a5e" stroke="#2a1a0e" stroke-width="2.5"/><path d="M338 305h18M338 346h18" stroke="#d6b26a" stroke-width="2.5"/>
+  <rect x="128" y="354" width="256" height="16" fill="url(#woodv)" stroke="#2f1c0f" stroke-width="4"/>
+  <!-- the sloping reading desk -->
+  <path d="M138 160 L374 160 L396 246 L116 246 Z" fill="url(#desk)" stroke="#2f1c0f" stroke-width="6" stroke-linejoin="round"/>
+  <!-- chained books lying on the desk -->
+  <g stroke="#2a1a0e" stroke-width="3.5" stroke-linejoin="round">
+    <path d="M152 170 L222 170 L226 234 L146 234 Z" fill="#7a2e2e"/>
+    <path d="M234 170 L296 170 L300 234 L232 234 Z" fill="#2f5a3a"/>
+    <path d="M308 170 L362 170 L374 234 L314 234 Z" fill="#3b4e6e"/>
   </g>
-  <path d="M172 222 L180 223" stroke="#a3262a" stroke-width="7" stroke-linecap="round"/>
-  <path d="M256 296 C258 312 254 326 262 344" fill="none" stroke="#a3262a" stroke-width="7" stroke-linecap="round"/>
+  <g fill="#d6b26a"><rect x="180" y="196" width="16" height="12" rx="2"/><rect x="258" y="196" width="16" height="12" rx="2"/><rect x="334" y="196" width="16" height="12" rx="2"/></g>
+  <rect x="106" y="242" width="300" height="20" rx="5" fill="url(#wood)" stroke="#2f1c0f" stroke-width="5"/>
+  <!-- chains to the iron rod -->
+  <g fill="none" stroke="#5d5f63" stroke-width="3.5" stroke-dasharray="5 3" stroke-linecap="round">
+    <path d="M186 234 C184 256 196 268 192 284"/><path d="M266 234 C264 256 276 268 272 284"/><path d="M344 234 C342 256 354 268 350 284"/>
+  </g>
+  <path d="M134 286 L378 286" stroke="#6b6e73" stroke-width="5" stroke-linecap="round"/>
+  <!-- carved end panels -->
+  <g fill="url(#wood)" stroke="#2f1c0f" stroke-width="6" stroke-linejoin="round">
+    <path d="M90 452 L90 196 C90 150 106 126 134 124 C152 124 160 140 150 152 C142 160 132 154 134 146 L136 452 Z"/>
+    <path d="M422 452 L422 196 C422 150 406 126 378 124 C360 124 352 140 362 152 C370 160 380 154 378 146 L376 452 Z"/>
+  </g>
+  <g fill="none" stroke="#2f1c0f" stroke-width="3" opacity=".7"><path d="M100 440 V214 Q100 186 113 176 Q126 186 126 214 V440"/><path d="M412 440 V214 Q412 186 399 176 Q386 186 386 214 V440"/></g>
+  <!-- bench in front -->
+  <rect x="62" y="396" width="388" height="20" rx="5" fill="url(#woodv)" stroke="#2f1c0f" stroke-width="5"/>
+  <g fill="url(#wood)" stroke="#2f1c0f" stroke-width="5"><rect x="96" y="414" width="22" height="44"/><rect x="394" y="414" width="22" height="44"/></g>
 </svg>
