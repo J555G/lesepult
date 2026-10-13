@@ -683,6 +683,7 @@ function posAt(root, off) {                      // (text node, offset) at chara
 }
 // current selection inside ONE dictionary entry -> {eb, a, b, text}; anything else -> {text} or null
 function dictSelection() {
+  if (S.tsel) { const t = tselRange()?.toString().trim(); return t ? (S.tsel.eb ? { eb: S.tsel.eb, a: S.tsel.a, b: S.tsel.b, text: t } : { text: t }) : null; }
   const sel = window.getSelection(); if (!sel.rangeCount) return null;
   const text = String(sel).trim(); if (!text) return null;
   const r = sel.getRangeAt(0);
@@ -703,8 +704,8 @@ async function toggleHighlight() {
   ranges = covered ? subtractRange(ranges, [d.a, d.b]) : mergeRanges([...ranges, [d.a, d.b]]);
   await setting(key, ranges); await paintEntry(d.eb);
   // keep the same text selected, so that it can still be added as a gloss
-  const [n1, o1] = posAt(d.eb, d.a), [n2, o2] = posAt(d.eb, d.b);
-  try { window.getSelection().setBaseAndExtent(n1, o1, n2, o2); } catch (_) { }
+  if (S.tsel) paintTsel();
+  else { const [n1, o1] = posAt(d.eb, d.a), [n2, o2] = posAt(d.eb, d.b); try { window.getSelection().setBaseAndExtent(n1, o1, n2, o2); } catch (_) { } }
   updateFab();
 }
 function updateFab() {
@@ -746,6 +747,74 @@ function wirePencilSelect() {
   pane.addEventListener('pointercancel', () => { drag = null; });
 }
 
+// Android: a long press selects the word without the system's selection menu (copy, web search …) or the
+// search panel from the bottom edge – the native selection is switched off and drawn by the app instead
+// (CSS Custom Highlight); dragging without lifting the finger extends it word by word. Only the floating
+// buttons (highlighter, + Gloss, + Default) appear.
+const WCH = /[\p{L}\p{M}\p{N}'’ʼ\-]/u;
+function tselRange() {
+  const t = S.tsel; if (!t || !t.root.isConnected) return null;
+  const [n1, o1] = posAt(t.root, t.a), [n2, o2] = posAt(t.root, t.b);
+  const r = document.createRange(); try { r.setStart(n1, o1); r.setEnd(n2, o2); } catch (_) { return null; }
+  return r;
+}
+function paintTsel() {
+  if (!window.CSS?.highlights) return;
+  const r = S.tsel && tselRange();
+  if (r) CSS.highlights.set('tsel', new Highlight(r)); else CSS.highlights.delete('tsel');
+}
+function setTsel(t) {
+  S.tsel = t; paintTsel();
+  S.sel = dictSelection(); if (S.sel) S.lastSel = S.sel.text; updateFab();
+}
+function clearTsel() { if (S.tsel) setTsel(null); }
+// character offset (inside root) of the word start / end at a caret position
+function wordBounds(node, off) {
+  const v = node.nodeValue || ''; let a = off, b = off;
+  while (a > 0 && WCH.test(v[a - 1])) a--;
+  while (b < v.length && WCH.test(v[b])) b++;
+  return [a, b];
+}
+function wireTouchSelect() {
+  const pane = $('#dictPane'); let hold = null, drag = null;
+  const pt = e => e.touches[0] || e.changedTouches[0];
+  const at = (x, y, root) => { const c = caretAt(x, y); if (!c || c.node.nodeType !== 3 || !root.contains(c.node)) return null; const [wa, wb] = wordBounds(c.node, c.off); const o = offsetIn(root, c.node, 0); return { a: o + wa, b: o + wb, c: o + c.off }; };
+  pane.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1 || e.target.closest('input,textarea,select,button,summary,[contenteditable]')) { hold = null; return; }
+    const p = pt(e), x = p.clientX, y = p.clientY, target = e.target;
+    hold = { x, y, moved: false, timer: setTimeout(() => {
+      const root = target.closest?.('.eb') || $('#dictBody'); const w = at(x, y, root);
+      if (!w || w.b <= w.a) { hold = null; return; }
+      drag = { root, wa: w.a, wb: w.b }; hold = null;
+      navigator.vibrate?.(8);
+      setTsel({ root, eb: root.classList.contains('eb') && root.dataset.hl ? root : null, a: w.a, b: w.b });
+      drag.fresh = true;                                   // the click that follows the long press does not open a word
+    }, 450) };
+  }, { passive: true });
+  pane.addEventListener('touchmove', e => {
+    if (drag) {
+      e.preventDefault();                                  // extending the selection, not scrolling
+      const p = pt(e), w = at(p.clientX, p.clientY, drag.root); if (!w) return;
+      const t = w.c >= drag.wa ? { a: drag.wa, b: Math.max(drag.wb, w.b) } : { a: w.a, b: drag.wb };
+      if (t.a !== S.tsel.a || t.b !== S.tsel.b) setTsel(Object.assign({}, S.tsel, t));
+      return;
+    }
+    if (hold) { const p = pt(e); if (Math.hypot(p.clientX - hold.x, p.clientY - hold.y) > 8) { clearTimeout(hold.timer); hold.moved = true; } }
+  }, { passive: false });
+  const end = () => { if (hold) clearTimeout(hold.timer); if (drag?.fresh) S.tselNoClick = Date.now() + 600; drag = null; };
+  pane.addEventListener('touchend', end); pane.addEventListener('touchcancel', end);
+  document.addEventListener('click', e => { if (S.tselNoClick > Date.now() && !e.target.closest('#fabBar')) { S.tselNoClick = 0; e.preventDefault(); e.stopPropagation(); } }, true);
+  // a tap anywhere else ends the selection (scrolling keeps it)
+  let tap = null;
+  document.addEventListener('touchstart', e => { const p = pt(e); tap = { x: p.clientX, y: p.clientY, t: Date.now() }; }, { passive: true, capture: true });
+  document.addEventListener('touchend', e => {
+    const p = pt(e);
+    if (tap && !drag && Date.now() - tap.t < 400 && Math.hypot(p.clientX - tap.x, p.clientY - tap.y) < 8 && !e.target.closest('#fabBar')) clearTsel();
+    tap = null;
+  }, { capture: true });
+  document.addEventListener('contextmenu', e => { if (e.target.closest('#dictPane,#textPane') && !e.target.closest('input,textarea')) e.preventDefault(); });
+}
+
 async function showWord(word, opts = {}) {
   if (S.view && !opts.replace) S.hist.push(S.view);
   S.fwd = [];
@@ -759,6 +828,7 @@ function goBack() { if (!S.hist.length) return; S.fwd.push(S.view); S.view = S.h
 function goFwd() { if (!S.fwd?.length) return; S.hist.push(S.view); S.view = S.fwd.pop(); navButtons(); showTab('entry'); renderView(); }
 async function renderView() {
   const body = $('#dictBody'); const v = S.view; if (!v) return;
+  if (S.tsel) { S.tsel = null; paintTsel(); }
   if (!S.dicts.length) { body.innerHTML = '<p class="hint">No dictionaries installed yet. Open the menu ☰ → Dictionaries and import the packages (*.gdpkg.gz).</p>'; return; }
   const lang = langOf(v.form);
   const A = await analyses(v.form);
@@ -1415,6 +1485,7 @@ function wire() {
   // selection inside the dictionary -> offer "add as gloss"
   document.addEventListener('pointerdown', e => { S.lastPointer = e.pointerType; }, true);
   wirePencilSelect();
+  if (/Android/i.test(navigator.userAgent) || S.forceTouchSel) { document.body.classList.add('android'); wireTouchSelect(); }
   addEventListener('resize', () => { if (!$('#fabBar').hidden) updateFab(); });
   wireDictDrag();
   document.addEventListener('click', e => { const b = e.target.closest('#dlg [data-get]'); if (b) { if (b.closest('summary')) e.preventDefault(); queueDownload(b.dataset.get); } });
@@ -1427,7 +1498,7 @@ function wire() {
 
   for (const id of ['#fabHl', '#fabGloss', '#fabDefault']) $(id).addEventListener('pointerdown', ev => ev.preventDefault());   // keep the selection
   $('#fabHl').onclick = toggleHighlight;
-  const fab = asDefault => { const t = S.lastSel; window.getSelection().removeAllRanges(); S.sel = null; $('#fabBar').hidden = true; addGloss(t, asDefault, true); };
+  const fab = asDefault => { const t = S.lastSel; window.getSelection().removeAllRanges(); S.tsel = null; paintTsel(); S.sel = null; $('#fabBar').hidden = true; addGloss(t, asDefault, true); };
   $('#fabGloss').onclick = () => fab(false);
   $('#fabDefault').onclick = () => fab(true);
   // divider drag
