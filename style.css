@@ -572,3 +572,14 @@ body.android #dictPane :is(input,textarea,[contenteditable]){-webkit-user-select
   #textBody{padding-right:.55rem!important}
   #textBody .rf{left:.15rem;width:1.6rem;font-size:10px;letter-spacing:-.02em}
 }
+/* export: radio buttons drawn as a joined switch; the print layout replaces the app while printing */
+dialog .segr label{display:flex;align-items:center;background:var(--bg);color:var(--mut);font-size:12.5px;padding:.3rem .9rem;cursor:pointer}
+dialog .segr label+label{border-left:1px solid var(--line)}
+dialog .segr input{position:absolute;opacity:0;pointer-events:none}
+dialog .segr label:has(input:checked){background:var(--acc);color:var(--bg)}
+#printRoot{display:none}
+@media print{
+  html.printing,html.printing body{height:auto!important;overflow:visible!important;background:#fff!important;display:block!important}
+  html.printing body>*:not(#printRoot){display:none!important}
+  html.printing #printRoot{display:block!important}
+}
