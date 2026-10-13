@@ -1348,6 +1348,15 @@ function wire() {
   $('#btnFwd').onclick = goFwd;
   $('#tabEntry').onclick = () => showTab('entry');
   $('#tabList').onclick = () => { showTab('list'); renderList(); };
+  // when "Look up a word…" does not fit into the search box, a magnifying glass stands in for it
+  { const sb = $('#search'), ph = sb.placeholder, cv = document.createElement('canvas').getContext('2d');
+    const fit = () => {
+      const cs = getComputedStyle(sb); cv.font = `${cs.fontSize} ${cs.fontFamily}`;
+      const room = sb.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const ok = cv.measureText(ph).width <= room;
+      sb.placeholder = ok ? ph : ''; sb.classList.toggle('phicon', !ok);
+    };
+    new ResizeObserver(fit).observe(sb); document.fonts?.ready.then(fit); }
   $('#search').addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.value.trim()) { showWord(ev.target.value.trim()); ev.target.blur(); } });
   $('#btnGlossToggle').onclick = () => setGlossVisible(document.body.classList.contains('nogloss'), true);
   $('#btnGram').onclick = () => setGram(!S.gram, true);
