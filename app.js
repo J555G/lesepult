@@ -1689,6 +1689,38 @@ async function exportDialog() {
   setTimeout(() => URL.revokeObjectURL(href), 60000);
 }
 
+// ---------------------------------------------------------------- acknowledgements (☰ → Acknowledgements)
+const ACKS = [
+  ['Texts', [
+    ['Perseus Digital Library – canonical-greekLit', 'https://github.com/PerseusDL/canonical-greekLit', 'Greek texts (TEI XML)', 'CC BY-SA 4.0'],
+    ['Perseus Digital Library – canonical-latinLit', 'https://github.com/PerseusDL/canonical-latinLit', 'Latin texts (TEI XML)', 'CC BY-SA 4.0'],
+    ['Open Greek and Latin – First1KGreek', 'https://github.com/OpenGreekAndLatin/First1KGreek', 'Greek texts of the first thousand years (TEI XML)', 'CC BY-SA 4.0'],
+    ['Open Greek and Latin – csel-dev', 'https://github.com/OpenGreekAndLatin/csel-dev', 'Corpus Scriptorum Ecclesiasticorum Latinorum (TEI XML)', 'CC BY-SA 4.0'],
+    ['Classical Language Toolkit (CLTK)', 'https://github.com/cltk/cltk', 'author dates and genres of the TLG canon, used for the library', 'MIT']]],
+  ['Greek dictionaries and analysis', [
+    ['Eulexis (Ph. Roelli, Chaeréphon / A. Charbonnet, J.-P. Woitrain, Ph. Verkerk)', 'https://github.com/PhVerkerk/Eulexis_off_line', 'W. Pape, Handwörterbuch der griechischen Sprache (3rd ed. 1914); Liddell–Scott–Jones, A Greek–English Lexicon (9th ed.); Greek word-form analyses', 'GNU GPL v3'],
+    ['Morpheus (Perseus Project) and Diogenes', 'https://github.com/perseids-tools/morpheus', 'origin of the Greek morphological analyses in Eulexis', 'GPL'],
+    ['Universal Dependencies – Ancient Greek PROIEL treebank', 'https://github.com/UniversalDependencies/UD_Ancient_Greek-PROIEL', 'preferred lemmata and word classes', 'CC BY-NC-SA 4.0'],
+    ['Universal Dependencies – Ancient Greek Perseus treebank', 'https://github.com/UniversalDependencies/UD_Ancient_Greek-Perseus', 'preferred lemmata and word classes', 'CC BY-NC-SA 2.5']]],
+  ['Latin dictionaries and analysis', [
+    ['Perseus Digital Library – lexica', 'https://github.com/PerseusDL/lexica', 'C. T. Lewis & C. Short, A Latin Dictionary (1879); text provided by the Perseus Digital Library with funding from the National Endowment for the Humanities', 'CC BY-SA 4.0'],
+    ['K. E. Georges, Ausführliches lateinisch-deutsches Handwörterbuch (8th ed. 1913) – TEI edition by Thibault Clérice', 'https://github.com/PonteIneptique/K-E-Georges-1913-TEI', 'Latin–German dictionary', 'public domain'],
+    ['Collatinus (Yves Ouvrard, Philippe Verkerk)', 'https://github.com/biblissima/collatinus', 'Latin lemmatisation, inflection models, vowel lengths, short meanings (EN · DE · FR)', 'GNU GPL v3'],
+    ['Whitaker’s Words (William Whitaker)', 'https://github.com/mk270/whitakers-words', 'Latin analysis and short English meanings', 'free for any use']]],
+  ['Private dictionaries (only on devices where they were imported)', [
+    ['H. Frisk, Griechisches etymologisches Wörterbuch (Leiden IEED edition)', 'https://ieed.ullet.net/friskL.html', 'Greek etymology', 'copyright – private use only'],
+    ['A. Bailly, Dictionnaire grec-français, éd. 2020 Hugo Chávez (G. Gréco et al.)', 'https://creativecommons.org/licenses/by-nc-nd/4.0/', 'Greek–French dictionary', 'CC BY-NC-ND 4.0 – private use only']]],
+  ['Font', [
+    ['Gentium Book Plus (SIL International)', 'https://software.sil.org/gentium/', 'type for Greek and Latin', 'SIL Open Font License 1.1']]],
+];
+async function acksDialog() {
+  const a = (t, u) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(t)}</a>`;
+  await dialog(`<h3>Acknowledgements</h3>
+    <p class="hint small">This app is built on the work of these projects and editions. The packages it downloads are reformatted conversions of their data, shared under the same licences.</p>
+    ${ACKS.map(([h, items]) => `<section class="dsec ack"><h4>${esc(h)}</h4><ul>${items.map(([t, u, what, lic]) => `<li>${a(t, u)}<br><small>${esc(what)} · <i>${esc(lic)}</i></small></li>`).join('')}</ul></section>`).join('')}`,
+    [['cancel', 'Close']]);
+}
+
 // ---------------------------------------------------------------- events
 function wire() {
   // marking a passage for the export: taps on words set the first and the last word (nothing else happens)
@@ -1794,7 +1826,7 @@ function wire() {
   menu.addEventListener('click', ev => {
     const b = ev.target.closest('[data-m]'); if (!b) return;
     menu.hidden = true;
-    ({ settings: settingsDialog, texts: textsDialog, library: libraryDialog, dicts: dictsDialog, pos: posDialog, backup: backupDialog, export: exportDialog })[b.dataset.m]();
+    ({ settings: settingsDialog, texts: textsDialog, library: libraryDialog, dicts: dictsDialog, pos: posDialog, backup: backupDialog, export: exportDialog, acks: acksDialog })[b.dataset.m]();
   });
   document.addEventListener('change', async ev => {
     const id = ev.target.dataset?.dictOn; if (!id) return;

@@ -596,3 +596,7 @@ body.expick #textBody .w{cursor:cell}
 #exBar button{background:var(--acc);color:var(--bg);border-color:var(--acc);border-radius:22px;padding:.55rem 1rem;font-size:15px;box-shadow:0 4px 14px rgba(0,0,0,.25)}
 #exBar button[data-xp=cancel]{background:var(--card);color:var(--fg);border-color:var(--line)}
 #exBar button:disabled{opacity:.45}
+dialog .ack ul{margin:.2rem 0 .2rem;padding-left:1.1rem}
+dialog .ack li{margin:.35rem 0;line-height:1.35}
+dialog .ack small{color:var(--mut)}
+dialog .ack a{color:var(--acc2)}
