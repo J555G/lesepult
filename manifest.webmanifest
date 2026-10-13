@@ -1,6 +1,6 @@
 {
-  "name": "Greek Reader",
-  "short_name": "Greek Reader",
+  "name": "Pult",
+  "short_name": "Pult",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
