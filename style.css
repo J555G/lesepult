@@ -560,3 +560,15 @@ dialog .srow select{font:inherit;font-size:13.5px;color:var(--fg);background:var
 body.android #dictPane,body.android #textPane{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 body.android #dictPane :is(input,textarea,[contenteditable]){-webkit-user-select:text;user-select:text}
 ::highlight(tsel){background-color:color-mix(in srgb,var(--acc2) 38%,transparent);color:inherit}
+/* narrow text column (phones, or a narrow split): the reference numbers take less room, so more text fits */
+#textPane{container-type:inline-size}
+@container (max-width:520px){
+  #textBody.lib{padding-left:2.2rem!important}
+  #textBody{padding-right:.75rem!important}
+  #textBody .rf{left:.2rem;width:1.85rem;font-size:10.5px}
+}
+@container (max-width:380px){
+  #textBody.lib{padding-left:1.9rem!important}
+  #textBody{padding-right:.55rem!important}
+  #textBody .rf{left:.15rem;width:1.6rem;font-size:10px;letter-spacing:-.02em}
+}
