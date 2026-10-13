@@ -1353,9 +1353,12 @@ function wire() {
     const fit = () => {
       const cs = getComputedStyle(sb); cv.font = `${cs.fontSize} ${cs.fontFamily}`;
       const room = sb.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-      const ok = cv.measureText(ph).width <= room;
+      const ok = cv.measureText(ph).width + 8 <= room;                 // a little room to spare (Safari draws a bit wider)
       sb.placeholder = ok ? ph : ''; sb.classList.toggle('phicon', !ok);
     };
+    // Safari does not count an empty placeholder as shown, so emptiness is marked by a class of its own
+    const filled = () => sb.classList.toggle('filled', !!sb.value);
+    sb.addEventListener('input', filled); sb.addEventListener('change', filled); filled();
     new ResizeObserver(fit).observe(sb); document.fonts?.ready.then(fit); }
   $('#search').addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.value.trim()) { showWord(ev.target.value.trim()); ev.target.blur(); } });
   $('#btnGlossToggle').onclick = () => setGlossVisible(document.body.classList.contains('nogloss'), true);

@@ -552,5 +552,7 @@ dialog .srow select{font:inherit;font-size:13.5px;color:var(--fg);background:var
 #textTitle .tb{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
 @media (max-width:900px){#top #btnGlossToggle,#top #btnGram{padding:0 .4rem}#top #btnGlossToggle .w1,#top #btnGram .w1{font-size:12.5px}}
 /* search box too narrow for its placeholder: a magnifying glass instead (only while empty) */
-#top #search.phicon:placeholder-shown{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238a857a' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='M15.5 15.5 21 21'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:center;background-size:16px 16px}
-#top #search.phicon:focus{background-image:none}
+#top #search{-webkit-appearance:none;appearance:none}
+#top #search::-webkit-search-decoration{-webkit-appearance:none}
+#top #search.phicon:not(.filled){background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238a857a' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='M15.5 15.5 21 21'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:center;background-size:16px 16px}
+#top #search.phicon:focus,#top #search.phicon.filled{background-image:none}
