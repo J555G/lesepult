@@ -2147,17 +2147,26 @@ function wire() {
   const fab = asDefault => { const t = S.lastSel; window.getSelection().removeAllRanges(); S.tsel = null; paintTsel(); S.sel = null; $('#fabBar').hidden = true; addGloss(t, asDefault, true); };
   $('#fabGloss').onclick = () => fab(false);
   $('#fabDefault').onclick = () => fab(true);
-  // divider drag
-  const dv = $('#divider');
-  dv.addEventListener('pointerdown', ev => {
+  // divider drag; pulled all the way to one side, only the other pane is left (pure reading / pure dictionary);
+  // an invisible strip at that edge (#edgeGrab) pulls it back in
+  const drag = ev => {
     ev.preventDefault();                         // no text selection while dragging
-    dv.setPointerCapture(ev.pointerId);
     const portrait = matchMedia('(orientation:portrait)').matches;
-    const r = $('#panes').getBoundingClientRect();
-    const mv = e => { const x = portrait ? (e.clientY - r.top) / r.height : (e.clientX - r.left) / r.width; setSplit(Math.min(85, Math.max(15, x * 100)).toFixed(1) + '%', false); };
-    const up = () => { dv.removeEventListener('pointermove', mv); dv.removeEventListener('pointerup', up); setting('split', getSplit()); };
-    dv.addEventListener('pointermove', mv); dv.addEventListener('pointerup', up);
-  });
+    const r = $('#panes').getBoundingClientRect(), a = textAnchor(), id = ev.pointerId;
+    const mv = e => {
+      if (e.pointerId !== id) return;
+      const x = portrait ? (e.clientY - r.top) / r.height : (e.clientX - r.left) / r.width;
+      const v = x < 0.07 ? 0 : x > 0.93 ? 100 : Math.min(85, Math.max(15, x * 100));
+      if (Math.abs(v - parseFloat(getSplit())) < 0.05) return;
+      setSplit(v.toFixed(1) + '%', false);
+      if (v > 0) applyTextAnchor(a);
+    };
+    const up = e => { if (e.pointerId !== id) return; removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); setting('split', getSplit()); };
+    addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+  };
+  $('#divider').addEventListener('pointerdown', drag);
+  $('#edgeGrab').addEventListener('pointerdown', drag);
+  $('#edgeGrab').addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 }
 function setTheme(t, save) {
   document.documentElement.dataset.theme = t;
@@ -2189,18 +2198,29 @@ function setGlossVisible(on, save) {
   if (save) setting('showGloss', on);
 }
 function getSplit() { return document.documentElement.style.getPropertyValue('--split').trim() || '50%'; }
-function setSplit(v, save = true) { document.documentElement.style.setProperty('--split', v); splitIcon(); if (save) setting('split', v); }
-// split button: 1/2 -> 2/3 -> 1/2 -> 1/3 -> 1/2 … (bounces between the three arrangements)
-const SPLITS = [100 / 3, 50, 200 / 3];
+function setSplit(v, save = true) {
+  const n = parseFloat(v), cl = document.body.classList, port = matchMedia('(orientation:portrait)').matches;
+  const P = $('#panes').style, size = el => (port ? el.offsetHeight : el.offsetWidth) + 'px';
+  // a pane that disappears keeps its size (hidden, behind the other one): no new line breaks, the reading position stays
+  if (!cl.contains('solo-dict')) P.setProperty('--tw', size($('#textPane')));
+  if (!cl.contains('solo-text')) P.setProperty('--dw', size($('#dictPane')));
+  cl.toggle('solo-dict', n <= 0.5); cl.toggle('solo-text', n >= 99.5);
+  document.documentElement.style.setProperty('--split', v); splitIcon(); setGlossMax();
+  if (save) setting('split', v);
+}
+// split button: bounces 0 (dictionary only) -> 1/3 -> 1/2 -> 2/3 -> 1 (text only) -> 2/3 -> … -> 0 -> 1/3 …
+const SPLITS = [0, 100 / 3, 50, 200 / 3, 100];
 function cycleSplit() {
   const cur = parseFloat(getSplit());
-  let i = SPLITS.reduce((b, x, j) => Math.abs(x - cur) < Math.abs(SPLITS[b] - cur) ? j : b, 1);
-  if (i === 2) S.splitDir = -1; else if (i === 0) S.splitDir = 1; else S.splitDir = S.splitDir || 1;
-  setSplit(SPLITS[i + S.splitDir].toFixed(3) + '%');
+  const i = SPLITS.reduce((b, x, j) => Math.abs(x - cur) < Math.abs(SPLITS[b] - cur) ? j : b, 2);
+  if (i === SPLITS.length - 1) S.splitDir = -1; else if (i === 0) S.splitDir = 1; else S.splitDir = S.splitDir || 1;
+  const a = textAnchor(), v = SPLITS[i + S.splitDir];
+  setSplit(v.toFixed(3) + '%');
+  if (v > 0) { applyTextAnchor(a); requestAnimationFrame(() => applyTextAnchor(a)); }
 }
 function splitIcon() {   // an open book: the fold sits where the split is, the lines on both pages slope down toward it
   const b = $('#btnSplit'); if (!b) return;
-  const f = Math.min(0.9, Math.max(0.1, parseFloat(getSplit()) / 100));
+  const f = Math.min(1, Math.max(0, parseFloat(getSplit()) / 100));
   const portrait = matchMedia('(orientation:portrait)').matches;
   const W = 30, H = 20, x0 = 1.5, x1 = W - 1.5, fx = x0 + (x1 - x0) * f, dip = 2;
   const p = [];
@@ -2228,7 +2248,7 @@ function splitIcon() {   // an open book: the fold sits where the split is, the 
     ? `<svg width="${(H * 0.75).toFixed(1)}" height="${(W * 0.75).toFixed(1)}" viewBox="0 0 ${H} ${W}" aria-hidden="true"><g transform="translate(${H} 0) rotate(90)">${g}</g></svg>`
     : `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">${g}</svg>`;
   const pct = Math.round(f * 100);
-  b.title = `Text ${pct < 40 ? '1/3' : pct > 60 ? '2/3' : '1/2'} – tap to change the split`;
+  b.title = `${pct < 1 ? 'Dictionary only' : pct > 99 ? 'Text only' : 'Text ' + (pct < 40 ? '1/3' : pct > 60 ? '2/3' : '1/2')} – tap to change the split`;
 }
 
 // ---------------------------------------------------------------- library (Perseus, First1KGreek)
