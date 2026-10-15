@@ -76,7 +76,7 @@ body.nogloss .w.glossed>.g{text-decoration:none}
 .chip.on{background:var(--card);color:var(--fg);border-color:var(--acc);box-shadow:0 0 0 2px var(--acc)}
 .w .pu{color:var(--fg)}
 .chip small{color:var(--mut);display:block}
-.chip small .qf{color:var(--fg);font-style:italic}
+.chip small .qf{color:var(--fg)}
 .form .qor{color:var(--mut);font-weight:400}
 .pin{font:12px var(--ui);color:var(--mut);margin:-.2rem 0 .5rem}
 .pin button{font-size:12px;padding:.1rem .45rem}
@@ -155,7 +155,7 @@ body.nosrccol .ent .fc,body.nosrccol .ent .au{color:inherit}
   #top button{padding:.3rem .5rem}
 }
 
-.w>.gl .dg{color:var(--mut);font-style:italic}
+.w>.gl .dg{color:var(--mut)}
 #fabBar{position:fixed;z-index:20;display:flex;gap:.5rem;justify-content:center;pointer-events:none}
 #fabBar button{pointer-events:auto}
 #fabBar[hidden]{display:none}
@@ -527,7 +527,7 @@ body.gram .w>.gm:not(:empty){display:block}
 #btnGram{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;padding:0 .6rem}
 #btnGram[hidden]{display:none}
 #btnGram .w1{font-size:13px}
-#btnGram .w2{font-size:8.5px;margin-top:1px;color:var(--mut);opacity:.6;font-style:italic}
+#btnGram .w2{font-size:8.5px;margin-top:1px;color:var(--mut);opacity:.6}
 #btnGram.on{background:var(--card);color:var(--fg);border-color:var(--line)}
 #btnGram.on .w2{color:var(--fg);opacity:.85}
 /* Settings: label column + control, either/or settings as joined switches */
@@ -600,3 +600,14 @@ dialog .ack ul{margin:.2rem 0 .2rem;padding-left:1.1rem}
 dialog .ack li{margin:.35rem 0;line-height:1.35}
 dialog .ack small{color:var(--mut)}
 dialog .ack a{color:var(--acc2)}
+/* reading of a word: analyses of the chosen lemma (right pane) and the grammar-line menu */
+body.gram .w>.gm:not(:empty){cursor:pointer}
+body.gram .w>.gm.amb{color:color-mix(in srgb,var(--mut) 55%,var(--acc))}
+.anarows{display:flex;flex-wrap:wrap;gap:.3rem;margin:.1rem 0 .5rem}
+.anarows .ana,.anamenu .ana{font:13px/1.3 var(--ui);padding:.25rem .55rem;border:1px solid var(--line,#ccc);border-radius:999px;background:transparent;color:inherit;cursor:pointer}
+.anarows .ana.on,.anamenu .ana.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+.anarows .ana.on.amb{background:transparent;border-color:var(--acc);color:inherit;border-style:dashed}
+.anarows .anareset{font:12px var(--ui);border:0;background:none;color:var(--mut);cursor:pointer}
+.anamenu{display:flex;flex-direction:column;gap:.5rem;max-height:55vh;overflow:auto;margin:.3rem 0}
+.anagrp{display:flex;flex-wrap:wrap;gap:.3rem;align-items:center}
+.anagrp .anal{flex-basis:100%;font-weight:600}

@@ -194,13 +194,14 @@ async function resolveTokens1(run) {
     if (tk.lemma !== undefined) continue;
     let A = memo.get(tk.s); if (!A) memo.set(tk.s, A = await analyses(tk.s, choices, S.morph ? bmap : null));
     if (run !== resolveTokens.run) return;           // a newer run has started
-    const l = A.pick; const x = A.lemmas.find(z => z.lemma === l);
-    tk.lemma = l || null; tk.pos = posOf(l, x?.ana);
-    tk.q = x?.q ? qCommon(x.q) : null;                 // Latin: the vowel quantities all analyses of the lemma agree on
-    tk.gram = gramText(x?.ana);                        // grammatical information beneath the word
+    const R = pickReading(tk, A), l = R.l, x = R.x;
+    tk.lemma = l || null; tk.ana = R.a; tk.anaSet = R.set; tk.amb = R.amb;
+    tk.pos = posOf(l, R.a ? [R.a] : x?.ana);          // word class of the chosen reading
+    tk.q = x?.q ? (x.q[R.ai] || qCommon(x.q)) : null; // Latin: the vowel quantities of the chosen reading
+    tk.gram = gramText(R.a ? [R.a] : x?.ana);          // grammatical information beneath the word: only the chosen reading
     const el = S.wordEls?.[tk.i];          // words are numbered in document order (a selector per word is slow in long books)
-    el?.classList.add('p-' + tk.pos);
-    if (el && tk.gram) { const gm = el.querySelector('.gm'); if (gm) gm.textContent = tk.gram; }
+    if (el) { el.className = el.className.replace(/\s*\bp-\S+/g, ''); el.classList.add('p-' + tk.pos); }
+    if (el) { const gm = el.querySelector('.gm'); if (gm) { gm.textContent = tk.gram || ''; gm.classList.toggle('amb', !!tk.amb && !tk.anaSet); } }
     if (el && tk.q && S.latQuant) { const t = el.querySelector('.g').firstChild; if (t?.nodeType === 3) t.nodeValue = tk.q; }
     if (el && l && S.lemmaGloss[gkey(l)]) {
       if (!S.covered?.has(tk.i)) { const g = el.querySelector('.gl'), h = dgHTML(tk); g.innerHTML = h; const m = glW(h).match(/--gw:(\d+em)/); if (m) g.style.setProperty('--gw', m[1]); }
@@ -208,7 +209,78 @@ async function resolveTokens1(run) {
     }
   }
 }
-function resetTokens(pred = () => true) { for (const tk of S.tokens) if (pred(tk)) { delete tk.lemma; delete tk.pos; delete tk.q; delete tk.gram; } }
+function resetTokens(pred = () => true) { for (const tk of S.tokens) if (pred(tk)) { delete tk.lemma; delete tk.pos; delete tk.q; delete tk.gram; delete tk.ana; delete tk.anaSet; delete tk.amb; } }
+// library texts with an annotation (GLAUx for Greek): the reading the context suggests for each word
+function applyAnnotation(t) {
+  const ws = S.tokens.filter(tk => tk.t === 'w'), a = t.ann.a.split(' ');
+  if (a.length !== ws.length || t.ann.n !== ws.length) return;            // another tokenisation: better nothing than wrong readings
+  ws.forEach((tk, n) => { const e = a[n]; if (e === '-') return; const d = e.indexOf('.'); tk.ctx = { l: t.work.annL[+e.slice(0, d)], t: e.slice(d + 1) }; });
+}
+// how well an analysis ("pres ind act 3rd sg", "masc/neut gen sg" …) fits a 9-position tag (AGDT: pos, person, number,
+// tense, mood, voice, gender, case, degree)
+const TAGF = [null, { 1: '1st', 2: '2nd', 3: '3rd' }, { s: 'sg', p: 'pl', d: 'dual' },
+  { p: 'pres', i: 'imperf', r: 'perf', l: 'plup', t: 'futperf', f: 'fut', a: 'aor' }, { i: 'ind', s: 'subj', o: 'opt', n: 'inf', m: 'imperat', p: 'part', d: 'gerund', g: 'gerundive', u: 'supine' },
+  { a: 'act', p: 'pass', m: 'mid', e: 'mp' }, { m: 'masc', f: 'fem', n: 'neut' }, { n: 'nom', g: 'gen', d: 'dat', a: 'acc', v: 'voc', b: 'abl', l: 'loc' }, { c: 'comp', s: 'superl' }];
+const TAGCAT = TAGF.map(f => f && new Set(Object.values(f)));
+function tagScore(ana, tag) {
+  const alts = ana.split(/\s+/).map(w => w.split('/'));
+  let sc = 0;
+  for (let p = 1; p < 9; p++) {
+    const want = TAGF[p][tag[p]];
+    const have = alts.find(al => al.some(x => TAGCAT[p].has(x)));
+    if (!want) { if (have && p !== 8) sc -= 0.5; continue; }
+    if (!have) { sc -= 0.5; continue; }
+    if (have.includes(want) || (p === 5 && (have.includes('mp') || (want === 'mp' && (have.includes('mid') || have.includes('pass')))))) sc += 1; else sc -= 2;
+  }
+  return sc;
+}
+const lemKey = l => gkey(String(l || '').replace(/\d+$/, ''));
+// the analysis the context suggests: the lemma of the annotation (if the morphology knows it), its best-fitting analysis
+function ctxReading(A, ctx) {
+  const k = lemKey(ctx.l), same = A.lemmas.filter(x => lemKey(x.lemma) === k), cand = same.length ? same : A.lemmas;
+  let best = null;
+  for (const x of cand) x.ana.forEach((a, ai) => { const sc = tagScore(a, ctx.t); if (!best || sc > best.sc) best = { l: x.lemma, a, sc }; });
+  return best && (same.length || best.sc >= 2) ? best : null;
+}
+// the reading (lemma + one grammatical analysis) of a word: the user's choice for this word > the choice for the form (★)
+// > the reading given by the text's own annotation (tk.ctx, where a text has one) > the most likely lemma, its first analysis
+function pickReading(tk, A) {
+  const tc = S.tokCh?.get(tk.i), ctx = tk.ctx && A.lemmas.length ? ctxReading(A, tk.ctx) : null, has = l => l && A.lemmas.some(x => x.lemma === l);
+  const l = (has(tc?.l) && tc.l) || (A.chosen && A.pick) || (has(ctx?.l) && ctx.l) || A.pick;
+  const x = A.lemmas.find(z => z.lemma === l);
+  const want = tc?.l === l ? tc.a : A.chosen && A.pick === l && A.ana ? A.ana : ctx?.l === l ? ctx.a : null;
+  let ai = x && want ? x.ana.indexOf(want) : -1;
+  if (ai < 0 && x?.ana.length) ai = 0;
+  const amb = new Set(A.lemmas.flatMap(z => z.ana.map(a => gramText([a])))).size > 1;
+  const set = !!((tc && has(tc.l) && (!tc.a || x?.ana[ai] === tc.a)) || (A.chosen && A.ana && x?.ana[ai] === A.ana));
+  return { l, x, ai, a: x?.ana[ai] ?? null, amb, set };
+}
+// the user's reading for one word of the text (lemma + analysis); null = back to the default
+async function setTokChoice(i, l, a = null) {
+  if (!S.text) return;
+  const k = `an|${S.text.id}|${i}`;
+  if (l == null) { S.tokCh.delete(i); await del('settings', k); }
+  else { S.tokCh.set(i, { l, a }); await setting(k, { l, a }); }
+  resetTokens(tk => tk.t === 'w' && tk.i === i);
+  await resolveTokens(); renderText();
+  if (S.view?.ti === i) { S.view.lemma = null; renderView(); }
+}
+async function loadTokCh(t) {
+  if (!t) return new Map();
+  const rs = await getAll('settings', IDBKeyRange.bound(`an|${t.id}|`, `an|${t.id}|\uffff`));
+  return new Map(rs.map(r => [+r.k.slice(r.k.lastIndexOf('|') + 1), r.v]));
+}
+// tapping the grammar line beneath a word: all its readings, grouped by lemma
+async function anaMenu(i) {
+  const tk = S.tokens.find(t => t.t === 'w' && t.i === i); if (!tk) return;
+  const A = await analyses(tk.s); if (!A.lemmas.length) return;
+  const rows = A.lemmas.map((x, li) => `<div class="anagrp"><div class="anal">${esc(x.lemma)}</div>` + x.ana.map((a, ai) =>
+    `<button type="button" class="ana${x.lemma === tk.lemma && a === tk.ana ? ' on' : ''}" data-v="a:${li}:${ai}">${x.q?.[ai] ? `<span class="qf">${esc(x.q[ai])}</span> ` : ''}${esc(gramText([a]) || a)}</button>`).join('') + '</div>').join('');
+  const r = await dialog(`<h3>${esc(tk.s)}</h3><p class="hint">Choose the reading of this word.</p><div class="anamenu">${rows}</div>`,
+    [...(S.tokCh.has(i) ? [['reset', 'Back to default']] : []), ['cancel', 'Cancel']]);
+  if (r.action.startsWith('a:')) { const [, li, ai] = r.action.split(':').map(Number); await setTokChoice(i, A.lemmas[li].lemma, A.lemmas[li].ana[ai]); }
+  else if (r.action === 'reset') await setTokChoice(i, null);
+}
 const classifyTokens = resolveTokens;
 
 // ---------------------------------------------------------------- package import
@@ -320,7 +392,7 @@ async function analyses(form, choices = null, bmap = null) {
     x.ana.push(a);
   }
   const pick = choice?.lemma || r?.p || lemmas[0]?.lemma || null;
-  return { f, lemmas, pick, chosen: !!choice };
+  return { f, lemmas, pick, chosen: !!choice, ana: choice?.ana || null };
 }
 // ---- Latin: analysis as in Collatinus – a form is a radical of a lemma + an ending of the lemma's inflection model
 function latAnalyzeKeyC(E, k) {         // Collatinus
@@ -440,7 +512,7 @@ async function latAnalyses(form, choices) {
     const fq = latFreq(E, li); if (fq > bestN) { bestN = fq; best = l; }    // the more frequent lemma first
   }
   lemmas.sort((a, b) => (a.lemma === best ? -1 : b.lemma === best ? 1 : 0));
-  return { f, lemmas, pick: choice?.lemma || best || null, chosen: !!choice };
+  return { f, lemmas, pick: choice?.lemma || best || null, chosen: !!choice, ana: choice?.ana || null };
 }
 async function entriesFor(k, lang = 'grc') {
   const by = {};
@@ -534,7 +606,7 @@ function renderText() {
     const nx = toks[n + 1]; let pu = '';
     if (nx && nx.t === 'p') { const m = nx.s.match(/^[^\sͰ-Ͽἀ-῿A-Za-zÀ-ɏ]+/); if (m) { pu = m[0]; nx.glued = pu.length; } }
     if (S.marker === tk.i) html += '<span class="mkr" title="Marker"></span>';
-    html += `<span class="w${covered.has(tk.i) ? ' glossed' : ''}${tk.pos ? ' p-' + tk.pos : ''}" data-i="${tk.i}"><span class="g">${esc(S.latQuant && tk.q ? tk.q : tk.s)}${pu ? `<span class="pu">${esc(pu)}</span>` : ''}</span><span class="gm">${esc(tk.gram || '')}</span><span class="gl"${glW(gs)}>${gs}</span></span>`;
+    html += `<span class="w${covered.has(tk.i) ? ' glossed' : ''}${tk.pos ? ' p-' + tk.pos : ''}" data-i="${tk.i}"><span class="g">${esc(S.latQuant && tk.q ? tk.q : tk.s)}${pu ? `<span class="pu">${esc(pu)}</span>` : ''}</span><span class="gm${tk.amb && !tk.anaSet ? ' amb' : ''}">${esc(tk.gram || '')}</span><span class="gl"${glW(gs)}>${gs}</span></span>`;
   }
   const w = S.text.work, bi = S.text.bi;
   const bn = w && w.books.length > 1 ? `<div class="booknav">${bi > 0 ? `<button type="button" data-step="-1">◂ ${esc(w.books[bi - 1])}</button>` : '<span></span>'}${bi < w.books.length - 1 ? `<button type="button" data-step="1">${esc(w.books[bi + 1])} ▸</button>` : ''}</div>` : '';
@@ -572,10 +644,12 @@ async function openText(id, scroll = true) {
   const t = id == null ? null : isBook(id) ? await loadBook(id) : await get('texts', id);
   S.text = t || null; S.cur = null;
   S.tokens = t ? (t.blocks ? tokenizeBlocks(t.blocks) : tokenize(t.text)) : [];
+  if (t?.ann && t.work?.annL) applyAnnotation(t);
   S.marker = t ? (await setting('mk|' + t.id)) ?? null : null;
   if (t?.work) { await setting('wk|' + t.work.id, t.bi); S.opened = (await setting('opened')) || {}; S.opened[t.work.id] = Date.now(); await setting('opened', S.opened); }
   titleBar();
   S.glosses = t ? await req2p(tx('glosses').objectStore('glosses').index('textId').getAll(t.id)) : [];
+  S.tokCh = await loadTokCh(t);
   renderText();
   if (scroll) { S.tGuard = null; const y = t ? await setting('pos|' + t.id) : 0; $('#textPane').scrollTop = y || 0; }
   if (t) await setting('currentText', t.id);
@@ -890,7 +964,8 @@ async function renderView() {
   if (!S.dicts.length) { body.innerHTML = '<p class="hint">No dictionaries installed yet. Open the menu ☰ → Dictionaries and import the packages (*.gdpkg.gz).</p>'; S.dictRendering = false; return; }
   const lang = langOf(v.form);
   const A = await analyses(v.form);
-  const lemma = v.lemma || A.pick || v.form;
+  const tk = v.ti != null ? S.tokens.find(t => t.t === 'w' && t.i === v.ti) : null;      // a word of the text: its own reading
+  const lemma = v.lemma || tk?.lemma || A.pick || v.form;
   v.pick = lemma;
   const k = gkey(lemma);
   v.key = k;
@@ -900,6 +975,12 @@ async function renderView() {
   if (A.lemmas.length) {
     const anaHTML = x => x.ana.slice(0, 4).map((a, i) => (x.q?.[i] ? `<span class="qf">${esc(x.q[i])}</span> ` : '') + esc(a)).join(' · ');
     h += '<div class="anas">' + A.lemmas.map(x => `<button class="chip${x.lemma === lemma ? ' on' : ''}" data-lemma="${esc(x.lemma)}"><b>${esc(x.lemma)}</b><small>${anaHTML(x)}${x.ana.length > 4 ? ' …' : ''}</small></button>`).join('') + '</div>';
+    // the analyses of the chosen lemma: one of them is this word's reading (tap to choose it)
+    if (tk && px && px.lemma === tk.lemma && (px.ana.length > 1 || A.lemmas.length > 1)) {
+      v.anaList = px.ana;
+      h += '<div class="anarows">' + px.ana.map((a, i) => `<button class="ana${a === tk.ana ? ' on' : ''}${a === tk.ana && !tk.anaSet && tk.amb ? ' amb' : ''}" data-ana="${i}">${px.q?.[i] ? `<span class="qf">${esc(px.q[i])}</span> ` : ''}${esc(gramText([a]) || a)}</button>`).join('')
+        + (S.tokCh?.has(tk.i) ? '<button class="anareset" data-anareset="1">↺ default</button>' : '') + '</div>';
+    }
     if (A.lemmas.length > 1) h += `<div class="pin">${A.chosen && A.pick === lemma ? '★ default for this form' : `<button data-pin="${esc(lemma)}">★ always use ${esc(lemma)} for “${esc(A.f)}”</button>`}</div>`;
   } else if (lang === 'la' ? S.latMorph : S.morph) {
     h += '<p class="note">Form not found in the morphological analysis – looking up the form itself.</p>';
@@ -1390,6 +1471,7 @@ async function backupDialog() {
   const data = { format: 'greekdict-backup-1', date: new Date().toISOString(), texts: await getAll('texts'), glosses: await getAll('glosses'), choices: await getAll('choices'), lemmaGlosses: S.lemmaGloss,
     highlights: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('hl|', 'hl|\uffff'))).map(r => [r.k.slice(3), r.v])),
     markers: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('mk|', 'mk|\uffff'))).map(r => [r.k.slice(3), r.v])),
+    readings: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('an|', 'an|\uffff'))).map(r => [r.k.slice(3), r.v])),
     favourites: (await setting('favs')) || {},
     prefs: { theme: document.documentElement.dataset.theme, posCfg: S.posCfg, posOn: S.posOn, showGloss: !document.body.classList.contains('nogloss'),
       glossMode: S.glossMode, latQuant: S.latQuant, gramBtn: S.gramBtn, showGram: S.gram } };
@@ -1408,6 +1490,7 @@ async function restoreBackup(file) {
   for (const [k, t] of Object.entries(data.lemmaGlosses || {})) { S.lemmaGloss[k] = t; await setting('lg|' + k, t); }
   for (const [k, r] of Object.entries(data.highlights || {})) await setting('hl|' + k, r);
   for (const [k, r] of Object.entries(data.markers || {})) await setting('mk|' + k, r);
+  for (const [k, r] of Object.entries(data.readings || {})) await setting('an|' + k, r);
   if (data.favourites) { S.favs = Object.assign((await setting('favs')) || {}, data.favourites); await setting('favs', S.favs); }
   const p = data.prefs;                           // colours and display settings
   if (p) {
@@ -1729,6 +1812,7 @@ const ACKS = [
   ['Greek dictionaries and analysis', [
     ['Eulexis (Ph. Roelli, Chaeréphon / A. Charbonnet, J.-P. Woitrain, Ph. Verkerk)', 'https://github.com/PhVerkerk/Eulexis_off_line', 'W. Pape, Handwörterbuch der griechischen Sprache (3rd ed. 1914); Liddell–Scott–Jones, A Greek–English Lexicon (9th ed.); Greek word-form analyses', 'GNU GPL v3'],
     ['Morpheus (Perseus Project) and Diogenes', 'https://github.com/perseids-tools/morpheus', 'origin of the Greek morphological analyses in Eulexis', 'GPL'],
+    ['GLAUx – the Greek corpus of Leuven (Alek Keersmaekers)', 'https://github.com/alekkeersmaekers/glaux', 'the reading of each word in context (lemma and grammatical form) for the Greek library texts – automatic analysis, partly manually checked treebanks', 'CC BY-SA 4.0 (some texts CC BY-NC-SA)'],
     ['Universal Dependencies – Ancient Greek PROIEL treebank', 'https://github.com/UniversalDependencies/UD_Ancient_Greek-PROIEL', 'preferred lemmata and word classes', 'CC BY-NC-SA 4.0'],
     ['Universal Dependencies – Ancient Greek Perseus treebank', 'https://github.com/UniversalDependencies/UD_Ancient_Greek-Perseus', 'preferred lemmata and word classes', 'CC BY-NC-SA 2.5']]],
   ['Latin dictionaries and analysis', [
@@ -1777,6 +1861,13 @@ function wire() {
       return openGlossField(dg ? 'def' : 'span');
     }
     const st = ev.target.closest('[data-step]'); if (st) return stepBook(+st.dataset.step);
+    const gm = ev.target.closest('.w>.gm');
+    if (gm && document.body.classList.contains('gram') && gm.textContent) {
+      const i = +gm.parentElement.dataset.i; S.curHidden = false; S.cur = [i, i]; markTarget();
+      const tk = S.tokens.find(t => t.t === 'w' && t.i === i);
+      S.hist = []; S.view = null; showWord(tk.s, { ti: i });
+      return anaMenu(i);
+    }
     const w = ev.target.closest('.w');
     if (!w) { if (!String(window.getSelection())) { S.curHidden = true; markTarget(); } return; }
     S.curHidden = false;
@@ -1786,9 +1877,14 @@ function wire() {
     S.hist = []; S.view = null; await showWord(tk.s, { ti: i });
   });
   $('#dictBody').addEventListener('click', async ev => {
-    const chip = ev.target.closest('.chip'); if (chip) { S.view.lemma = chip.dataset.lemma; return renderView(); }
+    const chip = ev.target.closest('.chip');
+    if (chip) { if (S.view.ti != null && S.text) return setTokChoice(S.view.ti, chip.dataset.lemma, null); S.view.lemma = chip.dataset.lemma; return renderView(); }
+    const an = ev.target.closest('[data-ana]');
+    if (an && S.view.ti != null) return setTokChoice(S.view.ti, S.view.pick, S.view.anaList[+an.dataset.ana]);
+    if (ev.target.closest('[data-anareset]') && S.view.ti != null) return setTokChoice(S.view.ti, null);
     const pin = ev.target.closest('[data-pin]');
-    if (pin) { await put('choices', { f: canon(S.view.form), lemma: pin.dataset.pin }); S.view.lemma = null; const f0 = canon(S.view.form); resetTokens(tk => canon(tk.s) === f0); await renderView(); resolveTokens(); renderText(); return; }
+    if (pin) { const tk = S.view.ti != null ? S.tokens.find(t => t.t === 'w' && t.i === S.view.ti) : null;
+      await put('choices', Object.assign({ f: canon(S.view.form), lemma: pin.dataset.pin }, tk?.anaSet && tk.lemma === pin.dataset.pin ? { ana: tk.ana } : {})); S.view.lemma = null; const f0 = canon(S.view.form); resetTokens(tk => canon(tk.s) === f0); await renderView(); resolveTokens(); renderText(); return; }
     const gw = ev.target.closest('.gw');
     if (gw && !String(window.getSelection())) return showWord(gw.textContent, { openDict: gw.closest('details.src')?.dataset.d });
   });
@@ -2015,9 +2111,10 @@ async function installWork(file, version) {
   if (p.format !== 'greekdict-work-1') throw new Error('not a text package');
   const d = await libDB(); const t = d.transaction(['works', 'books'], 'readwrite'); const bs = t.objectStore('books');
   bs.delete(IDBKeyRange.bound(p.id + '|', p.id + '|￿'));
-  p.books.forEach((b, i) => bs.put({ k: p.id + '|' + i, blocks: b.blocks }));
+  p.books.forEach((b, i) => bs.put(Object.assign({ k: p.id + '|' + i, blocks: b.blocks }, b.ann ? { ann: b.ann } : {})));
   t.objectStore('works').put({ id: p.id, author: p.author, authorId: p.authorId, title: p.title, greek: p.greekTitle, edition: p.edition,
-    source: p.source, license: p.license, books: p.books.map(b => b.label), version, size: info.size, added: Date.now() });
+    source: p.source, license: p.license, books: p.books.map(b => b.label), version, size: info.size, added: Date.now(),
+    ...(p.annL ? { annL: p.annL, annSrc: p.annSrc } : {}) });
   await done(t);
 }
 async function deleteWork(id) {   // glosses and markers are kept, so they come back when the work is downloaded again
@@ -2031,7 +2128,7 @@ async function loadBook(id) {      // id = "w:<work id>:<book index>"
   const j = id.lastIndexOf(':'), wid = id.slice(2, j), bi = +id.slice(j + 1);
   const work = await libGet('works', wid); if (!work) return null;
   const b = await libGet('books', wid + '|' + bi); if (!b) return null;
-  return { id, work, bi, blocks: b.blocks, title: `${work.title} · ${work.books[bi]}` };
+  return { id, work, bi, blocks: b.blocks, ann: b.ann, title: `${work.title} · ${work.books[bi]}` };
 }
 async function openWork(id, bi) {
   if (bi == null) bi = (await setting('wk|' + id)) ?? 0;
