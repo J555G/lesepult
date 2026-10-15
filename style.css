@@ -722,3 +722,37 @@ dialog .ggrp .gitems .sopt{font-size:13.5px}
 body.gram #textBody .w>.g{line-height:1.2}
 body.gram #textBody .w>.gm:not(:empty){margin-top:.05em;line-height:1.15}
 body.gram #textBody .w{padding-bottom:.55em}
+/* title: work › part › current section (the arrows are gone, so there is more room) */
+#textTitle{max-width:34vw}
+#textTitle .ts{flex:none;color:var(--acc);font-weight:700}
+#textTitle .ts:empty{display:none}
+#textTitle .ts .sep,#textTitle .tb .sep{color:var(--mut);font-weight:400}
+@media (max-width:700px){#textTitle{max-width:40vw}#textTitle .tb{display:none}}
+/* navigation menu */
+dialog.navdlg[open]{margin-top:max(8px,env(safe-area-inset-top));max-height:calc(100dvh - max(8px,env(safe-area-inset-top)) - 12px)}
+dialog .navh{font:600 13px var(--ui);color:var(--mut);margin:.5rem 0 .3rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+dialog .navh small{font-weight:400}
+dialog .navh .opart{font-size:12.5px;padding:.2rem .6rem}
+dialog .navsec{margin:.2rem 0 .5rem}
+dialog .navrec{display:flex;flex-direction:column;gap:.3rem}
+dialog .recrow{display:flex;justify-content:space-between;align-items:baseline;gap:.6rem;text-align:left;padding:.4rem .6rem;font:15px var(--greek)}
+dialog .recrow small{font:12px var(--ui);color:var(--mut)}
+dialog .recrow>small{flex:none;color:var(--acc)}
+dialog .navgo{display:flex;gap:.4rem;align-items:center;margin:.3rem 0 .5rem;flex-wrap:wrap}
+dialog .navgo input{flex:1 1 12rem;min-width:0;border:1px solid var(--line);border-radius:8px;padding:.45rem .6rem;background:var(--bg);color:var(--fg);font:16px var(--greek)}
+dialog .navgo .seg button{padding:.35rem .7rem;font-size:13px}
+dialog .bookgrid button.cur{border-color:var(--acc);border-width:2px}
+dialog .secs{display:flex;flex-direction:column;gap:.25rem;max-height:34vh;overflow:auto;padding:.1rem 0 .3rem;border-bottom:1px solid var(--line)}
+dialog .secs .sg{display:flex;flex-wrap:wrap;gap:.25rem;align-items:center}
+dialog .secs .sgk{font:700 13px var(--ui);color:var(--fg);min-width:2.6rem;margin-right:.15rem}
+dialog .secs button{min-width:34px;min-height:32px;padding:.15rem .4rem;font:14px var(--greek)}
+dialog .fres{display:flex;flex-direction:column;max-height:40vh;overflow:auto;border-top:1px solid var(--line)}
+dialog .fr{display:flex;gap:.6rem;align-items:baseline;text-align:left;border:0;border-bottom:1px solid var(--line);border-radius:0;background:none;padding:.4rem .2rem;font:15px/1.4 var(--greek)}
+dialog .fr .frl{flex:none;min-width:4.5rem;font:12px var(--ui);color:var(--acc)}
+dialog .fr .frc b{color:var(--acc);background:var(--hl)}
+dialog .secs button.sgk{font:700 13px var(--ui);min-width:2.6rem;border-color:transparent;background:none;color:var(--fg);text-align:left;padding:.15rem .3rem}
+dialog .secs button.sgk.on{background:var(--acc);color:var(--bg)}
+dialog .secs .sg{flex-wrap:nowrap;align-items:flex-start}
+dialog .secs .sgk{flex:none}
+dialog .secs .sgi{display:flex;flex-wrap:wrap;gap:.25rem;flex:1;min-width:0}
+dialog .secs .sgi:empty{display:none}
