@@ -229,6 +229,7 @@ async function resolveTokens1(run) {
     tk.pos = posOf(l, R.a ? [R.a] : x?.ana);          // word class of the chosen reading
     tk.q = x?.q ? (x.q[R.ai] || qCommon(x.q)) : null; // Latin: the vowel quantities of the chosen reading
     tk.gram = gramText(R.a ? [R.a] : x?.ana);          // grammatical information beneath the word: only the chosen reading
+    const ic = indeclClass(tk, l, tk.gram); if (ic) { tk.pos = ic[0]; tk.gram = ic[1]; }
     const el = S.wordEls?.[tk.i];          // words are numbered in document order (a selector per word is slow in long books)
     if (el) { el.className = el.className.replace(/\s*\bp-\S+/g, ''); el.classList.add('p-' + tk.pos); }
     if (el) { const gm = el.querySelector('.gm'); if (gm) { gm.textContent = tk.gram || ''; gm.classList.toggle('amb', !!tk.amb && !tk.anaSet); } }
@@ -2325,8 +2326,25 @@ function setGram(on, save) {
 }
 function applyTopButtons() { $('#btnGram').hidden = !S.gramBtn; }
 // "nom sg", "voc sg", "abl sg" -> "nom/voc/abl sg"; otherwise the first reading and how many more
+// words that do not inflect: the grammar line names their word class, and their colour follows the same class.
+// Order: the treebank reading of this very passage (GLAUx), then the analysis itself (Greek: conj, prep, particle …),
+// then the usual class of the lemma (Latin analyses only say "indecl"; Greek ones call e.g. ἀλλά an adverb)
+const INDECL_RE = /^(?:indecl|adverb|conj|prep|particle|exclam|numeral)(?:\/(?:adverb|conj|prep|particle|exclam))*$/;
+const INDECL_LAB = { adv: 'adverb', prep: 'prep', conj: 'conj', ptcl: 'particle', num: 'numeral' };
+const CTX_POS = { c: ['conj', 'conj'], d: ['adv', 'adverb'], g: ['ptcl', 'particle'], r: ['prep', 'prep'], i: ['ptcl', 'exclam'] };
+function indeclClass(tk, lemma, g) {
+  const m = (g || '').match(/^(.*?)( \+ -\w+)$/);                // Latin enclitic: "indecl + -que"
+  if (m) { const r = indeclClass(tk, lemma, m[1]); return r && [r[0], r[1] + m[2]]; }
+  if (!g || !INDECL_RE.test(g)) return null;
+  if (tk.ctx && lemma && gkey(tk.ctx.l) === gkey(lemma) && CTX_POS[tk.ctx.t?.[0]]) return CTX_POS[tk.ctx.t[0]];
+  const one = { conj: 'conj', prep: 'prep', particle: 'ptcl', exclam: 'ptcl' }[g];
+  if (one && tk.pos !== 'ptcl') return [one, g];
+  if (INDECL_LAB[tk.pos]) return [tk.pos, INDECL_LAB[tk.pos]];
+  return g === 'indecl' ? [tk.pos, 'indeclinable'] : null;
+}
 function gramText(anas) {
-  const clean = a => a.replace(/\b(pro|en)clitic\s+/g, '').replace(/indeclform\s*\((\w+)\)/, '$1').replace(/\s*\((?:attic|epic|doric|ionic|aeolic|homeric|poetic|later|late|koine|contr|unaugmented|[a-z]+ [a-z ]*)\)/gi, '').replace(/\s+/g, ' ').trim();
+  const clean = a => a.replace(/\b(pro|en)clitic\s+/g, '').replace(/^(?:(?:attic|epic|doric|ionic|aeolic|homeric|poetic|later|late|koine|contr|unaugmented)\s+)+(?=\(?indeclform)/i, '')
+    .replace(/^\(\s*indeclform\s+(\w+)\s*\)$/, '$1').replace(/indeclform\s*\((\w+)\)/, '$1').replace(/indeclform\s+(\w+)/, '$1').replace(/\s*\((?:attic|epic|doric|ionic|aeolic|homeric|poetic|later|late|koine|contr|unaugmented|[a-z]+ [a-z ]*)\)/gi, '').replace(/\s+/g, ' ').trim();
   const as = [...new Set((anas || []).map(clean).filter(Boolean))];
   if (as.length < 2) return as[0] || '';
   const t = as.map(a => a.split(' '));
