@@ -719,7 +719,10 @@ function wrapGreek(root) {      // make every Greek word in entries tappable
 }
 async function renderEntryHTML(e, depth = 0, seen = new Set()) {
   seen.add(e.d + ':' + e.i);
-  let h = `<div class="ent">${e.d === 'frisk' ? '' : `<div class="hw">${esc(e.h)}</div>`}<div class="eb" data-hl="${e.d}:${e.i}">${normalizeHTML(e.html)}</div>`;
+  // the headword line is added only where the entry does not begin with its own (the Latin dictionaries keep theirs,
+  // with vowel lengths and variants: "āh or ā")
+  const own = e.d === 'frisk' || /^\s*(?:<div class="hw">|<div class="ent-la">\s*<b class="hw-o">)/.test(e.html);
+  let h = `<div class="ent">${own ? '' : `<div class="hw">${esc(e.h)}</div>`}<div class="eb" data-hl="${e.d}:${e.i}">${normalizeHTML(e.html)}</div>`;
   if (e.r && depth < 3) {
     for (const ref of e.r) {
       if (seen.has(e.d + ':' + ref[1])) continue;
