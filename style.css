@@ -54,10 +54,8 @@ button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
 .w>.gl:empty{display:none}
 .w.cur>.g{background:var(--hl)}
 .w.rng>.g{background:var(--sel)}
-.w.glossed>.g{text-decoration:underline dotted var(--gloss);text-underline-offset:4px}
 .w>.gl span{display:block;cursor:pointer}
 body.nogloss .w>.gl{display:none}
-body.nogloss .w.glossed>.g{text-decoration:none}
 .pun{white-space:pre-wrap}
 .hint{color:var(--mut);font-family:var(--ui);font-size:15px}
 /* ---------- dictionary ---------- */
