@@ -1171,6 +1171,8 @@ function dialog(inner, buttons = [['ok', 'OK']], defaultAction = null) {
   });
 }
 // a short explanation that appears only when its ⓘ is tapped
+// a control with its ⓘ on the same line (the explanation opens below both)
+const withInfo = (ctl, t) => `<span class="cinl">${ctl}${info(t)}</span>`;
 const info = t => `<button type="button" class="info" data-info aria-label="Explanation" aria-expanded="false">ⓘ</button><span class="infot" hidden>${t}</span>`;
 // ☰ → Import text: paste a text or load a file (.txt, .odt, .docx), with its details; imported texts are listed in the Library
 const LANG_OPTS = [['', 'Detect'], ['grc', 'Greek'], ['la', 'Latin']];
@@ -1321,7 +1323,7 @@ async function dictsDialog() {
   const tools = [S.morphInst && [S.morphInst, 'Greek: lemma and form for every word', `${S.morphInst.count.toLocaleString('en')} forms${sizeOf(S.morphInst)}`],
                  S.hintsInst && [S.hintsInst, 'Greek: preferred lemma for ambiguous forms; word classes for the colours', ''],
                  ...S.latMorphs.map(d => [d, 'Latin: lemma and form for every word (choose one below)', `${d.count.toLocaleString('en')} lemmata${sizeOf(d)}`])].filter(Boolean)
-    .map(([d, what, sub]) => `<div class="item toolrow"><span class="grip ph" aria-hidden="true">⠿</span>${onBox(d.id, 'tool')}<span class="t"><b>${esc(d.name)}</b> <small>${esc(what)}</small><br><small>${sub ? sub + ' · ' : ''}${esc(d.source || '')}</small></span>${repoBtn(d.id)}${delBtn(d.id)}</div>`).join('');
+    .map(([d, what, sub]) => `<div class="item toolrow"><span class="grip ph" aria-hidden="true">⠿</span>${onBox(d.id, 'instrument')}<span class="t"><b>${esc(d.name)}</b> <small>${esc(what)}</small><br><small>${sub ? sub + ' · ' : ''}${esc(d.source || '')}</small></span>${repoBtn(d.id)}${delBtn(d.id)}</div>`).join('');
   const missT = Object.values(remote).filter(p => !S.installed[p.id] && p.kind !== 'dictionary').map(missingRow).join('');
   let est = '', pers = '';
   try { const e = await navigator.storage?.estimate?.(); if (e) est = `The app uses ${(e.usage / 1e6).toFixed(0)} MB on this device`; } catch (_) { }
@@ -1331,11 +1333,11 @@ async function dictsDialog() {
     ${Object.entries(LANGS).map(([lang, name]) => { const rs = rowsFor(lang), ms = missFor(lang);
       return `<section class="dsec"><h4>${name} dictionaries ${info('Drag ⠿ to change the order · untick to hide · ▸/▾ folded or unfolded when a word is looked up.')}</h4>
       <div class="list plain dictlist">${rs || ms ? rs + ms : `<p class="hint">No ${name} dictionaries installed.</p>`}</div></section>`; }).join('')}
-    <section class="dsec"><h4>Analysis tools ${info('Untick a tool to switch it off. The language of each word follows from its alphabet.')}</h4>
-      <div class="list plain">${tools || missT ? tools + missT : '<p class="hint">No analysis tools installed.</p>'}</div>
+    <section class="dsec"><h4>Analysis instruments ${info('Untick an instrument to switch it off. The language of each word follows from its alphabet.')}</h4>
+      <div class="list plain">${tools || missT ? tools + missT : '<p class="hint">No analysis instruments installed.</p>'}</div>
       <div class="srow"><span class="sl">Greek analysis</span><div class="sc">${langToolSel('grc')}</div></div>
       <div class="srow"><span class="sl">Latin analysis</span><div class="sc">${langToolSel('la')}</div></div>
-      <div class="srow"><span class="sl">Vowel lengths</span><div class="sc"><label class="sopt"><input type="checkbox" data-set="latQuant"${S.latQuant ? ' checked' : ''}> Mark them in Latin texts (ā long, ă short)</label> ${info('From Collatinus (also needed with Whitaker’s Words). Where a form has several readings, only the lengths they share are marked.')}</div></div></section>
+      <div class="srow"><span class="sl">Vowel lengths</span><div class="sc">${withInfo(`<label class="sopt"><input type="checkbox" data-set="latQuant"${S.latQuant ? ' checked' : ''}> Mark them in Latin texts (ā long, ă short)</label>`, 'From Collatinus (also needed with Whitaker’s Words). Where a form has several readings, only the lengths they share are marked.')}</div></div></section>
     ${man ? '' : '<p class="hint">The website could not be reached (offline?) – download buttons are not available right now. Everything already installed works offline.</p>'}
     <section class="dsec"><h4>Private dictionaries <small>${privState}</small></h4>
       <p class="hint small">Dictionaries that may not be published can be downloaded from a private GitHub repository. ${info('<b>Repository:</b> owner and name of the private repository. <b>Token:</b> a GitHub fine-grained personal access token with access to that repository only and the permission “Contents: Read-only”; it is stored only on this device.<br><b>Format:</b> the repository contains dictionary packages (<code>*.gdpkg.gz</code>, format <code>greekdict-pkg-2</code>, as made by the toolkit’s <code>python gd.py packages</code>) and a <code>packages.json</code> next to them that lists them (id, file, name, kind, bytes, version) – the same layout as the app’s public <code>packages</code> folder.')}</p>
@@ -1423,11 +1425,11 @@ async function settingsDialog() {
   await dialog(`<h3>Settings</h3>
     <section class="dsec"><h4>Appearance</h4>
       ${row('Theme', sw('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']]))}
-      ${row('Top bar', cb('gramBtn', S.gramBtn, 'Grammar button') + ' ' + info('Shows the grammatical information beneath each word.'))}
+      ${row('Top bar', withInfo(cb('gramBtn', S.gramBtn, 'Grammar button'), 'Shows the grammatical information beneath each word.'))}
       <details class="scol"${S.colOpen ? ' open' : ''}><summary>Word-class colours ${info('Used by the “Colours” button in the top bar (hold that button to open this list directly). Word classes follow the reading chosen for each word.')}</summary>
         <div class="list plain">${posRows}</div><div class="row" style="justify-content:flex-start"><button type="button" data-posreset="1">Reset colours</button></div></details></section>
     <section class="dsec"><h4>Glosses</h4>
-      ${row('Own gloss', sw('glossMode', S.glossMode === 'both' ? 'both' : 'replace', [['replace', 'Replaces default'], ['both', 'Show both']]) + ' ' + info('A word can have its own gloss; its lemma can have a default gloss that applies everywhere.'))}</section>
+      ${row('Own gloss', withInfo(sw('glossMode', S.glossMode === 'both' ? 'both' : 'replace', [['replace', 'Replaces default'], ['both', 'Show both']]), 'A word can have its own gloss; its lemma can have a default gloss that applies everywhere.'))}</section>
     <section class="dsec"><h4>About</h4>
       ${row('Version', `Pult · version ${ver}`)}</section>`,
     [['cancel', 'Close']]);
@@ -2043,8 +2045,12 @@ function wire() {
   });
   $('#btnPos').onclick = async () => { if (S.posHeld) { S.posHeld = false; return; } S.posOn = !S.posOn; await setting('posOn', S.posOn); applyPosColors(); };
   { let t = null; const bp = $('#btnPos');          // hold the Colours button: the list of word-class colours
-    bp.addEventListener('pointerdown', () => { S.posHeld = false; clearTimeout(t); t = setTimeout(() => { S.posHeld = true; posDialog(); }, 550); });
-    for (const e of ['pointerup', 'pointercancel', 'pointerleave']) bp.addEventListener(e, () => clearTimeout(t));
+    bp.addEventListener('pointerdown', () => { S.posHeld = false; clearTimeout(t); t = setTimeout(() => { S.posHeld = true; bp.classList.add('held'); }, 550); });
+    bp.addEventListener('pointerup', () => {           // opened only when the finger is lifted: nothing beneath it gets selected
+      clearTimeout(t); if (!S.posHeld) return; bp.classList.remove('held');
+      setTimeout(() => { window.getSelection()?.removeAllRanges(); posDialog(); setTimeout(() => window.getSelection()?.removeAllRanges(), 60); }, 30);
+    });
+    for (const e of ['pointercancel', 'pointerleave']) bp.addEventListener(e, () => { clearTimeout(t); bp.classList.remove('held'); });
     bp.addEventListener('contextmenu', e => e.preventDefault()); }
 
   $('#btnSplit').onclick = cycleSplit;

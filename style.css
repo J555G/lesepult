@@ -643,3 +643,7 @@ details.scol .posrow{padding:.2rem 0}
 /* This Pult */
 .pultlist .item{padding:.35rem 0}
 .pultlist .pv{color:var(--mut);font-variant-numeric:tabular-nums;text-align:right}
+dialog .cinl{display:inline-flex;align-items:center;flex-wrap:wrap;gap:.1rem .35rem}
+dialog .cinl>.infot{flex-basis:100%}
+#btnPos{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#btnPos.held{background:var(--acc);color:var(--bg)}
