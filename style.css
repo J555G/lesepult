@@ -179,8 +179,10 @@ dialog .opt input{margin-right:.4rem}
   #dictBody,#listBody{padding-left:.8rem;padding-top:18px}
 }
 
-mark.hl{background:rgba(255,210,0,.45);color:inherit;border-radius:2px;padding:0 .5px}
-:root[data-theme=dark] mark.hl{background:rgba(230,190,40,.38)}
+/* highlight: nothing that changes the layout (no horizontal padding); opaque and 1px taller above and below,
+   so that neighbouring lines meet without a gap and without a darker overlap stripe */
+mark.hl{background:color-mix(in srgb,rgb(255,210,0) 45%,var(--bg));color:inherit;border-radius:0;padding:1px 0;margin:0;-webkit-box-decoration-break:slice;box-decoration-break:slice}
+:root[data-theme=dark] mark.hl{background:color-mix(in srgb,rgb(230,190,40) 38%,var(--bg))}
 body.hlmode #dictBody .eb{cursor:text;-webkit-user-select:text;user-select:text}
 body.hlmode #dictBody .gw{cursor:text}
 

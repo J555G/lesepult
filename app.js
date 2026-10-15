@@ -744,11 +744,17 @@ function offsetIn(root, node, off) {          // character offset of (node, off)
   }
   return n;
 }
+// a space between two inline elements (e.g. two Greek words) is highlighted too, otherwise the highlight has gaps;
+// whitespace between blocks is left alone
+function inlineGap(t) {
+  const inl = n => !n || n.nodeType === 3 || /^inline/.test(getComputedStyle(n).display);
+  return inl(t.previousSibling) && inl(t.nextSibling) && /^inline|^block|^list|^table-cell/.test(getComputedStyle(t.parentElement).display);
+}
 function wrapRange(root, start, end, idx) {
   let n = 0;
   for (const t of textNodes(root)) {
     const len = t.nodeValue.length, a = Math.max(start, n), b = Math.min(end, n + len);
-    if (a < b && t.nodeValue.trim()) {
+    if (a < b && (t.nodeValue.trim() || inlineGap(t))) {
       let mid = t; if (a > n) mid = t.splitText(a - n);
       if (b < n + len) mid.splitText(b - a);
       const m = document.createElement('mark'); m.className = 'hl'; m.dataset.r = idx;
