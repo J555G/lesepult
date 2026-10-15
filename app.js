@@ -939,6 +939,8 @@ function flushDictScroll() {
 function wireDictScroll() {
   const pane = $('#dictPane');
   pane.addEventListener('scroll', () => {
+    if (S.tabSw) return;                                     // switching between entry and Lemmata: not the reader's scrolling
+    if (!$('#listBody').hidden) { if (S.text) S.listScroll = { id: S.text.id, y: pane.scrollTop }; return; }   // the list's own position
     const v = S.view; if (!v || S.dictRendering || !v.skey) return;
     v.scroll = pane.scrollTop; v.scrollL = v.pick;
     S.scPend = v; clearTimeout(S.scT); S.scT = setTimeout(flushDictScroll, 300);
@@ -1019,7 +1021,7 @@ async function renderView() {
   if (y == null) { const st = await setting(v.skey); if (st && st.l === lemma) { y = st.y; v.scroll = y; v.scrollL = lemma; } }
   $('#dictPane').scrollTop = y || 0;
   S.lastRendered = v;
-  requestAnimationFrame(() => requestAnimationFrame(() => { if (S.view === v) S.dictRendering = false; }));
+  requestAnimationFrame(() => requestAnimationFrame(() => { if (S.view === v) S.dictRendering = false; S.tabSw = false; }));
 }
 async function saveOpenState() {   // remembered per lemma
   if (!S.view?.key) return;
@@ -1108,10 +1110,12 @@ async function vocabExportDialog() {
   await dialog(`<h3>Export ready</h3><p>${esc(name)} – ${rows.length} lemmata</p>`, [['link', 'Save file', { href, name }], ['cancel', 'Close']]);
   setTimeout(() => URL.revokeObjectURL(href), 60000);
 }
+function releaseTabSw() { requestAnimationFrame(() => requestAnimationFrame(() => { S.tabSw = false; clearTimeout(S.tabSwT); })); }
 function showTab(which) {
   // leaving the Lemmata list: remember where it was scrolled to (per text), for the way back
-  if (which !== 'list' && !$('#listBody').hidden && S.text) S.listScroll = { id: S.text.id, y: $('#dictPane').scrollTop };
-  if (which === 'list' && !$('#dictBody').hidden) S.entryY = $('#dictPane').scrollTop;      // and where the entry was
+  // the pane is shared: while one tab is swapped for the other, its scroll events must not be stored as a position
+  const cur = $('#listBody').hidden ? 'entry' : 'list';
+  if (cur !== which) { S.tabSw = true; clearTimeout(S.tabSwT); S.tabSwT = setTimeout(() => { S.tabSw = false; }, 1500); }
   $('#tabEntry').classList.toggle('on', which === 'entry'); $('#tabList').classList.toggle('on', which === 'list');
   $('#dictBody').hidden = which !== 'entry'; $('#listBody').hidden = which !== 'list';
 }
@@ -2098,12 +2102,16 @@ function wire() {
   window.visualViewport?.addEventListener('resize', () => { const g = S.tGuard; if (g && Date.now() <= g.until && !S.tTouch) requestAnimationFrame(() => applyTextAnchor(g.a)); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveReadPos(); });
   $('#btnFwd').onclick = goFwd;
-  $('#tabEntry').onclick = () => { if (!$('#dictBody').hidden) return; showTab('entry'); $('#dictPane').scrollTop = S.entryY || 0; };
+  $('#tabEntry').onclick = () => {
+    if (!$('#dictBody').hidden) return;
+    showTab('entry');
+    const y = S.view?.scroll || 0; $('#dictPane').scrollTop = y; requestAnimationFrame(() => { $('#dictPane').scrollTop = y; releaseTabSw(); });   // where this entry was left
+  };
   $('#tabList').onclick = async () => {
     if (!$('#listBody').hidden) return;
     showTab('list'); await renderList();
     const y = S.listScroll?.id === S.text?.id ? S.listScroll.y : 0;
-    $('#dictPane').scrollTop = y; requestAnimationFrame(() => { $('#dictPane').scrollTop = y; });
+    $('#dictPane').scrollTop = y; requestAnimationFrame(() => { $('#dictPane').scrollTop = y; releaseTabSw(); });
   };
   // when "Look up a word…" does not fit into the search box, a magnifying glass stands in for it
   { const sb = $('#search'), ph = sb.placeholder, cv = document.createElement('canvas').getContext('2d');
