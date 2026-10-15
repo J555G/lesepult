@@ -1028,23 +1028,85 @@ async function saveOpenState() {   // remembered per lemma
 }
 
 // ---------------------------------------------------------------- lemma list for the current text
-async function renderList() {
-  const lb = $('#listBody');
-  if (!S.text) { lb.innerHTML = '<p class="hint">No text open.</p>'; return; }
-  lb.innerHTML = '<p class="hint">Finding lemmata …</p>';
+// ---- Lemmata: the vocabulary of the open section, with the default glosses (editable here) and an export
+function vocabRows() {
   const map = new Map();
-  for (const tk of S.tokens) {
+  for (const tk of S.tokens || []) {
     if (tk.t !== 'w') continue;
-    const A = await analyses(tk.s);
-    const l = A.pick || canon(tk.s);
-    let x = map.get(l); if (!x) map.set(l, x = { lemma: l, pos: tk.i, forms: new Set(), n: 0, known: !!A.pick });
+    if (!tk.lemma && tk.s.length > 1 && tk.s === tk.s.toUpperCase()) continue;     // speaker labels (ΣΩ., ΦΑΙ.) and the like
+    const l = tk.lemma || canon(tk.s);
+    let x = map.get(l); if (!x) map.set(l, x = { lemma: l, key: gkey(l), pos: tk.i, forms: new Set(), n: 0, known: !!tk.lemma });
     x.forms.add(tk.s); x.n++;
   }
   const rows = [...map.values()];
-  if (S.listSort === 'alpha') rows.sort((a, b) => gkey(a.lemma).localeCompare(gkey(b.lemma), 'el') || a.lemma.localeCompare(b.lemma));
+  if (S.listSort === 'alpha') rows.sort((a, b) => a.key.localeCompare(b.key, 'el') || a.lemma.localeCompare(b.lemma));
+  else if (S.listSort === 'freq') rows.sort((a, b) => b.n - a.n || a.pos - b.pos);
   else rows.sort((a, b) => a.pos - b.pos);
-  lb.innerHTML = `<div class="lhead">${rows.length} lemmata · sort: <button data-sort="pos" class="${S.listSort === 'pos' ? 'on' : ''}">text order</button><button data-sort="alpha" class="${S.listSort === 'alpha' ? 'on' : ''}">alphabetical</button></div>` +
-    rows.map(r => `<div class="lrow" data-lemma="${esc(r.lemma)}" data-pos="${r.pos}"><b>${esc(r.lemma)}</b><span>${esc([...r.forms].join(', '))}</span><em>${r.n}×${r.known ? '' : ' ?'}</em></div>`).join('');
+  return rows;
+}
+async function renderList() {
+  const lb = $('#listBody');
+  if (!S.text) { lb.innerHTML = '<p class="hint">No text open.</p>'; return; }
+  const all = vocabRows(), none = all.filter(r => !S.lemmaGloss[r.key]).length;
+  const rows = S.listFilter === 'nogloss' ? all.filter(r => !S.lemmaGloss[r.key]) : all;
+  const chip = (attr, v, cur, l) => `<button data-${attr}="${v}" class="${cur === v ? 'on' : ''}">${l}</button>`;
+  const sort = S.listSort || 'pos', flt = S.listFilter || 'all';
+  lb.innerHTML = `<div class="lhead"><span class="ln">${all.length} lemmata · ${none} without gloss</span><button class="lexp" data-vexport="1">Export …</button></div>
+    <div class="lhead"><span class="seg2">${chip('filter', 'all', flt, 'All')}${chip('filter', 'nogloss', flt, 'No gloss')}</span>
+    <span class="seg2">${chip('sort', 'pos', sort, 'Text order')}${chip('sort', 'alpha', sort, 'A–Z')}${chip('sort', 'freq', sort, 'Frequency')}</span></div>`
+    + (rows.length ? rows.map(r => `<div class="lrow" data-lemma="${esc(r.lemma)}" data-pos="${r.pos}">
+      <div class="lw"><b>${esc(r.lemma)}</b><small>${esc([...r.forms].join(', '))} · ${r.n}×${r.known ? '' : ' · not analysed'}</small></div>
+      <textarea class="lg nofocus" rows="1" data-k="${esc(r.key)}" placeholder="– default gloss –" autocomplete="off" spellcheck="false">${esc(S.lemmaGloss[r.key] || '')}</textarea></div>`).join('')
+      : '<p class="hint">Every lemma of this section has a default gloss.</p>');
+  lb.querySelectorAll('textarea.lg').forEach(t => { if (t.value) autoGrow(t); });     // the empty ones are one line high anyway
+}
+async function saveListGloss(ta) {
+  const k = ta.dataset.k, t = cleanGloss(ta.value);
+  if ((S.lemmaGloss[k] || '') === t) return;
+  await setDefaultGloss(k, t);
+  const n = $('#listBody .ln'); if (n) n.textContent = `${vocabRows().length} lemmata · ${vocabRows().filter(r => !S.lemmaGloss[r.key]).length} without gloss`;
+  renderText();
+}
+async function vocabExportDialog() {
+  if (!S.text) return;
+  const O = S.vocabOpts ??= { fmt: 'pdf', only: false, forms: true };
+  const seg = (name, cur, opts) => `<div class="seg segr">${opts.map(([v, l]) => `<label><input type="radio" name="${name}" value="${v}"${v === cur ? ' checked' : ''}>${l}</label>`).join('')}</div>`;
+  const cb = (n, on, label) => `<label class="sopt"><input type="checkbox" name="${n}"${on ? ' checked' : ''}> ${label}</label>`;
+  const r = await dialog(`<h3>Export vocabulary</h3>
+    <p class="hint small">${esc(exportTitle())} – the lemmata as listed now (${S.listFilter === 'nogloss' ? 'only those without gloss' : 'all'}, ${({ alpha: 'A–Z', freq: 'by frequency' })[S.listSort] || 'in text order'}).</p>
+    <div class="srow"><span class="sl">Format</span><div class="sc">${seg('fmt', O.fmt, [['pdf', 'Printable list'], ['csv', 'Spreadsheet (CSV)'], ['anki', 'Anki flashcards']])}
+      <small class="sh">Printable list: the print dialog opens – choose “Save as PDF” (iPad: share icon → Save to Files). Anki: a text file; in Anki choose File → Import.</small></div></div>
+    <div class="srow"><span class="sl">Include</span><div class="sc">${cb('only', O.only, 'Only lemmata with a gloss')}${cb('forms', O.forms, 'Forms in the text and how often')}</div></div>`,
+    [['cancel', 'Cancel'], ['ok', 'Export']]);
+  if (r.action !== 'ok') return;
+  Object.assign(O, { fmt: r.data.fmt || 'pdf', only: r.data.only === 'on', forms: r.data.forms === 'on' });
+  let rows = vocabRows();
+  if (S.listFilter === 'nogloss') rows = rows.filter(x => !S.lemmaGloss[x.key]);
+  if (O.only) rows = rows.filter(x => S.lemmaGloss[x.key]);
+  if (!rows.length) return toast('No lemmata to export.');
+  const title = exportTitle(), gl = x => S.lemmaGloss[x.key] || '', fm = x => [...x.forms].join(', ');
+  if (O.fmt === 'pdf') {
+    const css = `.vx{font:11pt/1.35 "Gentium Book Plus",serif;color:#000}.vx h1{font-size:15pt;margin:0 0 .8em}
+      .vx table{border-collapse:collapse;width:100%}.vx td{padding:.25em .5em .25em 0;vertical-align:top;border-bottom:.5pt solid #ccc}
+      .vx td.l{font-weight:700;white-space:nowrap;width:1%}.vx td.f{font:8.5pt/1.3 Arial,sans-serif;color:#666;width:30%}.vx tr{break-inside:avoid}`;
+    const html = `<div class="vx"><h1>${esc(title)} – vocabulary</h1><table>${rows.map(x => `<tr><td class="l">${esc(x.lemma)}</td><td>${glossHTML(gl(x))}</td>${O.forms ? `<td class="f">${esc(fm(x))} · ${x.n}×</td>` : ''}</tr>`).join('')}</table></div>`;
+    return printHTML(html, css);
+  }
+  const q = v => /[",;\n\t]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+  let body, name, type;
+  const base = (title.replace(/[\\/:*?"<>|…]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'text') + ' – vocabulary';
+  if (O.fmt === 'csv') {
+    body = '﻿' + [['Lemma', 'Gloss', ...(O.forms ? ['Forms', 'Count'] : [])], ...rows.map(x => [x.lemma, gl(x), ...(O.forms ? [fm(x), String(x.n)] : [])])].map(r => r.map(q).join(',')).join('\r\n');
+    name = base + '.csv'; type = 'text/csv';
+  } else {
+    const tag = title.replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_|_$/g, '').slice(0, 60) || 'Pult';
+    const h = t => esc(t).replace(/\n/g, '<br>');
+    body = `#separator:tab\n#html:true\n#tags:${tag}\n` + rows.map(x => [h(x.lemma), h(gl(x)) + (O.forms ? `<br><small>${esc(fm(x))}</small>` : '')].join('\t')).join('\n') + '\n';
+    name = base + ' (Anki).txt'; type = 'text/plain';
+  }
+  const href = URL.createObjectURL(new Blob([body], { type: type + ';charset=utf-8' }));
+  await dialog(`<h3>Export ready</h3><p>${esc(name)} – ${rows.length} lemmata</p>`, [['link', 'Save file', { href, name }], ['cancel', 'Close']]);
+  setTimeout(() => URL.revokeObjectURL(href), 60000);
 }
 function showTab(which) {
   $('#tabEntry').classList.toggle('on', which === 'entry'); $('#tabList').classList.toggle('on', which === 'list');
@@ -1743,9 +1805,10 @@ body{margin:2.5em auto;max-width:46em;padding:0 1.5em;background:#fff}${EXPORT_C
 @media print{body{margin:0;max-width:none;padding:0}@page{size:A4;margin:2cm}}</style></head><body>${exportHTML(blocks, o)}</body></html>`;
 }
 // PDF: the browser's own printing (on the iPad: Print → share → Save to Files; elsewhere: "Save as PDF")
-function exportPrint(blocks, o) {
+function exportPrint(blocks, o) { printHTML(exportHTML(blocks, o), EXPORT_CSS); }
+function printHTML(html, css) {
   let root = $('#printRoot'); if (!root) { root = document.createElement('div'); root.id = 'printRoot'; document.body.append(root); }
-  root.innerHTML = `<style>${EXPORT_CSS}@page{size:A4;margin:2cm}</style>` + exportHTML(blocks, o);
+  root.innerHTML = `<style>${css}@page{size:A4;margin:2cm}</style>` + html;
   document.documentElement.classList.add('printing');
   const done = () => { document.documentElement.classList.remove('printing'); root.innerHTML = ''; removeEventListener('afterprint', done); };
   addEventListener('afterprint', done);
@@ -2002,12 +2065,19 @@ function wire() {
   $('#dictBody').addEventListener('toggle', ev => { if (ev.target.matches?.('details.src')) saveOpenState(); }, true);
   $('#listBody').addEventListener('click', async ev => {
     const b = ev.target.closest('[data-sort]'); if (b) { S.listSort = b.dataset.sort; return renderList(); }
+    const fb = ev.target.closest('[data-filter]'); if (fb) { S.listFilter = fb.dataset.filter; return renderList(); }
+    if (ev.target.closest('[data-vexport]')) return vocabExportDialog();
+    if (ev.target.closest('textarea.lg')) return;
     const r = ev.target.closest('.lrow'); if (!r) return;
     const pos = +r.dataset.pos; S.cur = [pos, pos]; S.curHidden = false; markTarget();
     document.querySelector(`.w[data-i="${pos}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     const tk = S.tokens.find(t => t.t === 'w' && t.i === pos);
     S.hist = []; S.view = null; await showWord(tk.s, { lemma: r.dataset.lemma, ti: pos });
   });
+  $('#listBody').addEventListener('input', ev => { if (ev.target.matches('textarea.lg')) autoGrow(ev.target); });
+  $('#listBody').addEventListener('change', ev => { if (ev.target.matches('textarea.lg')) saveListGloss(ev.target); });
+  $('#listBody').addEventListener('focusout', ev => { if (ev.target.matches('textarea.lg')) saveListGloss(ev.target); });
+  $('#listBody').addEventListener('keydown', ev => { if (ev.target.matches('textarea.lg') && ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); ev.target.blur(); } });
   $('#textPane').addEventListener('click', ev => { if (ev.target.id === 'textPane') { S.curHidden = true; markTarget(); } });
   new ResizeObserver(setGlossMax).observe($('#textBody'));
   $('#btnBack').onclick = goBack;

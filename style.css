@@ -97,11 +97,20 @@ details.src.empty>summary{color:var(--mut);font-weight:400}
 .gw:hover,.gw:active{border-bottom-color:var(--acc2);color:var(--acc2)}
 .none{color:var(--mut);font-style:italic;font-size:14px}
 /* lemma list */
-.lrow{display:flex;gap:.6rem;align-items:baseline;padding:.3rem .2rem;border-bottom:1px solid var(--line);cursor:pointer}
-.lrow b{font-size:18px;color:var(--acc);min-width:7em}
-.lrow span{color:var(--mut);font-size:14px}
-.lrow em{margin-left:auto;font:12px var(--ui);color:var(--mut)}
-.lhead{display:flex;gap:.4rem;align-items:center;margin-bottom:.4rem;font:13px var(--ui)}
+/* Lemmata: the vocabulary of the section – lemma (tap: entry) and its default gloss, side by side; stacked when narrow */
+.lrow{display:grid;grid-template-columns:minmax(8em,2fr) 3fr;gap:.25rem .7rem;align-items:start;padding:.35rem .2rem;border-bottom:1px solid var(--line)}
+.lrow .lw{cursor:pointer;min-width:0}
+.lrow .lw b{display:block;font-size:18px;color:var(--acc);line-height:1.3}
+.lrow .lw small{display:block;font:12px/1.3 var(--ui);color:var(--mut);overflow-wrap:anywhere}
+.lrow textarea.lg{width:100%;box-sizing:border-box;resize:none;font:16px/1.35 var(--greek);color:var(--gloss,var(--acc2));background:transparent;border:1px solid transparent;border-radius:6px;padding:.2rem .35rem;overflow:hidden;min-height:1.9em}
+.lrow textarea.lg:placeholder-shown{border-color:var(--line)}
+.lrow textarea.lg:focus{border-color:var(--acc);outline:none;background:var(--card)}
+.lhead{display:flex;flex-wrap:wrap;gap:.4rem .8rem;align-items:center;margin-bottom:.45rem;font:13px var(--ui)}
+.lhead .ln{color:var(--mut)}
+.lhead .lexp{margin-left:auto}
+.lhead .seg2{display:inline-flex;gap:.25rem}
+.lhead button{font:13px var(--ui);padding:.2rem .55rem}
+@container dpane (max-width:420px){ .lrow{grid-template-columns:1fr} }
 /* floating button, dialogs, toast */
 dialog{border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--fg);max-width:min(40rem,94vw);width:100%;padding:1rem;font-family:var(--ui);font-size:15px}
 dialog::backdrop{background:rgba(0,0,0,.35)}
