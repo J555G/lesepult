@@ -335,7 +335,7 @@ async function loadDicts() {
   for (const d of all) { d.splitSet = new Set(d.split || []); d.src ||= ['ls', 'georges', 'collatinus', 'morph-la', 'whitaker', 'morph-la-ww'].includes(d.id) ? 'la' : 'grc'; }
   S.dicts = all.filter(d => d.kind === 'dictionary').sort((a, b) => (a.order ?? 99) - (b.order ?? 99) || a.name.localeCompare(b.name));
   // user's order and on/off choice (menu ☰ → Dictionaries); new dictionaries go to the end, switched on
-  S.dictPrefs = Object.assign({ order: [], off: [], locked: [] }, (await setting('dictPrefs')) || {});
+  S.dictPrefs = Object.assign({ order: [], off: [], locked: [], open: [] }, (await setting('dictPrefs')) || {});
   const pos = id => { const i = S.dictPrefs.order.indexOf(id); return i < 0 ? 1e6 : i; };
   S.dicts.sort((a, b) => pos(a.id) - pos(b.id));
   S.shown = S.dicts.filter(d => !S.dictPrefs.off.includes(d.id));
@@ -983,7 +983,8 @@ async function renderView() {
   }
   h += '<div id="glossbox" hidden></div>';
   const by = await entriesFor(k, lang);
-  const openSet = new Set((await setting('open|' + k)) || []);
+  const ost = await setting('open|' + k);
+  const isOpen = id => Array.isArray(ost) ? ost.includes(id) : S.dictPrefs.open.includes(id) !== !!ost?.x?.includes(id);
   const shown = S.shown.filter(d => d.src === lang);
   if (!shown.length) h += `<p class="hint">${S.dicts.some(d => d.src === lang) ? `All ${LANGS[lang]} dictionaries are switched off` : `No ${LANGS[lang]} dictionary installed`} (menu ☰ → Dictionaries).</p>`;
   for (const d of shown) {
@@ -996,7 +997,7 @@ async function renderView() {
       for (const ref of by[d.id + '#m']) { const e = await entryByRef(d.id, ref); if (e && !seen.has(d.id + ':' + e.i)) inner += await renderEntryHTML(e, 0, seen); }
     }
     if (!has) inner = '<p class="none">– no entry –</p>';
-    h += `<details class="src${has ? '' : ' empty'}" data-d="${d.id}"${has && (openSet.has(d.id) || v.openDict === d.id) ? ' open' : ''}><summary>${esc(d.name)} <small>${esc(d.title || '')}</small></summary>${inner}</details>`;
+    h += `<details class="src${has ? '' : ' empty'}" data-d="${d.id}"${has && (isOpen(d.id) || v.openDict === d.id) ? ' open' : ''}><summary>${esc(d.name)} <small>${esc(d.title || '')}</small></summary>${inner}</details>`;
   }
   body.innerHTML = h;
   body.querySelectorAll('details.src').forEach(el => wrapGreek(el));
@@ -1012,8 +1013,8 @@ async function renderView() {
 }
 async function saveOpenState() {   // remembered per lemma
   if (!S.view?.key) return;
-  const open = [...document.querySelectorAll('#dictBody details.src[open]')].map(d => d.dataset.d);
-  await setting('open|' + S.view.key, open);
+  const x = [...document.querySelectorAll('#dictBody details.src:not(.empty)')].filter(d => d.open !== S.dictPrefs.open.includes(d.dataset.d)).map(d => d.dataset.d);
+  await setting('open|' + S.view.key, x.length ? { x } : null);
 }
 
 // ---------------------------------------------------------------- lemma list for the current text
@@ -1241,10 +1242,11 @@ async function dictsDialog() {
   const delBtn = id => `<button type="button" class="danger" data-v="del:${id}" title="Remove from this device">Delete</button>`;
   const sizeOf = d => d.size ? ` · ≈ ${(d.size / 1e6).toFixed(0)} MB` : '';
   const onBox = (id, what) => `<label class="sw" title="Use this ${what}"><input type="checkbox" data-dict-on="${id}"${S.dictPrefs.off.includes(id) ? '' : ' checked'}></label>`;
+  const foldBtn = id => `<button type="button" class="fold" data-dict-fold="${id}" title="Shown unfolded or folded when a word is looked up">${S.dictPrefs.open.includes(id) ? '▾ unfolded' : '▸ folded'}</button>`;
   const missingRow = p => `<div class="item"><span class="t"><b>${esc(p.name)}</b> ${esc(p.title || '')}<br><small>not on this device · ${(p.bytes / 1e6).toFixed(1)} MB${p.priv ? ' · private repository' : ''}</small></span>${repoBtn(p.id)}</div>`;
   // 1. dictionaries (drag to reorder, tick to show)
   const srcOf = p => p.src || (['ls', 'georges', 'collatinus', 'morph-la', 'whitaker', 'morph-la-ww'].includes(p.id) ? 'la' : 'grc');
-  const rowsFor = lang => S.dicts.filter(d => d.src === lang).map(d => `<div class="item dictrow" data-id="${d.id}"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span>${onBox(d.id, 'dictionary')}<span class="t"><b>${esc(d.name)}</b> ${esc(d.title || '')}<br><small>${d.count.toLocaleString('en')} entries${sizeOf(d)} · ${esc(d.source || '')}</small></span>${repoBtn(d.id)}${delBtn(d.id)}</div>`).join('');
+  const rowsFor = lang => S.dicts.filter(d => d.src === lang).map(d => `<div class="item dictrow" data-id="${d.id}"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span>${onBox(d.id, 'dictionary')}<span class="t"><b>${esc(d.name)}</b> ${foldBtn(d.id)} ${esc(d.title || '')}<br><small>${d.count.toLocaleString('en')} entries${sizeOf(d)} · ${esc(d.source || '')}</small></span>${repoBtn(d.id)}${delBtn(d.id)}</div>`).join('');
   const missFor = lang => Object.values(remote).filter(p => !S.installed[p.id] && p.kind === 'dictionary' && srcOf(p) === lang).map(missingRow).join('');
   // 2. analysis tools (tick to use)
   const tools = [S.morphInst && [S.morphInst, 'Greek: lemma and form for every word', `${S.morphInst.count.toLocaleString('en')} forms${sizeOf(S.morphInst)}`],
@@ -1953,6 +1955,13 @@ function wire() {
     const b = ev.target.closest('[data-m]'); if (!b) return;
     menu.hidden = true;
     ({ settings: settingsDialog, texts: textsDialog, library: libraryDialog, dicts: dictsDialog, pos: posDialog, backup: backupDialog, export: exportDialog, acks: acksDialog })[b.dataset.m]();
+  });
+  document.addEventListener('click', async ev => {
+    const b = ev.target.closest?.('[data-dict-fold]'); if (!b) return;
+    const id = b.dataset.dictFold, o = new Set(S.dictPrefs.open);
+    o.has(id) ? o.delete(id) : o.add(id); S.dictPrefs.open = [...o];
+    b.textContent = o.has(id) ? '▾ unfolded' : '▸ folded';
+    await setting('dictPrefs', S.dictPrefs); if (S.view) renderView();
   });
   document.addEventListener('change', async ev => {
     const id = ev.target.dataset?.dictOn; if (!id) return;
