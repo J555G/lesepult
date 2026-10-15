@@ -811,3 +811,10 @@ dialog .olrow .bm{fill:var(--acc2);flex:none}
 }
 dialog .navbottom details.alltexts{margin-top:.1rem}
 dialog .navbottom details.alltexts[open]>summary{margin-bottom:.3rem}
+/* portrait (any screen size): word, lemma and form side by side, as on narrow panes */
+@media (orientation:portrait){
+  .vtop{display:flex;flex-wrap:wrap;align-items:center;column-gap:.5rem;row-gap:.3rem;margin-bottom:.45rem}
+  .vtop .form{font-size:1.45rem;line-height:1.2}
+  .vtop .anas,.vtop .anarows{margin:0}
+  .vtop>.note{flex-basis:100%;margin:0}
+}
