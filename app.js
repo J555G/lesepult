@@ -168,7 +168,7 @@ const GRAM_GROUPS = [['Inflected words', ['noun', 'proper', 'adj', 'article', 'p
 const defaultGramCfg = () => Object.fromEntries(POS.filter(([id]) => id !== 'punct').map(([id]) => [id, true]));
 function applyGramCfg() {
   const st = $('#gramStyle') || document.head.appendChild(Object.assign(document.createElement('style'), { id: 'gramStyle' }));
-  st.textContent = Object.entries(S.gramCfg || {}).filter(([, on]) => !on).map(([id]) => `body.gram .w.p-${id}>.gm{display:none!important}`).join('\n');
+  st.textContent = Object.entries(S.gramCfg || {}).filter(([, on]) => !on).map(([id]) => `body.gram .w.p-${id}>.gm{visibility:hidden!important;max-width:0!important;padding:0!important;overflow:hidden;white-space:nowrap}`).join('\n');
 }
 function gramRowsHTML() {
   const lab = Object.fromEntries(POS.map(([id, l]) => [id, l]));

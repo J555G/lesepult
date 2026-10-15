@@ -818,3 +818,6 @@ dialog .navbottom details.alltexts[open]>summary{margin-bottom:.3rem}
   .vtop .anas,.vtop .anarows{margin:0}
   .vtop>.note{flex-basis:100%;margin:0}
 }
+/* grammar line on: every word keeps the line (empty where it is switched off or unknown), so glosses stay on their own line below it */
+body.gram #textBody .w>.gm{display:block;min-height:1.15em}
+body.gram #textBody .w>.gm:empty{padding-right:0}
