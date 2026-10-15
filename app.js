@@ -966,9 +966,9 @@ async function renderView() {
     const many = A.lemmas.length > 1 || (px?.ana.length || 0) > 1;
     const icons = many && tk && S.tokCh?.has(tk.i) ? '<span class="rdi"><button class="ico" data-anareset="1" data-tip="Back to the default reading of this word">↺</button></span>' : '';
     h += '<div class="anas">' + A.lemmas.map(x => `<button class="chip${x.lemma === lemma ? ' on' : ''}" data-lemma="${esc(x.lemma)}"><b>${esc(x.lemma)}</b>${x.ana.length > 1 ? ` <small>${x.ana.length}</small>` : ''}</button>`).join('')
-      + (!(tk && px && px.lemma === tk.lemma && px.ana.length > 1) ? icons : '') + '</div>';
+      + (!(tk && px && px.lemma === tk.lemma && px.ana.length) ? icons : '') + '</div>';
     // the forms of the chosen lemma, without the word; what all of them share is written once in front
-    if (tk && px && px.lemma === tk.lemma && px.ana.length > 1) {
+    if (tk && px && px.lemma === tk.lemma && px.ana.length) {          // also a single form: the reading is always shown
       v.anaList = px.ana;
       const labs = px.ana.map(a => (gramText([a]) || a).split(' '));
       let pre = '', parts = labs.map(l => l.join(' '));
