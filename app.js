@@ -158,6 +158,35 @@ function posOf(lemma, anas) {
   if (a.some(x => /\b(nom|gen|dat|acc|voc)\b/.test(x))) return 'noun';
   return 'other';
 }
+// ---- grammar line per word class (hold the Grammar button, or Settings → Appearance); three groups switch several at once
+const GRAM_GROUPS = [['Inflected words', ['noun', 'proper', 'adj', 'article', 'pron', 'num']],
+  ['Verb forms', ['verb', 'part', 'inf']], ['Indeclinable and other', ['adv', 'prep', 'conj', 'ptcl', 'other']]];
+const defaultGramCfg = () => Object.fromEntries(POS.filter(([id]) => id !== 'punct').map(([id]) => [id, true]));
+function applyGramCfg() {
+  const st = $('#gramStyle') || document.head.appendChild(Object.assign(document.createElement('style'), { id: 'gramStyle' }));
+  st.textContent = Object.entries(S.gramCfg || {}).filter(([, on]) => !on).map(([id]) => `body.gram .w.p-${id}>.gm{display:none!important}`).join('\n');
+}
+function gramRowsHTML() {
+  const lab = Object.fromEntries(POS.map(([id, l]) => [id, l]));
+  return GRAM_GROUPS.map(([g, ids], gi) => {
+    const n = ids.filter(id => S.gramCfg[id]).length;
+    return `<div class="ggrp"><label class="gg"><input type="checkbox" data-gramgrp="${gi}"${n === ids.length ? ' checked' : ''}${n && n < ids.length ? ' data-mixed="1"' : ''}> <b>${g}</b></label>
+      <div class="gitems">${ids.map(id => `<label class="sopt"><input type="checkbox" data-gramon="${id}"${S.gramCfg[id] ? ' checked' : ''}> ${lab[id]}</label>`).join('')}</div></div>`;
+  }).join('');
+}
+function syncGramRows(root = document) {          // group boxes: ticked when all, a dash when some of their classes are on
+  GRAM_GROUPS.forEach(([, ids], gi) => root.querySelectorAll(`[data-gramgrp="${gi}"]`).forEach(cb => {
+    const n = ids.filter(id => S.gramCfg[id]).length; cb.checked = n === ids.length; cb.indeterminate = n > 0 && n < ids.length; }));
+  for (const id of Object.keys(S.gramCfg)) root.querySelectorAll(`[data-gramon="${id}"]`).forEach(cb => { cb.checked = !!S.gramCfg[id]; });
+}
+async function gramDialog() {
+  const p = dialog(`<h3>Grammar line</h3><p class="hint small">Which words show their grammatical form beneath them. A group switches all its word classes at once.</p>
+    <div class="gramcfg">${gramRowsHTML()}</div>`, [['gramall', 'Show for all'], ['cancel', 'Close']]);
+  syncGramRows($('#dlgForm'));
+  const r = await p;
+  if (r.action === 'gramall') { S.gramCfg = defaultGramCfg(); await setting('gramCfg', S.gramCfg); applyGramCfg(); }
+  if (!S.gram) setGram(true, true);
+}
 function applyPosColors() {
   const st = $('#posStyle') || document.head.appendChild(Object.assign(document.createElement('style'), { id: 'posStyle' }));
   st.textContent = !S.posOn ? '' : POS.filter(([id]) => S.posCfg[id]?.on !== false)
@@ -1497,17 +1526,32 @@ async function settingsDialog() {
   const cb = (k, on, label) => `<label class="sopt"><input type="checkbox" data-set="${k}"${on ? ' checked' : ''}> ${label}</label>`;
   let ver = '–'; try { const ks = (await caches.keys()).filter(k => k.startsWith('lesepult-v')).map(k => +k.split('-v')[1]); if (ks.length) ver = Math.max(...ks); } catch (_) { }
   const posRows = POS.map(([id, label]) => `<div class="item posrow"><label class="t"><input type="checkbox" data-poson="${id}"${S.posCfg[id]?.on !== false ? ' checked' : ''}> ${label}</label><input type="color" data-posc="${id}" value="${S.posCfg[id]?.c}"></div>`).join('');
-  await dialog(`<h3>Settings</h3>
+  const dlgP = dialog(`<h3>Settings</h3>
     <section class="dsec"><h4>Appearance</h4>
       ${row('Theme', sw('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']]))}
-      ${row('Top bar', withInfo(cb('gramBtn', S.gramBtn, 'Grammar button'), 'Shows the grammatical information beneath each word.'))}
+      ${row('Top bar', withInfo(cb('gramBtn', S.gramBtn, 'Grammar button'), 'Shows the grammatical information beneath each word; hold it to choose for which word classes.'))}
       <details class="scol"${S.colOpen ? ' open' : ''}><summary>Word-class colours ${info('Used by the “Colours” button in the top bar (hold that button to open this list directly). Word classes follow the reading chosen for each word.')}</summary>
-        <div class="list plain">${posRows}</div><div class="row" style="justify-content:flex-start"><button type="button" data-posreset="1">Reset colours</button></div></details></section>
+        <div class="list plain">${posRows}</div><div class="row" style="justify-content:flex-start"><button type="button" data-posreset="1">Reset colours</button></div></details>
+      <details class="scol sgram"${S.gramOpen ? ' open' : ''}><summary>Grammar line ${info('Which words show their grammatical form beneath them when the grammar line is on (hold the “Grammar” button to open this list directly).')}</summary>
+        <div class="gramcfg">${gramRowsHTML()}</div></details></section>
     <section class="dsec"><h4>Glosses</h4>
       ${row('Own gloss', withInfo(sw('glossMode', S.glossMode === 'both' ? 'both' : 'replace', [['replace', 'Replaces default'], ['both', 'Show both']]), 'A word can have its own gloss; its lemma can have a default gloss that applies everywhere.'))}</section>
     <section class="dsec"><h4>About</h4>
       ${row('Version', `Pult · version ${ver}`)}</section>`,
     [['cancel', 'Close']]);
+  syncGramRows($('#dlgForm'));
+  await dlgP;
+}
+// hold a top-bar button: its list opens when the finger is lifted (so nothing beneath it gets selected)
+function holdButton(bp, held, open) {
+  let t = null;
+  bp.addEventListener('pointerdown', () => { held(false); clearTimeout(t); t = setTimeout(() => { held(true); bp.classList.add('held'); bp._held = true; }, 550); });
+  bp.addEventListener('pointerup', () => {
+    clearTimeout(t); if (!bp._held) return; bp._held = false; bp.classList.remove('held');
+    setTimeout(() => { window.getSelection()?.removeAllRanges(); open(); setTimeout(() => window.getSelection()?.removeAllRanges(), 60); }, 30);
+  });
+  for (const e of ['pointercancel', 'pointerleave']) bp.addEventListener(e, () => { clearTimeout(t); bp._held = false; bp.classList.remove('held'); });
+  bp.addEventListener('contextmenu', e => e.preventDefault());
 }
 async function posDialog() {
   const rows = POS.map(([id, label]) => `<div class="item"><label class="t"><input type="checkbox" name="on_${id}"${S.posCfg[id]?.on !== false ? ' checked' : ''}> ${label}</label><input type="color" name="c_${id}" value="${S.posCfg[id]?.c}"></div>`).join('');
@@ -1618,7 +1662,7 @@ async function backupData() {
     markers: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('mk|', 'mk|￿'))).map(r => [r.k.slice(3), r.v])),
     readings: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('an|', 'an|￿'))).map(r => [r.k.slice(3), r.v])),
     favourites: (await setting('favs')) || {},
-    prefs: { theme: document.documentElement.dataset.theme, posCfg: S.posCfg, posOn: S.posOn, showGloss: !document.body.classList.contains('nogloss'),
+    prefs: { theme: document.documentElement.dataset.theme, posCfg: S.posCfg, posOn: S.posOn, gramCfg: S.gramCfg, showGloss: !document.body.classList.contains('nogloss'),
       glossMode: S.glossMode, latQuant: S.latQuant, gramBtn: S.gramBtn, showGram: S.gram, dictPrefs: S.dictPrefs } };
 }
 // ☰ → This Pult: what the reader has stored on this device, and backups
@@ -1671,6 +1715,7 @@ async function restoreBackup(file) {
     if (p.theme) setTheme(p.theme, true);
     if (p.posCfg) { S.posCfg = Object.assign(defaultPosCfg(), p.posCfg); await setting('posCfg', S.posCfg); }
     if (p.posOn != null) { S.posOn = !!p.posOn; await setting('posOn', S.posOn); }
+    if (p.gramCfg) { S.gramCfg = Object.assign(defaultGramCfg(), p.gramCfg); await setting('gramCfg', S.gramCfg); applyGramCfg(); }
     applyPosColors();
     if (p.showGloss != null) setGlossVisible(!!p.showGloss, true);
     if (p.glossMode) { S.glossMode = p.glossMode; await setting('glossMode', p.glossMode); }
@@ -2128,7 +2173,8 @@ function wire() {
     new ResizeObserver(fit).observe(sb); document.fonts?.ready.then(fit); }
   $('#search').addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.value.trim()) { showWord(ev.target.value.trim()); ev.target.blur(); } });
   $('#btnGlossToggle').onclick = () => setGlossVisible(document.body.classList.contains('nogloss'), true);
-  $('#btnGram').onclick = () => setGram(!S.gram, true);
+  $('#btnGram').onclick = () => { if (S.gramHeld) { S.gramHeld = false; return; } setGram(!S.gram, true); };
+  holdButton($('#btnGram'), v => S.gramHeld = v, gramDialog);
   document.addEventListener('click', ev => {          // joined switches in Settings
     const b = ev.target.closest('[data-setk]'); if (!b) return;
     const k = b.dataset.setk, v = b.dataset.setv;
@@ -2183,7 +2229,12 @@ function wire() {
     if (ev.target.closest('[data-posreset]')) { S.posCfg = defaultPosCfg(); await setting('posCfg', S.posCfg); applyPosColors();
       for (const [id] of POS) { const cb = document.querySelector(`[data-poson="${id}"]`), ci = document.querySelector(`[data-posc="${id}"]`); if (cb) cb.checked = true; if (ci) ci.value = S.posCfg[id].c; } }
   });
-  document.addEventListener('toggle', ev => { if (ev.target.matches?.('details.scol')) S.colOpen = ev.target.open; }, true);
+  document.addEventListener('toggle', ev => { if (ev.target.matches?.('details.sgram')) S.gramOpen = ev.target.open; else if (ev.target.matches?.('details.scol')) S.colOpen = ev.target.open; }, true);
+  document.addEventListener('change', async ev => {
+    const t = ev.target, id = t.dataset?.gramon, g = t.dataset?.gramgrp; if (!id && g == null) return;
+    if (id) S.gramCfg[id] = t.checked; else for (const x of GRAM_GROUPS[+g][1]) S.gramCfg[x] = t.checked;
+    syncGramRows(); await setting('gramCfg', S.gramCfg); applyGramCfg();
+  });
   document.addEventListener('change', ev => { const sl = ev.target.closest?.('select[data-langtool]'); if (sl) setLangTool(sl.dataset.langtool, sl.value); });
   document.addEventListener('change', async ev => {      // settings take effect immediately
     const k = ev.target.dataset?.set; if (!k || (ev.target.type === 'radio' && !ev.target.checked)) return;
@@ -2920,6 +2971,7 @@ function wireMarker() {
   S.srcColors = (await setting('srcColors')) !== false; document.body.classList.toggle('nosrccol', !S.srcColors);
   S.posCfg = Object.assign(defaultPosCfg(), (await setting('posCfg')) || {});
   S.posOn = !!(await setting('posOn')); applyPosColors();
+  S.gramCfg = Object.assign(defaultGramCfg(), (await setting('gramCfg')) || {}); applyGramCfg();
   const cur = await setting('currentText');
   if (cur != null) await openText(cur);
   if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! <button id="btnFirstSync">Download the free dictionaries</button> (Greek: Pape, LSJ and morphology; Latin: Lewis &amp; Short, Georges and Collatinus – about 60 MB). More dictionaries: ☰ → Dictionaries. Then get a text via ☰ → Library, or import your own via ☰ → Import text.</p>';

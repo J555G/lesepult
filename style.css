@@ -711,3 +711,10 @@ dialog.libdlg #dlgForm>.row{margin-top:.5rem;align-items:center;flex-wrap:wrap}
 dialog.libdlg #dlgForm>.row .libfoot{margin:0 auto 0 0;display:flex;align-items:center;gap:.3rem;flex-wrap:wrap;min-width:0;font-size:12px}
 dialog.libdlg #dlgForm>.row .libfoot .infot{flex-basis:100%}
 dialog.libdlg h3{margin-top:0}
+/* grammar line per word class: three groups, each with its word classes */
+dialog .gramcfg{display:flex;flex-direction:column;gap:.55rem;margin:.3rem 0 .2rem}
+dialog .ggrp .gg{display:flex;align-items:center;gap:.4rem;font-size:14px}
+dialog .ggrp .gitems{display:flex;flex-wrap:wrap;gap:.15rem .9rem;padding:.2rem 0 0 1.6rem}
+dialog .ggrp .gitems .sopt{font-size:13.5px}
+#btnGram{-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+#btnGram.held{background:var(--acc);color:var(--bg)}
