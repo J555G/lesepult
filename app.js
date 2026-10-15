@@ -1071,7 +1071,8 @@ async function addGloss(text, asDefault = false, add = false) {
   if (!S.text && !asDefault) return toast('Open a text first.');
   text = add ? text.replace(/\s+/g, ' ').trim() : cleanGloss(text); if (!text) return;
   if (asDefault) {
-    const l = targetLemma(); if (!l) return toast('A default gloss needs a single word with a known lemma.');
+    // from a selection in the dictionary pane: the lemma whose entry is shown there (also after following a link)
+    const l = (add && S.view?.pick) || targetLemma(); if (!l) return toast('A default gloss needs a single word with a known lemma.');
     const k = gkey(l);
     await setDefaultGloss(k, add ? joinGloss(S.lemmaGloss[k], text) : text);
     renderText(); fillGlossBox(); return toast(`Default gloss for ${l} ${add && S.lemmaGloss[k] !== text ? 'extended' : 'set'}`);
