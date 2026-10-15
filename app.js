@@ -482,8 +482,32 @@ function tokenizeBlocks(blocks) {
   }
   return toks;
 }
+// iOS throws the text pane back to the top when the text is redrawn (after saving a gloss, choosing a lemma …)
+// or when the keyboard of a gloss field opens/closes. Keep the reading position: remember which word is at the
+// top of the pane (or the selected word) and its distance from the top, and put it back after the redraw.
+function textAnchor() {
+  const pane = $('#textPane'), top = pane.getBoundingClientRect().top, h = pane.clientHeight;
+  let el = S.cur ? document.querySelector(`#textBody .w[data-i="${S.cur[0]}"]`) : null;
+  if (el) { const r = el.getBoundingClientRect(); if (r.bottom < top || r.top > top + h) el = null; }
+  if (!el) for (const w of S.wordEls || []) { if (w.getBoundingClientRect().bottom > top) { el = w; break; } }
+  return { i: el?.dataset.i, off: el ? el.getBoundingClientRect().top - top : 0, y: pane.scrollTop };
+}
+function applyTextAnchor(a) {
+  const pane = $('#textPane'), el = a.i != null ? document.querySelector(`#textBody .w[data-i="${a.i}"]`) : null;
+  const want = el ? pane.scrollTop + el.getBoundingClientRect().top - pane.getBoundingClientRect().top - a.off : a.y;
+  if (Math.abs(pane.scrollTop - want) > 2) pane.scrollTop = want;
+}
+function guardText(ms = 1000) {      // keep the position for a moment, unless the user scrolls the text themselves
+  if (!S.text || !S.wordEls?.length) return;
+  const g = S.tGuard = { a: textAnchor(), until: Date.now() + ms };
+  const fix = () => { if (S.tGuard === g && Date.now() <= g.until && !S.tTouch) applyTextAnchor(g.a); };
+  requestAnimationFrame(fix); setTimeout(fix, 120); setTimeout(fix, 400); setTimeout(fix, ms - 50);
+  return g;
+}
 function renderText() {
   const body = $('#textBody');
+  const same = S.text && S.renderedText === S.text.id && S.wordEls?.length;   // the same text drawn again: keep the position
+  const anchor = same ? textAnchor() : null;
   if (!S.text) { body.innerHTML = '<p class="hint">No text yet. Open the menu ☰ (top left) → Library to download Greek texts, or → My texts to paste your own.</p>'; return; }
   const gl = {}; for (const g of S.glosses) (gl[g.s] ??= []).push(g);
   const covered = S.covered = new Set(); for (const g of S.glosses) for (let i = g.s; i <= g.e; i++) covered.add(i);
@@ -517,6 +541,11 @@ function renderText() {
   body.innerHTML = html + '</div>' + bn;
   body.classList.toggle('lib', !!S.text.blocks);
   S.wordEls = body.querySelectorAll('.w');
+  S.renderedText = S.text.id;
+  if (anchor) { applyTextAnchor(anchor); const g = S.tGuard = { a: anchor, until: Date.now() + 1000 };
+    const fix = () => { if (S.tGuard === g && Date.now() <= g.until && !S.tTouch) applyTextAnchor(g.a); };
+    requestAnimationFrame(fix); setTimeout(fix, 120); setTimeout(fix, 400); }
+  else S.tGuard = null;
   markTarget();
   fillGlossBox();
 }
@@ -548,7 +577,7 @@ async function openText(id, scroll = true) {
   titleBar();
   S.glosses = t ? await req2p(tx('glosses').objectStore('glosses').index('textId').getAll(t.id)) : [];
   renderText();
-  if (scroll) { const y = t ? await setting('pos|' + t.id) : 0; $('#textPane').scrollTop = y || 0; }
+  if (scroll) { S.tGuard = null; const y = t ? await setting('pos|' + t.id) : 0; $('#textPane').scrollTop = y || 0; }
   if (t) await setting('currentText', t.id);
   if (!$('#listBody').hidden) renderList();
   resolveTokens();
@@ -1788,6 +1817,12 @@ function wire() {
   wireMarker();
   wireReading();
   $('#textPane').addEventListener('scroll', () => { clearTimeout(S.posT); S.posT = setTimeout(saveReadPos, 500); }, { passive: true });
+  $('#textPane').addEventListener('touchstart', () => { S.tTouch = true; S.tGuard = null; }, { passive: true });
+  $('#textPane').addEventListener('touchend', () => { S.tTouch = false; }, { passive: true });
+  $('#textPane').addEventListener('wheel', () => { S.tGuard = null; }, { passive: true });
+  for (const ev of ['focusin', 'focusout']) $('#dictPane').addEventListener(ev, () => guardText(1200), true);
+  $('#dictPane').addEventListener('pointerdown', ev => { if (ev.target.closest('.chip,[data-pin]')) guardText(); }, true);
+  window.visualViewport?.addEventListener('resize', () => { const g = S.tGuard; if (g && Date.now() <= g.until && !S.tTouch) requestAnimationFrame(() => applyTextAnchor(g.a)); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveReadPos(); });
   $('#btnFwd').onclick = goFwd;
   $('#tabEntry').onclick = () => showTab('entry');
