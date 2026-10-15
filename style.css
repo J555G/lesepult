@@ -809,3 +809,5 @@ dialog .olrow .bm{fill:var(--acc2);flex:none}
   #textTitle .tl2>.ts:first-child .sep{display:none}
   #top .navgrp #textTitle{align-items:flex-start}
 }
+dialog .navbottom details.alltexts{margin-top:.1rem}
+dialog .navbottom details.alltexts[open]>summary{margin-bottom:.3rem}
