@@ -1999,7 +1999,8 @@ const ACKS = [
     ['H. Frisk, Griechisches etymologisches Wörterbuch (Leiden IEED edition)', 'https://ieed.ullet.net/friskL.html', 'Greek etymology', 'copyright – private use only'],
     ['A. Bailly, Dictionnaire grec-français, éd. 2020 Hugo Chávez (G. Gréco et al.)', 'https://creativecommons.org/licenses/by-nc-nd/4.0/', 'Greek–French dictionary', 'CC BY-NC-ND 4.0 – private use only']]],
   ['Font', [
-    ['Gentium Book Plus (SIL International)', 'https://software.sil.org/gentium/', 'type for Greek and Latin', 'SIL Open Font License 1.1']]],
+    ['Gentium Book Plus (SIL International)', 'https://software.sil.org/gentium/', 'type for Greek and Latin', 'SIL Open Font License 1.1'],
+    ['Roboto Condensed (Google)', 'https://fonts.google.com/specimen/Roboto+Condensed', 'type of the grammar line', 'SIL Open Font License 1.1']]],
 ];
 async function acksDialog() {
   const a = (t, u) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(t)}</a>`;
