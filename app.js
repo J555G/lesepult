@@ -196,6 +196,7 @@ async function resolveTokens1(run) {
     if (run !== resolveTokens.run) return;           // a newer run has started
     const R = pickReading(tk, A), l = R.l, x = R.x;
     tk.lemma = l || null; tk.ana = R.a; tk.anaSet = R.set; tk.amb = R.amb;
+    const D = S.tokCh?.has(tk.i) ? pickReading(tk, A, false) : R; tk.defL = D.l; tk.defA = D.a;   // the pre-chosen reading stays marked
     tk.pos = posOf(l, R.a ? [R.a] : x?.ana);          // word class of the chosen reading
     tk.q = x?.q ? (x.q[R.ai] || qCommon(x.q)) : null; // Latin: the vowel quantities of the chosen reading
     tk.gram = gramText(R.a ? [R.a] : x?.ana);          // grammatical information beneath the word: only the chosen reading
@@ -209,7 +210,7 @@ async function resolveTokens1(run) {
     }
   }
 }
-function resetTokens(pred = () => true) { for (const tk of S.tokens) if (pred(tk)) { delete tk.lemma; delete tk.pos; delete tk.q; delete tk.gram; delete tk.ana; delete tk.anaSet; delete tk.amb; } }
+function resetTokens(pred = () => true) { for (const tk of S.tokens) if (pred(tk)) { delete tk.lemma; delete tk.pos; delete tk.q; delete tk.gram; delete tk.ana; delete tk.anaSet; delete tk.amb; delete tk.defL; delete tk.defA; } }
 // library texts with an annotation (GLAUx for Greek): the reading the context suggests for each word
 function applyAnnotation(t) {
   const ws = S.tokens.filter(tk => tk.t === 'w'), a = t.ann.a.split(' ');
@@ -244,8 +245,8 @@ function ctxReading(A, ctx) {
 }
 // the reading (lemma + one grammatical analysis) of a word: the user's choice for this word > the choice for the form (★)
 // > the reading given by the text's own annotation (tk.ctx, where a text has one) > the most likely lemma, its first analysis
-function pickReading(tk, A) {
-  const tc = S.tokCh?.get(tk.i), ctx = tk.ctx && A.lemmas.length ? ctxReading(A, tk.ctx) : null, has = l => l && A.lemmas.some(x => x.lemma === l);
+function pickReading(tk, A, own = true) {         // own = false: the pre-chosen reading, without the reader's choice
+  const tc = own ? S.tokCh?.get(tk.i) : null, ctx = tk.ctx && A.lemmas.length ? ctxReading(A, tk.ctx) : null, has = l => l && A.lemmas.some(x => x.lemma === l);
   const l = (has(tc?.l) && tc.l) || (A.chosen && A.pick) || (has(ctx?.l) && ctx.l) || A.pick;
   const x = A.lemmas.find(z => z.lemma === l);
   const want = tc?.l === l ? tc.a : A.chosen && A.pick === l && A.ana ? A.ana : ctx?.l === l ? ctx.a : null;
@@ -965,7 +966,7 @@ async function renderView() {
   if (A.lemmas.length) {
     const many = A.lemmas.length > 1 || (px?.ana.length || 0) > 1;
     const icons = many && tk && S.tokCh?.has(tk.i) ? '<span class="rdi"><button class="ico" data-anareset="1" data-tip="Back to the default reading of this word">↺</button></span>' : '';
-    h += '<div class="anas">' + A.lemmas.map(x => `<button class="chip${x.lemma === lemma ? ' on' : ''}" data-lemma="${esc(x.lemma)}"><b>${esc(x.lemma)}</b>${x.ana.length > 1 ? ` <small>${x.ana.length}</small>` : ''}</button>`).join('')
+    h += '<div class="anas">' + A.lemmas.map(x => `<button class="chip${x.lemma === lemma ? ' on' : ''}${tk && tk.amb && x.lemma === tk.defL && x.lemma !== lemma ? ' pre' : ''}" data-lemma="${esc(x.lemma)}"><b>${esc(x.lemma)}</b>${x.ana.length > 1 ? ` <small>${x.ana.length}</small>` : ''}</button>`).join('')
       + (!(tk && px && px.lemma === tk.lemma && px.ana.length) ? icons : '') + '</div>';
     // the forms of the chosen lemma, without the word; what all of them share is written once in front
     if (tk && px && px.lemma === tk.lemma && px.ana.length) {          // also a single form: the reading is always shown
@@ -977,7 +978,7 @@ async function renderView() {
         if (same.some(Boolean) && same.some(x => !x)) { pre = labs[0].filter((_, i) => same[i]).join(' '); parts = labs.map(l => l.filter((_, i) => !same[i]).join(' ')); }
       }
       const qd = new Set((px.q || []).filter(Boolean)).size > 1;          // vowel lengths only where they tell the forms apart
-      h += '<div class="anarows">' + (pre ? `<span class="pre">${esc(pre)}:</span>` : '') + px.ana.map((a, i) => `<button class="ana${a === tk.ana ? ' on' : ''}${a === tk.ana && !tk.anaSet && tk.amb ? ' amb' : ''}" data-ana="${i}">${qd && px.q[i] ? `<span class="qf">${esc(px.q[i])}</span> ` : ''}${esc(parts[i])}</button>`).join('') + icons + '</div>';
+      h += '<div class="anarows">' + (pre ? `<span class="pre">${esc(pre)}:</span>` : '') + px.ana.map((a, i) => `<button class="ana${a === tk.ana && (tk.anaSet || !tk.amb) ? ' on' : ''}${tk.amb && px.lemma === tk.defL && a === tk.defA ? ' pre' : ''}" data-ana="${i}">${qd && px.q[i] ? `<span class="qf">${esc(px.q[i])}</span> ` : ''}${esc(parts[i])}</button>`).join('') + icons + '</div>';
     }
   }
   h += '<div id="glossbox" hidden></div>';

@@ -609,7 +609,9 @@ body.gram .w>.gm.amb{color:color-mix(in srgb,var(--mut) 55%,var(--acc))}
 .ico.on{color:var(--acc)}
 .anarows .ana,.anamenu .ana{font:13px/1.3 var(--ui);padding:.2rem .5rem;border:1px solid var(--line,#ccc);border-radius:999px;background:transparent;color:inherit;cursor:pointer}
 .anarows .ana.on,.anamenu .ana.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
-.anarows .ana.on.amb{background:transparent;border-color:var(--acc);color:inherit;border-style:dashed}
+.anarows .ana.pre{border-style:dashed;border-color:var(--acc)}
+.anarows .ana.on.pre{border-style:dashed;border-color:var(--fg)}
+.chip.pre{border-style:dashed;border-color:var(--acc)}
 .anarows .anareset{font:12px var(--ui);border:0;background:none;color:var(--mut);cursor:pointer}
 .anamenu{display:flex;flex-direction:column;gap:.5rem;max-height:55vh;overflow:auto;margin:.3rem 0}
 .anagrp{display:flex;flex-wrap:wrap;gap:.3rem;align-items:center}
