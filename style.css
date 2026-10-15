@@ -794,3 +794,18 @@ dialog .olrow.on>.olj{background:var(--acc)}
 dialog .olrow.on>.olj .oln,dialog .olrow.on>.olj .olx{color:var(--bg)}
 dialog .olrow .bm{fill:var(--acc2);flex:none}
 @media (max-width:600px){dialog .olrow.d1 .olt{margin-left:.5rem}dialog .olrow.d2 .olt{margin-left:1rem}dialog .olrow.d3 .olt,dialog .olrow.d4 .olt{margin-left:1.5rem}}
+/* title on narrow screens: two lines – the work (small) above, part and section below */
+#textTitle .tl2{display:contents}
+#textTitle .tbs{display:none}
+@media (max-width:760px){
+  #textTitle{max-width:44vw;flex-direction:column;align-items:flex-start;justify-content:center;gap:0;line-height:1.1;padding-top:1px;padding-bottom:1px}
+  #textTitle>.tw,#textTitle>.tl2{flex:none}
+  #textTitle .tw,#textTitle .tw:not(:only-child){display:block;max-width:100%;font:11.5px/1.15 var(--greek);color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #textTitle .tl2{display:flex;align-items:baseline;gap:.25em;max-width:100%;min-width:0;font-size:14px;line-height:1.1}
+  #textTitle .tb{display:inline;font-weight:700;color:var(--fg)}
+  #textTitle .tb>.sep{display:none}
+  #textTitle .tbf{display:none}#textTitle .tbs{display:inline}
+  #textTitle .ts .sep{display:inline}
+  #textTitle .tl2>.ts:first-child .sep{display:none}
+  #top .navgrp #textTitle{align-items:flex-start}
+}
