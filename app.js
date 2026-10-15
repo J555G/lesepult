@@ -1109,6 +1109,9 @@ async function vocabExportDialog() {
   setTimeout(() => URL.revokeObjectURL(href), 60000);
 }
 function showTab(which) {
+  // leaving the Lemmata list: remember where it was scrolled to (per text), for the way back
+  if (which !== 'list' && !$('#listBody').hidden && S.text) S.listScroll = { id: S.text.id, y: $('#dictPane').scrollTop };
+  if (which === 'list' && !$('#dictBody').hidden) S.entryY = $('#dictPane').scrollTop;      // and where the entry was
   $('#tabEntry').classList.toggle('on', which === 'entry'); $('#tabList').classList.toggle('on', which === 'list');
   $('#dictBody').hidden = which !== 'entry'; $('#listBody').hidden = which !== 'list';
 }
@@ -2064,8 +2067,8 @@ function wire() {
   $('#dictBody').addEventListener('input', ev => { if (ev.target.matches('#glossbox textarea')) autoGrow(ev.target); });
   $('#dictBody').addEventListener('toggle', ev => { if (ev.target.matches?.('details.src')) saveOpenState(); }, true);
   $('#listBody').addEventListener('click', async ev => {
-    const b = ev.target.closest('[data-sort]'); if (b) { S.listSort = b.dataset.sort; return renderList(); }
-    const fb = ev.target.closest('[data-filter]'); if (fb) { S.listFilter = fb.dataset.filter; return renderList(); }
+    const b = ev.target.closest('[data-sort]'); if (b) { S.listSort = b.dataset.sort; await renderList(); $('#dictPane').scrollTop = 0; return; }
+    const fb = ev.target.closest('[data-filter]'); if (fb) { S.listFilter = fb.dataset.filter; await renderList(); $('#dictPane').scrollTop = 0; return; }
     if (ev.target.closest('[data-vexport]')) return vocabExportDialog();
     if (ev.target.closest('textarea.lg')) return;
     const r = ev.target.closest('.lrow'); if (!r) return;
@@ -2095,8 +2098,13 @@ function wire() {
   window.visualViewport?.addEventListener('resize', () => { const g = S.tGuard; if (g && Date.now() <= g.until && !S.tTouch) requestAnimationFrame(() => applyTextAnchor(g.a)); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveReadPos(); });
   $('#btnFwd').onclick = goFwd;
-  $('#tabEntry').onclick = () => showTab('entry');
-  $('#tabList').onclick = () => { showTab('list'); renderList(); };
+  $('#tabEntry').onclick = () => { if (!$('#dictBody').hidden) return; showTab('entry'); $('#dictPane').scrollTop = S.entryY || 0; };
+  $('#tabList').onclick = async () => {
+    if (!$('#listBody').hidden) return;
+    showTab('list'); await renderList();
+    const y = S.listScroll?.id === S.text?.id ? S.listScroll.y : 0;
+    $('#dictPane').scrollTop = y; requestAnimationFrame(() => { $('#dictPane').scrollTop = y; });
+  };
   // when "Look up a word…" does not fit into the search box, a magnifying glass stands in for it
   { const sb = $('#search'), ph = sb.placeholder, cv = document.createElement('canvas').getContext('2d');
     const fit = () => {
