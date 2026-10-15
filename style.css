@@ -702,3 +702,12 @@ body.solo-text #edgeGrab{display:block;right:0}
 /* the full-screen reading mode (⛶) always shows the text */
 body.reading #textPane{visibility:visible!important;pointer-events:auto!important;width:auto!important;min-width:0!important;height:auto!important;min-height:0!important}
 body.reading #edgeGrab{display:none!important}
+/* Library: anchored near the top, as tall as the screen allows; the list takes all the remaining room */
+dialog.libdlg[open]{margin-top:max(8px,env(safe-area-inset-top));height:calc(100dvh - max(8px,env(safe-area-inset-top)) - max(8px,env(safe-area-inset-bottom)));max-height:none;overflow:hidden;display:flex;flex-direction:column}
+dialog.libdlg #dlgForm{display:flex;flex-direction:column;flex:1;min-height:0}
+dialog.libdlg #dlgForm>*{flex:none}
+dialog.libdlg #dlgForm>.list.lib{flex:1 1 auto;min-height:0;max-height:none;overflow:auto}
+dialog.libdlg #dlgForm>.row{margin-top:.5rem;align-items:center;flex-wrap:wrap}
+dialog.libdlg #dlgForm>.row .libfoot{margin:0 auto 0 0;display:flex;align-items:center;gap:.3rem;flex-wrap:wrap;min-width:0;font-size:12px}
+dialog.libdlg #dlgForm>.row .libfoot .infot{flex-basis:100%}
+dialog.libdlg h3{margin-top:0}

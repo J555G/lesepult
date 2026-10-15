@@ -2556,11 +2556,10 @@ function renderLibList() {
   let html = '', n = 0, nw = 0;
   if (v.sort === 'author') {
     const as = libAuthors().slice().sort((x, y) => v.dir * x.name.localeCompare(y.name));
-    const filtering = filtersOn(v) || v.view === 'fav';
     for (const a of as) {
       const ws = libFilter(a); if (!ws.length) continue;
       n++; nw += ws.length;
-      html += authorHTML(a, ws, S.libOpen.has(a.id) || v.view === 'mine' || (q && !fold(a.name).includes(q)) || (filtering && ws.length < 4 && n < 40));
+      html += authorHTML(a, ws, S.libOpen.has(a.id) || (q && !fold(a.name).includes(q)));
     }
   } else {
     const ws = sortedWorks(); nw = ws.length;
@@ -2613,8 +2612,11 @@ async function libraryDialog() {
     ${note}
     <div class="list lib" id="libList"></div>
     ${!cat ? '<p class="hint">The catalogue could not be loaded (offline?). Downloaded works are listed below.</p>' : S.catOnline ? '' : '<p class="hint">Offline – showing the last known catalogue; downloads need a connection.</p>'}
-    <small class="libfoot">${inst.length} work${inst.length === 1 ? '' : 's'} on this device${tot ? ` (≈ ${mb(tot)})` : ''}${S.impWorks.length ? ` · ${S.impWorks.length} imported` : ''}${cat ? ` · ${cat.authors.length} authors, ${Object.keys(S.catWork).length.toLocaleString('en')} works available` : ''}. ${info('Texts: Perseus Digital Library and Open Greek and Latin (☰ → Acknowledgements). Dates follow the TLG canon: author dates by century; a work is dated by its author.')}</small>`,
-    [['cancel', 'Close']]).then(() => { document.body.classList.remove('libsheet'); S.libScroll = $('#libList')?.scrollTop || 0; });
+    <small class="libfoot">${inst.length} on this device${tot ? ` · ≈ ${mb(tot)}` : ''}${S.impWorks.length ? ` · ${S.impWorks.length} imported` : ''} ${info(`${cat ? `${cat.authors.length} authors and ${Object.keys(S.catWork).length.toLocaleString('en')} works are available. ` : ''}Texts: Perseus Digital Library and Open Greek and Latin (☰ → Acknowledgements). Dates follow the TLG canon: author dates by century; a work is dated by its author.`)}</small>`,
+    [['cancel', 'Close']]).then(() => { document.body.classList.remove('libsheet'); $('#dlg').classList.remove('libdlg'); S.libScroll = $('#libList')?.scrollTop || 0; });
+  // the library takes the whole height: the list gets all the room, the short summary shares the line with "Close"
+  $('#dlg').classList.add('libdlg');
+  const ft = $('#dlgForm .libfoot'), row = $('#dlgForm > .row'); if (ft && row) row.prepend(ft);
   filterIcon();
   renderLibList();
   if (S.libScroll) $('#libList').scrollTop = S.libScroll;
