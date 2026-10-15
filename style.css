@@ -69,13 +69,18 @@ body.nogloss .w.glossed>.g{text-decoration:none}
 #target:empty{display:none}
 #target b{color:var(--fg);font-family:var(--greek);font-size:16px}
 #dictBody,#listBody{padding:.6rem .8rem 50vh}
-.form{font-size:1.6rem;font-weight:700;color:var(--acc)}
-.anas{display:flex;flex-wrap:wrap;gap:.35rem;margin:.4rem 0 .6rem}
+.form{font-size:1.35rem;font-weight:700;color:var(--acc);line-height:1.3;margin:.1rem 0 .35rem}
+.form .arr{color:var(--mut);font-weight:400;font-size:1.05rem}
+.form .lem{color:var(--fg);font-weight:600;font-size:1.15rem}
+.form .rdg{font:500 14px var(--ui);color:var(--mut)}
+.form .rdg.amb{color:color-mix(in srgb,var(--mut) 55%,var(--acc))}
+.form .tip{font:600 13px var(--ui);color:var(--mut);border:1px solid var(--line);border-radius:50%;padding:0 .4em;cursor:help}
+.anas{display:flex;flex-wrap:wrap;gap:.3rem;margin:.2rem 0 .35rem;align-items:center}
 .chip{font:13px var(--ui);border:1px solid var(--line);border-radius:14px;padding:.2rem .6rem;background:var(--card);cursor:pointer;text-align:left}
 .chip b{font:600 15px var(--greek)}
 .chip.on{background:var(--card);color:var(--fg);border-color:var(--acc);box-shadow:0 0 0 2px var(--acc)}
 .w .pu{color:var(--fg)}
-.chip small{color:var(--mut);display:block}
+.chip small{color:var(--mut);font-size:11px}
 .chip small .qf{color:var(--fg)}
 .form .qor{color:var(--mut);font-weight:400}
 .pin{font:12px var(--ui);color:var(--mut);margin:-.2rem 0 .5rem}
@@ -166,9 +171,9 @@ dialog .opt input{margin-right:.4rem}
 #top #search{flex:0 1 16rem}
 @media (max-width:900px){#top #search{flex:1 1 6rem}}
 #btnFwd{font-size:18px;line-height:1;padding:.25rem .6rem}
-#glossbox{display:grid;gap:.35rem;margin:.2rem 0 .7rem;padding:.5rem .6rem;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+#glossbox{display:grid;gap:.3rem;margin:.1rem 0 .5rem;padding:.35rem .5rem;border:1px solid var(--line);border-radius:8px;background:var(--card)}
 #glossbox[hidden]{display:none}
-.gb{display:grid;grid-template-columns:minmax(7rem,auto) 1fr;gap:.5rem;align-items:center;font:13px var(--ui);color:var(--mut)}
+.gb{display:grid;grid-template-columns:minmax(4.2rem,auto) 1fr;gap:.5rem;align-items:center;font:13px var(--ui);color:var(--mut)}
 .gb i{font:italic 15px var(--greek);color:var(--fg)}
 .gb textarea{border:1px solid var(--line);border-radius:6px;padding:.3rem .5rem;background:var(--bg);color:var(--gloss);font:15px/1.35 var(--ui);resize:none;overflow:hidden;min-height:0;width:100%}
 #btnSplit{padding:.2rem .45rem;line-height:0;color:var(--fg)}
@@ -603,8 +608,12 @@ dialog .ack a{color:var(--acc2)}
 /* reading of a word: analyses of the chosen lemma (right pane) and the grammar-line menu */
 body.gram .w>.gm:not(:empty){cursor:pointer}
 body.gram .w>.gm.amb{color:color-mix(in srgb,var(--mut) 55%,var(--acc))}
-.anarows{display:flex;flex-wrap:wrap;gap:.3rem;margin:.1rem 0 .5rem}
-.anarows .ana,.anamenu .ana{font:13px/1.3 var(--ui);padding:.25rem .55rem;border:1px solid var(--line,#ccc);border-radius:999px;background:transparent;color:inherit;cursor:pointer}
+.anarows{display:flex;flex-wrap:wrap;gap:.3rem;margin:0 0 .45rem;align-items:center}
+.anarows .pre{font:12px var(--ui);color:var(--mut);margin-right:.1rem}
+.rdi{display:inline-flex;gap:.15rem;margin-left:auto}
+.ico{font:15px/1 var(--ui);border:0;background:none;color:var(--mut);padding:.25rem .35rem;cursor:pointer}
+.ico.on{color:var(--acc)}
+.anarows .ana,.anamenu .ana{font:13px/1.3 var(--ui);padding:.2rem .5rem;border:1px solid var(--line,#ccc);border-radius:999px;background:transparent;color:inherit;cursor:pointer}
 .anarows .ana.on,.anamenu .ana.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
 .anarows .ana.on.amb{background:transparent;border-color:var(--acc);color:inherit;border-style:dashed}
 .anarows .anareset{font:12px var(--ui);border:0;background:none;color:var(--mut);cursor:pointer}

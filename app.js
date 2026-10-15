@@ -971,19 +971,32 @@ async function renderView() {
   v.key = k;
   // Latin: the form with its vowel lengths (macron long, breve short) – one per distinct reading of the chosen lemma
   const px = A.lemmas.find(x => x.lemma === lemma), qs = [...new Set((px?.q || []).filter(Boolean))];
-  let h = `<div class="form">${qs.length ? qs.slice(0, 3).map(esc).join(' <span class="qor">/</span> ') : esc(v.form)}</div>`;
+  // one heading line: the form (with its vowel lengths) → the chosen lemma · the chosen reading
+  const formTxt = tk?.q ? esc(tk.q) : qs.length ? qs.slice(0, 3).map(esc).join(' <span class="qor">/</span> ') : esc(v.form);
+  const rd = tk && tk.lemma === lemma ? tk.ana : null;
+  let h = `<div class="form">${formTxt}`;
+  if (A.lemmas.length && (tk || gkey(lemma) !== gkey(v.form))) h += ` <span class="arr">→</span> <span class="lem">${esc(lemma)}</span>${rd ? ` <span class="rdg${tk.amb && !tk.anaSet ? ' amb' : ''}">· ${esc(gramText([rd]) || rd)}</span>` : ''}`;
+  else if (lang === 'la' ? S.latMorph : S.morph) h += ' <span class="tip" data-tip="Form not found in the morphological analysis – looking up the form itself.">?</span>';
+  h += '</div>';
   if (A.lemmas.length) {
-    const anaHTML = x => x.ana.slice(0, 4).map((a, i) => (x.q?.[i] ? `<span class="qf">${esc(x.q[i])}</span> ` : '') + esc(a)).join(' · ');
-    h += '<div class="anas">' + A.lemmas.map(x => `<button class="chip${x.lemma === lemma ? ' on' : ''}" data-lemma="${esc(x.lemma)}"><b>${esc(x.lemma)}</b><small>${anaHTML(x)}${x.ana.length > 4 ? ' …' : ''}</small></button>`).join('') + '</div>';
-    // the analyses of the chosen lemma: one of them is this word's reading (tap to choose it)
-    if (tk && px && px.lemma === tk.lemma && (px.ana.length > 1 || A.lemmas.length > 1)) {
+    const many = A.lemmas.length > 1 || (px?.ana.length || 0) > 1;
+    const icons = many ? `<span class="rdi">${A.chosen && A.pick === lemma
+      ? '<span class="ico on" data-tip="This lemma (and form) is the default for this word form everywhere">★</span>'
+      : `<button class="ico" data-pin="${esc(lemma)}" data-tip="Always use ${esc(lemma)}${tk?.anaSet ? ' and this form' : ''} for “${esc(A.f)}” (everywhere)">☆</button>`}${tk && S.tokCh?.has(tk.i) ? '<button class="ico" data-anareset="1" data-tip="Back to the default reading of this word">↺</button>' : ''}</span>` : '';
+    h += '<div class="anas">' + A.lemmas.map(x => `<button class="chip${x.lemma === lemma ? ' on' : ''}" data-lemma="${esc(x.lemma)}"><b>${esc(x.lemma)}</b>${x.ana.length > 1 ? ` <small>${x.ana.length}</small>` : ''}</button>`).join('')
+      + (!(tk && px && px.lemma === tk.lemma && px.ana.length > 1) ? icons : '') + '</div>';
+    // the forms of the chosen lemma, without the word; what all of them share is written once in front
+    if (tk && px && px.lemma === tk.lemma && px.ana.length > 1) {
       v.anaList = px.ana;
-      h += '<div class="anarows">' + px.ana.map((a, i) => `<button class="ana${a === tk.ana ? ' on' : ''}${a === tk.ana && !tk.anaSet && tk.amb ? ' amb' : ''}" data-ana="${i}">${px.q?.[i] ? `<span class="qf">${esc(px.q[i])}</span> ` : ''}${esc(gramText([a]) || a)}</button>`).join('')
-        + (S.tokCh?.has(tk.i) ? '<button class="anareset" data-anareset="1">↺ default</button>' : '') + '</div>';
+      const labs = px.ana.map(a => (gramText([a]) || a).split(' '));
+      let pre = '', parts = labs.map(l => l.join(' '));
+      if (labs.every(l => l.length === labs[0].length && l.length > 1)) {
+        const same = labs[0].map((w, i) => labs.every(l => l[i] === w));
+        if (same.some(Boolean) && same.some(x => !x)) { pre = labs[0].filter((_, i) => same[i]).join(' '); parts = labs.map(l => l.filter((_, i) => !same[i]).join(' ')); }
+      }
+      const qd = new Set((px.q || []).filter(Boolean)).size > 1;          // vowel lengths only where they tell the forms apart
+      h += '<div class="anarows">' + (pre ? `<span class="pre">${esc(pre)}:</span>` : '') + px.ana.map((a, i) => `<button class="ana${a === tk.ana ? ' on' : ''}${a === tk.ana && !tk.anaSet && tk.amb ? ' amb' : ''}" data-ana="${i}">${qd && px.q[i] ? `<span class="qf">${esc(px.q[i])}</span> ` : ''}${esc(parts[i])}</button>`).join('') + icons + '</div>';
     }
-    if (A.lemmas.length > 1) h += `<div class="pin">${A.chosen && A.pick === lemma ? '★ default for this form' : `<button data-pin="${esc(lemma)}">★ always use ${esc(lemma)} for “${esc(A.f)}”</button>`}</div>`;
-  } else if (lang === 'la' ? S.latMorph : S.morph) {
-    h += '<p class="note">Form not found in the morphological analysis – looking up the form itself.</p>';
   }
   h += '<div id="glossbox" hidden></div>';
   const by = await entriesFor(k, lang);
@@ -1117,9 +1130,9 @@ function fillGlossBox() {
   if (sel && S.text) {
     const g = spanGloss(sel[0], sel[1]);
     const words = S.tokens.filter(t => t.t === 'w' && t.i >= sel[0] && t.i <= sel[1]).map(t => t.s).join(' ');
-    h += `<label class="gb"><span>Gloss <i>${esc(words)}</i></span><textarea rows="1" data-span="${sel[0]},${sel[1]}" placeholder="– none –" autocomplete="off">${esc(g?.t || '')}</textarea></label>`;
+    h += `<label class="gb"><span>Gloss${sel[1] > sel[0] ? ` <i>${esc(words)}</i>` : ''}</span><textarea rows="1" data-span="${sel[0]},${sel[1]}" placeholder="– none –" autocomplete="off">${esc(g?.t || '')}</textarea></label>`;
   }
-  if (k) h += `<label class="gb"><span>Default <i>${esc(v.pick)}</i></span><textarea rows="1" data-def="${esc(k)}" placeholder="– none –" autocomplete="off">${esc(S.lemmaGloss[k] || '')}</textarea></label>`;
+  if (k) h += `<label class="gb"><span>Default</span><textarea rows="1" data-def="${esc(k)}" placeholder="– none –" autocomplete="off">${esc(S.lemmaGloss[k] || '')}</textarea></label>`;
   if (box.contains(document.activeElement)) return;   // do not disturb a field that is being edited
   box.innerHTML = h; box.hidden = !h;
   box.querySelectorAll('textarea').forEach(autoGrow);
@@ -1876,7 +1889,13 @@ function wire() {
     const tk = S.tokens.find(t => t.t === 'w' && t.i === i);
     S.hist = []; S.view = null; await showWord(tk.s, { ti: i });
   });
+  let tipT = null, tipShown = false;
+  document.addEventListener('pointerdown', ev => { const t = ev.target.closest?.('[data-tip]'); clearTimeout(tipT); tipShown = false; if (t) tipT = setTimeout(() => { tipShown = true; toast(t.dataset.tip, 3500); }, 500); }, true);
+  for (const e of ['pointerup', 'pointercancel', 'pointermove']) document.addEventListener(e, ev => { if (e !== 'pointermove' || Math.abs(ev.movementX) + Math.abs(ev.movementY) > 4) clearTimeout(tipT); }, true);
+  document.addEventListener('click', ev => { if (tipShown && ev.target.closest?.('[data-tip]')) { ev.stopPropagation(); ev.preventDefault(); tipShown = false; } }, true);
+  document.addEventListener('contextmenu', ev => { if (ev.target.closest?.('[data-tip]')) ev.preventDefault(); }, true);
   $('#dictBody').addEventListener('click', async ev => {
+    if (ev.target.closest('.tip')) return toast(ev.target.closest('.tip').dataset.tip, 3500);
     const chip = ev.target.closest('.chip');
     if (chip) { if (S.view.ti != null && S.text) return setTokChoice(S.view.ti, chip.dataset.lemma, null); S.view.lemma = chip.dataset.lemma; return renderView(); }
     const an = ev.target.closest('[data-ana]');
