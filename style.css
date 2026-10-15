@@ -718,3 +718,7 @@ dialog .ggrp .gitems{display:flex;flex-wrap:wrap;gap:.15rem .9rem;padding:.2rem 
 dialog .ggrp .gitems .sopt{font-size:13.5px}
 #btnGram{-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
 #btnGram.held{background:var(--acc);color:var(--bg)}
+/* grammar line: close beneath its own word, with clear room before the next line of text */
+body.gram #textBody .w>.g{line-height:1.2}
+body.gram #textBody .w>.gm:not(:empty){margin-top:.05em;line-height:1.15}
+body.gram #textBody .w{padding-bottom:.55em}
