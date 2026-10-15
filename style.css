@@ -69,12 +69,7 @@ body.nogloss .w.glossed>.g{text-decoration:none}
 #target:empty{display:none}
 #target b{color:var(--fg);font-family:var(--greek);font-size:16px}
 #dictBody,#listBody{padding:.6rem .8rem 50vh}
-.form{font-size:1.35rem;font-weight:700;color:var(--acc);line-height:1.3;margin:.1rem 0 .35rem}
-.form .arr{color:var(--mut);font-weight:400;font-size:1.05rem}
-.form .lem{color:var(--fg);font-weight:600;font-size:1.15rem}
-.form .rdg{font:500 14px var(--ui);color:var(--mut)}
-.form .rdg.amb{color:color-mix(in srgb,var(--mut) 55%,var(--acc))}
-.form .tip{font:600 13px var(--ui);color:var(--mut);border:1px solid var(--line);border-radius:50%;padding:0 .4em;cursor:help}
+.form{font-size:1.6rem;font-weight:700;color:var(--acc)}
 .anas{display:flex;flex-wrap:wrap;gap:.3rem;margin:.2rem 0 .35rem;align-items:center}
 .chip{font:13px var(--ui);border:1px solid var(--line);border-radius:14px;padding:.2rem .6rem;background:var(--card);cursor:pointer;text-align:left}
 .chip b{font:600 15px var(--greek)}
@@ -606,7 +601,6 @@ dialog .ack li{margin:.35rem 0;line-height:1.35}
 dialog .ack small{color:var(--mut)}
 dialog .ack a{color:var(--acc2)}
 /* reading of a word: analyses of the chosen lemma (right pane) and the grammar-line menu */
-body.gram .w>.gm:not(:empty){cursor:pointer}
 body.gram .w>.gm.amb{color:color-mix(in srgb,var(--mut) 55%,var(--acc))}
 .anarows{display:flex;flex-wrap:wrap;gap:.3rem;margin:0 0 .45rem;align-items:center}
 .anarows .pre{font:12px var(--ui);color:var(--mut);margin-right:.1rem}

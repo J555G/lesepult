@@ -270,17 +270,6 @@ async function loadTokCh(t) {
   const rs = await getAll('settings', IDBKeyRange.bound(`an|${t.id}|`, `an|${t.id}|\uffff`));
   return new Map(rs.map(r => [+r.k.slice(r.k.lastIndexOf('|') + 1), r.v]));
 }
-// tapping the grammar line beneath a word: all its readings, grouped by lemma
-async function anaMenu(i) {
-  const tk = S.tokens.find(t => t.t === 'w' && t.i === i); if (!tk) return;
-  const A = await analyses(tk.s); if (!A.lemmas.length) return;
-  const rows = A.lemmas.map((x, li) => `<div class="anagrp"><div class="anal">${esc(x.lemma)}</div>` + x.ana.map((a, ai) =>
-    `<button type="button" class="ana${x.lemma === tk.lemma && a === tk.ana ? ' on' : ''}" data-v="a:${li}:${ai}">${x.q?.[ai] ? `<span class="qf">${esc(x.q[ai])}</span> ` : ''}${esc(gramText([a]) || a)}</button>`).join('') + '</div>').join('');
-  const r = await dialog(`<h3>${esc(tk.s)}</h3><p class="hint">Choose the reading of this word.</p><div class="anamenu">${rows}</div>`,
-    [...(S.tokCh.has(i) ? [['reset', 'Back to default']] : []), ['cancel', 'Cancel']]);
-  if (r.action.startsWith('a:')) { const [, li, ai] = r.action.split(':').map(Number); await setTokChoice(i, A.lemmas[li].lemma, A.lemmas[li].ana[ai]); }
-  else if (r.action === 'reset') await setTokChoice(i, null);
-}
 const classifyTokens = resolveTokens;
 
 // ---------------------------------------------------------------- package import
@@ -971,18 +960,11 @@ async function renderView() {
   v.key = k;
   // Latin: the form with its vowel lengths (macron long, breve short) – one per distinct reading of the chosen lemma
   const px = A.lemmas.find(x => x.lemma === lemma), qs = [...new Set((px?.q || []).filter(Boolean))];
-  // one heading line: the form (with its vowel lengths) → the chosen lemma · the chosen reading
-  const formTxt = tk?.q ? esc(tk.q) : qs.length ? qs.slice(0, 3).map(esc).join(' <span class="qor">/</span> ') : esc(v.form);
-  const rd = tk && tk.lemma === lemma ? tk.ana : null;
-  let h = `<div class="form">${formTxt}`;
-  if (A.lemmas.length && (tk || gkey(lemma) !== gkey(v.form))) h += ` <span class="arr">→</span> <span class="lem">${esc(lemma)}</span>${rd ? ` <span class="rdg${tk.amb && !tk.anaSet ? ' amb' : ''}">· ${esc(gramText([rd]) || rd)}</span>` : ''}`;
-  else if (lang === 'la' ? S.latMorph : S.morph) h += ' <span class="tip" data-tip="Form not found in the morphological analysis – looking up the form itself.">?</span>';
-  h += '</div>';
+  let h = `<div class="form">${qs.length ? qs.slice(0, 3).map(esc).join(' <span class="qor">/</span> ') : esc(v.form)}</div>`;
+  if (!A.lemmas.length && (lang === 'la' ? S.latMorph : S.morph)) h += '<p class="note">Form not found in the morphological analysis – looking up the form itself.</p>';
   if (A.lemmas.length) {
     const many = A.lemmas.length > 1 || (px?.ana.length || 0) > 1;
-    const icons = many ? `<span class="rdi">${A.chosen && A.pick === lemma
-      ? '<span class="ico on" data-tip="This lemma (and form) is the default for this word form everywhere">★</span>'
-      : `<button class="ico" data-pin="${esc(lemma)}" data-tip="Always use ${esc(lemma)}${tk?.anaSet ? ' and this form' : ''} for “${esc(A.f)}” (everywhere)">☆</button>`}${tk && S.tokCh?.has(tk.i) ? '<button class="ico" data-anareset="1" data-tip="Back to the default reading of this word">↺</button>' : ''}</span>` : '';
+    const icons = many && tk && S.tokCh?.has(tk.i) ? '<span class="rdi"><button class="ico" data-anareset="1" data-tip="Back to the default reading of this word">↺</button></span>' : '';
     h += '<div class="anas">' + A.lemmas.map(x => `<button class="chip${x.lemma === lemma ? ' on' : ''}" data-lemma="${esc(x.lemma)}"><b>${esc(x.lemma)}</b>${x.ana.length > 1 ? ` <small>${x.ana.length}</small>` : ''}</button>`).join('')
       + (!(tk && px && px.lemma === tk.lemma && px.ana.length > 1) ? icons : '') + '</div>';
     // the forms of the chosen lemma, without the word; what all of them share is written once in front
@@ -1874,13 +1856,6 @@ function wire() {
       return openGlossField(dg ? 'def' : 'span');
     }
     const st = ev.target.closest('[data-step]'); if (st) return stepBook(+st.dataset.step);
-    const gm = ev.target.closest('.w>.gm');
-    if (gm && document.body.classList.contains('gram') && gm.textContent) {
-      const i = +gm.parentElement.dataset.i; S.curHidden = false; S.cur = [i, i]; markTarget();
-      const tk = S.tokens.find(t => t.t === 'w' && t.i === i);
-      S.hist = []; S.view = null; showWord(tk.s, { ti: i });
-      return anaMenu(i);
-    }
     const w = ev.target.closest('.w');
     if (!w) { if (!String(window.getSelection())) { S.curHidden = true; markTarget(); } return; }
     S.curHidden = false;
