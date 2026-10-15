@@ -777,3 +777,20 @@ dialog .secs .chaps button.cur{border-color:var(--acc);border-width:2px}
 dialog .secs .chaps button.open{background:var(--acc);border-color:var(--acc);color:var(--bg)}
 dialog .secs .chapsecs{display:flex;flex-wrap:wrap;gap:.25rem;padding:.4rem;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
 dialog .secs .chapsecs .sgk{flex-basis:100%;text-align:left;font:600 13px var(--ui)}
+/* navigation outline: parts › chapters › sections, folded except the path to the reading position */
+dialog .outline{border-top:1px solid var(--line);margin:.2rem 0 .6rem}
+dialog .olrow{display:flex;align-items:stretch;border-bottom:1px solid var(--line)}
+dialog .olrow .olt{flex:none;width:2.2rem;min-height:2.4rem;border:0;background:none;border-radius:0;padding:0;color:var(--mut);font-size:13px;display:flex;align-items:center;justify-content:center}
+dialog .olrow .olj{flex:1;min-width:0;display:flex;align-items:baseline;gap:.55rem;border:0;background:none;border-radius:6px;text-align:left;padding:.5rem .4rem;color:var(--fg)}
+dialog .olrow .oln{flex:none;min-width:2.2rem;font:600 13.5px var(--ui)}
+dialog .olrow .olx{flex:1;min-width:0;font:15px/1.35 var(--greek);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+dialog .olrow .olc{flex:none;font:12px var(--ui);color:var(--mut)}
+dialog .olrow.part .olx{font-weight:700}
+dialog .olrow.d1 .olt{margin-left:1rem}dialog .olrow.d2 .olt{margin-left:2rem}dialog .olrow.d3 .olt,dialog .olrow.d4 .olt{margin-left:3rem}
+dialog .olrow.d2 .olx,dialog .olrow.d3 .olx,dialog .olrow.d4 .olx{color:var(--mut);font-size:14px}
+dialog .olrow.d2 .oln,dialog .olrow.d3 .oln{font-weight:400;color:var(--mut)}
+dialog .olrow.path>.olj .oln,dialog .olrow.path>.olj .olx{color:var(--acc)}
+dialog .olrow.on>.olj{background:var(--acc)}
+dialog .olrow.on>.olj .oln,dialog .olrow.on>.olj .olx{color:var(--bg)}
+dialog .olrow .bm{fill:var(--acc2);flex:none}
+@media (max-width:600px){dialog .olrow.d1 .olt{margin-left:.5rem}dialog .olrow.d2 .olt{margin-left:1rem}dialog .olrow.d3 .olt,dialog .olrow.d4 .olt{margin-left:1.5rem}}

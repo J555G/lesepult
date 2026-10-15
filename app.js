@@ -2852,6 +2852,8 @@ function refsOf(toks, blocks) {
   if (!list.length && blocks) { let n = 0, need = false;                  // no references: the paragraphs, numbered
     for (const tk of toks) { if (tk.t === 'b') need = true; else if (tk.t === 'w' && need) { list.push({ s: '¶ ' + (++n), i: tk.i }); need = false; } } }
   list.verse = nl > list.length / 2;
+  const ws = toks.filter(x => x.t === 'w');
+  list.forEach((r, j) => { const end = list[j + 1]?.i ?? Infinity; r.lab = ws.slice(r.i, r.i + 7).filter(x => x.i < end).map(x => x.s).join(' '); r.more = (list[j + 1]?.i ?? ws.length) - r.i > 7; });
   return list;
 }
 function topWord() {                // the first word at the top of the text pane
@@ -2968,14 +2970,9 @@ async function navHTML(keepOpen = null) {
   let html = '';
   const cur = t ? (t.work ? t.work.id : 'imp:' + t.id) : null, rec = S.recent.filter(x => x.key !== cur).slice(0, 5);
   if (t) {
-    const marks = w ? new Set((await getAll('settings', IDBKeyRange.bound(`mk|w:${w.id}:`, `mk|w:${w.id}:￿`))).map(r => +r.k.split(':').pop())) : new Set();
-    const short = w ? stripCommon(w.books) : [];
-    const sel = S.navPart != null && w && S.navPart < w.books.length && S.navWork === w.id ? S.navPart : (w ? t.bi : null);
     html += `<h3>${w ? `${esc(w.author)} · ${esc(w.title)} <span class="gk">${w.greek && w.greek !== w.title ? esc(w.greek) : ''}</span>` : esc(t.title)}</h3>
       <div class="navgo"><input type="text" id="navGo" class="nofocus" placeholder="Go to … (e.g. ${esc(navExample())})" autocomplete="off" autocapitalize="off" spellcheck="false"><button type="button" data-navgo="1">Go</button></div>`;
-    const narrow = navNarrow();
-    if (w && w.books.length > 1) html += (narrow ? `<details class="partsfold"${S.navPartsOpen ? ' open' : ''}><summary>${esc(w.books[sel])} <small>· ${w.books.length} parts</small></summary>` : '') + `<div class="bookgrid">${short.map((l, i) => `<button type="button" data-part="${i}" title="${esc(w.books[i])}${marks.has(i) ? ' – has a marker' : ''}" class="${i === t.bi ? 'cur' : ''}${i === sel ? ' on' : ''}${marks.has(i) ? ' mk' : ''}">${esc(l)}${marks.has(i) ? '<svg class="bm" width="8" height="11" viewBox="0 0 8 11" aria-hidden="true"><path d="M0 0h8v11L4 8 0 11z"/></svg>' : ''}</button>`).join('')}</div>` + (narrow ? '</details>' : '');
-    html += `<div id="navSecs">${await secsHTML(sel)}</div>`;
+    html += `<div id="navOutline" class="outline">${await outlineHTML()}</div>`;
     const F = S.navFind?.key === (w ? w.id : t.id) ? S.navFind : null;
     html += `<div class="navsec"><div class="navh">Find in this ${w ? 'work' : 'text'}</div>
       <div class="navgo"><input type="search" id="navFind" class="nofocus" value="${esc(F?.q || '')}" placeholder="A word form (accents ignored, * = any letters) or a lemma" autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -3004,21 +3001,56 @@ function navExample() {
   const r = S.refs || [], w = S.text?.work, x = r[Math.min(r.length - 1, 5)]?.s || '1';
   return w && w.books.length > 1 ? `${x} or ${stripCommon(w.books)[Math.min(1, w.books.length - 1)]} ${x}` : x;
 }
-const navNarrow = () => matchMedia('(max-width:600px)').matches;
-async function secsHTML(bi) {
-  const t = S.text, w = t?.work; if (!t) return '';
-  const list = await partRefs(bi ?? t.bi), here = bi == null || bi === t.bi, cr = here ? curRef() : null;
-  const head = w && w.books.length > 1 ? `<div class="navh">${esc(w.books[bi])}${here ? ' <small>– open now</small>' : ` <button type="button" class="opart" data-openpart="${bi}">Open where I left it</button>`}</div>` : '';
-  if (!list.length) return head + '<p class="hint" style="font-size:13px">This part has no numbered sections.</p>';
-  const gs = refGroups(list);
-  if (navNarrow() && gs.length > 1) {        // phones: the chapters in one row; only one chapter's sections unfolded
-    const cg = cr ? gs.findIndex(g => g.head === cr || g.items.some(x => x.r === cr)) : -1;
-    const og = S.navGroup?.part === (bi ?? t.bi) ? S.navGroup.g : cg;
-    const G = gs[og];
-    return head + `<div class="secs fold"><div class="chaps">${gs.map((g, n) => `<button type="button" data-chap="${n}" data-secpart="${bi ?? ''}" class="${n === og ? 'open' : ''}${n === cg ? ' cur' : ''}">${esc(g.k || '·')}</button>`).join('')}</div>`
-      + (G ? `<div class="chapsecs">${G.head ? `<button type="button" class="sgk${cr === G.head ? ' on' : ''}" data-sec="${esc(G.head.s)}" data-secpart="${bi ?? ''}">${esc(G.k)} – beginning</button>` : ''}${G.items.map(({ r, lab }) => `<button type="button" data-sec="${esc(r.s)}" data-secpart="${bi ?? ''}"${cr === r ? ' class="on"' : ''} title="${esc(r.s)}">${esc(lab)}</button>`).join('')}</div>` : '') + '</div>';
+// ---- outline of the open work: parts › chapters › sections (any depth); only the path to the reading position is unfolded
+function refTree(list) {
+  const root = { id: '', kids: [], map: new Map() }, numeric = list.length > 60 && list.every(r => /^\d+$/.test(r.s));
+  for (const r of list) {
+    let segs, m;
+    if (numeric) { const n = +r.s; if (list.verse && n % 10 && r !== list[0]) continue; const lo = Math.floor((n - 1) / 50) * 50 + 1; segs = [`${lo}–${lo + 49}`, r.s]; }
+    else if ((m = r.s.match(/^(\d+)([a-e])$/i))) segs = [m[1], m[2]];
+    else segs = r.s.split(/[.,:](?=\w)/);
+    let node = root;
+    segs.forEach((sg, k) => {
+      const id = segs.slice(0, k + 1).join('.');
+      let c = node.map.get(id);
+      if (!c) { c = { id, seg: sg, kids: [], map: new Map(), parent: node }; node.map.set(id, c); node.kids.push(c); }
+      node = c;
+    });
+    node.ref = r;
   }
-  return head + `<div class="secs">${gs.map(g => `<div class="sg">${g.head ? `<button type="button" class="sgk${cr === g.head ? ' on' : ''}" data-sec="${esc(g.head.s)}" data-secpart="${bi ?? ''}" title="${esc(g.head.s)}">${esc(g.k)}</button>` : g.k ? `<span class="sgk">${esc(g.k)}</span>` : ''}<span class="sgi">${g.items.map(({ r, lab }) => `<button type="button" data-sec="${esc(r.s)}" data-secpart="${bi ?? ''}"${cr === r ? ' class="on"' : ''} title="${esc(r.s)}">${esc(lab)}</button>`).join('')}</span></div>`).join('')}</div>`;
+  return root;
+}
+const firstRef = n => n.ref || (n.kids[0] && firstRef(n.kids[0]));
+function treeHas(n, r) { return n.ref === r || n.kids.some(k => treeHas(k, r)); }
+function outlineNodes(nodes, part, cr, depth) {
+  let h = '';
+  for (const n of nodes) {
+    const key = part + '|' + n.id, kids = n.kids.length, onPath = cr && treeHas(n, cr);
+    const open = kids && (S.navOpen.has(key) || (onPath && !S.navShut.has(key)));
+    const r = firstRef(n), title = r ? r.lab + (r.more ? ' …' : '') : '';
+    h += `<div class="olrow d${Math.min(depth, 4)}${n.ref && n.ref === cr ? ' on' : ''}${onPath ? ' path' : ''}">`
+      + (kids ? `<button type="button" class="olt" data-olt="${esc(key)}" aria-expanded="${!!open}" aria-label="${open ? 'Fold' : 'Unfold'}">${open ? '▾' : '▸'}</button>` : '<span class="olt"></span>')
+      + `<button type="button" class="olj" data-sec="${esc(r?.s || '')}" data-secpart="${part}"><span class="oln">${esc(n.seg)}</span><span class="olx">${esc(title)}</span>${kids && !open ? `<span class="olc">${kids}</span>` : ''}</button></div>`;
+    if (open) h += outlineNodes(n.kids, part, cr, depth + 1);
+  }
+  return h;
+}
+async function outlineHTML() {
+  const t = S.text, w = t?.work; if (!t) return '';
+  const cr = curRef(), cur = w ? t.bi : '';
+  if (!w || w.books.length < 2) {
+    const tree = refTree(S.refs || []);
+    return tree.kids.length ? outlineNodes(tree.kids, cur, cr, 0) : '<p class="hint" style="font-size:13px">This text has no numbered sections.</p>';
+  }
+  const marks = new Set((await getAll('settings', IDBKeyRange.bound(`mk|w:${w.id}:`, `mk|w:${w.id}:\\uffff`))).map(r => +r.k.split(':').pop()));
+  let h = '';
+  for (let bi = 0; bi < w.books.length; bi++) {
+    const key = 'part|' + bi, here = bi === t.bi, open = S.navOpen.has(key) || (here && !S.navShut.has(key));
+    h += `<div class="olrow d0 part${here ? ' path' : ''}"><button type="button" class="olt" data-olt="${key}" aria-expanded="${open}">${open ? '▾' : '▸'}</button>`
+      + `<button type="button" class="olj" ${here ? `data-sec="" data-secpart="${bi}"` : `data-openpart="${bi}"`}><span class="olx">${esc(w.books[bi])}</span>${marks.has(bi) ? '<svg class="bm" width="8" height="11" viewBox="0 0 8 11" aria-hidden="true"><path d="M0 0h8v11L4 8 0 11z"/></svg>' : ''}${here ? '<span class="olc">open now</span>' : ''}</button></div>`;
+    if (open) { const tree = refTree(await partRefs(bi)); h += tree.kids.length ? outlineNodes(tree.kids, bi, here ? cr : null, 1) : '<p class="hint" style="font-size:13px;margin:.2rem 0 .4rem 2.4rem">No numbered sections.</p>'; }
+  }
+  return h;
 }
 function resultsHTML(F) {
   const w = S.text?.work, short = w ? stripCommon(w.books) : [];
@@ -3030,10 +3062,10 @@ function resultsHTML(F) {
 }
 // text navigation: the menu closes when a place is chosen
 async function navDialog() {
-  S.navPart = null; S.navGroup = null;
+  S.navOpen = new Set(); S.navShut = new Set();
   const p = dialog(`<div id="navBody">${await navHTML()}</div>`, [['library', 'Library'], ['texts', 'Import text'], ['cancel', 'Close']]);
   $('#dlg').classList.add('navdlg');
-  requestAnimationFrame(() => $('#navSecs .secs button.on')?.scrollIntoView({ block: 'center' }));
+  requestAnimationFrame(() => $('#navOutline .olrow.on')?.scrollIntoView({ block: 'center' }));
   const r = await p; $('#dlg').classList.remove('navdlg');
   if (r.action === 'library') return libraryDialog();
   if (r.action === 'texts') return textsDialog();
@@ -3044,20 +3076,13 @@ function wireNav() {
     const body = ev.target.closest('#navBody'); if (!body) return;
     const b = ev.target.closest('button'); if (!b) return;
     const d = b.dataset;
-    if (d.part != null) {
-      S.navPart = +d.part; S.navWork = S.text.work.id; S.navGroup = null;
-      const pf = body.querySelector('details.partsfold'); if (pf) pf.open = false;
-      const sm = body.querySelector('details.partsfold>summary'); if (sm) sm.innerHTML = `${esc(S.text.work.books[+d.part])} <small>· ${S.text.work.books.length} parts</small>`;
-      body.querySelectorAll('.bookgrid button').forEach(x => x.classList.toggle('on', x === b));
-      $('#navSecs').innerHTML = await secsHTML(+d.part); return;
-    }
     if (d.openpart != null) { close(); return openText(`w:${S.text.work.id}:${+d.openpart}`); }
-    if (d.chap != null) {
-      const part = d.secpart === '' ? S.text.bi : +d.secpart, g = +d.chap;
-      S.navGroup = S.navGroup?.part === part && S.navGroup.g === g ? { part, g: -1 } : { part, g };
-      $('#navSecs').innerHTML = await secsHTML(d.secpart === '' ? null : part); return;
+    if (d.olt) {
+      const k = d.olt, isOpen = b.getAttribute('aria-expanded') === 'true';
+      if (isOpen) { S.navOpen.delete(k); S.navShut.add(k); } else { S.navShut.delete(k); S.navOpen.add(k); }
+      const ol = $('#navOutline'), y = $('#dlg').scrollTop; ol.innerHTML = await outlineHTML(); $('#dlg').scrollTop = y; return;
     }
-    if (d.sec != null) { close(); return goPlace(d.secpart === '' ? null : +d.secpart, d.sec, null); }
+    if (d.sec != null) { close(); return goPlace(d.secpart === '' ? null : +d.secpart, d.sec || null, null); }
     if (d.navgo) return runGo();
     if (d.rec) { const x = S.recent.find(r => r.key === d.rec); close();
       if (x) return openText(x.id);
