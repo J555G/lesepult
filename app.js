@@ -1109,7 +1109,7 @@ async function privFetch(cfg, path) {
 function pkgFetch(p) { return p.priv ? privFetch(p.priv, p.file) : fetch('packages/' + p.file, { cache: 'no-cache' }); }
 async function fetchManifest() {
   let man;
-  try { man = await (await fetch('packages/packages.json', { cache: 'no-cache' })).json(); } catch (_) { return null; }
+  try { man = await (await fetchT('packages/packages.json', { cache: 'no-cache' })).json(); } catch (_) { return null; }
   S.privErr = null;
   const cfg = await privCfg();
   if (cfg.token && cfg.repo) {
@@ -2002,10 +2002,15 @@ async function openWork(id, bi) {
   if (bi == null) bi = (await setting('wk|' + id)) ?? 0;
   return openText(`w:${id}:${bi}`);
 }
+// a request that gives up after a while: offline, iOS often lets requests hang instead of failing
+function fetchT(url, opts = {}, ms = 6000) {
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), ms);
+  return fetch(url, Object.assign({}, opts, { signal: ctl.signal })).finally(() => clearTimeout(t));
+}
 async function fetchCatalog() {
   if (S.catalog && S.catOnline) return S.catalog;
   try {
-    const r = await fetch('texts/catalog.json', { cache: 'no-cache' }); if (!r.ok) throw new Error();
+    const r = await fetchT('texts/catalog.json', { cache: 'no-cache' }); if (!r.ok) throw new Error();
     S.catalog = await r.json(); S.catOnline = true; setting('catalog', S.catalog);
   } catch (_) { S.catalog = S.catalog || (await setting('catalog')) || null; S.catOnline = false; }
   S.catWork = {}; S.catAuthor = {};
@@ -2483,6 +2488,7 @@ function wireMarker() {
 
 // ---------------------------------------------------------------- start
 (async function main() {
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => { });
   db = await openDB();
   await migrateOld();
   wire();
@@ -2502,6 +2508,5 @@ function wireMarker() {
   if (cur != null) await openText(cur);
   if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! <button id="btnFirstSync">Download the free dictionaries</button> (Greek: Pape, LSJ and morphology; Latin: Lewis &amp; Short, Georges and Collatinus – about 60 MB). More dictionaries: ☰ → Dictionaries. Then get a text via ☰ → Library, or paste your own via ☰ → My texts.</p>';
   $('#btnFirstSync')?.addEventListener('click', () => syncPackages());
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => { });
   navigator.storage?.persist?.().catch(() => { });
 })();
