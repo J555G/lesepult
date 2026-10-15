@@ -152,7 +152,11 @@ function posOf(lemma, anas) {
   if (a.some(x => /\binf\b/.test(x))) return 'inf';
   if (lemma && lemma[0] !== lemma[0].toLowerCase()) return 'proper';
   const u = isGreek(lemma) ? S.lemmapos[k] : S.latPos?.[k];
-  if (u && UPOS2[u]) return UPOS2[u];
+  // the word-class list is keyed by the lemma without vowel lengths, so formīdō (noun) and formīdo (verb) share an
+  // entry: a "verb" there cannot be right for a reading with a case and no verb form – the reading decides
+  const cased = a.length && a.every(x => /\b(nom|gen|dat|acc|voc|abl|loc)\b/.test(x));
+  if (u && UPOS2[u] && !(cased && (u === 'VERB' || u === 'AUX'))) return UPOS2[u];
+  if (cased && (u === 'VERB' || u === 'AUX')) return !isGreek(lemma) && a.some(x => /\b(masc|fem|neut)\b/.test(x)) ? 'adj' : 'noun';   // Latin nouns carry no gender in their readings
   const tag = a.map(x => (x.match(/indeclform \(([^)]+)\)/) || [])[1]).find(Boolean);
   if (tag) return { adverb: 'adv', particle: 'ptcl', conj: 'conj', prep: 'prep', article: 'article', numeral: 'num', exclam: 'ptcl' }[tag] || 'other';
   if (a.some(x => /\b(nom|gen|dat|acc|voc)\b/.test(x))) return 'noun';
