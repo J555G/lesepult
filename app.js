@@ -2121,6 +2121,8 @@ function wire() {
     setTimeout(fillGlossBox, 0);
   });
   $('#dictBody').addEventListener('input', ev => { if (ev.target.matches('#glossbox textarea')) autoGrow(ev.target); });
+  // Enter completes a gloss (saved when the field is left); Shift+Enter starts a new line in it
+  $('#dictBody').addEventListener('keydown', ev => { if (ev.target.matches('#glossbox textarea') && ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); ev.target.blur(); } });
   $('#dictBody').addEventListener('toggle', ev => { if (ev.target.matches?.('details.src')) saveOpenState(); }, true);
   $('#listBody').addEventListener('click', async ev => {
     const b = ev.target.closest('[data-sort]'); if (b) { S.listSort = b.dataset.sort; await renderList(); $('#dictPane').scrollTop = 0; return; }
@@ -3065,12 +3067,10 @@ function resultsHTML(F) {
 // text navigation: the menu closes when a place is chosen
 async function navDialog() {
   S.navOpen = new Set(); S.navShut = new Set();
-  const p = dialog(`<div id="navBody">${await navHTML()}</div>`, [['library', 'Library'], ['texts', 'Import text'], ['cancel', 'Close']]);
+  const p = dialog(`<div id="navBody">${await navHTML()}</div>`, [['cancel', 'Close']]);
   $('#dlg').classList.add('navdlg');
   requestAnimationFrame(() => $('#navOutline .olrow.on')?.scrollIntoView({ block: 'center' }));
-  const r = await p; $('#dlg').classList.remove('navdlg');
-  if (r.action === 'library') return libraryDialog();
-  if (r.action === 'texts') return textsDialog();
+  await p; $('#dlg').classList.remove('navdlg');
 }
 function wireNav() {
   const close = () => { if ($('#dlg').open) $('#dlg').close(); };
