@@ -618,3 +618,28 @@ body.gram .w>.gm.amb{color:color-mix(in srgb,var(--mut) 55%,var(--acc))}
 .anagrp .anal{flex-basis:100%;font-weight:600}
 
 dialog .dictrow .fold{font:12px var(--ui);padding:.05rem .4rem;margin-left:.2rem;border-radius:999px;color:var(--mut);vertical-align:1px}
+/* dialogs: close button in the corner; explanations on demand */
+dialog{position:relative}
+dialog .dlgx{position:absolute;top:.55rem;right:.55rem;width:2rem;height:2rem;padding:0;border:0;background:none;color:var(--mut);font-size:17px;line-height:1;border-radius:50%}
+dialog .dlgx:hover{background:var(--bg)}
+dialog h3{padding-right:2.2rem}
+.info{border:0;background:none;padding:0 .15rem;color:var(--mut);font:14px/1 var(--ui);cursor:pointer;vertical-align:baseline}
+.info[aria-expanded=true]{color:var(--acc)}
+.infot[hidden]{display:none!important}
+.infot{display:block;font:12px/1.4 var(--ui);color:var(--mut);margin:.2rem 0 .1rem}
+h4 .infot{font-weight:400}
+/* import text */
+.impf{display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:.45rem .7rem;margin-bottom:.6rem}
+.impf label{display:flex;flex-direction:column;gap:.15rem;font:12px var(--ui);color:var(--mut)}
+.impf input,.impf select{font:15px var(--ui)!important;color:var(--fg);padding:.4rem .5rem!important}
+.impf select{border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.imptxt{display:flex;align-items:center;gap:.6rem;margin:.2rem 0 .3rem;font:12px var(--ui);color:var(--mut)}
+.filebtn{border:1px solid var(--line);border-radius:8px;padding:.3rem .65rem;background:var(--card);color:var(--fg);font:14px var(--ui);cursor:pointer}
+.filebtn small{color:var(--mut);font-size:11px}
+/* settings: word-class colours inline */
+details.scol{margin:.4rem 0}
+details.scol>summary{cursor:pointer;font:14px var(--ui);padding:.3rem 0}
+details.scol .posrow{padding:.2rem 0}
+/* This Pult */
+.pultlist .item{padding:.35rem 0}
+.pultlist .pv{color:var(--mut);font-variant-numeric:tabular-nums;text-align:right}

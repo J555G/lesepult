@@ -344,7 +344,7 @@ async function loadDicts() {
   S.morphInst = all.find(d => d.kind === 'morph') || null; S.morph = on(S.morphInst);
   S.hintsInst = all.find(d => d.kind === 'morphhints') || null; S.hints = on(S.hintsInst);
   S.latMorphs = all.filter(d => d.kind === 'latmorph').sort((a, b) => a.id.localeCompare(b.id));
-  S.latMorphInst = S.latMorphs[0] || null; S.latMorph = S.latMorphs.find(d => on(d)) || null;     // the one chosen in Settings → Languages
+  S.latMorphInst = S.latMorphs[0] || null; S.latMorph = S.latMorphs.find(d => on(d)) || null;     // the one chosen in ☰ → Dictionaries
   if (S.morphInst?.name === 'Morphological analysis') S.morphInst.name = 'Greek morphology';
   const hintsOff = S.hintsInst && !S.hints;
   S.lemmapos = hintsOff ? {} : (await setting('lemmapos')) || {};
@@ -570,7 +570,7 @@ function renderText() {
   const body = $('#textBody');
   const same = S.text && S.renderedText === S.text.id && S.wordEls?.length;   // the same text drawn again: keep the position
   const anchor = same ? textAnchor() : null;
-  if (!S.text) { body.innerHTML = '<p class="hint">No text yet. Open the menu ☰ (top left) → Library to download Greek texts, or → My texts to paste your own.</p>'; return; }
+  if (!S.text) { body.innerHTML = '<p class="hint">No text yet. Open the menu ☰ (top left) → Library to download Greek texts, or → Import text to paste or load your own.</p>'; return; }
   const gl = {}; for (const g of S.glosses) (gl[g.s] ??= []).push(g);
   const covered = S.covered = new Set(); for (const g of S.glosses) for (let i = g.s; i <= g.e; i++) covered.add(i);
   let html = '<div class="para">';
@@ -637,6 +637,7 @@ async function openText(id, scroll = true) {
   if (t?.ann && t.work?.annL) applyAnnotation(t);
   S.marker = t ? (await setting('mk|' + t.id)) ?? null : null;
   if (t?.work) { await setting('wk|' + t.work.id, t.bi); S.opened = (await setting('opened')) || {}; S.opened[t.work.id] = Date.now(); await setting('opened', S.opened); }
+  else if (t) { S.opened = (await setting('opened')) || {}; S.opened['imp:' + t.id] = Date.now(); await setting('opened', S.opened); }
   titleBar();
   S.glosses = t ? await req2p(tx('glosses').objectStore('glosses').index('textId').getAll(t.id)) : [];
   S.tokCh = await loadTokCh(t);
@@ -1143,7 +1144,8 @@ async function editGloss(id) {
 function dialog(inner, buttons = [['ok', 'OK']], defaultAction = null) {
   return new Promise(res => {
     const d = $('#dlg'), f = $('#dlgForm');
-    f.innerHTML = inner + '<div class="row">' + buttons.map(([v, l, extra]) =>
+    const key = (inner.match(/<h3[^>]*>([^<]*)/) || [])[1] || '';
+    f.innerHTML = '<button type="button" class="dlgx" data-v="cancel" aria-label="Close" title="Close">✕</button>' + inner + '<div class="row">' + buttons.map(([v, l, extra]) =>
       v === 'file' ? `<label class="btn" for="${extra}">${l}</label>`
       : v === 'link' ? `<a class="btn" href="${extra.href}" download="${extra.name}">${l}</a>`
       : `<button type="button" data-v="${v}">${l}</button>`).join('') + '</div>';
@@ -1155,36 +1157,99 @@ function dialog(inner, buttons = [['ok', 'OK']], defaultAction = null) {
     f.onkeydown = ev => {
       if (ev.key === 'Enter' && !ev.isComposing && ev.target.tagName !== 'TEXTAREA' && ev.target.tagName !== 'BUTTON') { ev.preventDefault(); if (defaultAction) finish(defaultAction); }
     };
+    d.onscroll = () => { if (d.open) (S.dlgScroll ??= {})[key] = d.scrollTop; };
     d.onclose = () => { const data = Object.fromEntries(new FormData(f)); res({ action, data }); };
     // a click outside the dialog (on the dimmed background) closes it like "Close"
     const outside = e => { const r = d.getBoundingClientRect(); return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom; };
     d.onpointerdown = e => { d._down = outside(e); };
     d.onclick = e => { if (e.target === d && d._down && outside(e)) finish('cancel'); d._down = false; };
     d.showModal();
-    const first = f.querySelector('input[type=text]:not(.privf input),textarea');
+    const first = f.querySelector('input[type=text]:not(.privf input):not(.nofocus),textarea:not(.nofocus)');
     if (first) { first.focus(); first.select?.(); } else { f.tabIndex = -1; f.focus({ preventScroll: true }); }
+    const y = S.dlgScroll?.[key];                    // reopen where it was left (again after late content has come in)
+    if (y && !first) { const go = () => { if (d.open && d.scrollTop < y) d.scrollTop = y; }; requestAnimationFrame(go); setTimeout(go, 150); setTimeout(go, 600); }
   });
 }
-async function textsDialog() {
-  const texts = await getAll('texts');
-  const list = texts.map(t => `<div class="item"><span class="t">${esc(t.title)} <small>${new Date(t.created).toLocaleDateString('en-GB')}</small></span><button type="button" data-v="open:${t.id}">Open</button><button type="button" class="danger" data-v="del:${t.id}">Delete</button></div>`).join('') || '<p class="hint">No texts yet.</p>';
-  const r = await dialog(`<h3>Texts</h3><div class="list">${list}</div>`, [['new', 'New text (paste)'], ['file', 'Load file …', 'fileText'], ['cancel', 'Close']]);
-  if (r.action.startsWith('open:')) return openText(+r.action.slice(5));
-  if (r.action.startsWith('del:')) {
-    const id = +r.action.slice(4);
-    const c = await dialog('<h3>Delete text?</h3><p>The text and all its glosses will be deleted.</p>', [['cancel', 'Cancel'], ['ok', 'Delete']]);
-    if (c.action === 'ok') {
-      const gl = await req2p(tx('glosses').objectStore('glosses').index('textId').getAll(id));
-      for (const g of gl) await del('glosses', g.id);
-      await del('texts', id); if (S.text?.id === id) await openText(null);
-    }
-    return textsDialog();
-  }
-  if (r.action === 'new') {
-    const n = await dialog('<h3>New text</h3><input type="text" name="title" placeholder="Title"><p></p><textarea name="text" placeholder="Paste the Greek text here …"></textarea>', [['cancel', 'Cancel'], ['ok', 'Save']]);
-    if (n.action === 'ok' && n.data.text.trim()) await saveText(n.data.title.trim() || 'Text ' + new Date().toLocaleDateString('en-GB'), n.data.text);
-  }
+// a short explanation that appears only when its ⓘ is tapped
+const info = t => `<button type="button" class="info" data-info aria-label="Explanation" aria-expanded="false">ⓘ</button><span class="infot" hidden>${t}</span>`;
+// ☰ → Import text: paste a text or load a file (.txt, .odt, .docx), with its details; imported texts are listed in the Library
+const LANG_OPTS = [['', 'Detect'], ['grc', 'Greek'], ['la', 'Latin']];
+function detectLang(t) { const g = (t.match(/[Ͱ-Ͽἀ-῿]/g) || []).length, l = (t.match(/[A-Za-z]/g) || []).length; return g >= l ? 'grc' : 'la'; }
+// "c. 380 BC" -> -380, "4th c. BC" -> -350, "2nd century AD" -> 150, "1453" -> 1453
+function parseYear(d) {
+  const s = String(d || '').toLowerCase(); const m = s.match(/(\d{1,4})\s*(st|nd|rd|th|\.)?\s*(c\b|c\.|cent|century|jh|jahrhundert)?/); if (!m) return null;
+  const n = +m[1], bc = /\b(bc|b\.c|bce|v\.\s*chr|v\.chr)/.test(s), cent = !!m[3] || (!!m[2] && m[2] !== '.' && n <= 21);
+  const y = cent ? (n - 1) * 100 + 50 : n;
+  return bc ? -y : y;
 }
+// the text of a .docx (word/document.xml) or .odt (content.xml): one line per paragraph
+async function zipEntry(buf, name) {
+  const dv = new DataView(buf); let e = -1;
+  for (let i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 70000); i--) if (dv.getUint32(i, true) === 0x06054b50) { e = i; break; }
+  if (e < 0) throw new Error('not a .docx/.odt file');
+  let p = dv.getUint32(e + 16, true);
+  for (let k = dv.getUint16(e + 10, true); k > 0; k--) {
+    const meth = dv.getUint16(p + 10, true), cs = dv.getUint32(p + 20, true), nl = dv.getUint16(p + 28, true), xl = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true), off = dv.getUint32(p + 42, true);
+    if (new TextDecoder().decode(new Uint8Array(buf, p + 46, nl)) === name) {
+      const st = off + 30 + dv.getUint16(off + 26, true) + dv.getUint16(off + 28, true), data = new Uint8Array(buf, st, cs);
+      if (meth === 0) return new TextDecoder().decode(data);
+      return new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
+    }
+    p += 46 + nl + xl + cl;
+  }
+  throw new Error(name + ' not found');
+}
+function xmlParas(xml, odt) {
+  const doc = new DOMParser().parseFromString(xml, 'application/xml'), out = [];
+  const walk = (n, acc) => {
+    for (const c of n.childNodes) {
+      if (c.nodeType === 3) { acc.push(c.nodeValue); continue; }
+      if (c.nodeType !== 1) continue;
+      const ln = c.localName;
+      if (odt ? ln === 's' : false) acc.push(' '.repeat(+(c.getAttribute('text:c') || 1)));
+      else if (ln === 'tab') acc.push('\t');
+      else if (ln === 'br' || ln === 'line-break') acc.push('\n');
+      else if (!odt && (ln === 'instrText' || ln === 'delText')) continue;
+      else walk(c, acc);
+    }
+  };
+  const paras = odt ? [...doc.getElementsByTagName('*')].filter(e => (e.localName === 'p' || e.localName === 'h') && e.namespaceURI?.includes('text'))
+    : [...doc.getElementsByTagName('*')].filter(e => e.localName === 'p' && e.namespaceURI?.includes('wordprocessingml'));
+  for (const pe of paras) { if (paras.some(q => q !== pe && q.contains(pe))) continue; const acc = []; walk(pe, acc); out.push(acc.join('')); }
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+async function readTextFile(f) {
+  const ext = (f.name.match(/\.([^.]+)$/) || [])[1]?.toLowerCase();
+  if (ext === 'docx') return xmlParas(await zipEntry(await f.arrayBuffer(), 'word/document.xml'), false);
+  if (ext === 'odt') return xmlParas(await zipEntry(await f.arrayBuffer(), 'content.xml'), true);
+  return (await f.text()).replace(/\r\n?/g, '\n');
+}
+async function importDialog(t = null) {
+  const v = t || {};
+  const r = await dialog(`<h3>${t ? 'Edit imported text' : 'Import text'}</h3>
+    <div class="impf">
+      <label>Title<input type="text" name="title" value="${esc(v.title || '')}" placeholder="e.g. Phaedrus 227a–230e" class="nofocus"></label>
+      <label>Author<input type="text" name="author" value="${esc(v.author || '')}" placeholder="e.g. Plato" class="nofocus"></label>
+      <label>Date<input type="text" name="date" value="${esc(v.date || '')}" placeholder="e.g. 4th c. BC, c. 380 BC" class="nofocus"></label>
+      <label>Edition / source<input type="text" name="edition" value="${esc(v.edition || '')}" placeholder="e.g. Burnet, OCT 1901" class="nofocus"></label>
+      <label>Language<select name="lang">${LANG_OPTS.map(([k, l]) => `<option value="${k}"${(v.lang || '') === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label>Notes<input type="text" name="notes" value="${esc(v.notes || '')}" class="nofocus"></label>
+    </div>
+    <div class="imptxt"><span>Text</span><label class="filebtn" for="fileImport">Load file … <small>.txt · .odt · .docx</small></label><input type="file" id="fileImport" accept=".txt,.text,.odt,.docx,.json,text/plain" hidden></div>
+    <textarea name="text" class="nofocus" placeholder="Paste the text here, or load a file …">${esc(v.text || '')}</textarea>
+    ${t ? '<p class="hint small">Changing the text itself can move glosses that belong to single words.</p>' : ''}`,
+    [['cancel', 'Cancel'], ['ok', t ? 'Save' : 'Import']]);
+  if (r.action !== 'ok') return;
+  const d = r.data, text = (d.text || '').trim();
+  if (!text) return toast('No text to import.');
+  const rec = Object.assign(t ? { id: t.id, created: t.created } : { created: Date.now() }, {
+    title: d.title.trim() || (t?.title) || 'Text ' + new Date().toLocaleDateString('en-GB'), author: d.author.trim(), date: d.date.trim(), year: parseYear(d.date),
+    edition: d.edition.trim(), notes: d.notes.trim(), lang: d.lang || detectLang(text), text: d.text });
+  const id = await put('texts', rec);
+  await openText(t ? t.id : id);
+  toast(t ? 'Saved' : 'Text imported – it is listed in the Library under “Imported”');
+}
+async function textsDialog() { return importDialog(); }
 async function saveText(title, text, choices) {
   const id = await put('texts', { title, text, created: Date.now() });
   if (choices) for (const [f, lemma] of Object.entries(choices)) await put('choices', { f: canon(f), lemma });
@@ -1255,7 +1320,7 @@ async function dictsDialog() {
   // 2. analysis tools (tick to use)
   const tools = [S.morphInst && [S.morphInst, 'Greek: lemma and form for every word', `${S.morphInst.count.toLocaleString('en')} forms${sizeOf(S.morphInst)}`],
                  S.hintsInst && [S.hintsInst, 'Greek: preferred lemma for ambiguous forms; word classes for the colours', ''],
-                 ...S.latMorphs.map(d => [d, 'Latin: lemma and form for every word (choose one in Settings → Languages)', `${d.count.toLocaleString('en')} lemmata${sizeOf(d)}`])].filter(Boolean)
+                 ...S.latMorphs.map(d => [d, 'Latin: lemma and form for every word (choose one below)', `${d.count.toLocaleString('en')} lemmata${sizeOf(d)}`])].filter(Boolean)
     .map(([d, what, sub]) => `<div class="item toolrow"><span class="grip ph" aria-hidden="true">⠿</span>${onBox(d.id, 'tool')}<span class="t"><b>${esc(d.name)}</b> <small>${esc(what)}</small><br><small>${sub ? sub + ' · ' : ''}${esc(d.source || '')}</small></span>${repoBtn(d.id)}${delBtn(d.id)}</div>`).join('');
   const missT = Object.values(remote).filter(p => !S.installed[p.id] && p.kind !== 'dictionary').map(missingRow).join('');
   let est = '', pers = '';
@@ -1264,17 +1329,18 @@ async function dictsDialog() {
   const privState = privCfgNow.token ? (S.privErr ? '<span class="bad">' + esc(S.privErr) + '</span>' : '<span class="ok">connected</span>') : 'not connected';
   const r = await dialog(`<h3>Dictionaries</h3>
     ${Object.entries(LANGS).map(([lang, name]) => { const rs = rowsFor(lang), ms = missFor(lang);
-      return `<section class="dsec"><h4>${name} dictionaries <small>drag ⠿ to change the order · untick to hide</small></h4>
+      return `<section class="dsec"><h4>${name} dictionaries ${info('Drag ⠿ to change the order · untick to hide · ▸/▾ folded or unfolded when a word is looked up.')}</h4>
       <div class="list plain dictlist">${rs || ms ? rs + ms : `<p class="hint">No ${name} dictionaries installed.</p>`}</div></section>`; }).join('')}
-    <section class="dsec"><h4>Analysis tools <small>untick to switch off</small></h4>
-      <div class="list plain">${tools || missT ? tools + missT : '<p class="hint">No analysis tools installed.</p>'}</div></section>
+    <section class="dsec"><h4>Analysis tools ${info('Untick a tool to switch it off. The language of each word follows from its alphabet.')}</h4>
+      <div class="list plain">${tools || missT ? tools + missT : '<p class="hint">No analysis tools installed.</p>'}</div>
+      <div class="srow"><span class="sl">Greek analysis</span><div class="sc">${langToolSel('grc')}</div></div>
+      <div class="srow"><span class="sl">Latin analysis</span><div class="sc">${langToolSel('la')}</div></div>
+      <div class="srow"><span class="sl">Vowel lengths</span><div class="sc"><label class="sopt"><input type="checkbox" data-set="latQuant"${S.latQuant ? ' checked' : ''}> Mark them in Latin texts (ā long, ă short)</label> ${info('From Collatinus (also needed with Whitaker’s Words). Where a form has several readings, only the lengths they share are marked.')}</div></div></section>
     ${man ? '' : '<p class="hint">The website could not be reached (offline?) – download buttons are not available right now. Everything already installed works offline.</p>'}
     <section class="dsec"><h4>Private dictionaries <small>${privState}</small></h4>
-      <p class="hint small">Dictionaries that may not be published can be downloaded from a private GitHub repository.</p>
+      <p class="hint small">Dictionaries that may not be published can be downloaded from a private GitHub repository. ${info('<b>Repository:</b> owner and name of the private repository. <b>Token:</b> a GitHub fine-grained personal access token with access to that repository only and the permission “Contents: Read-only”; it is stored only on this device.<br><b>Format:</b> the repository contains dictionary packages (<code>*.gdpkg.gz</code>, format <code>greekdict-pkg-2</code>, as made by the toolkit’s <code>python gd.py packages</code>) and a <code>packages.json</code> next to them that lists them (id, file, name, kind, bytes, version) – the same layout as the app’s public <code>packages</code> folder.')}</p>
       <div class="privf"><label>GitHub repository<input type="text" name="privRepo" value="${esc(privCfgNow.repo)}" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="owner/repository"></label>
       <label>Access token<input type="password" name="privToken" value="${esc(privCfgNow.token)}" autocomplete="off" placeholder="github_pat_…"></label></div>
-      <p class="hint small"><b>Repository:</b> owner and name of the private repository. <b>Token:</b> a GitHub fine-grained personal access token with access to that repository only and the permission “Contents: Read-only”; it is stored only on this device.<br>
-      <b>Format:</b> the repository contains dictionary packages (<code>*.gdpkg.gz</code>, format <code>greekdict-pkg-2</code>, as made by the toolkit’s <code>python gd.py packages</code>) and a <code>packages.json</code> next to them that lists them (id, file, name, kind, bytes, version) – the same layout as the app’s public <code>packages</code> folder.</p>
       <div class="row" style="justify-content:flex-start;margin-top:.4rem"><button type="button" data-v="privsave">Save and connect</button>${privCfgNow.token ? '<button type="button" class="danger" data-v="privforget">Forget token</button>' : ''}</div></section>
     <section class="dsec"><h4>Editors’ colour marks</h4>
       <label class="opt"><input type="checkbox" id="optSrcCol"${S.srcColors ? ' checked' : ''}> Show the colour marks of the Eulexis editors in Pape and LSJ</label>
@@ -1328,7 +1394,12 @@ function wireDictDrag() {
   document.addEventListener('pointerup', end);
   document.addEventListener('pointercancel', end);
 }
-// analysis tools per language (Settings → Languages); switching one on switches the others of that language off
+// analysis tools per language (☰ → Dictionaries); switching one on switches the others of that language off
+function langToolSel(lang) {
+  const ts = langTools(lang), cur = ts.find(d => !S.dictPrefs.off.includes(d.id));
+  return ts.length ? `<select data-langtool="${lang}">${ts.map(d => `<option value="${d.id}"${d === cur ? ' selected' : ''}>${esc(d.name)}</option>`).join('')}<option value=""${cur ? '' : ' selected'}>None (no analysis)</option></select>`
+    : '<small class="hint">none installed</small>';
+}
 function langTools(lang) { return Object.values(S.installed || {}).filter(d => (lang === 'la' ? d.kind === 'latmorph' : d.kind === 'morph')); }
 async function setLangTool(lang, id) {
   const off = new Set(S.dictPrefs.off);
@@ -1347,23 +1418,19 @@ async function settingsDialog() {
   const sw = (k, cur, opts) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button type="button" class="${cur === v ? 'on' : ''}" data-setk="${k}" data-setv="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div>`;
   const row = (label, ctl, hint = '') => `<div class="srow"><span class="sl">${label}</span><div class="sc">${ctl}${hint ? `<small class="sh">${hint}</small>` : ''}</div></div>`;
   const cb = (k, on, label) => `<label class="sopt"><input type="checkbox" data-set="${k}"${on ? ' checked' : ''}> ${label}</label>`;
-  const r = await dialog(`<h3>Settings</h3>
+  let ver = '–'; try { const ks = (await caches.keys()).filter(k => k.startsWith('lesepult-v')).map(k => +k.split('-v')[1]); if (ks.length) ver = Math.max(...ks); } catch (_) { }
+  const posRows = POS.map(([id, label]) => `<div class="item posrow"><label class="t"><input type="checkbox" data-poson="${id}"${S.posCfg[id]?.on !== false ? ' checked' : ''}> ${label}</label><input type="color" data-posc="${id}" value="${S.posCfg[id]?.c}"></div>`).join('');
+  await dialog(`<h3>Settings</h3>
     <section class="dsec"><h4>Appearance</h4>
       ${row('Theme', sw('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']]))}
-      ${row('Top bar', cb('gramBtn', S.gramBtn, 'Grammar button'), 'Shows the grammatical information beneath each word.')}
-      ${row('Colours', '<button type="button" data-v="pos">Word-class colours …</button>', 'Used by the “Colours” button in the top bar.')}</section>
-    <section class="dsec"><h4>Languages</h4>
-      ${row('Greek', toolSel('grc'))}
-      ${row('Latin', toolSel('la'))}
-      ${row('Vowel lengths', cb('latQuant', S.latQuant, 'Mark them in Latin texts (ā long, ă short)'), 'From Collatinus (also needed with Whitaker’s Words). Where a form has several readings, only shared lengths are marked.')}
-      <small class="sh">The language of each word follows from its alphabet. Dictionaries per language: ☰ → Dictionaries.</small></section>
+      ${row('Top bar', cb('gramBtn', S.gramBtn, 'Grammar button') + ' ' + info('Shows the grammatical information beneath each word.'))}
+      <details class="scol"${S.colOpen ? ' open' : ''}><summary>Word-class colours ${info('Used by the “Colours” button in the top bar (hold that button to open this list directly). Word classes follow the reading chosen for each word.')}</summary>
+        <div class="list plain">${posRows}</div><div class="row" style="justify-content:flex-start"><button type="button" data-posreset="1">Reset colours</button></div></details></section>
     <section class="dsec"><h4>Glosses</h4>
-      ${row('Own gloss', sw('glossMode', S.glossMode === 'both' ? 'both' : 'replace', [['replace', 'Replaces default'], ['both', 'Show both']]), 'A word can have its own gloss; its lemma can have a default gloss that applies everywhere.')}</section>
-    <section class="dsec"><h4>Backup</h4>
-      ${row('Your data', '<button type="button" data-v="backup">Backup and restore …</button>', 'Texts, glosses, default glosses, markers, favourites, lemma choices, colours and display settings.')}</section>`,
+      ${row('Own gloss', sw('glossMode', S.glossMode === 'both' ? 'both' : 'replace', [['replace', 'Replaces default'], ['both', 'Show both']]) + ' ' + info('A word can have its own gloss; its lemma can have a default gloss that applies everywhere.'))}</section>
+    <section class="dsec"><h4>About</h4>
+      ${row('Version', `Pult · version ${ver}`)}</section>`,
     [['cancel', 'Close']]);
-  if (r.action === 'pos') { await posDialog(); return settingsDialog(); }
-  if (r.action === 'backup') return backupDialog();
 }
 async function posDialog() {
   const rows = POS.map(([id, label]) => `<div class="item"><label class="t"><input type="checkbox" name="on_${id}"${S.posCfg[id]?.on !== false ? ' checked' : ''}> ${label}</label><input type="color" name="c_${id}" value="${S.posCfg[id]?.c}"></div>`).join('');
@@ -1468,21 +1535,48 @@ async function importFiles(files) {
   await loadDicts(); bucketCache.clear(); if (S.view) renderView();
   resetTokens(); resolveTokens();
 }
-async function backupDialog() {
-  // the export file is prepared first, so that the download link is tapped directly by the user (needed on iPad)
-  const data = { format: 'greekdict-backup-1', date: new Date().toISOString(), texts: await getAll('texts'), glosses: await getAll('glosses'), choices: await getAll('choices'), lemmaGlosses: S.lemmaGloss,
-    highlights: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('hl|', 'hl|\uffff'))).map(r => [r.k.slice(3), r.v])),
-    markers: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('mk|', 'mk|\uffff'))).map(r => [r.k.slice(3), r.v])),
-    readings: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('an|', 'an|\uffff'))).map(r => [r.k.slice(3), r.v])),
+async function backupData() {
+  return { format: 'greekdict-backup-1', date: new Date().toISOString(), texts: await getAll('texts'), glosses: await getAll('glosses'), choices: await getAll('choices'), lemmaGlosses: S.lemmaGloss,
+    highlights: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('hl|', 'hl|￿'))).map(r => [r.k.slice(3), r.v])),
+    markers: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('mk|', 'mk|￿'))).map(r => [r.k.slice(3), r.v])),
+    readings: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('an|', 'an|￿'))).map(r => [r.k.slice(3), r.v])),
     favourites: (await setting('favs')) || {},
     prefs: { theme: document.documentElement.dataset.theme, posCfg: S.posCfg, posOn: S.posOn, showGloss: !document.body.classList.contains('nogloss'),
-      glossMode: S.glossMode, latQuant: S.latQuant, gramBtn: S.gramBtn, showGram: S.gram } };
-  const href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
-  const name = 'greek-reader-backup-' + new Date().toISOString().slice(0, 10) + '.json';
-  await dialog(`<h3>Backup</h3><p>Save your texts (${data.texts.length}), glosses (${data.glosses.length}, including those in library texts), default glosses (${Object.keys(S.lemmaGloss).length}), markers, favourites (${Object.keys(data.favourites).length}), lemma choices, colours and display settings as a file (e.g. in Files or iCloud), or restore them from a backup. Dictionaries and library texts are not included (they can be downloaded again).</p>`,
-    [['link', 'Save backup', { href, name }], ['file', 'Restore …', 'fileBackup'], ['cancel', 'Close']]);
-  setTimeout(() => URL.revokeObjectURL(href), 60000);
+      glossMode: S.glossMode, latQuant: S.latQuant, gramBtn: S.gramBtn, showGram: S.gram, dictPrefs: S.dictPrefs } };
 }
+// ☰ → This Pult: what the reader has stored on this device, and backups
+async function pultDialog() {
+  // the backup file is prepared first, so that the download link is tapped directly by the user (needed on iPad)
+  const data = await backupData();
+  const href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
+  const name = 'pult-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+  const works = await libWorks(), wsize = works.reduce((a, w) => a + (w.size || 0), 0);
+  await loadDicts(); const dicts = Object.values(S.installed || {}), dsize = dicts.reduce((a, d) => a + (d.size || 0), 0);
+  const glossTexts = new Set(data.glosses.map(g => g.textId)).size;
+  let use = '', prot = '';
+  try { const e = await navigator.storage?.estimate?.(); if (e) use = `${(e.usage / 1e6).toFixed(0)} MB in use`; } catch (_) { }
+  try { prot = (await navigator.storage?.persisted?.()) ? 'protected – stays until you delete it' : 'not yet protected – start Pult from its Home Screen icon'; } catch (_) { }
+  const n = x => x.toLocaleString('en');
+  const rows = [
+    ['Imported texts', n(data.texts.length)],
+    ['Library texts on this device', `${n(works.length)}${wsize ? ` · ≈ ${mb(wsize)}` : ''}`],
+    ['Glosses', `${n(data.glosses.length)}${glossTexts ? ` in ${n(glossTexts)} text${glossTexts === 1 ? '' : 's'}` : ''}`],
+    ['Default glosses', n(Object.keys(data.lemmaGlosses || {}).length)],
+    ['Chosen readings of words', n(Object.keys(data.readings).length)],
+    ['Lemma choices for forms', n(data.choices.length)],
+    ['Highlights in dictionaries', n(Object.keys(data.highlights).length)],
+    ['Markers', n(Object.keys(data.markers).length)],
+    ['Favourites', n(Object.keys(data.favourites).length)],
+    ['Dictionaries and tools', `${n(dicts.length)}${dsize ? ` · ≈ ${mb(dsize)}` : ''}`],
+    ['Storage', [use, prot].filter(Boolean).join(' · ') || '–']];
+  const r = await dialog(`<h3>This Pult</h3>
+    <p class="hint small">Everything is stored only on this device. ${info('A backup contains your imported texts, glosses, default glosses, chosen readings, lemma choices, highlights, markers, favourites, colours and display settings. Library texts and dictionaries are not included – they can be downloaded again.')}</p>
+    <div class="list plain pultlist">${rows.map(([k, v]) => `<div class="item"><span class="t">${k}</span><span class="pv">${v}</span></div>`).join('')}</div>`,
+    [['link', 'Export backup', { href, name }], ['file', 'Import backup …', 'fileBackup'], ['clean', 'Clean up storage'], ['cancel', 'Close']]);
+  setTimeout(() => URL.revokeObjectURL(href), 60000);
+  if (r.action === 'clean') { await cleanStorage(); return pultDialog(); }
+}
+const backupDialog = pultDialog;
 async function restoreBackup(file) {
   const data = JSON.parse(await file.text());
   if (data.format !== 'greekdict-backup-1') return toast('Not a backup file.');
@@ -1495,6 +1589,7 @@ async function restoreBackup(file) {
   for (const [k, r] of Object.entries(data.readings || {})) await setting('an|' + k, r);
   if (data.favourites) { S.favs = Object.assign((await setting('favs')) || {}, data.favourites); await setting('favs', S.favs); }
   const p = data.prefs;                           // colours and display settings
+  if (p?.dictPrefs) { S.dictPrefs = Object.assign(S.dictPrefs || {}, p.dictPrefs); await setting('dictPrefs', S.dictPrefs); await loadDicts(); }
   if (p) {
     if (p.theme) setTheme(p.theme, true);
     if (p.posCfg) { S.posCfg = Object.assign(defaultPosCfg(), p.posCfg); await setting('posCfg', S.posCfg); }
@@ -1946,7 +2041,11 @@ function wire() {
     if (k === 'theme') setTheme(v, true);
     if (k === 'glossMode') { S.glossMode = v; setting('glossMode', v); renderText(); }
   });
-  $('#btnPos').onclick = async () => { S.posOn = !S.posOn; await setting('posOn', S.posOn); applyPosColors(); };
+  $('#btnPos').onclick = async () => { if (S.posHeld) { S.posHeld = false; return; } S.posOn = !S.posOn; await setting('posOn', S.posOn); applyPosColors(); };
+  { let t = null; const bp = $('#btnPos');          // hold the Colours button: the list of word-class colours
+    bp.addEventListener('pointerdown', () => { S.posHeld = false; clearTimeout(t); t = setTimeout(() => { S.posHeld = true; posDialog(); }, 550); });
+    for (const e of ['pointerup', 'pointercancel', 'pointerleave']) bp.addEventListener(e, () => clearTimeout(t));
+    bp.addEventListener('contextmenu', e => e.preventDefault()); }
 
   $('#btnSplit').onclick = cycleSplit;
   matchMedia('(orientation:portrait)').addEventListener('change', splitIcon);
@@ -1958,7 +2057,7 @@ function wire() {
   menu.addEventListener('click', ev => {
     const b = ev.target.closest('[data-m]'); if (!b) return;
     menu.hidden = true;
-    ({ settings: settingsDialog, texts: textsDialog, library: libraryDialog, dicts: dictsDialog, pos: posDialog, backup: backupDialog, export: exportDialog, acks: acksDialog })[b.dataset.m]();
+    ({ settings: settingsDialog, texts: importDialog, library: libraryDialog, dicts: dictsDialog, pos: posDialog, backup: pultDialog, pult: pultDialog, export: exportDialog, acks: acksDialog })[b.dataset.m]();
   });
   document.addEventListener('click', async ev => {
     const b = ev.target.closest?.('[data-dict-fold]'); if (!b) return;
@@ -1974,6 +2073,18 @@ function wire() {
     await setting('dictPrefs', S.dictPrefs); await loadDicts(); bucketCache.clear(); if (S.view) renderView();
     if (id === 'morph' || id === 'morphhints') { resetTokens(); renderText(); resolveTokens(); }
   });
+  document.addEventListener('change', async ev => {
+    const t = ev.target, on = t.dataset?.poson, c = t.dataset?.posc; if (!on && !c) return;
+    const id = on || c; S.posCfg[id] = Object.assign({}, S.posCfg[id], on ? { on: t.checked } : { c: t.value });
+    await setting('posCfg', S.posCfg); applyPosColors();
+  });
+  document.addEventListener('input', ev => { const c = ev.target.dataset?.posc; if (c) { S.posCfg[c] = Object.assign({}, S.posCfg[c], { c: ev.target.value }); applyPosColors(); } });
+  document.addEventListener('click', async ev => {
+    if (ev.target.closest('[data-info]')) { const b = ev.target.closest('[data-info]'), t = b.nextElementSibling; t.hidden = !t.hidden; b.setAttribute('aria-expanded', !t.hidden); ev.preventDefault(); return; }
+    if (ev.target.closest('[data-posreset]')) { S.posCfg = defaultPosCfg(); await setting('posCfg', S.posCfg); applyPosColors();
+      for (const [id] of POS) { const cb = document.querySelector(`[data-poson="${id}"]`), ci = document.querySelector(`[data-posc="${id}"]`); if (cb) cb.checked = true; if (ci) ci.value = S.posCfg[id].c; } }
+  });
+  document.addEventListener('toggle', ev => { if (ev.target.matches?.('details.scol')) S.colOpen = ev.target.open; }, true);
   document.addEventListener('change', ev => { const sl = ev.target.closest?.('select[data-langtool]'); if (sl) setLangTool(sl.dataset.langtool, sl.value); });
   document.addEventListener('change', async ev => {      // settings take effect immediately
     const k = ev.target.dataset?.set; if (!k || (ev.target.type === 'radio' && !ev.target.checked)) return;
@@ -1985,6 +2096,21 @@ function wire() {
   document.addEventListener('change', ev => { if (ev.target.id === 'optSrcCol') { S.srcColors = ev.target.checked; setting('srcColors', S.srcColors); document.body.classList.toggle('nosrccol', !S.srcColors); } });
   $('#fileDict').onchange = ev => { const fs = [...ev.target.files]; ev.target.value = ''; if (fs.length) importFiles(fs); };
   $('#fileBackup').onchange = ev => { const f = ev.target.files[0]; ev.target.value = ''; if (f) restoreBackup(f); };
+  document.addEventListener('change', async ev => {
+    if (ev.target.id !== 'fileImport') return;
+    const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
+    const fm = $('#dlgForm');
+    try {
+      if (/\.json$/i.test(f.name)) {
+        const j = JSON.parse(await f.text());
+        if (j.format === 'greekdict-backup-1') { $('#dlg').close(); return restoreBackup(f); }
+        if (j.format === 'greekdict-text-1') { fm.text.value = j.text; if (!fm.title.value) fm.title.value = j.title || ''; return; }
+      }
+      fm.text.value = await readTextFile(f);
+      if (!fm.title.value) fm.title.value = f.name.replace(/\.[^.]+$/, '');
+      toast(`${f.name} loaded`);
+    } catch (e) { toast(`${f.name}: ${e.message}`, 4000); }
+  });
   $('#fileText').onchange = async ev => {
     const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
     const raw = await f.text();
@@ -2183,10 +2309,16 @@ function centLabel(y, end) {           // year at a century boundary -> "5th c. 
 }
 const rangeLabel = v => `${centLabel(v.from)} – ${centLabel(v.to, true)}`;
 function saveLibView() { setting('libView', S.lib); }
-const authorOf = w => S.catAuthor?.[w.id] || { name: w.author, id: w.authorId, period: null, year: null, date: '' };
+const authorOf = w => S.catAuthor?.[w.id] || { name: w.author || 'Unknown author', id: w.authorId, period: null, year: w.year ?? null, date: w.date || '' };
+// imported texts as works of the library (source "Imported")
+function impWork(t) {
+  const lang = t.lang || detectLang(t.text || '');
+  return { id: 'imp:' + t.id, tid: t.id, title: t.title, greek: '', author: t.author || '', authorId: 'imp|' + (t.author || ''), source: 'Imported', lang: lang === 'la' ? 'lat' : 'grc',
+    words: ((t.text || '').match(new RegExp(WORD_TOKEN.source, 'g')) || []).length, verse: null, books: [t.title], imported: true, year: t.year ?? null, date: t.date || '', edition: t.edition || '', notes: t.notes || '', created: t.created };
+}
 function workPasses(w, q) {
   const v = libView(), a = authorOf(w);
-  if (v.view === 'mine' && !S.libInst[w.id]) return false;
+  if (v.view === 'mine' && !S.libInst[w.id] && !w.imported) return false;
   if (v.view === 'fav' && !S.favs?.[w.id]) return false;
   if (v.langs.length && !v.langs.includes(workLang(w))) return false;
   if (v.src.length && !v.src.includes(w.source)) return false;
@@ -2197,10 +2329,13 @@ function workPasses(w, q) {
   return true;
 }
 function libAuthors() {
-  if (S.catalog) return S.catalog.authors;
+  let base;
+  if (S.catalog) base = S.catalog.authors;
+  else { const by = {}; for (const w of Object.values(S.libInst)) (by[w.authorId] ??= { id: w.authorId, name: w.author, works: [] }).works.push(w); base = Object.values(by); }
+  if (!S.impWorks?.length) return base;
   const by = {};
-  for (const w of Object.values(S.libInst)) (by[w.authorId] ??= { id: w.authorId, name: w.author, works: [] }).works.push(w);
-  return Object.values(by);
+  for (const w of S.impWorks) (by[w.authorId] ??= { id: w.authorId, name: w.author || 'Unknown author', works: [], year: w.year, date: w.date, imported: true }).works.push(w);
+  return base.concat(Object.values(by));
 }
 function libFilter(a) { const q = fold(S.libQ); return a.works.filter(w => workPasses(w, q)).sort((x, y) => (x.no ?? 0) - (y.no ?? 0) || x.title.localeCompare(y.title)); }
 function chip(f, val, label) {
@@ -2213,7 +2348,7 @@ function seg(f, opts) {
   return `<div class="seg" role="group">${opts.map(([val, label]) => `<button type="button" class="${cur === val ? 'on' : ''}" data-seg="${f}" data-val="${val}" aria-pressed="${cur === val}">${label}</button>`).join('')}</div>`;
 }
 function libTabsHTML() {
-  const v = libView(), nf = Object.keys(S.favs || {}).length, ni = Object.keys(S.libInst || {}).length;
+  const v = libView(), nf = Object.keys(S.favs || {}).length, ni = Object.keys(S.libInst || {}).length + (S.impWorks?.length || 0);
   const tab = (id, label, n) => `<button type="button" role="tab" class="${v.view === id ? 'on' : ''}" data-view="${id}" aria-selected="${v.view === id}">${label}${n != null ? ` <small>${n}</small>` : ''}</button>`;
   return tab('all', 'All') + tab('fav', FLAME + 'Favourites', nf) + tab('mine', 'On this device', ni);
 }
@@ -2269,6 +2404,7 @@ function libActiveHTML() {
 }
 const DLICON = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/></g></svg>';
 function workRowHTML(w, flat = false) {
+  if (w.imported) return impRowHTML(w, flat);
   const i = S.libInst[w.id], key = 'work:' + w.id;
   let btn;
   if (DL.has(key)) btn = dlButtonHTML(key, 'Download');
@@ -2282,10 +2418,15 @@ function workRowHTML(w, flat = false) {
   const fav = !!S.favs?.[w.id];
   return `<div class="item" data-w="${w.id}"><button type="button" class="star${fav ? ' on' : ''}" data-star="${w.id}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" aria-pressed="${fav}">${FLAME}</button><span class="t"><b>${esc(w.title)}</b> <span class="gk">${w.greek && w.greek !== w.title ? esc(w.greek) : ''}</span><br><small>${who}${w.verse ? 'verse' : 'prose'} · ${nb}${w.words ? ' · ' + w.words.toLocaleString('en') + ' words' : ''} · ${esc(w.source || '')} ${esc(ed)}${op ? ' · opened ' + new Date(op).toLocaleDateString('en-GB') : ''}</small></span>${btn}</div>`;
 }
+function impRowHTML(w, flat) {
+  const a = authorOf(w), op = S.opened?.[w.id], fav = !!S.favs?.[w.id];
+  const who = (flat ? `${esc(a.name)}${w.date ? ' · ' + esc(w.date) : ''} · ` : (w.date ? esc(w.date) + ' · ' : '')) + (workLang(w) === 'la' ? 'Latin · ' : '');
+  return `<div class="item" data-w="${w.id}"><button type="button" class="star${fav ? ' on' : ''}" data-star="${w.id}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" aria-pressed="${fav}">${FLAME}</button><span class="t"><b>${esc(w.title)}</b><br><small>${who}imported ${new Date(w.created).toLocaleDateString('en-GB')} · ${w.words.toLocaleString('en')} words${w.edition ? ' · ' + esc(w.edition) : ''}${op ? ' · opened ' + new Date(op).toLocaleDateString('en-GB') : ''}</small></span><button type="button" data-iopen="${w.tid}">Open</button><button type="button" data-iedit="${w.tid}">Edit</button><button type="button" class="danger" data-idel="${w.tid}">Delete</button></div>`;
+}
 // author row: name, below it the dates; the number of works and a download icon in columns of their own
 function authorHTML(a, ws, open) {
-  const inst = a.works.filter(w => S.libInst[w.id]).length;
-  const todo = S.catalog ? ws.filter(w => !S.libInst[w.id] && !DL.has('work:' + w.id)) : [];
+  const inst = a.works.filter(w => S.libInst[w.id] || w.imported).length;
+  const todo = S.catalog ? ws.filter(w => !w.imported && !S.libInst[w.id] && !DL.has('work:' + w.id)) : [];
   const all = todo.length ? `<button type="button" class="dlall" data-all="${a.id}" title="Download ${todo.length === 1 ? 'the work' : `all ${todo.length} works`} (${mb(todo.reduce((x, w) => x + w.bytes, 0))})" aria-label="Download ${todo.length === 1 ? 'the work' : `all ${todo.length} works`}">${DLICON}</button>` : '';
   const n = ws.length < a.works.length ? `${ws.length} of ${a.works.length}` : `${a.works.length} work${a.works.length > 1 ? 's' : ''}`;
   const sub = [a.date ? esc(a.date) : '', inst ? `<span class="ok">${inst} on this device</span>` : ''].filter(Boolean).join(' · ');
@@ -2354,6 +2495,7 @@ async function libraryDialog() {
   S.opened = (await setting('opened')) || {};
   S.favs = (await setting('favs')) || {};
   const [cat, inst] = await Promise.all([fetchCatalog(), libWorks()]);
+  S.impWorks = (await getAll('texts')).map(impWork);
   S.libInst = Object.fromEntries(inst.map(w => [w.id, w]));
   const tot = inst.reduce((a, w) => a + (w.size || 0), 0);
   // only when something is downloaded and the device may still clear it: a note that can be dismissed
@@ -2369,9 +2511,8 @@ async function libraryDialog() {
     ${note}
     <div class="list lib" id="libList"></div>
     ${!cat ? '<p class="hint">The catalogue could not be loaded (offline?). Downloaded works are listed below.</p>' : S.catOnline ? '' : '<p class="hint">Offline – showing the last known catalogue; downloads need a connection.</p>'}
-    <small class="libfoot">${inst.length} work${inst.length === 1 ? '' : 's'} on this device${tot ? ` (≈ ${mb(tot)})` : ''}${cat ? ` · ${cat.authors.length} authors, ${Object.keys(S.catWork).length.toLocaleString('en')} works available` : ''}.<br>
-    Texts: Perseus Digital Library (canonical-greekLit, canonical-latinLit) and Open Greek and Latin (First1KGreek, csel-dev), licensed CC BY-SA 4.0. Dates follow the TLG canon (author dates by century; a work is dated by its author).</small>`,
-    [['cancel', 'Close']]).then(r => { document.body.classList.remove('libsheet'); if (r.action === 'cancel') S.libScroll = 0; });
+    <small class="libfoot">${inst.length} work${inst.length === 1 ? '' : 's'} on this device${tot ? ` (≈ ${mb(tot)})` : ''}${S.impWorks.length ? ` · ${S.impWorks.length} imported` : ''}${cat ? ` · ${cat.authors.length} authors, ${Object.keys(S.catWork).length.toLocaleString('en')} works available` : ''}. ${info('Texts: Perseus Digital Library and Open Greek and Latin (☰ → Acknowledgements). Dates follow the TLG canon: author dates by century; a work is dated by its author.')}</small>`,
+    [['cancel', 'Close']]).then(() => { document.body.classList.remove('libsheet'); S.libScroll = $('#libList')?.scrollTop || 0; });
   filterIcon();
   renderLibList();
   if (S.libScroll) $('#libList').scrollTop = S.libScroll;
@@ -2464,6 +2605,20 @@ function wireLibrary() {
       for (const w of libFilter(a)) if (!S.libInst[w.id]) { DL.set('work:' + w.id, -1); }
       S.libOpen.add(a.id); renderLibList(); runDownloads(); return;
     }
+    const io = ev.target.closest('#libList [data-iopen]');
+    if (io) { S.libScroll = $('#libList').scrollTop; $('#dlg').close(); return openText(+io.dataset.iopen); }
+    const ie = ev.target.closest('#libList [data-iedit]');
+    if (ie) { S.libScroll = $('#libList').scrollTop; await importDialog(await get('texts', +ie.dataset.iedit)); return libraryDialog(); }
+    const id = ev.target.closest('#libList [data-idel]');
+    if (id) {
+      const t = await get('texts', +id.dataset.idel); S.libScroll = $('#libList').scrollTop;
+      const c = await dialog(`<h3>Delete ${esc(t.title)}?</h3><p>The imported text and all its glosses are deleted from this device.</p>`, [['cancel', 'Cancel'], ['ok', 'Delete']]);
+      if (c.action === 'ok') {
+        for (const g of await req2p(tx('glosses').objectStore('glosses').index('textId').getAll(t.id))) await del('glosses', g.id);
+        await del('texts', t.id); if (S.text?.id === t.id) await openText(null);
+      }
+      return libraryDialog();
+    }
     const op = ev.target.closest('#libList [data-lopen]');
     if (op) { S.libScroll = $('#libList').scrollTop; $('#dlg').close(); return openWork(op.dataset.lopen); }
     const dl = ev.target.closest('#libList [data-ldel]');
@@ -2514,13 +2669,13 @@ async function navHTML(keepOpen = null) {
   for (const x of works) (by[x.authorId] ??= { id: x.authorId, name: x.author, works: [] }).works.push(x);
   const authors = Object.values(by).sort((a, b) => a.name.localeCompare(b.name));
   html += '<div class="list nav">' + authors.map(a => `<details data-k="${a.id}"${isOpen(a.id, a.id === w?.authorId) ? ' open' : ''}><summary><b>${esc(a.name)}</b> <small>${a.works.length}</small></summary>${a.works.sort((x, y) => x.title.localeCompare(y.title)).map(x => `<div class="item"><span class="t">${esc(x.title)} <span class="gk">${esc(x.greek || '')}</span> <small>${x.books.length > 1 ? x.books.length + ' parts' : ''}</small></span><button type="button" data-nav="work:${x.id}"${x.id === w?.id ? ' class="on"' : ''}>Open</button></div>`).join('')}</details>`).join('')
-    + (texts.length ? `<details data-k="mytexts"${isOpen('mytexts', !w) ? ' open' : ''}><summary><b>My texts</b> <small>${texts.length}</small></summary>${texts.map(x => `<div class="item"><span class="t">${esc(x.title)}</span><button type="button" data-nav="text:${x.id}"${x.id === t?.id ? ' class="on"' : ''}>Open</button></div>`).join('')}</details>` : '')
-    + (!authors.length && !texts.length ? '<p class="hint">Nothing here yet – get texts from the Library, or paste your own under My texts.</p>' : '') + '</div>';
+    + (texts.length ? `<details data-k="mytexts"${isOpen('mytexts', !w) ? ' open' : ''}><summary><b>Imported texts</b> <small>${texts.length}</small></summary>${texts.map(x => `<div class="item"><span class="t">${esc(x.title)}</span><button type="button" data-nav="text:${x.id}"${x.id === t?.id ? ' class="on"' : ''}>Open</button></div>`).join('')}</details>` : '')
+    + (!authors.length && !texts.length ? '<p class="hint">Nothing here yet – get texts from the Library, or import your own (☰ → Import text).</p>' : '') + '</div>';
   return html;
 }
 // text navigation: choosing a book, work or text opens it behind the menu; the menu stays open
 async function navDialog() {
-  const r = await dialog(`<div id="navBody">${await navHTML()}</div>`, [['library', 'Library'], ['texts', 'My texts'], ['cancel', 'Close']]);
+  const r = await dialog(`<div id="navBody">${await navHTML()}</div>`, [['library', 'Library'], ['texts', 'Import text'], ['cancel', 'Close']]);
   if (r.action === 'library') return libraryDialog();
   if (r.action === 'texts') return textsDialog();
 }
@@ -2646,7 +2801,7 @@ function wireMarker() {
   S.posOn = !!(await setting('posOn')); applyPosColors();
   const cur = await setting('currentText');
   if (cur != null) await openText(cur);
-  if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! <button id="btnFirstSync">Download the free dictionaries</button> (Greek: Pape, LSJ and morphology; Latin: Lewis &amp; Short, Georges and Collatinus – about 60 MB). More dictionaries: ☰ → Dictionaries. Then get a text via ☰ → Library, or paste your own via ☰ → My texts.</p>';
+  if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! <button id="btnFirstSync">Download the free dictionaries</button> (Greek: Pape, LSJ and morphology; Latin: Lewis &amp; Short, Georges and Collatinus – about 60 MB). More dictionaries: ☰ → Dictionaries. Then get a text via ☰ → Library, or import your own via ☰ → Import text.</p>';
   $('#btnFirstSync')?.addEventListener('click', () => syncPackages());
   navigator.storage?.persist?.().catch(() => { });
 })();
