@@ -965,7 +965,7 @@ async function renderView() {
   v.key = k;
   // Latin: the form with its vowel lengths (macron long, breve short) – one per distinct reading of the chosen lemma
   const px = A.lemmas.find(x => x.lemma === lemma), qs = [...new Set((px?.q || []).filter(Boolean))];
-  let h = `<div class="form">${qs.length ? qs.slice(0, 3).map(esc).join(' <span class="qor">/</span> ') : esc(v.form)}</div>`;
+  let h = `<div class="vtop"><div class="form">${qs.length ? qs.slice(0, 3).map(esc).join(' <span class="qor">/</span> ') : esc(v.form)}</div>`;
   if (!A.lemmas.length && (lang === 'la' ? S.latMorph : S.morph)) h += '<p class="note">Form not found in the morphological analysis – looking up the form itself.</p>';
   if (A.lemmas.length) {
     const many = A.lemmas.length > 1 || (px?.ana.length || 0) > 1;
@@ -985,7 +985,7 @@ async function renderView() {
       h += '<div class="anarows">' + (pre ? `<span class="pre">${esc(pre)}:</span>` : '') + px.ana.map((a, i) => `<button class="ana${a === tk.ana && (tk.anaSet || !tk.amb) ? ' on' : ''}${tk.amb && px.lemma === tk.defL && a === tk.defA ? ' pre' : ''}" data-ana="${i}">${qd && px.q[i] ? `<span class="qf">${esc(px.q[i])}</span> ` : ''}${esc(parts[i])}</button>`).join('') + icons + '</div>';
     }
   }
-  h += '<div id="glossbox" hidden></div>';
+  h += '</div><div id="glossbox" hidden></div>';
   const by = await entriesFor(k, lang);
   const ost = await setting('open|' + k);
   const isOpen = id => Array.isArray(ost) ? ost.includes(id) : S.dictPrefs.open.includes(id) !== !!ost?.x?.includes(id);

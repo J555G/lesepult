@@ -660,3 +660,11 @@ dialog .cinl>.infot{flex-basis:100%}
   dialog details.auth>summary .wn{width:auto;min-width:3rem}
   dialog .libtop input[type=search]{font-size:15px}
 }
+/* narrow right pane (phone): word, lemma and form side by side instead of stacked */
+#dictPane{container-type:inline-size;container-name:dpane}
+@container dpane (max-width:560px){
+  .vtop{display:flex;flex-wrap:wrap;align-items:center;column-gap:.5rem;row-gap:.3rem;margin-bottom:.45rem}
+  .vtop .form{font-size:1.45rem;line-height:1.2}
+  .vtop .anas,.vtop .anarows{margin:0}
+  .vtop>.note{flex-basis:100%;margin:0}
+}
