@@ -2967,14 +2967,14 @@ async function navHTML(keepOpen = null) {
   S.recent ??= (await setting('recent')) || [];
   let html = '';
   const cur = t ? (t.work ? t.work.id : 'imp:' + t.id) : null, rec = S.recent.filter(x => x.key !== cur).slice(0, 5);
-  if (rec.length) html += `<div class="navsec"><div class="navh">Recently read</div><div class="navrec">${rec.map(x => `<button type="button" class="recrow" data-rec="${esc(x.key)}"><span><b>${esc(x.title)}</b>${x.author ? ` <small>${esc(x.author)}</small>` : ''}</span><small>${[x.part, x.sec].filter(Boolean).map(esc).join(' › ')}</small></button>`).join('')}</div></div>`;
   if (t) {
     const marks = w ? new Set((await getAll('settings', IDBKeyRange.bound(`mk|w:${w.id}:`, `mk|w:${w.id}:￿`))).map(r => +r.k.split(':').pop())) : new Set();
     const short = w ? stripCommon(w.books) : [];
     const sel = S.navPart != null && w && S.navPart < w.books.length && S.navWork === w.id ? S.navPart : (w ? t.bi : null);
     html += `<h3>${w ? `${esc(w.author)} · ${esc(w.title)} <span class="gk">${w.greek && w.greek !== w.title ? esc(w.greek) : ''}</span>` : esc(t.title)}</h3>
       <div class="navgo"><input type="text" id="navGo" class="nofocus" placeholder="Go to … (e.g. ${esc(navExample())})" autocomplete="off" autocapitalize="off" spellcheck="false"><button type="button" data-navgo="1">Go</button></div>`;
-    if (w && w.books.length > 1) html += `<div class="bookgrid">${short.map((l, i) => `<button type="button" data-part="${i}" title="${esc(w.books[i])}${marks.has(i) ? ' – has a marker' : ''}" class="${i === t.bi ? 'cur' : ''}${i === sel ? ' on' : ''}${marks.has(i) ? ' mk' : ''}">${esc(l)}${marks.has(i) ? '<svg class="bm" width="8" height="11" viewBox="0 0 8 11" aria-hidden="true"><path d="M0 0h8v11L4 8 0 11z"/></svg>' : ''}</button>`).join('')}</div>`;
+    const narrow = navNarrow();
+    if (w && w.books.length > 1) html += (narrow ? `<details class="partsfold"${S.navPartsOpen ? ' open' : ''}><summary>${esc(w.books[sel])} <small>· ${w.books.length} parts</small></summary>` : '') + `<div class="bookgrid">${short.map((l, i) => `<button type="button" data-part="${i}" title="${esc(w.books[i])}${marks.has(i) ? ' – has a marker' : ''}" class="${i === t.bi ? 'cur' : ''}${i === sel ? ' on' : ''}${marks.has(i) ? ' mk' : ''}">${esc(l)}${marks.has(i) ? '<svg class="bm" width="8" height="11" viewBox="0 0 8 11" aria-hidden="true"><path d="M0 0h8v11L4 8 0 11z"/></svg>' : ''}</button>`).join('')}</div>` + (narrow ? '</details>' : '');
     html += `<div id="navSecs">${await secsHTML(sel)}</div>`;
     const F = S.navFind?.key === (w ? w.id : t.id) ? S.navFind : null;
     html += `<div class="navsec"><div class="navh">Find in this ${w ? 'work' : 'text'}</div>
@@ -2986,21 +2986,38 @@ async function navHTML(keepOpen = null) {
   const by = {};
   for (const x of works) (by[x.authorId] ??= { id: x.authorId, name: x.author, works: [] }).works.push(x);
   const authors = Object.values(by).sort((a, b) => a.name.localeCompare(b.name));
-  html += '<div class="navh" style="margin-top:.8rem">Other texts on this device</div><div class="list nav">' + authors.map(a => `<details data-k="${a.id}"${isOpen(a.id, false) ? ' open' : ''}><summary><b>${esc(a.name)}</b> <small>${a.works.length}</small></summary>${a.works.sort((x, y) => x.title.localeCompare(y.title)).map(x => `<div class="item"><span class="t">${esc(x.title)} <span class="gk">${esc(x.greek || '')}</span> <small>${x.books.length > 1 ? x.books.length + ' parts' : ''}</small></span><button type="button" data-nav="work:${x.id}"${x.id === w?.id ? ' class="on"' : ''}>Open</button></div>`).join('')}</details>`).join('')
+  const recRow = (key, title, author, where, fav) => `<button type="button" class="recrow" data-rec="${esc(key)}"><span>${fav ? `<span class="fl">${FLAME}</span> ` : ''}<b>${esc(title)}</b>${author ? ` <small>${esc(author)}</small>` : ''}</span><small>${esc(where || '')}</small></button>`;
+  const where = x => [x.part, x.sec].filter(Boolean).join(' › ');
+  S.favs = (await setting('favs')) || {};
+  const byId = Object.fromEntries(works.map(x => [x.id, x])), tById = Object.fromEntries(texts.map(x => ['imp:' + x.id, x]));
+  const favs = Object.keys(S.favs).filter(k => k !== cur && (byId[k] || tById[k])).sort((a, b) => S.favs[b] - S.favs[a]);
+  html += '<div class="navbottom">';
+  if (rec.length) html += `<div class="navh">Recently read</div><div class="navrec">${rec.map(x => recRow(x.key, x.title, x.author, where(x))).join('')}</div>`;
+  if (favs.length) html += `<div class="navh">Favourites</div><div class="navrec">${favs.map(k => { const x = byId[k] || tById[k], r = S.recent.find(y => y.key === k);
+    return recRow(k, x.title, x.author || '', r ? where(r) : '', true); }).join('')}</div>`;
+  html += `<details class="alltexts" data-k="alltexts"${isOpen('alltexts', false) ? ' open' : ''}><summary>All texts on this device <small>${works.length + texts.length}</small></summary><div class="list nav">` + authors.map(a => `<details data-k="${a.id}"${isOpen(a.id, false) ? ' open' : ''}><summary><b>${esc(a.name)}</b> <small>${a.works.length}</small></summary>${a.works.sort((x, y) => x.title.localeCompare(y.title)).map(x => `<div class="item"><span class="t">${esc(x.title)} <span class="gk">${x.greek && x.greek !== x.title ? esc(x.greek) : ''}</span> <small>${x.books.length > 1 ? x.books.length + ' parts' : ''}</small></span><button type="button" data-nav="work:${x.id}"${x.id === w?.id ? ' class="on"' : ''}>Open</button></div>`).join('')}</details>`).join('')
     + (texts.length ? `<details data-k="mytexts"${isOpen('mytexts', false) ? ' open' : ''}><summary><b>Imported texts</b> <small>${texts.length}</small></summary>${texts.map(x => `<div class="item"><span class="t">${esc(x.title)}</span><button type="button" data-nav="text:${x.id}"${x.id === t?.id ? ' class="on"' : ''}>Open</button></div>`).join('')}</details>` : '')
-    + (!authors.length && !texts.length ? '<p class="hint">Nothing here yet – get texts from the Library, or import your own (☰ → Import text).</p>' : '') + '</div>';
+    + (!authors.length && !texts.length ? '<p class="hint">Nothing here yet – get texts from the Library, or import your own (☰ → Import text).</p>' : '') + '</div></details></div>';
   return html;
 }
 function navExample() {
   const r = S.refs || [], w = S.text?.work, x = r[Math.min(r.length - 1, 5)]?.s || '1';
   return w && w.books.length > 1 ? `${x} or ${stripCommon(w.books)[Math.min(1, w.books.length - 1)]} ${x}` : x;
 }
+const navNarrow = () => matchMedia('(max-width:600px)').matches;
 async function secsHTML(bi) {
   const t = S.text, w = t?.work; if (!t) return '';
   const list = await partRefs(bi ?? t.bi), here = bi == null || bi === t.bi, cr = here ? curRef() : null;
   const head = w && w.books.length > 1 ? `<div class="navh">${esc(w.books[bi])}${here ? ' <small>– open now</small>' : ` <button type="button" class="opart" data-openpart="${bi}">Open where I left it</button>`}</div>` : '';
   if (!list.length) return head + '<p class="hint" style="font-size:13px">This part has no numbered sections.</p>';
   const gs = refGroups(list);
+  if (navNarrow() && gs.length > 1) {        // phones: the chapters in one row; only one chapter's sections unfolded
+    const cg = cr ? gs.findIndex(g => g.head === cr || g.items.some(x => x.r === cr)) : -1;
+    const og = S.navGroup?.part === (bi ?? t.bi) ? S.navGroup.g : cg;
+    const G = gs[og];
+    return head + `<div class="secs fold"><div class="chaps">${gs.map((g, n) => `<button type="button" data-chap="${n}" data-secpart="${bi ?? ''}" class="${n === og ? 'open' : ''}${n === cg ? ' cur' : ''}">${esc(g.k || '·')}</button>`).join('')}</div>`
+      + (G ? `<div class="chapsecs">${G.head ? `<button type="button" class="sgk${cr === G.head ? ' on' : ''}" data-sec="${esc(G.head.s)}" data-secpart="${bi ?? ''}">${esc(G.k)} – beginning</button>` : ''}${G.items.map(({ r, lab }) => `<button type="button" data-sec="${esc(r.s)}" data-secpart="${bi ?? ''}"${cr === r ? ' class="on"' : ''} title="${esc(r.s)}">${esc(lab)}</button>`).join('')}</div>` : '') + '</div>';
+  }
   return head + `<div class="secs">${gs.map(g => `<div class="sg">${g.head ? `<button type="button" class="sgk${cr === g.head ? ' on' : ''}" data-sec="${esc(g.head.s)}" data-secpart="${bi ?? ''}" title="${esc(g.head.s)}">${esc(g.k)}</button>` : g.k ? `<span class="sgk">${esc(g.k)}</span>` : ''}<span class="sgi">${g.items.map(({ r, lab }) => `<button type="button" data-sec="${esc(r.s)}" data-secpart="${bi ?? ''}"${cr === r ? ' class="on"' : ''} title="${esc(r.s)}">${esc(lab)}</button>`).join('')}</span></div>`).join('')}</div>`;
 }
 function resultsHTML(F) {
@@ -3013,7 +3030,7 @@ function resultsHTML(F) {
 }
 // text navigation: the menu closes when a place is chosen
 async function navDialog() {
-  S.navPart = null;
+  S.navPart = null; S.navGroup = null;
   const p = dialog(`<div id="navBody">${await navHTML()}</div>`, [['library', 'Library'], ['texts', 'Import text'], ['cancel', 'Close']]);
   $('#dlg').classList.add('navdlg');
   requestAnimationFrame(() => $('#navSecs .secs button.on')?.scrollIntoView({ block: 'center' }));
@@ -3028,14 +3045,23 @@ function wireNav() {
     const b = ev.target.closest('button'); if (!b) return;
     const d = b.dataset;
     if (d.part != null) {
-      S.navPart = +d.part; S.navWork = S.text.work.id;
+      S.navPart = +d.part; S.navWork = S.text.work.id; S.navGroup = null;
+      const pf = body.querySelector('details.partsfold'); if (pf) pf.open = false;
+      const sm = body.querySelector('details.partsfold>summary'); if (sm) sm.innerHTML = `${esc(S.text.work.books[+d.part])} <small>· ${S.text.work.books.length} parts</small>`;
       body.querySelectorAll('.bookgrid button').forEach(x => x.classList.toggle('on', x === b));
       $('#navSecs').innerHTML = await secsHTML(+d.part); return;
     }
     if (d.openpart != null) { close(); return openText(`w:${S.text.work.id}:${+d.openpart}`); }
+    if (d.chap != null) {
+      const part = d.secpart === '' ? S.text.bi : +d.secpart, g = +d.chap;
+      S.navGroup = S.navGroup?.part === part && S.navGroup.g === g ? { part, g: -1 } : { part, g };
+      $('#navSecs').innerHTML = await secsHTML(d.secpart === '' ? null : part); return;
+    }
     if (d.sec != null) { close(); return goPlace(d.secpart === '' ? null : +d.secpart, d.sec, null); }
     if (d.navgo) return runGo();
-    if (d.rec) { const x = S.recent.find(r => r.key === d.rec); close(); return x && openText(x.id); }
+    if (d.rec) { const x = S.recent.find(r => r.key === d.rec); close();
+      if (x) return openText(x.id);
+      return d.rec.startsWith('imp:') ? openText(+d.rec.slice(4)) : openWork(d.rec); }
     if (d.findmode) { S.findMode = d.findmode; body.querySelectorAll('[data-findmode]').forEach(x => x.classList.toggle('on', x === b)); return; }
     if (d.findgo) return runFind();
     if (d.fmore) { S.navFind.lim = (S.navFind.lim || 200) + 300; $('#navRes').innerHTML = resultsHTML(S.navFind); return; }
