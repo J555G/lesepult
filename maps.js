@@ -116,7 +116,7 @@ async function loadPlaceIndex() {
   const mainT = new Set(MAIN_TYPES.map(t => d.types.indexOf(t)).filter(i => i >= 0));
   const okWord = w => w.length >= 3 && !/^[IVXLCDM]+\.?$/.test(w);
   const add = (m, k, i) => { if (!k) return; let a = m.get(k); if (!a) m.set(k, a = []); if (!a.includes(i)) a.push(i); };
-  const P = d.places.map(([id, t, lat, lon, ty, rough, y0, y1, names, w]) => ({ id, t, lat, lon, ty, rough, y0, y1, names, w: w || 0, text: ty.some(x => textT.has(x)) }));
+  const P = d.places.map(([id, t, lat, lon, ty, rough, y0, y1, names, w]) => ({ id, t, lat, lon, ty, rough, y0, y1, names, conn: w || 0, text: ty.some(x => textT.has(x)) }));
   P.forEach((p, i) => {
     byId.set(p.id, p);
     // the title tells the period where the attestations do not ("Hellas (Late Roman province)")
@@ -133,7 +133,8 @@ async function loadPlaceIndex() {
     }
   });
   const T = d.types, ti = Object.fromEntries(T.map((t, i) => [t, i]));
-  M.P = { P, ex, st, byId, T, ti, src: d.src };
+  M.P = { P, ex, st, byId, T, ti, src: d.src, hasConn: P.some(p => p.conn > 0) };
+  await mapCfg(); rankPlaces();                                    // significance 0–9 (maplayers.js; weights in the map settings)
   for (const r of await getAll('settings', IDBKeyRange.bound('pown|', 'pown|￿'))) M.own.set(r.v.id, r.v);
   return M.P;
 }
@@ -436,7 +437,8 @@ async function showMap1() {
     M.map.touchZoomRotate.disableRotation();
     // the credits of the map are in ☰ → Acknowledgements (and on exported maps)
     M.map.on('move', () => { if (!M.lblRaf) M.lblRaf = requestAnimationFrame(() => { M.lblRaf = 0; drawLabels(); }); });
-    M.map.on('idle', () => { if (M.cfg.pfOn === false) drawLabels(); });     // the names of all places need the dots drawn first
+    M.map.on('idle', () => { if (M.cfg.pfOn === false) drawLabels(); });
+    M.map.on('zoom', () => { const t = dotMinW(M.map.getZoom()); if (t !== M.dotW) { M.dotW = t; applyLayers(); } });   // zoomed out: fewer, more significant places     // the names of all places need the dots drawn first
     M.map.on('moveend', () => { const c = M.map.getCenter(), z = M.map.getZoom(), v = { c: [+c.lng.toFixed(4), +c.lat.toFixed(4)], z: +z.toFixed(2) }; setting('mpos|last', v); if (M.posKey) setting('mpos|' + M.posKey, v); });
     M.map.on('mouseenter', 'sites', () => { M.map.getCanvas().style.cursor = 'pointer'; });
     M.map.on('mouseleave', 'sites', () => { M.map.getCanvas().style.cursor = ''; });

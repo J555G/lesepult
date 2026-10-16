@@ -81,6 +81,31 @@ function sitesData() {
   }
   return M.sitesFC = { type: 'FeatureCollection', features: feats };
 }
+// how significant a place is, 0–9: links from other places of the gazetteer, names, city, Greek and Latin names, position
+const SIG_DEF = { links: 3, names: 0.6, city: 2, both: 1.5, rough: 2 };
+const SIG_UI = [['links', 'Links from other places', 0, 6, 0.5], ['names', 'Number of names', 0, 2, 0.1], ['city', 'City (polis, urban)', 0, 6, 0.5], ['both', 'Greek and Latin names', 0, 4, 0.5], ['rough', 'Position only approximate (less)', 0, 6, 0.5]];
+// the score of a place; the ranks 0–9 then go by position in the order (the top 30 get 9, the next 50 get 8 …),
+// so that the weights change which places come first, not how many are shown
+function placeScore(p) {
+  const W = Object.assign({}, SIG_DEF, M.cfg?.sigW || {}), ti = M.P?.ti || {};
+  const langs = new Set(p.names.map(n => n[1]));
+  const sc = W.links * Math.log2(1 + (p.conn || 0)) + W.names * Math.min(p.names.length, 12) + (p.ty.includes(ti.urban) || p.ty.includes(ti.polis) ? W.city : 0)
+    + (langs.has('grc') && langs.has('la') ? W.both : 0) - (p.rough ? W.rough : 0);
+  return sc;
+}
+const RANK_TOP = [30, 80, 200, 400, 800, 1600, 3200, 6400, 12800];   // places with rank 9, ≥ 8, ≥ 7 …
+function rankPlaces() {
+  if (!M.P) return;
+  const P = M.P.P, sc = P.map(placeScore), ord = P.map((_, i) => i).sort((a, b) => sc[b] - sc[a]);
+  ord.forEach((i, k) => { let w = 9; for (const n of RANK_TOP) { if (k < n) break; w--; } P[i].w = sc[i] > 0 ? w : 0; });
+}
+function recomputeSig() {
+  if (!M.P) return;
+  rankPlaces();
+  M.sitesFC = null; M.map?.getSource('sites')?.setData(sitesData()); applyLayers();
+}
+// zoomed out, only places of at least this significance get a dot (and a name)
+const dotMinW = z => z < 3.5 ? 7 : z < 4.5 ? 5 : z < 5.5 ? 3 : z < 6.5 ? 1 : 0;
 // the kinds of places ticked in the layer menu (settlements by default)
 const siteCats = () => SITE_CATS.map((c, i) => M.cfg.cats?.[c[0]] ? i : -1).filter(i => i >= 0);
 
@@ -108,10 +133,9 @@ function layerStyle(st, C) {
   }
   before('pl-region', { id: 'sites', type: 'circle', source: 'sites', minzoom: 2.5, paint: {
     // zoomed out only the significant places (0–9), the others appear step by step
-    'circle-radius': ['interpolate', ['linear'], ['zoom'], 2.5, ['case', ['>=', ['get', 'w'], 7], 2.2, 0], 4, ['case', ['>=', ['get', 'w'], 5], 2.2, ['>=', ['get', 'w'], 3], 1.4, 0],
-      5.5, ['case', ['>=', ['get', 'w'], 5], 2.8, ['>=', ['get', 'w'], 1], 1.8, 1.1], 8, ['+', 3, ['*', 0.2, ['get', 'w']]], 12, ['+', 4.5, ['*', 0.25, ['get', 'w']]]],
+    'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, ['+', 1.4, ['*', 0.15, ['get', 'w']]], 8, ['+', 3, ['*', 0.2, ['get', 'w']]], 12, ['+', 4.5, ['*', 0.25, ['get', 'w']]]],
     'circle-color': tColor(['match', ['get', 'c'], ...SITE_CATS.flatMap((c, i) => [i, c[dark ? 4 : 3]]), C.fg]),
-    'circle-stroke-color': C.bg, 'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 2.5, ['case', ['>=', ['get', 'w'], 7], 0.4, 0], 4, ['case', ['>=', ['get', 'w'], 3], 0.4, 0], 5.5, 0.4, 8, 1],
+    'circle-stroke-color': C.bg, 'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 3, 0.4, 8, 1],
     'circle-opacity': 0.85, 'circle-stroke-opacity': 0.85 } });
   applyLayersTo(st.layers);
   return st;
@@ -132,7 +156,7 @@ function layerProps() {
     rivers: { vis: vis(c.rivers !== false) }, lakes: { vis: vis(c.lakes !== false) },
     'a-urban': { vis: vis(c.urban) }, 'a-urban-line': { vis: vis(c.urban) },
     // "Places from" switched off: every place of the kinds ticked
-    sites: { vis: vis(c.pfOn === false), filter: ['all', ['in', ['get', 'c'], ['literal', siteCats()]], tf, ['!', ['in', ['get', 'id'], ['literal', shown]]]],
+    sites: { vis: vis(c.pfOn === false), filter: ['all', ['in', ['get', 'c'], ['literal', siteCats()]], ['>=', ['get', 'w'], dotMinW(M.map?.getZoom() ?? 6)], tf, ['!', ['in', ['get', 'id'], ['literal', shown]]]],
       paint: { 'circle-opacity': tOpacity(0.85), 'circle-stroke-opacity': tOpacity(0.85) } },
   };
 }
@@ -202,14 +226,14 @@ function moreLabels(placed, W, H) {
       const w = w0 + ls * (txt.length - 1), ang = Math.atan2(q.y - p.y, q.x - p.x), cx = (p.x + q.x) / 2, cy = (p.y + q.y) / 2;
       if (cx < -w || cx > W + w || cy < -20 || cy > H + 20) continue;
       const hw = Math.abs(Math.cos(ang)) * w / 2 + Math.abs(Math.sin(ang)) * fs / 2, hh = Math.abs(Math.sin(ang)) * w / 2 + Math.abs(Math.cos(ang)) * fs / 2;
-      const r = [cx - hw, cy - hh, cx + hw, cy + hh]; if (hit(r)) continue; placed.push(r); if (L.pid) M.lblHit.push([r, L.pid]);
+      const r = [cx - hw, cy - hh, cx + hw, cy + hh]; if (hit(r)) continue; placed.push(r);              // (names of regions are not tappable: a tap there would pick a place by chance)
       const col = M.cfg.twoCol && tRanges()?.length > 1 ? `;color:${rangeCol(st.k)}` : '';
       h += `<span class="mlbl rl k-${L.k}"${L.pid ? ` data-pid="${L.pid}"` : ''} style="left:${Math.round(cx)}px;top:${Math.round(cy)}px;letter-spacing:${ls.toFixed(1)}px;transform:translate(-50%,-50%) rotate(${(ang * 180 / Math.PI).toFixed(1)}deg);opacity:${(st.o * (caps ? 0.75 : 0.85)).toFixed(2)}${col}">${esc(txt)}</span>`;
     }
   }
   // the places in view: their names where there is room, the most significant first (zoomed out: only those)
   if (M.cfg.pfOn === false && z >= 3 && M.map.getLayer('sites')) {
-    const minW = z < 4 ? 7 : z < 5 ? 5 : z < 6 ? 3 : z < 7 ? 1 : 0;
+    const minW = dotMinW(z) + (z < 7 ? 1 : 0);                     // names a step more selective than dots
     const seen = new Set(), cand = [];
     for (const f of M.map.queryRenderedFeatures({ layers: ['sites'] })) {
       const id = f.properties.id; if (seen.has(id)) continue; seen.add(id);
@@ -341,6 +365,9 @@ function layersHTML() {
       + '<p class="hint small">Hold a date on the slider to make it a period, hold a period to split it in two; pull ends together to join them.</p>')
     + foldSec('sites', 'Kinds of places', '<p class="hint small">Which places are shown while “Places from” is switched off.</p><div class="macts" style="margin:.1rem 0 .3rem"><button type="button" data-mcatall="1">All</button><button type="button" data-mcatall="0">None</button></div><div class="mcats">' + SITE_CATS.map(([k, l, , c1, c2]) => `<button type="button" class="mtg${M.cfg.cats?.[k] ? ' on' : ''}" data-mcat="${k}"><span class="ck"></span><i class="dot" style="--c:${document.documentElement.dataset.theme === 'dark' ? c2 : c1}"></i>${l}</button>`).join('') + '</div>')
     + foldSec('geo', 'Geography', tgl('rivers', 'Rivers', M.cfg.rivers !== false) + tgl('lakes', 'Lakes', M.cfg.lakes !== false))
+    + foldSec('sig', 'Significance of places', `<p class="hint small">Zoomed out, only the more significant places are shown, and their names come first. How much counts:</p>`
+      + SIG_UI.map(([k, lb, a, b, st]) => { const v = (M.cfg.sigW?.[k] ?? SIG_DEF[k]); return `<label class="msig"><span>${lb}</span><input type="range" min="${a}" max="${b}" step="${st}" value="${v}" data-msig="${k}"><output>${v}</output></label>`; }).join('')
+      + `<div class="macts"><button type="button" data-msigreset="1">Standard weights</button></div>${M.P && !M.P.hasConn ? '<p class="hint small">Update the download <b>Ancient places</b> (Instruments → Maps) for the links between places.</p>' : ''}`)
     + foldSec('anc', 'Ancient world', anc ? tgl('coast', 'Coastlines of the period') + tgl('empires', 'Empires and Roman provinces')
       + segc('regions', [['off', 'Off'], ['labels', 'Names'], ['areas', 'Areas']], 'Regions and peoples') + tgl('roads', 'Roads (Barrington Atlas)') + tgl('urban', 'City outlines')
       : '<p class="hint small">Needs the download <b>Ancient world</b> (coastlines of the periods, empires and provinces, regions and peoples, roads).</p><button type="button" data-mapdl="1">Open Instruments → Maps</button>')
@@ -357,6 +384,7 @@ function layersPop() {
 async function layerClick(b) {
   const d = b.dataset;
   if (d.mfold) { const f = b.closest('.mfold'), on = !f.classList.contains('open'); f.classList.toggle('open', on); (M.cfg.fold ??= {})[d.mfold] = on; saveMapCfg(); return true; }
+  if (d.msigreset) { M.cfg.sigW = null; await saveMapCfg(); b.closest('.mfb').querySelectorAll('[data-msig]').forEach(x => { x.value = SIG_DEF[x.dataset.msig]; x.nextElementSibling.textContent = x.value; }); recomputeSig(); return true; }
   if (d.mcatall != null) { const on = d.mcatall === '1'; M.cfg.cats = Object.fromEntries(SITE_CATS.map(c => [c[0], on])); $('#mapPop .mcats')?.querySelectorAll('[data-mcat]').forEach(x => x.classList.toggle('on', on)); await saveMapCfg(); applyLayers(); return true; }
   if (d.mcat) { (M.cfg.cats ??= {})[d.mcat] = !M.cfg.cats[d.mcat]; b.classList.toggle('on', M.cfg.cats[d.mcat]);  await saveMapCfg(); applyLayers(); return true; }
   if (d.mcfg) {
@@ -392,3 +420,10 @@ document.addEventListener('pointerdown', ev => {
   if (ev.target.closest('#mapPop, #mapScope, #mapLayersBtn, #mapSaveBtn, #mapCheck, #tabMap, dialog, #toast')) return;
   pop.hidden = true;
 }, true);
+
+// the weights of significance, set by the reader
+document.addEventListener('input', ev => {
+  const k = ev.target.dataset?.msig; if (!k) return;
+  (M.cfg.sigW ??= { ...SIG_DEF })[k] = +ev.target.value; ev.target.nextElementSibling.textContent = ev.target.value;
+  clearTimeout(M.sigT); M.sigT = setTimeout(() => { recomputeSig(); saveMapCfg(); }, 250);
+});
