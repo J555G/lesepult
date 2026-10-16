@@ -21,6 +21,9 @@ async function ensureMapScripts() {
     if (!ok()) throw new Error(`${f} could not be started. ${SCRIPT_ERR.join(' · ')}`);
   }
 }
+['gesturestart', 'gesturechange', 'gestureend'].forEach(t => document.addEventListener(t, e => { if (e.target.closest?.('#mapBody')) e.preventDefault(); }, { passive: false }));
+// two fingers on the controls of the map (outside the map itself): no page zoom either
+document.addEventListener('touchmove', e => { if (e.touches.length > 1 && e.target.closest?.('#mapBody') && !e.target.closest('.maplibregl-canvas-container')) e.preventDefault(); }, { passive: false });
 const M = { P: null, map: null, sel: null, hits: new Map(), scope: null, cfg: null, posKey: null, own: new Map() };
 // the map button: the Mediterranean, cut off at the edges of the button – grey land on black, in colour when the map is open
 const EUROPE_ICON = '<i class="eu" aria-hidden="true"></i>'; // map image: Natural Earth II (public domain), see style.css

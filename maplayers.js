@@ -304,14 +304,19 @@ const CLOCK_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden=
 // the slider covers tMin–tMax (Map settings → Period; 4000 BC – AD 2050); the part shown (tView) is zoomed by pinching or
 // the mouse wheel and moved by dragging the line; the steps of a date get finer as one zooms in
 const TLIM = () => [M.cfg?.tMin ?? -4000, M.cfg?.tMax ?? 2050];
+// the part shown at first (and by the button "Default view"): Map settings → Period, 1000 BC – AD 800 unless changed
+function tDefView() {
+  const [lo, hi] = TLIM(), d = M.cfg?.tDef || [-1000, 800], a = Math.max(lo, d[0]), b = Math.min(hi, d[1]);
+  return b - a >= 20 ? [a, b] : [lo, hi];
+}
 function tView() {
   const [lo, hi] = TLIM(), v = M.cfg?.tView;
-  return v && v[0] >= lo && v[1] <= hi && v[1] - v[0] >= 20 ? v : [lo, hi];
+  return v && v[0] >= lo && v[1] <= hi && v[1] - v[0] >= 20 ? v : tDefView();
 }
 const tStep = () => { const v = tView(), s = v[1] - v[0]; return s > 1500 ? 10 : s > 400 ? 5 : 1; };
 const tPct = y => { const [a, b] = tView(); return (y - a) / (b - a) * 100; };
 function timeBarHTML() {
-  return `<div class="mtl"><span class="mtv" id="mapTimeV"></span></div>
+  return `<div class="mtl"><span class="mtv" id="mapTimeV"></span><button type="button" class="mtreset" data-mtview="1" title="Show the default part of the time line">Default view</button></div>
     <div class="mtt" id="mapTrack"><div class="mtaxis" id="mapAxis"></div><div id="mapRanges"></div></div>`;
 }
 // the scale: as many marks as fit, at round numbers
@@ -494,6 +499,7 @@ function settingsHTML() {
       + segc('twoCol', [[false, 'One colour'], [true, 'A colour for each']], 'Several periods')
       + `<div class="mcols">${RANGE_COL.map((_, k) => `<label title="Colour of period ${k + 1}"><input type="color" data-mcol="${k}" value="${rangeCol(k)}"><span>${k + 1}</span></label>`).join('')}<button type="button" class="mcolr" data-mcolreset="1">Standard colours</button></div>`
       + `<div class="navh">Range of the slider</div><div class="mtlim"><label>Earliest<input type="text" data-mtlim="0" value="${esc(fmtY(TLIM()[0]))}" autocomplete="off" class="nofocus"></label><label>Latest<input type="text" data-mtlim="1" value="${esc(fmtY(TLIM()[1]))}" autocomplete="off" class="nofocus"></label><button type="button" data-mtlimreset="1">Standard</button></div>`
+      + `<div class="navh">Shown at first <small>(and with “Default view” on the slider)</small></div><div class="mtlim"><label>From<input type="text" data-mtdef="0" value="${esc(fmtY(tDefView()[0]))}" autocomplete="off" class="nofocus"></label><label>To<input type="text" data-mtdef="1" value="${esc(fmtY(tDefView()[1]))}" autocomplete="off" class="nofocus"></label><button type="button" data-mtdefreset="1">Standard</button></div>`
       + '<p class="hint small">Hold a date on the slider to make it a period, hold a period to split it in two; pull ends together to join them. Pinch the slider (or use the mouse wheel) to zoom it, drag the line to move it; a double click shows the whole range.</p>')
     + foldSec('ssig', 'Significance of places', `<p class="hint small">Zoomed out, only the more significant places are shown, and their names come first. How much counts:</p>`
       + SIG_UI.map(([k, lb, a, b, st]) => { const v = (M.cfg.sigW?.[k] ?? SIG_DEF[k]); return `<label class="msig"><span>${lb}</span><input type="range" min="${a}" max="${b}" step="${st}" value="${v}" data-msig="${k}"><output>${v}</output></label>`; }).join('')
@@ -552,11 +558,22 @@ async function layerClick1(b) {
   }
   if (b.id === 'mapTimeBtn') { M.cfg.time = !M.cfg.time; await saveMapCfg(); timeFor(S.text); renderTime(); applyLayers(); $('#mapPop [data-mlay="time"]')?.classList.toggle('on', M.cfg.time); return true; }
   if (b.id === 'mapWDate' || d.mwdate) { if (b.closest('dialog')) $('#dlg').close(); setTimeout(workDateDialog, 50); return true; }
+  if (d.mtview) { const [a, b] = tDefView(); setView(a, b); return true; }
+  if (d.mtdefreset) { M.cfg.tDef = null; await saveMapCfg(); const ins = b.parentElement.querySelectorAll('[data-mtdef]'); ins[0].value = fmtY(-1000); ins[1].value = fmtY(800); return true; }
   if (d.mtlimreset) { M.cfg.tMin = M.cfg.tMax = M.cfg.tView = null; await saveMapCfg(); const ins = b.parentElement.querySelectorAll('[data-mtlim]'); ins[0].value = fmtY(-4000); ins[1].value = fmtY(2050); renderTime(); return true; }
   if (d.mcolreset) { M.cfg.rangeCols = null; await saveMapCfg(); b.parentElement.querySelectorAll('[data-mcol]').forEach(x => { x.value = rangeCol(+x.dataset.mcol); }); renderTime(); applyLayers(); return true; }
   return false;
 }
 
+// the part shown at first, set by the reader (Map settings → Period)
+document.addEventListener('change', async ev => {
+  const k = ev.target.dataset?.mtdef; if (k == null) return;
+  await mapCfg();
+  const y = parseYear(ev.target.value), d = [...tDefView()], [lo, hi] = TLIM();
+  if (y == null || y < lo || y > hi || (k === '0' ? y >= d[1] - 20 : y <= d[0] + 20)) { toast(`Choose a year between ${fmtY(lo)} and ${fmtY(hi)}, e.g. “1000 BC”.`); ev.target.value = fmtY(d[+k]); return; }
+  d[+k] = y; M.cfg.tDef = d; M.cfg.tView = null; ev.target.value = fmtY(y);
+  await saveMapCfg(); renderTime();
+});
 // the range of the slider, set by the reader (Map settings → Period)
 document.addEventListener('change', async ev => {
   const k = ev.target.dataset?.mtlim; if (k == null) return;

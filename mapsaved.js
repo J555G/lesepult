@@ -180,7 +180,7 @@ async function mapGoAny(id, i) {
 }
 
 // ---------------------------------------------------------------- saved maps
-const MAP_KEYS = ['pfOn', 'sel', 'provinces', 'regArea', 'aqueducts', 'walls', 'canals', 'own', 'nmPlaces', 'nmRegions', 'nmMountains', 'nmIslands', 'rivers', 'lakes', 'dOff', 'dLen', 'basemap', 'tMin', 'tMax', 'tView', 'sites', 'cats', 'coast', 'empires', 'regions', 'roads', 'urban', 'borders', 'peoples', 'names', 'time', 'tol', 'gone', 'undated', 'twoCol', 'rangeCols'];
+const MAP_KEYS = ['pfOn', 'sel', 'provinces', 'regArea', 'aqueducts', 'walls', 'canals', 'own', 'nmPlaces', 'nmRegions', 'nmMountains', 'nmIslands', 'rivers', 'lakes', 'dOff', 'dLen', 'basemap', 'tMin', 'tMax', 'tView', 'tDef', 'sites', 'cats', 'coast', 'empires', 'regions', 'roads', 'urban', 'borders', 'peoples', 'names', 'time', 'tol', 'gone', 'undated', 'twoCol', 'rangeCols'];
 function mapState() {
   const c = M.map.getCenter();
   return { scope: M.cfg.scope, textId: S.text?.id ?? null, ref: curRef()?.s ?? null,
