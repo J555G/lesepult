@@ -129,8 +129,8 @@ async function openSavedMap(m) {
 // ---------------------------------------------------------------- the menu of the scope button
 async function scopePop(keep) {
   const pop = $('#mapPop'); if (!keep && !pop.hidden && pop.dataset.k === 'scope') { pop.hidden = true; return; }
-  pop.dataset.k = 'scope'; pop.classList.add('mlayers');
-  const maps = await savedMaps(), t = S.text, w = t?.work, cr = curRef();
+  pop.dataset.k = 'scope'; pop.classList.add('mlayers'); pop.classList.remove('right');
+  const t = S.text, w = t?.work, cr = curRef();
   const author = w ? w.author : t?.author;
   // what each choice refers to, with the reading position
   const opts = [
@@ -145,10 +145,20 @@ async function scopePop(keep) {
   ];
   pop.innerHTML = `<div class="mph"><span class="navh">Places from</span><button type="button" class="mx" data-mpopx="1" aria-label="Close">✕</button></div>
     <div class="mscl">${opts.map(([v, l, d]) => `<button type="button" class="mso${M.cfg.scope === v ? ' on' : ''}" ${v === 'multi' ? 'data-mmulti="1"' : `data-mscopev="${v}"`}><span class="rd"></span><span><b>${l}</b><small>${d}</small></span></button>`).join('')}</div>
-    <div class="navh">Saved maps</div>${maps.length ? maps.map(m => `<div class="msaved"><button type="button" class="mckt" data-mopen="${m.id}">${esc(m.name)}<small>${new Date(m.created).toLocaleDateString('en-GB')}</small></button><button type="button" class="mico2" data-mdelmap="${m.id}" title="Delete" aria-label="Delete">✕</button></div>`).join('') : '<p class="hint small">None yet.</p>'}
-    <div class="macts"><button type="button" data-msave="1">Save this map …</button><button type="button" data-mimport="1">Open a map file …</button></div>
-    <div class="navh">Export</div><div class="macts"><button type="button" data-mexp="png">Image</button><button type="button" data-mexp="pdf">PDF</button><button type="button" data-mexp="pult">Pult map file</button></div>`;
+`;
   pop.hidden = false; if (!keep) pop.scrollTop = 0;
+}
+// the third map button: saved maps, saving, opening a map file, export
+const SAVE_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-4-5.5 4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 7.5v5.5M9.5 10.5 12 13l2.5-2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+async function savePop(keep) {
+  const pop = $('#mapPop'); if (!keep && !pop.hidden && pop.dataset.k === 'save') { pop.hidden = true; return; }
+  pop.dataset.k = 'save'; pop.classList.add('mlayers', 'right');
+  const maps = await savedMaps();
+  pop.innerHTML = `<div class="mph"><span class="navh">Saved maps</span><button type="button" class="mx" data-mpopx="1" aria-label="Close">✕</button></div>
+    ${maps.length ? maps.map(m => `<div class="msaved"><button type="button" class="mckt" data-mopen="${m.id}">${esc(m.name)}<small>${new Date(m.created).toLocaleDateString('en-GB')}</small></button><button type="button" class="mico2" data-mdelmap="${m.id}" title="Delete" aria-label="Delete">✕</button></div>`).join('') : '<p class="hint small">None yet.</p>'}
+    <div class="macts"><button type="button" data-msave="1">Save this map …</button><button type="button" data-mimport="1">Open a map file …</button></div>
+    <div class="navh">Export this map</div><div class="macts"><button type="button" data-mexp="png">Image</button><button type="button" data-mexp="pdf">PDF</button><button type="button" data-mexp="pult">Pult map file</button></div>`;
+  pop.hidden = false;
 }
 async function savedClick(b) {
   const d = b.dataset;
@@ -156,7 +166,7 @@ async function savedClick(b) {
   if (d.mgoany != null) { mapGoAny(d.mgoany, +d.mi); return true; }
   if (d.msave) { $('#mapPop').hidden = true; await saveMapDialog(); return true; }
   if (d.mopen) { const m = await setting('mmap|' + d.mopen); if (m) await openSavedMap(m); return true; }
-  if (d.mdelmap) { await del('settings', 'mmap|' + d.mdelmap); b.closest('.msaved').remove(); toast('Map deleted'); return true; }
+  if (d.mdelmap) { await del('settings', 'mmap|' + d.mdelmap); await savePop(true); toast('Map deleted'); return true; }
   if (d.mexp) { $('#mapPop').hidden = true; await exportMap(d.mexp); return true; }
   if (d.mimport) {
     $('#mapPop').hidden = true;

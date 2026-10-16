@@ -331,7 +331,7 @@ function layersHTML() {
 }
 function layersPop() {
   const pop = $('#mapPop'); if (!pop.hidden && pop.dataset.k === 'layers') { pop.hidden = true; return; }
-  pop.dataset.k = 'layers'; pop.classList.add('mlayers');
+  pop.dataset.k = 'layers'; pop.classList.add('mlayers'); pop.classList.add('right');
   pop.innerHTML = `<div class="navh">Map settings</div>${layersHTML()}`;
   pop.hidden = false; pop.scrollTop = M.cfg.layScroll || 0;
   if (!pop._sw) { pop._sw = true; pop.addEventListener('scroll', () => { if (pop.dataset.k !== 'layers') return; clearTimeout(pop._st); pop._st = setTimeout(() => { M.cfg.layScroll = pop.scrollTop; saveMapCfg(); }, 300); }); }
@@ -355,7 +355,6 @@ async function layerClick(b) {
     if (k === 'peoples' || k === 'mark') { markPlaces(); await refreshMapData(); }
     if (k === 'time') { timeFor(S.text); renderTime(); }
     if (k === 'sites') $('#mapPop .mcats')?.classList.toggle('off', !M.cfg.sites);     // the categories are greyed while the places are off
-    if (k === 'sites' && M.cfg.sites && !siteCats().length) { M.cfg.cats = { ...LCFG.cats }; $('#mapPop .mcats')?.querySelectorAll('[data-mcat]').forEach(x => x.classList.toggle('on', !!M.cfg.cats[x.dataset.mcat])); }
     applyLayers(); return true;
   }
   if (d.mtoff || b.id === 'mapTimeBtn') { M.cfg.time = b.id === 'mapTimeBtn' ? !M.cfg.time : false; await saveMapCfg(); timeFor(S.text); renderTime(); applyLayers(); $('#mapPop [data-mlay="time"]')?.classList.toggle('on', M.cfg.time); return true; }
@@ -373,6 +372,6 @@ document.addEventListener('input', ev => {
 // a tap outside a menu of the map closes it (the buttons that open the menus toggle them themselves)
 document.addEventListener('pointerdown', ev => {
   const pop = document.getElementById('mapPop'); if (!pop || pop.hidden) return;
-  if (ev.target.closest('#mapPop, #mapScope, #mapLayersBtn, #mapCheck, #tabMap, dialog, #toast')) return;
+  if (ev.target.closest('#mapPop, #mapScope, #mapLayersBtn, #mapSaveBtn, #mapCheck, #tabMap, dialog, #toast')) return;
   pop.hidden = true;
 }, true);

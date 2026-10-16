@@ -979,3 +979,7 @@ dialog details.ifold.sub{margin-left:.7rem;border-top:1px solid var(--line)}
 dialog details.ifold.sub:first-of-type{border-top:0}
 dialog details.ifold.sub>summary{font-size:15px;padding:.5rem .1rem}
 dialog details.ifold.sub>summary b{font-weight:600}
+/* map buttons in a row at the top right; menus of the right-hand buttons open on the right */
+.mctl{flex-direction:row}
+.mtop{max-width:calc(100% - 150px)}
+.mpop.right{left:auto;right:8px}

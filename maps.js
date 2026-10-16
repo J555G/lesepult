@@ -411,7 +411,7 @@ async function showMap1() {
   if (!M.map) {
     box.innerHTML = `<div id="mapCanvas"></div><div class="mlabels" id="mapLabels"></div>
       <div class="mtop"><button type="button" class="mscope" id="mapScope"></button><button type="button" class="mcheck" id="mapCheck" hidden></button></div>
-      <div class="mctl"><button type="button" class="mico" id="mapLayersBtn" title="Layers" aria-label="Layers">${LAYERS_ICON}</button><button type="button" class="mico" id="mapTimeBtn" title="Period filter" aria-label="Period filter">${CLOCK_ICON}</button></div>
+      <div class="mctl"><button type="button" class="mico" id="mapLayersBtn" title="Layers" aria-label="Layers">${LAYERS_ICON}</button><button type="button" class="mico" id="mapTimeBtn" title="Period filter" aria-label="Period filter">${CLOCK_ICON}</button><button type="button" class="mico" id="mapSaveBtn" title="Saved maps and export" aria-label="Saved maps and export">${SAVE_ICON}</button></div>
       <div class="mtime" id="mapTime" hidden>${timeBarHTML()}</div>
       <div class="mcard" id="mapCard" hidden></div><div class="mpop" id="mapPop" hidden></div>`;
     try { await loadMapLib(); } catch (e) { box.innerHTML = `<div class="mapmsg"><p>${esc(e.message)}</p></div>`; return; }
@@ -611,6 +611,7 @@ function wireMapUI() {
     if (await layerClick(b) || await savedClick(b)) return;
     if (b.id === 'mapScope') return scopePop();
     if (b.id === 'mapLayersBtn') return layersPop();
+    if (b.id === 'mapSaveBtn') return savePop();
     if (d.mscopev) { M.cfg.scope = d.mscopev; await saveMapCfg(); $('#mapPop').hidden = true; return refreshMapData(); }
     if (d.mpopx) { $('#mapPop').hidden = true; return; }
     if (d.mgo != null) return mapGo(d.mpart != null ? +d.mpart : null, +d.mgo);
@@ -644,7 +645,7 @@ function wireMapUI() {
 // places to check: everything uncertain in this part of the text, each confirmed or changed with one tap
 function checkPop(keep) {
   const pop = $('#mapPop'); if (!keep && !pop.hidden && pop.dataset.k === 'check') { pop.hidden = true; return; }
-  pop.dataset.k = 'check'; pop.classList.remove('mlayers');
+  pop.dataset.k = 'check'; pop.classList.remove('mlayers', 'right');
   const list = [...M.hits].filter(([, h]) => h.unsure);
   const refOf = i => { let r = ''; for (const x of S.refs || []) { if (x.i <= i) r = x.s; else break; } return r; };
   pop.innerHTML = `<div class="navh">Places to check <small>· ${list.length}</small></div>` + (list.length ? `<div class="mcklist">${list.map(([i, h]) => `<div class="mck"><button type="button" class="mckt" data-mck="${i}"><b>${esc(refOf(i))}</b> ${esc(h.name.normalize('NFD').replace(/[\u0304\u0306]/g, '').normalize('NFC'))} → ${esc(h.p.t.split('/')[0])}<small>${esc(UNSURE[h.unsure])}</small></button><button type="button" class="mico2" data-mckok="${i}" title="Yes, this place">✓</button><button type="button" class="mico2" data-mckno="${i}" title="Not a place">✕</button></div>`).join('')}</div>` : '<p class="hint small">Nothing left to check.</p>');
