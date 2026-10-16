@@ -14,7 +14,7 @@ window.addEventListener('error', e => {
 // the map scripts must have run; if one is missing (not loaded, or stopped by an error), it is loaded once more from the website
 async function ensureMapScripts() {
   if (document.readyState === 'loading') await new Promise(r => document.addEventListener('DOMContentLoaded', r, { once: true }));
-  const need = [['maplayers.js', () => typeof layerStyle === 'function'], ['mapsaved.js', () => typeof savePop === 'function']];
+  const need = [['maplayers.js', () => typeof layerStyle === 'function'], ['mapsaved.js', () => typeof savePop === 'function'], ['mapdraw.js', () => typeof drawFC === 'function']];
   for (const [f, ok] of need) {
     if (ok()) continue;
     await new Promise(res => { const s = document.createElement('script'); s.src = f + '?r=' + Date.now(); s.onload = s.onerror = res; document.head.append(s); });
@@ -451,12 +451,14 @@ async function showMap1() {
   if (M.anc) { const c = await caches.open(MAPCACHE); for (const n of ['water', 'empires', 'provinces', 'areas', 'roads', 'urban', 'aqueducts', 'walls', 'canals']) if (await c.match(new URL(MAPS + 'ancient/' + n + '.json', location.href).href)) M.ancFiles.add(n); }
   M.step = 'names of regions'; if (M.anc) await loadAncientLabels();
   M.step = 'gazetteer'; await loadPlaceIndex();
+  M.step = 'drawings'; await loadDrawings(); await dScopeUpdate();
   timeFor(S.text);
   if (!M.map) {
     box.innerHTML = `<div id="mapCanvas"></div><div class="mlabels" id="mapLabels"></div>
       <div class="mtop"><button type="button" class="mscope" id="mapScope"></button><button type="button" class="mcheck" id="mapCheck" hidden></button></div>
-      <div class="mctl"><button type="button" class="mico" id="mapLayersBtn" title="Layers" aria-label="Layers">${LAYERS_ICON}</button><button type="button" class="mico" id="mapTimeBtn" title="Period filter" aria-label="Period filter">${CLOCK_ICON}</button><button type="button" class="mico" id="mapSaveBtn" title="Saved maps and export" aria-label="Saved maps and export">${SAVE_ICON}</button></div>
-      <div class="mtime" id="mapTime" hidden>${timeBarHTML()}</div>
+      <div class="mctl"><button type="button" class="mico" id="mapLayersBtn" title="Layers" aria-label="Layers">${LAYERS_ICON}</button><button type="button" class="mico" id="mapTimeBtn" title="Period filter" aria-label="Period filter">${CLOCK_ICON}</button><button type="button" class="mico" id="mapDrawBtn" title="Draw on the map" aria-label="Draw on the map">${PEN_ICON}</button><button type="button" class="mico" id="mapSaveBtn" title="Saved maps and export" aria-label="Saved maps and export">${SAVE_ICON}</button></div>
+      <div class="mhandles" id="mapHandles"></div>
+      <div class="mtime" id="mapTime" hidden>${timeBarHTML()}</div><div class="mdraw" id="mapDraw" hidden></div>
       <div class="mcard" id="mapCard" hidden></div><div class="mpop" id="mapPop" hidden></div>`;
     M.step = 'map engine'; try { await loadMapLib(); } catch (e) { box.innerHTML = `<div class="mapmsg"><p>${esc(e.message)}</p></div>`; return; }
     M.colors = mapColors();
@@ -476,14 +478,16 @@ async function showMap1() {
     M.map.on('mouseenter', 'sites', () => { M.map.getCanvas().style.cursor = 'pointer'; });
     M.map.on('mouseleave', 'sites', () => { M.map.getCanvas().style.cursor = ''; });
     M.map.on('click', e => { if (M.pick) { const p = M.pick; M.pick = null; $('#mapCanvas').classList.remove('picking'); p(e.lngLat); return; }
+      if (drawClick(e)) return;                                   // drawing (mapdraw.js)
       if ($('#mapChoose') && !$('#mapChoose').hidden) { $('#mapChoose').hidden = true; return; }
-      const id = tapPlace(e.point); if (id === 'choose') return; if (id != null) selectPlace(id, { from: 'map' }); else closeCard(); });
+      const id = tapPlace(e.point); if (id === 'choose') return; if (id != null) return selectPlace(id, { from: 'map' });
+      const did = tapDrawing(e.point); if (did) showDrawCard(did); else closeCard(); });
     M.map.on('movestart', () => { const c = $('#mapChoose'); if (c) c.hidden = true; });
     M.map.on('mouseenter', 'pl', () => { M.map.getCanvas().style.cursor = 'pointer'; });
     M.map.on('mouseleave', 'pl', () => { M.map.getCanvas().style.cursor = ''; });
     M.step = 'loading the map'; const ok = await Promise.race([new Promise(r => M.map.once('load', () => r(true))), new Promise(r => setTimeout(() => r(false), 20000))]);
     if (!ok) return mapFailed('The map did not finish loading.' + (M.lastErr ? ' Last error: ' + M.lastErr : ''));
-    wireMapUI(); wireTime();
+    wireMapUI(); wireTime(); wireDraw();
   } else M.map.resize();
   M.step = 'places'; renderTime();
   await refreshMapData();
@@ -520,13 +524,14 @@ async function refreshMapData() {
   const nq = [...M.hits.values()].filter(h => h.unsure).length, ck = $('#mapCheck');
   ck.hidden = !nq; ck.innerHTML = `⚑ ${nq} to check`;
   if (M.T?.work !== (S.text ? workKeyOf(S.text) : null)) { timeFor(S.text); renderTime(); }
+  await dScopeUpdate();                                             // drawings linked to passages
   applyLayers();                                                    // (draws the labels)
 }
 // a tap on the map: the nearest place (circle or name) within reach of a finger tip
 // (the names do not take touches themselves, so that pinching and panning work everywhere)
 function tapPlace(pt) {
   const r = matchMedia('(pointer: coarse)').matches ? 22 : 10;
-  const fs = M.map.queryRenderedFeatures([[pt.x - r, pt.y - r], [pt.x + r, pt.y + r]], { layers: ['pl', ...(M.map.getLayer('sites') ? ['sites'] : [])] });
+  const fs = M.map.queryRenderedFeatures([[pt.x - r, pt.y - r], [pt.x + r, pt.y + r]], { layers: ['pl', ...(M.map.getLayer('sites') ? ['sites'] : []), ...(M.map.getLayer('own') ? ['own'] : [])] });
   const seen = new Map();
   for (const f of fs) {
     const id = f.properties.id; if (seen.has(id)) continue;
@@ -581,7 +586,7 @@ function drawLabels() {
     placed.push(r); M.lblHit.push([r, o.x.p.id]);
     h += `<span class="mlbl${reg ? ' reg' : ''}${o.x.unsure && o.x.unsure === o.x.n ? ' unsure' : ''}${isWater(o.x.p) ? ' wat' : ''}${o.x.p.id === sel ? ' sel' : ''}${o.x.extra ? ' extra' : ''}" data-pid="${esc(String(o.x.p.id))}" style="left:${Math.round(x)}px;top:${Math.round(y)}px${reg ? '' : `;font-size:${fs}px`}">${esc(txt)}</span>`;
   }
-  box.innerHTML = h + moreLabels(placed, W, H);
+  box.innerHTML = h + drawLabelsOwn(placed, W, H) + moreLabels(placed, W, H);
 }
 
 // ---------------------------------------------------------------- choosing a place: from the text, the entry or the map
@@ -603,9 +608,10 @@ async function selectPlace(id, o = {}) {
   else if (M.cfg.jump && o.from !== 'map') M.map.easeTo({ center: [p.lon, p.lat], zoom: Math.max(M.map.getZoom(), isRegion(p) ? 5.5 : 7), duration: 600 });
   showCard(p);
 }
-function closeCard() { $('#mapCard').hidden = true; if (M.sel) { M.sel = null; refreshMapData(); } }
+function closeCard() { $('#mapCard').hidden = true; if (M.dSel) { M.dSel = null; applyLayers(); dHandles(); } if (M.sel) { M.sel = null; refreshMapData(); } }
 // the card of a place: its name, what it is, the passages that name it
 async function showCard(p) {
+  if (p.own && M.sel?.i == null) return showDrawCard(p.id);       // your own place: its card with the drawing tools
   const card = $('#mapCard'), t = S.text, w = t?.work;
   const occ = []; for (const [i, h] of M.hits) if (h.p.id === p.id) occ.push({ bi: t?.bi, i });
   const refOf = (refs, i) => { let r = null; for (const x of refs || []) { if (x.i <= i) r = x; else break; } return r?.s || ''; };
@@ -701,7 +707,7 @@ function wireMapUI() {
       else for (const [i, h] of M.hits) if (i !== s0.i && exKey(h.name) === exKey(s0.name)) await setting(`pl|${t.id}|${i}`, Object.assign({ name: h.name }, v));
       $('#mapAlso').innerHTML = ''; M.workCache = null; M.anyCache = null; await placesForText(); await refreshMapData(); toast('Applied.'); return;
     }
-    if (await layerClick(b) || await savedClick(b)) return;
+    if (await drawUIClick(b) || await layerClick(b) || await savedClick(b)) return;
     if (b.id === 'mapScope') return scopePop();
     if (b.id === 'mapLayersBtn') return layersPop();
     if (b.id === 'mapSaveBtn') return savePop();
@@ -723,7 +729,7 @@ function wireMapUI() {
       M.pick = async ll => {
         const r = await dialog(`<h3>New place</h3><label>Name<input type="text" name="n" value="${esc(M.sel?.name || '')}" autocomplete="off"></label>`, [['cancel', 'Cancel'], ['ok', 'Save']], 'ok');
         if (r.action !== 'ok' || !r.data.n?.trim()) return;
-        const own = { id: 'o' + Date.now().toString(36), t: r.data.n.trim(), lat: +ll.lat.toFixed(4), lon: +ll.lng.toFixed(4), own: 1, ty: [], names: [] };
+        const own = { id: 'o' + Date.now().toString(36), t: r.data.n.trim(), lat: +ll.lat.toFixed(4), lon: +ll.lng.toFixed(4), own: 1, ty: [], names: [], set: M.cfg.dSet || 'd0', created: Date.now() };
         M.own.set(own.id, own); await setting('pown|' + own.id, own);
         if (M.sel?.i != null) await saveCorrection({ p: own.id });
       };

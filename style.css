@@ -1029,3 +1029,57 @@ details.mtree.l1{margin-left:1.2rem}details.mtree.l1>summary{font-size:14px}
 dialog .sver{margin:1rem 0 0;font:11.5px var(--ui);color:var(--mut);text-align:center}
 .mfh .mon{font-weight:400;color:var(--acc);font-size:12px}
 .mfb .navh small{font-weight:400}
+/* drawing on the map (mapdraw.js) */
+.mdraw{position:absolute;left:8px;right:8px;bottom:22px;z-index:4;max-width:34rem;margin:0 auto;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:.35rem .45rem .4rem;box-shadow:0 4px 16px rgba(0,0,0,.25);font:13px var(--ui);display:flex;flex-direction:column;gap:.3rem;user-select:none;-webkit-user-select:none}
+.mdraw[hidden]{display:none}
+.mdt,.mdo{display:flex;flex-wrap:wrap;gap:.25rem;align-items:center}
+.mdt button{flex:1 1 0;min-width:34px;max-width:48px;height:36px;padding:0;display:flex;align-items:center;justify-content:center;background:none}
+.mdt button.on{background:var(--acc);color:var(--bg);border-color:var(--acc)}
+.mdc{width:24px;height:24px;border-radius:50%;padding:0;border:2px solid var(--card);box-shadow:0 0 0 1px var(--line);background:var(--c);flex:none}
+.mdc.on{box-shadow:0 0 0 2px var(--fg)}
+.mdo input[type=color]{width:26px;height:24px;padding:0;border:1px solid var(--line);border-radius:5px;background:none;flex:none}
+.mdw{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.mdw button{width:28px;height:26px;padding:0;border:0;border-radius:0;background:none;display:flex;align-items:center;justify-content:center}
+.mdw button+button{border-left:1px solid var(--line)}
+.mdw i{display:block;width:16px;background:currentColor;border-radius:3px}
+.mdw button.on{background:color-mix(in srgb,var(--acc) 22%,transparent)}
+.mdd{width:30px;height:26px;padding:0;display:flex;align-items:center;justify-content:center;background:none}
+.mdd i{display:block;width:18px;border-top:2.5px dashed currentColor}
+.mdd.on{background:color-mix(in srgb,var(--acc) 22%,transparent);border-color:var(--acc)}
+.mdo select{font:12.5px var(--ui);max-width:9rem;padding:.25rem .3rem;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--fg)}
+.mdo .sp{flex:1}
+.mdo [data-dundo]{width:34px;height:28px;padding:0;font-size:16px}
+.mdo [data-ddone]{padding:.3rem .8rem}
+.mdi{font-size:12.5px;color:var(--mut);display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;min-height:1.6em;line-height:1.35}
+.mdi span{flex:1 1 12rem}
+.mdi b{color:var(--fg);font-weight:600}
+.mdi button{font-size:12.5px;padding:.2rem .6rem}
+#mapBody.drawing .mtime{display:none}
+#mapBody.drawing .mcard{bottom:calc(var(--dbh,110px) + 30px);max-height:min(40%,20rem)}
+.mhandles{position:absolute;inset:0;pointer-events:none;z-index:2;overflow:hidden}
+.mh{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:var(--bg);border:2.5px solid var(--acc);pointer-events:auto;touch-action:none;box-sizing:border-box;cursor:grab}
+.mh::before{content:"";position:absolute;inset:-11px;border-radius:50%}
+.mh.mid{width:11px;height:11px;margin:-5.5px 0 0 -5.5px;border-width:2px;opacity:.8}
+.mh.all{width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:7px;background:var(--acc);border-color:var(--bg);opacity:.9}
+.mh.all::after{content:"✥";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--bg);font-size:14px;line-height:1}
+.mhandles.dragging .mh:not(.drag){visibility:hidden}
+.mh.drag{cursor:grabbing}
+.mlbl.dl{font-weight:600}
+.mlbl.dt{font-weight:600}
+.mlbl.dt.sel{text-decoration:underline;text-decoration-color:var(--acc)}
+.mlbl.dn{font-style:italic;font-weight:600}
+.mlbl.dlen{font:600 11px/1 var(--ui)}
+.dmeas{font-size:12.5px;margin:.1rem 0 .35rem}
+.dnote{font-size:13.5px;margin:.2rem 0 .4rem;white-space:pre-wrap}
+.dsetrow{display:flex;align-items:center;gap:.3rem}
+.dsetrow .mtg{flex:1;min-width:0}
+.dsetrow .mico2{width:28px;height:28px}
+.drow{display:flex;gap:.6rem;flex-wrap:wrap;align-items:flex-end}
+.drow>label{flex:1 1 7rem}
+.drow label.mpick{flex:0 1 auto}
+.drow input[type=color]{display:block;width:100%;min-width:3rem;height:2.1rem;padding:0;border:1px solid var(--line);border-radius:7px;background:none}
+@media (max-width:600px){.mdraw{left:4px;right:4px;bottom:18px}}
+.mdc.on{background:var(--c);border-color:var(--card)}
+.mtop{max-width:calc(100% - 196px)}
+#mapBody.drawing .mcheck{display:none}
+.mdend{display:inline-flex;gap:.25rem;margin-left:auto}

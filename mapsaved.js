@@ -79,8 +79,8 @@ function selSummary() {
 }
 const shortWork = t => t.work ? `${t.work.author ? t.work.author + ', ' : ''}${t.work.title}` : (t.title || 'Text');
 // add what is being read to the selection
-function selAdd(kind) {
-  const t = S.text; if (!t) return toast('Open a text first.');
+function selItem(kind) {
+  const t = S.text; if (!t) return null;
   const cr = curRef(), multi = t.work && t.work.books.length > 1, part = multi ? stripCommon(t.work.books)[t.bi] : '';
   let x;
   if (kind === 'work') x = t.work ? { kind: 'work', w: t.work.id, label: shortWork(t), sub: 'the whole work' } : { kind: 'book', t: t.id, label: shortWork(t), sub: 'the whole text' };
@@ -90,6 +90,10 @@ function selAdd(kind) {
     x = { kind: 'lines', t: t.id, ref: `${v.a}-${v.b}`, label: `${shortWork(t)} · ${multi ? t.work.books[t.bi] + ', ' : ''}lines ${v.a}–${v.b}`, sub: 'lines' };
   }
   else { const ref = kind === 'chapter' ? (chapterKey(cr.s) ?? cr.s) : cr.s; x = { kind, t: t.id, ref, label: `${shortWork(t)} · ${part && !String(ref).startsWith(part + '.') ? part + '.' : ''}${ref}`, sub: kind }; }
+  return x;
+}
+function selAdd(kind) {
+  const x = selItem(kind); if (!x) return toast('Open a text first.');
   M.cfg.sel ??= [];
   if (M.cfg.sel.some(y => selKey(y) === selKey(x))) return toast('Already in the selection.');
   M.cfg.sel.push(x); saveMapCfg();
@@ -176,7 +180,7 @@ async function mapGoAny(id, i) {
 }
 
 // ---------------------------------------------------------------- saved maps
-const MAP_KEYS = ['pfOn', 'sel', 'provinces', 'regArea', 'aqueducts', 'walls', 'canals', 'own', 'nmPlaces', 'nmRegions', 'nmMountains', 'nmIslands', 'rivers', 'lakes', 'sites', 'cats', 'coast', 'empires', 'regions', 'roads', 'urban', 'borders', 'peoples', 'names', 'time', 'tol', 'gone', 'undated', 'twoCol', 'rangeCols'];
+const MAP_KEYS = ['pfOn', 'sel', 'provinces', 'regArea', 'aqueducts', 'walls', 'canals', 'own', 'nmPlaces', 'nmRegions', 'nmMountains', 'nmIslands', 'rivers', 'lakes', 'dOff', 'dLen', 'sites', 'cats', 'coast', 'empires', 'regions', 'roads', 'urban', 'borders', 'peoples', 'names', 'time', 'tol', 'gone', 'undated', 'twoCol', 'rangeCols'];
 function mapState() {
   const c = M.map.getCenter();
   return { scope: M.cfg.scope, textId: S.text?.id ?? null, ref: curRef()?.s ?? null,
@@ -334,7 +338,7 @@ async function exportMap(fmt) {
   if (fmt === 'pult') {
     const st = Object.assign(mapState(), { id: Date.now().toString(36), name: base, created: Date.now() });
     const ids = ['sel', 'author'].includes(M.cfg.scope) ? (await scopeParts()).map(x => x.id) : S.text ? [S.text.id] : [];
-    const corr = (await getAll('settings')).filter(r => /^(plg|pown)\|/.test(r.k) || ids.some(id => r.k.startsWith(`pl|${id}|`)) || (r.k.startsWith('plw|') && ids.some(id => { const w = String(id).match(/^w:(.*):\d+$/); return r.k.startsWith(`plw|${w ? w[1] : 'imp:' + id}|`); })));
+    const corr = (await getAll('settings')).filter(r => /^(plg|pown|draw|dset)\|/.test(r.k) || ids.some(id => r.k.startsWith(`pl|${id}|`)) || (r.k.startsWith('plw|') && ids.some(id => { const w = String(id).match(/^w:(.*):\d+$/); return r.k.startsWith(`plw|${w ? w[1] : 'imp:' + id}|`); })));
     const places = [...(M.shown?.values() || [])].map(x => ({ id: x.p.id, t: x.p.t, lat: x.p.lat, lon: x.p.lon, n: x.n, names: x.names }));
     blob = new Blob([JSON.stringify({ format: 'pult-map-1', date: new Date().toISOString(), map: st, places, corrections: Object.fromEntries(corr.map(r => [r.k, r.v])) })], { type: 'application/json' });
     name = base + '.pultmap.json';
@@ -352,9 +356,10 @@ async function importMapFile(file) {
   let j; try { j = JSON.parse(await file.text()); } catch (_) { return toast('Not a map file.'); }
   if (j.format !== 'pult-map-1' || !j.map) return toast('Not a Pult map file.');
   const n = Object.keys(j.corrections || {}).length;
-  const r = await dialog(`<h3>Open map</h3><p><b>${esc(j.map.name || 'Map')}</b></p><p class="hint small">${(j.places || []).length} places${n ? ` · ${n} corrections of places (they replace yours where they differ)` : ''}. The texts must be in your library.</p>`, [['cancel', 'Cancel'], ['ok', 'Save and open']], 'ok');
+  const r = await dialog(`<h3>Open map</h3><p><b>${esc(j.map.name || 'Map')}</b></p><p class="hint small">${(j.places || []).length} places${n ? ` · ${n} of your places, drawings and corrections (they replace yours where they differ)` : ''}. The texts must be in your library.</p>`, [['cancel', 'Cancel'], ['ok', 'Save and open']], 'ok');
   if (r.action !== 'ok') return;
-  for (const [k, v] of Object.entries(j.corrections || {})) if (/^(pl|plw|plg|pown)\|/.test(k)) { await setting(k, v); if (k.startsWith('pown|')) M.own.set(v.id, v); }
+  await loadDrawings();
+  for (const [k, v] of Object.entries(j.corrections || {})) if (/^(pl|plw|plg|pown|draw|dset)\|/.test(k)) { await setting(k, v); if (k.startsWith('pown|')) M.own.set(v.id, v); if (k.startsWith('draw|')) M.draw.set(v.id, v); if (k.startsWith('dset|')) M.dsets.set(v.id, v); }
   const m = Object.assign({}, j.map, { id: Date.now().toString(36), created: Date.now() });
   await setting('mmap|' + m.id, m);
   M.anyCache = null; M.workCache = null; await placesForText();

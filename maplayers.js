@@ -6,7 +6,7 @@
 const TMIN = -1000, TMAX = 800, YSTEP = 10, TMAXR = 5;
 const fmtY = y => y == null ? '' : y < 0 ? `${-y} BC` : `AD ${Math.max(1, y)}`;
 const fmtR = ([a, b]) => a === b ? fmtY(a) : a < 0 && b < 0 ? `${-a}–${-b} BC` : a >= 0 ? `AD ${Math.max(1, a)}–${b}` : `${fmtY(a)} – ${fmtY(b)}`;
-const LCFG = { time: true, tol: 25, gone: 'fade', undated: 'show', later: 'fade', rivers: true, lakes: true, provinces: true, regArea: false, aqueducts: false, walls: false, canals: false, own: true,
+const LCFG = { time: true, tol: 25, gone: 'fade', undated: 'show', later: 'fade', rivers: true, lakes: true, provinces: true, regArea: false, aqueducts: false, walls: false, canals: false, own: true, dOff: [], dLen: 'off',
   nmPlaces: true, nmRegions: true, nmMountains: true, nmIslands: true, twoCol: false, sites: false, cats: { settl: true }, coast: true, empires: true, regions: 'labels', roads: false, urban: true, fold: { text: true }, layScroll: 0 };
 // the colours of the periods (when several are shown in their own colours); the reader can set them (Map settings → Period)
 const RANGE_COL = ['#c0503a', '#2f78b5', '#4a9a3a', '#9a55b5', '#c9922b'];
@@ -140,7 +140,8 @@ function layerStyle(st, C) {
   }
   // your own places
   st.sources.own = { type: 'geojson', data: ownFC() };
-  before('pl-region', { id: 'own', type: 'circle', source: 'own', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 3, 10, 6], 'circle-color': C.acc, 'circle-stroke-color': C.bg, 'circle-stroke-width': 1.5 } });
+  before('pl-region', { id: 'own', type: 'circle', source: 'own', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 3.5, 10, 6.5], 'circle-color': ['coalesce', ['get', 'c'], C.acc], 'circle-stroke-color': C.bg, 'circle-stroke-width': 1.5 } });
+  drawStyle(st, C, before);                                       // drawings (mapdraw.js), below your places
   before('pl-region', { id: 'sites', type: 'circle', source: 'sites', minzoom: 2.5, paint: {
     // zoomed out only the significant places (0–9), the others appear step by step
     'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, ['+', 1.4, ['*', 0.15, ['get', 'w']]], 8, ['+', 3, ['*', 0.2, ['get', 'w']]], 12, ['+', 4.5, ['*', 0.25, ['get', 'w']]]],
@@ -164,7 +165,6 @@ function layerProps() {
     'a-aqueducts': { vis: vis(c.aqueducts), filter: tf, paint: { 'line-opacity': tOpacity(0.85) } },
     'a-walls': { vis: vis(c.walls), filter: tf, paint: { 'line-opacity': tOpacity(0.9) } },
     'a-canals': { vis: vis(c.canals), filter: tf, paint: { 'line-opacity': tOpacity(0.85) } },
-    own: { vis: vis(c.own !== false) },
     'a-roads': { vis: vis(c.roads), filter: ['all', ['==', ['get', 'c'], 1], tf], paint: { 'line-opacity': tOpacity(0.85) } },
     'a-roads-a': { vis: vis(c.roads), filter: ['all', ['!=', ['get', 'c'], 1], tf], paint: { 'line-opacity': tOpacity(0.7) } },
     rivers: { vis: vis(c.rivers !== false) }, lakes: { vis: vis(c.lakes !== false) },
@@ -174,6 +174,7 @@ function layerProps() {
       // zoomed out, the less significant places are fainter (fading in as one zooms in)
       paint: { 'circle-opacity': ['interpolate', ['linear'], ['zoom'], 3, tOpacity(['min', 0.9, ['+', 0.15, ['*', 0.085, ['get', 'w']]]]), 7, tOpacity(['min', 0.9, ['+', 0.55, ['*', 0.05, ['get', 'w']]]]), 9, tOpacity(0.9)],
         'circle-stroke-opacity': ['interpolate', ['linear'], ['zoom'], 3, tOpacity(['min', 0.9, ['+', 0.1, ['*', 0.085, ['get', 'w']]]]), 7, tOpacity(0.7), 9, tOpacity(0.9)] } },
+    ...drawLayerProps(),                                           // your places and drawings (mapdraw.js)
   };
 }
 function applyLayersTo(layers) {
@@ -187,10 +188,14 @@ function applyLayersTo(layers) {
     if (p.paint) Object.assign(l.paint, p.paint);
   }
 }
-function ownFC() { return { type: 'FeatureCollection', features: [...(M.own?.values() || [])].map(p => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lon, p.lat] }, properties: { id: p.id } })) }; }
+function ownFC() {
+  return { type: 'FeatureCollection', features: [...(M.own?.values() || [])].filter(p => typeof dShown !== 'function' || dShown(p)).map(p => {
+    const pr = { id: p.id }; if (p.c) pr.c = p.c; if (p.y0 != null) pr.y0 = p.y0; if (p.y1 != null) pr.y1 = p.y1;
+    return { type: 'Feature', geometry: { type: 'Point', coordinates: [p.lon, p.lat] }, properties: pr }; }) };
+}
 function applyLayers() {
   if (!M.map?.getLayer('sites')) return;
-  M.map.getSource('own')?.setData(ownFC());
+  M.map.getSource('own')?.setData(ownFC()); M.map.getSource('draw')?.setData(drawFC());
   const P = layerProps(), dark = document.documentElement.dataset.theme === 'dark';
   for (const [id, p] of Object.entries(P)) {
     if (!M.map.getLayer(id)) continue;
@@ -386,7 +391,7 @@ function layersHTML() {
     + grp('lpol', 'Political', on(!!(anc && c.empires), !!(anc && c.provinces !== false), !!(anc && c.regArea), 'borders'), (anc ? tgl('empires', 'Empires and kingdoms at the date') + tgl('provinces', 'Roman provinces at the date', c.provinces !== false) + tgl('regArea', 'Areas of regions and peoples') : need) + tgl('borders', 'Modern borders'))
     + grp('lbuilt', 'Built world', anc ? on('roads', 'urban', 'aqueducts', 'walls', 'canals') : 0, anc ? tgl('roads', 'Roads (Barrington Atlas)') + tgl('aqueducts', 'Aqueducts') + tgl('walls', 'Frontier walls (Hadrian’s Wall, limes …)') + tgl('canals', 'Canals') + tgl('urban', 'City outlines') : need)
     + grp('lnames', 'Names on the map', on(c.nmPlaces !== false, c.nmRegions !== false, c.nmMountains !== false, c.nmIslands !== false), tgl('nmPlaces', 'Places', c.nmPlaces !== false) + tgl('nmRegions', 'Regions and peoples', c.nmRegions !== false) + tgl('nmMountains', 'Mountains', c.nmMountains !== false) + tgl('nmIslands', 'Islands and seas', c.nmIslands !== false))
-    + grp('lown', 'Your own', on(c.own !== false), tgl('own', 'Your own places', c.own !== false) + '<p class="hint small">Drawings follow (stage 3).</p>');
+    + grp('lown', 'Your own', c.own !== false ? [...(M.dsets?.keys() || [])].filter(k => !(c.dOff || []).includes(k)).length : 0, ownLayersHTML());
 }
 // the map settings (hold the map button, or ☰ → Settings → More map settings): how the map behaves
 function settingsHTML() {
@@ -444,7 +449,7 @@ async function layerClick1(b) {
     let v = d.mv; if (v === 'true' || v === 'false') v = v === 'true'; else if (/^\d+$/.test(v)) v = +v;
     M.cfg[d.mcfg] = v; b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); await saveMapCfg();
     if (d.mcfg === 'persons') { M.workCache = null; await placesForText(); return refreshMapData(), true; }
-    if (d.mcfg === 'names') return drawLabels(), true;
+    if (d.mcfg === 'names' || d.mcfg === 'dLen') return drawLabels(), true;
     if (d.mcfg === 'regions' && v !== 'off') await loadAncientLabels();
     renderTime(); applyLayers(); return true;
   }
@@ -470,7 +475,7 @@ document.addEventListener('input', ev => {
 // a tap outside a menu of the map closes it (the buttons that open the menus toggle them themselves)
 document.addEventListener('pointerdown', ev => {
   const pop = document.getElementById('mapPop'); if (!pop || pop.hidden) return;
-  if (ev.target.closest('#mapPop, #mapScope, #mapLayersBtn, #mapSaveBtn, #mapCheck, #tabMap, dialog, #toast')) return;
+  if (ev.target.closest('#mapPop, #mapScope, #mapLayersBtn, #mapSaveBtn, #mapDrawBtn, #mapCheck, #tabMap, dialog, #toast')) return;
   if (['layers', 'save'].includes(pop.dataset.k)) return;               // these stay open while the map is moved
   pop.hidden = true;
 }, true);
