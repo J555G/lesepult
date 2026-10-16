@@ -3,11 +3,13 @@
 // layers of the "Ancient world" package (Ancient World Mapping Center, ODbL): coastlines of the periods, empires and Roman
 // provinces at several dates, names and rough areas of regions and peoples, roads, city outlines.
 // Settings: mapCfg (layers, time options, fold state of the layer menu) · wyear|<work> (date of a work, corrected by the reader)
-const TMIN = -1000, TMAX = 800, YSTEP = 10, TMAXR = 3;
+const TMIN = -1000, TMAX = 800, YSTEP = 10, TMAXR = 5;
 const fmtY = y => y == null ? '' : y < 0 ? `${-y} BC` : `AD ${Math.max(1, y)}`;
 const fmtR = ([a, b]) => a === b ? fmtY(a) : a < 0 && b < 0 ? `${-a}–${-b} BC` : a >= 0 ? `AD ${Math.max(1, a)}–${b}` : `${fmtY(a)} – ${fmtY(b)}`;
 const LCFG = { time: true, tol: 25, gone: 'fade', undated: 'show', twoCol: false, sites: false, cats: { settl: true, sacred: true, mil: true }, coast: true, empires: true, regions: 'labels', roads: false, urban: true, fold: { text: true }, layScroll: 0 };
-const RANGE_COL = ['#c0503a', '#2f78b5'];
+// the colours of the periods (when several are shown in their own colours); the reader can set them (Map settings → Period)
+const RANGE_COL = ['#c0503a', '#2f78b5', '#4a9a3a', '#9a55b5', '#c9922b'];
+const rangeCol = k => (M.cfg?.rangeCols?.[k]) || RANGE_COL[k % RANGE_COL.length];
 
 // ---------------------------------------------------------------- the period filter
 // M.T = {work, ranges: [[a, b], …]} – a range with a === b is a single date; the map shows what existed then (± tolerance)
@@ -45,7 +47,7 @@ function tState(y0, y1) {
 // several periods in two colours (setting): the colour of the period a feature belongs to
 function tColor(base) {
   const R = tRanges(); if (!R || R.length < 2 || !M.cfg.twoCol) return base;
-  return ['case', tIn(R[0]), RANGE_COL[0], ['any', ...R.slice(1).map(tIn)], RANGE_COL[1], base];
+  return ['case', ...R.flatMap((r, k) => [tIn(r), rangeCol(k)]), base];
 }
 function snapFilter() { const R = snapRanges(); return R ? ['any', ...R.map(tIn)] : false; }
 
@@ -192,7 +194,7 @@ function moreLabels(placed, W, H) {
       if (cx < -w || cx > W + w || cy < -20 || cy > H + 20) continue;
       const hw = Math.abs(Math.cos(ang)) * w / 2 + Math.abs(Math.sin(ang)) * fs / 2, hh = Math.abs(Math.sin(ang)) * w / 2 + Math.abs(Math.cos(ang)) * fs / 2;
       const r = [cx - hw, cy - hh, cx + hw, cy + hh]; if (hit(r)) continue; placed.push(r); if (L.pid) M.lblHit.push([r, L.pid]);
-      const col = M.cfg.twoCol && tRanges()?.length > 1 ? `;color:${RANGE_COL[st.k ? 1 : 0]}` : '';
+      const col = M.cfg.twoCol && tRanges()?.length > 1 ? `;color:${rangeCol(st.k)}` : '';
       h += `<span class="mlbl rl k-${L.k}"${L.pid ? ` data-pid="${L.pid}"` : ''} style="left:${Math.round(cx)}px;top:${Math.round(cy)}px;letter-spacing:${ls.toFixed(1)}px;transform:translate(-50%,-50%) rotate(${(ang * 180 / Math.PI).toFixed(1)}deg);opacity:${(st.o * (caps ? 0.75 : 0.85)).toFixed(2)}${col}">${esc(txt)}</span>`;
     }
   }
@@ -228,10 +230,10 @@ function renderTime() {
   $('#mapTimeBtn')?.classList.toggle('on', !!M.cfg.time);
   if (!M.cfg.time) return;
   const R = M.T?.ranges || [], two = M.cfg.twoCol && R.length > 1;
-  $('#mapTimeV').innerHTML = R.length ? R.map((r, k) => `<span${two ? ` style="color:${RANGE_COL[k ? 1 : 0]}"` : ''}>${esc(fmtR(r))}</span>`).join(' · ') + (M.cfg.tol ? ` <small>± ${M.cfg.tol}</small>` : '') : '<small>Tap the line to choose a date</small>';
+  $('#mapTimeV').innerHTML = R.length ? R.map((r, k) => `<span${two ? ` style="color:${rangeCol(k)}"` : ''}>${esc(fmtR(r))}</span>`).join(' · ') + (M.cfg.tol ? ` <small>± ${M.cfg.tol}</small>` : '') : '<small>Tap the line to choose a date</small>';
   const wd = $('#mapWDate'); wd.hidden = !S.text; wd.innerHTML = `Text: ${M.year != null ? esc(fmtY(M.year)) : 'no date'} <small>✎</small>`;
-  $('#mapRanges').innerHTML = R.map(([a, b], k) => `<div class="mtr${a === b ? ' pt' : ''}" data-k="${k}" style="left:${tPct(a)}%;width:${tPct(b) - tPct(a)}%${two ? `;--rc:${RANGE_COL[k ? 1 : 0]}` : ''}"></div>`
-    + `<div class="mth" data-k="${k}" data-e="0" style="left:${tPct(a)}%${two ? `;--rc:${RANGE_COL[k ? 1 : 0]}` : ''}"></div>` + (a !== b ? `<div class="mth" data-k="${k}" data-e="1" style="left:${tPct(b)}%${two ? `;--rc:${RANGE_COL[k ? 1 : 0]}` : ''}"></div>` : '')).join('')
+  $('#mapRanges').innerHTML = R.map(([a, b], k) => `<div class="mtr${a === b ? ' pt' : ''}" data-k="${k}" style="left:${tPct(a)}%;width:${tPct(b) - tPct(a)}%${two ? `;--rc:${rangeCol(k)}` : ''}"></div>`
+    + `<div class="mth" data-k="${k}" data-e="0" style="left:${tPct(a)}%${two ? `;--rc:${rangeCol(k)}` : ''}"></div>` + (a !== b ? `<div class="mth" data-k="${k}" data-e="1" style="left:${tPct(b)}%${two ? `;--rc:${rangeCol(k)}` : ''}"></div>` : '')).join('')
     + (M.year != null ? `<div class="mtwk" style="left:${tPct(M.year)}%" title="Date of the work"></div>` : '');
 }
 let timeRaf = 0;
@@ -318,9 +320,10 @@ function layersHTML() {
       + segc('tol', [[0, '0'], [10, '± 10'], [25, '± 25'], [50, '± 50'], [100, '± 100']], 'Tolerance (years)')
       + segc('gone', [['fade', 'Faded'], ['hide', 'Hidden']], 'Places that no longer existed')
       + segc('undated', [['show', 'Shown'], ['fade', 'Faded'], ['hide', 'Hidden']], 'Places without a date')
-      + segc('twoCol', [[false, 'One colour'], [true, 'Two colours']], 'Several periods')
+      + segc('twoCol', [[false, 'One colour'], [true, 'A colour for each']], 'Several periods')
+      + `<div class="mcols">${RANGE_COL.map((_, k) => `<label title="Colour of period ${k + 1}"><input type="color" data-mcol="${k}" value="${rangeCol(k)}"><span>${k + 1}</span></label>`).join('')}<button type="button" class="mcolr" data-mcolreset="1">Standard colours</button></div>`
       + '<p class="hint small">Hold a date on the slider to make it a period, hold a period to split it in two; pull ends together to join them.</p>')
-    + foldSec('sites', 'All ancient places', tgl('sites', 'Show the places of the gazetteer') + '<div class="mcats">' + SITE_CATS.map(([k, l, , c1, c2]) => `<button type="button" class="mtg${M.cfg.cats?.[k] ? ' on' : ''}" data-mcat="${k}"><span class="ck"></span><i class="dot" style="--c:${document.documentElement.dataset.theme === 'dark' ? c2 : c1}"></i>${l}</button>`).join('') + '</div>')
+    + foldSec('sites', 'All ancient places', tgl('sites', 'Show the places of the gazetteer') + `<div class="mcats${M.cfg.sites ? '' : ' off'}">` + SITE_CATS.map(([k, l, , c1, c2]) => `<button type="button" class="mtg${M.cfg.cats?.[k] ? ' on' : ''}" data-mcat="${k}"><span class="ck"></span><i class="dot" style="--c:${document.documentElement.dataset.theme === 'dark' ? c2 : c1}"></i>${l}</button>`).join('') + '</div>')
     + foldSec('anc', 'Ancient world', anc ? tgl('coast', 'Coastlines of the period') + tgl('empires', 'Empires and Roman provinces')
       + segc('regions', [['off', 'Off'], ['labels', 'Names'], ['areas', 'Areas']], 'Regions and peoples') + tgl('roads', 'Roads (Barrington Atlas)') + tgl('urban', 'City outlines')
       : '<p class="hint small">Needs the download <b>Ancient world</b> (coastlines of the periods, empires and provinces, regions and peoples, roads).</p><button type="button" data-mapdl="1">Open Instruments → Maps</button>')
@@ -337,7 +340,7 @@ function layersPop() {
 async function layerClick(b) {
   const d = b.dataset;
   if (d.mfold) { const f = b.closest('.mfold'), on = !f.classList.contains('open'); f.classList.toggle('open', on); (M.cfg.fold ??= {})[d.mfold] = on; saveMapCfg(); return true; }
-  if (d.mcat) { (M.cfg.cats ??= {})[d.mcat] = !M.cfg.cats[d.mcat]; b.classList.toggle('on', M.cfg.cats[d.mcat]); if (M.cfg.cats[d.mcat] && !M.cfg.sites) { M.cfg.sites = true; $('#mapPop [data-mlay="sites"]')?.classList.add('on'); } await saveMapCfg(); applyLayers(); return true; }
+  if (d.mcat) { (M.cfg.cats ??= {})[d.mcat] = !M.cfg.cats[d.mcat]; b.classList.toggle('on', M.cfg.cats[d.mcat]); if (M.cfg.cats[d.mcat] && !M.cfg.sites) { M.cfg.sites = true; $('#mapPop [data-mlay="sites"]')?.classList.add('on'); $('#mapPop .mcats')?.classList.remove('off'); } await saveMapCfg(); applyLayers(); return true; }
   if (d.mcfg) {
     let v = d.v; if (v === 'true' || v === 'false') v = v === 'true'; else if (/^\d+$/.test(v)) v = +v;
     M.cfg[d.mcfg] = v; b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); await saveMapCfg();
@@ -351,10 +354,25 @@ async function layerClick(b) {
     if (k === 'borders') M.map.setLayoutProperty('borders', 'visibility', M.cfg.borders ? 'visible' : 'none');
     if (k === 'peoples' || k === 'mark') { markPlaces(); await refreshMapData(); }
     if (k === 'time') { timeFor(S.text); renderTime(); }
+    if (k === 'sites') $('#mapPop .mcats')?.classList.toggle('off', !M.cfg.sites);     // the categories are greyed while the places are off
     if (k === 'sites' && M.cfg.sites && !siteCats().length) { M.cfg.cats = { ...LCFG.cats }; $('#mapPop .mcats')?.querySelectorAll('[data-mcat]').forEach(x => x.classList.toggle('on', !!M.cfg.cats[x.dataset.mcat])); }
     applyLayers(); return true;
   }
   if (d.mtoff || b.id === 'mapTimeBtn') { M.cfg.time = b.id === 'mapTimeBtn' ? !M.cfg.time : false; await saveMapCfg(); timeFor(S.text); renderTime(); applyLayers(); $('#mapPop [data-mlay="time"]')?.classList.toggle('on', M.cfg.time); return true; }
   if (b.id === 'mapWDate') { workDateDialog(); return true; }
+  if (d.mcolreset) { M.cfg.rangeCols = null; await saveMapCfg(); b.parentElement.querySelectorAll('[data-mcol]').forEach(x => { x.value = rangeCol(+x.dataset.mcol); }); renderTime(); applyLayers(); return true; }
   return false;
 }
+
+// the colours of the periods, set by the reader
+document.addEventListener('input', ev => {
+  const k = ev.target.dataset?.mcol; if (k == null) return;
+  (M.cfg.rangeCols ??= [...RANGE_COL])[+k] = ev.target.value; renderTime(); applyLayers();
+  clearTimeout(M.colT); M.colT = setTimeout(saveMapCfg, 400);
+});
+// a tap outside a menu of the map closes it (the buttons that open the menus toggle them themselves)
+document.addEventListener('pointerdown', ev => {
+  const pop = document.getElementById('mapPop'); if (!pop || pop.hidden) return;
+  if (ev.target.closest('#mapPop, #mapScope, #mapLayersBtn, #mapCheck, #tabMap, dialog, #toast')) return;
+  pop.hidden = true;
+}, true);

@@ -1448,21 +1448,22 @@ async function dictsDialog() {
   const privState = privCfgNow.token ? (S.privErr ? '<span class="bad">' + esc(S.privErr) + '</span>' : '<span class="ok">connected</span>') : 'not connected';
   // three folded groups (fold state remembered): dictionaries, analysis instruments, maps
   const fold = (await setting('instFold')) || {};
-  const grp = (k, title, sub, body) => `<details class="ifold" data-if="${k}"${fold[k] ? ' open' : ''}><summary><b>${title}</b><small>${sub}</small></summary>${body}</details>`;
+  const grp = (k, title, sub, body, inner) => `<details class="ifold${inner ? ' sub' : ''}" data-if="${k}"${fold[k] ? ' open' : ''}><summary><b>${title}</b><small>${sub}</small></summary>${body}</details>`;
   const nD = S.dicts.length, nT = [S.morphInst, S.hintsInst, ...S.latMorphs].filter(Boolean).length;
   const mapInst = typeof mapInstalled === 'function' ? Object.keys(await mapInstalled()).length : 0;
   const r = await dialog(`<h3>Instruments</h3>
     ${grp('dict', 'Dictionaries', `${nD} installed`, Object.entries(LANGS).map(([lang, name]) => { const rs = rowsFor(lang), ms = missFor(lang);
-      return `<section class="dsec"><h4>${name} dictionaries ${info('Drag ⠿ to change the order · untick to hide · ▸/▾ folded or unfolded when a word is looked up.')}</h4>
-      <div class="list plain dictlist">${rs || ms ? rs + ms : `<p class="hint">No ${name} dictionaries installed.</p>`}</div></section>`; }).join('') + `
-    <section class="dsec"><h4>Private dictionaries <small>${privState}</small></h4>
+      const n = S.dicts.filter(d => d.src === lang).length;
+      return grp('dict-' + lang, `${name}`, `${n} installed`, `<section class="dsec"><p class="hint small">Drag ⠿ to change the order · untick to hide · ▸/▾ folded or unfolded when a word is looked up.</p>
+      <div class="list plain dictlist">${rs || ms ? rs + ms : `<p class="hint">No ${name} dictionaries installed.</p>`}</div></section>`, true); }).join('') + grp('priv', 'Private dictionaries', privState, `
+    <section class="dsec">
       <p class="hint small">Dictionaries that may not be published can be downloaded from a private GitHub repository. ${info('<b>Repository:</b> owner and name of the private repository. <b>Token:</b> a GitHub fine-grained personal access token with access to that repository only and the permission “Contents: Read-only”; it is stored only on this device.<br><b>Format:</b> the repository contains dictionary packages (<code>*.gdpkg.gz</code>, format <code>greekdict-pkg-2</code>, as made by the toolkit’s <code>python gd.py packages</code>) and a <code>packages.json</code> next to them that lists them (id, file, name, kind, bytes, version) – the same layout as the app’s public <code>packages</code> folder.')}</p>
       <div class="privf"><label>GitHub repository<input type="text" name="privRepo" value="${esc(privCfgNow.repo)}" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="owner/repository"></label>
       <label>Access token<input type="password" name="privToken" value="${esc(privCfgNow.token)}" autocomplete="off" placeholder="github_pat_…"></label></div>
-      <div class="row" style="justify-content:flex-start;margin-top:.4rem"><button type="button" data-v="privsave">Save and connect</button>${privCfgNow.token ? '<button type="button" class="danger" data-v="privforget">Forget token</button>' : ''}</div></section>
-    <section class="dsec"><h4>Editors’ colour marks</h4>
+      <div class="row" style="justify-content:flex-start;margin-top:.4rem"><button type="button" data-v="privsave">Save and connect</button>${privCfgNow.token ? '<button type="button" class="danger" data-v="privforget">Forget token</button>' : ''}</div></section>`, true) + grp('marks', 'Editors’ colour marks', 'Pape, LSJ', `
+    <section class="dsec">
       <label class="opt"><input type="checkbox" id="optSrcCol"${S.srcColors ? ' checked' : ''}> Show the colour marks of the Eulexis editors in Pape and LSJ</label>
-      <p class="legend">${Object.entries(FONT_MEANING).map(([c, t]) => `<span class="fc" data-c="${c}">■</span> ${esc(t)}`).join('<br>')}</p></section>`)}
+      <p class="legend">${Object.entries(FONT_MEANING).map(([c, t]) => `<span class="fc" data-c="${c}">■</span> ${esc(t)}`).join('<br>')}</p></section>`, true))}
     ${grp('tools', 'Analysis instruments', `${nT} installed`, `<section class="dsec">${info('Untick an instrument to switch it off. The language of each word follows from its alphabet.')}
       <div class="list plain">${tools || missT ? tools + missT : '<p class="hint">No analysis instruments installed.</p>'}</div>
       <div class="srow"><span class="sl">Greek analysis</span><div class="sc">${langToolSel('grc')}</div></div>

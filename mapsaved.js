@@ -21,10 +21,23 @@ async function placesOfAny(id) {
   const r = { hits: res, toks, t, refs: refsOf(toks, t.blocks) };
   M.anyCache.set(id, r); return r;
 }
-// the selection: 'w:<work id>' (all its parts) or 'imp:<text id>'
+// the texts of the scope: chosen ones, all works of the author, or all texts of the library
+// ('w:<work id>' = all its parts, 'imp:<text id>' = an imported text)
+async function scopeKeys() {
+  const sc = M.cfg.scope;
+  if (sc === 'multi') return M.cfg.multi || [];
+  const works = await libWorks(), imp = await getAll('texts');
+  if (sc === 'all') return [...works.map(w => 'w:' + w.id), ...imp.map(t => 'imp:' + t.id)];
+  if (sc === 'author') {
+    const t = S.text; if (!t) return [];
+    if (t.work) return works.filter(w => w.authorId === t.work.authorId || (w.author && w.author === t.work.author)).map(w => 'w:' + w.id);
+    return imp.filter(x => x.id === t.id || (t.author && x.author === t.author)).map(x => 'imp:' + x.id);
+  }
+  return [];
+}
 async function multiTextIds() {
   const out = [];
-  for (const k of M.cfg.multi || []) {
+  for (const k of await scopeKeys()) {
     if (k.startsWith('imp:')) out.push(+k.slice(4));
     else { const w = await libGet('works', k.slice(2)); if (w) w.books.forEach((_, bi) => out.push(`w:${w.id}:${bi}`)); }
   }
@@ -40,7 +53,7 @@ async function multiLabel() {
 async function multiPlaces(add) {
   const ids = await multiTextIds(), lbl = $('#mapScope');
   for (let n = 0; n < ids.length; n++) {
-    if (lbl && ids.length > 2) lbl.innerHTML = `Several texts <small>· reading ${n + 1} of ${ids.length} …</small>`;
+    if (lbl && ids.length > 2) lbl.innerHTML = `${esc(scopeLabel(M.cfg.scope))} <small>· reading ${n + 1} of ${ids.length} …</small>`;
     const r = await placesOfAny(ids[n]); if (!r) continue;
     for (const h of r.hits.values()) add(h, ids[n]);
   }
@@ -85,7 +98,7 @@ async function mapGoAny(id, i) {
 }
 
 // ---------------------------------------------------------------- saved maps
-const MAP_KEYS = ['sites', 'cats', 'coast', 'empires', 'regions', 'roads', 'urban', 'borders', 'peoples', 'names', 'time', 'tol', 'gone', 'undated', 'twoCol'];
+const MAP_KEYS = ['sites', 'cats', 'coast', 'empires', 'regions', 'roads', 'urban', 'borders', 'peoples', 'names', 'time', 'tol', 'gone', 'undated', 'twoCol', 'rangeCols'];
 function mapState() {
   const c = M.map.getCenter();
   return { scope: M.cfg.scope, multi: M.cfg.scope === 'multi' ? [...(M.cfg.multi || [])] : undefined, textId: S.text?.id ?? null, ref: curRef()?.s ?? null,
@@ -114,20 +127,32 @@ async function openSavedMap(m) {
 }
 
 // ---------------------------------------------------------------- the menu of the scope button
-async function scopePop() {
-  const pop = $('#mapPop'); if (!pop.hidden && pop.dataset.k === 'scope') { pop.hidden = true; return; }
+async function scopePop(keep) {
+  const pop = $('#mapPop'); if (!keep && !pop.hidden && pop.dataset.k === 'scope') { pop.hidden = true; return; }
   pop.dataset.k = 'scope'; pop.classList.add('mlayers');
-  const maps = await savedMaps();
-  pop.innerHTML = `<div class="navh">Places from</div><div class="seg" role="group">${[['section', 'Section'], ['chapter', 'Chapter'], ['book', 'Book'], ['work', 'Work']].map(([v, l]) => `<button type="button" data-mscopev="${v}" class="${M.cfg.scope === v ? 'on' : ''}">${l}</button>`).join('')}</div>
-    <button type="button" class="mtg${M.cfg.scope === 'multi' ? ' on' : ''}" data-mmulti="1"><span class="ck"></span>Several texts …${M.cfg.scope === 'multi' ? ` <small>(${esc(await multiLabel())})</small>` : ''}</button>
+  const maps = await savedMaps(), t = S.text, w = t?.work, cr = curRef();
+  const author = w ? w.author : t?.author;
+  // what each choice refers to, with the reading position
+  const opts = [
+    ['none', 'None', 'only the layers – no places of texts'],
+    ['section', 'Section', cr ? `${esc(cr.s)} – the section at the top of the text` : 'the section you are reading'],
+    ['chapter', 'Chapter', cr ? `${esc(chapterKey(cr.s) ?? cr.s)} – the chapter at the top of the text` : 'the chapter you are reading'],
+    ['book', 'Book', w && w.books.length > 1 ? `${esc(w.books[t.bi])} – the part that is open` : 'the open text'],
+    ['work', 'Work', w ? `${esc(w.title)} – all its parts` : t ? esc(t.title || 'the open text') : 'the open text'],
+    ['author', 'Author', author ? `all works of ${esc(author)} in your library` : 'all works of the author in your library'],
+    ['all', 'All', 'every text in your library'],
+    ['multi', 'Several texts …', M.cfg.scope === 'multi' ? esc(await multiLabel()) + ' – tap to change' : 'texts you choose'],
+  ];
+  pop.innerHTML = `<div class="mph"><span class="navh">Places from</span><button type="button" class="mx" data-mpopx="1" aria-label="Close">✕</button></div>
+    <div class="mscl">${opts.map(([v, l, d]) => `<button type="button" class="mso${M.cfg.scope === v ? ' on' : ''}" ${v === 'multi' ? 'data-mmulti="1"' : `data-mscopev="${v}"`}><span class="rd"></span><span><b>${l}</b><small>${d}</small></span></button>`).join('')}</div>
     <div class="navh">Saved maps</div>${maps.length ? maps.map(m => `<div class="msaved"><button type="button" class="mckt" data-mopen="${m.id}">${esc(m.name)}<small>${new Date(m.created).toLocaleDateString('en-GB')}</small></button><button type="button" class="mico2" data-mdelmap="${m.id}" title="Delete" aria-label="Delete">✕</button></div>`).join('') : '<p class="hint small">None yet.</p>'}
     <div class="macts"><button type="button" data-msave="1">Save this map …</button><button type="button" data-mimport="1">Open a map file …</button></div>
     <div class="navh">Export</div><div class="macts"><button type="button" data-mexp="png">Image</button><button type="button" data-mexp="pdf">PDF</button><button type="button" data-mexp="pult">Pult map file</button></div>`;
-  pop.hidden = false; pop.scrollTop = 0;
+  pop.hidden = false; if (!keep) pop.scrollTop = 0;
 }
 async function savedClick(b) {
   const d = b.dataset;
-  if (d.mmulti) { $('#mapPop').hidden = true; if (await pickTextsDialog()) { M.anyCache = M.anyCache || new Map(); await refreshMapData(); } return true; }
+  if (d.mmulti) { const ok = await pickTextsDialog(); await scopePop(true); if (ok) { await refreshMapData(); await scopePop(true); } return true; }   // the card stays open
   if (d.mgoany != null) { mapGoAny(d.mgoany, +d.mi); return true; }
   if (d.msave) { $('#mapPop').hidden = true; await saveMapDialog(); return true; }
   if (d.mopen) { const m = await setting('mmap|' + d.mopen); if (m) await openSavedMap(m); return true; }

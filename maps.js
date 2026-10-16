@@ -11,7 +11,11 @@ const EUROPE_ICON = '<i class="eu" aria-hidden="true"></i>'; // map image: Natur
 
 // ---------------------------------------------------------------- settings of the map
 async function mapCfg() {
-  if (!M.cfg) M.cfg = Object.assign({ mark: true, jump: true, scope: 'section', names: 'text', peoples: false, borders: false, rough: true, persons: 'unsure' }, JSON.parse(JSON.stringify(LCFG)), (await setting('mapCfg')) || {});
+  if (!M.cfg) {
+    const saved = (await setting('mapCfg')) || {};
+    if (!saved.v2) { delete saved.mark; saved.v2 = true; }                 // place names are no longer marked in the text by default
+    M.cfg = Object.assign({ mark: false, jump: true, scope: 'section', names: 'text', peoples: false, borders: false, rough: true, persons: 'unsure' }, JSON.parse(JSON.stringify(LCFG)), saved);
+  }
   return M.cfg;
 }
 async function saveMapCfg() { await setting('mapCfg', M.cfg); }
@@ -328,6 +332,9 @@ function scopeRange(scope) {
 function scopeLabel(scope) {
   const cr = curRef(), w = S.text?.work;
   if (scope === 'multi') return 'Several texts';
+  if (scope === 'none') return 'No places of texts';
+  if (scope === 'all') return 'All texts';
+  if (scope === 'author') return S.text ? (S.text.work ? S.text.work.author || 'this author' : S.text.author || 'this author') + ' – all works' : 'this author';
   if (scope === 'work') return w ? w.title : 'whole text';
   if (scope === 'book') return w && w.books.length > 1 ? w.books[S.text.bi] : 'whole text';
   if (!cr) return 'whole text';
@@ -335,7 +342,7 @@ function scopeLabel(scope) {
 }
 // places shown: {place id -> {p, n (passages), label}}
 async function scopePlaces() {
-  const cfg = await mapCfg(), out = new Map(), t = S.text; if (!t && cfg.scope !== 'multi') return out;
+  const cfg = await mapCfg(), out = new Map(), t = S.text; if (cfg.scope === 'none' || (!t && !['multi', 'all'].includes(cfg.scope))) return out;
   const add = (h, bi) => {
     if (isPeople(h.p) && !cfg.peoples) return;
     if (h.unsure === 'later' && M.sel?.h !== h) return;              // the time filter: later places only once confirmed
@@ -344,7 +351,7 @@ async function scopePlaces() {
     const nm = h.stem ? cleanT(h.p) : h.name;                // recognised by the stem only: the gazetteer's name, not the inflected word
     x.n++; x.names[nm] = (x.names[nm] || 0) + 1; if (h.unsure) x.unsure++;
   };
-  if (cfg.scope === 'multi') await multiPlaces(add);              // several texts (mapsaved.js)
+  if (['multi', 'author', 'all'].includes(cfg.scope)) await multiPlaces(add);   // several texts (mapsaved.js)
   else if (cfg.scope === 'work' && t.work && t.work.books.length > 1) {
     for (let bi = 0; bi < t.work.books.length; bi++) { const hs = bi === t.bi ? M.hits : await placesOfPart(bi); for (const h of hs.values()) add(h, bi); }
   } else {
@@ -521,11 +528,11 @@ async function showCard(p) {
     <div id="mapAlso"></div>
     <div class="mpass">${occ.length ? occ.map(o => `<button type="button" class="mps" data-mgo="${o.i}"><b>${multi ? esc(short[o.bi]) + ' · ' : ''}${esc(refOf(S.refs, o.i))}</b><span>${ctx(o.i)}</span></button>`).join('')
       : '<p class="hint small">Not named in this part of the text.</p>'}</div>
-    <div class="macts">${w && multi && M.cfg.scope !== 'multi' ? '<button type="button" data-mwork="1">All passages in this work</button>' : ''}${cur != null ? '<button type="button" data-mnone="1">Not a place here</button>' : ''}</div>
+    <div class="macts">${w && multi && !['multi', 'author', 'all'].includes(M.cfg.scope) ? '<button type="button" data-mwork="1">All passages in this work</button>' : ''}${cur != null ? '<button type="button" data-mnone="1">Not a place here</button>' : ''}</div>
     <div id="mapChange" hidden></div>`;
   card.hidden = false;
   card.scrollTop = 0;
-  if (M.cfg.scope === 'multi') cardMulti(p);
+  if (['multi', 'author', 'all'].includes(M.cfg.scope)) cardMulti(p);
 }
 const UNSURE = { later: 'Known only from after the text’s time – not on the map', person: 'Possibly a person, not a place', ambiguous: 'Several places have this name', form: 'Recognised only from the form of the word' };
 // all passages of the work that name this place
@@ -605,6 +612,7 @@ function wireMapUI() {
     if (b.id === 'mapScope') return scopePop();
     if (b.id === 'mapLayersBtn') return layersPop();
     if (d.mscopev) { M.cfg.scope = d.mscopev; await saveMapCfg(); $('#mapPop').hidden = true; return refreshMapData(); }
+    if (d.mpopx) { $('#mapPop').hidden = true; return; }
     if (d.mgo != null) return mapGo(d.mpart != null ? +d.mpart : null, +d.mgo);
     if (d.mwork) return cardWork(M.sel.p);
     if (d.mnone) { M.chScope = M.chScope || 'occ'; return saveCorrection({ none: 1 }); }
