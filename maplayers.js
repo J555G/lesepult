@@ -6,7 +6,7 @@
 const TMIN = -1000, TMAX = 800, YSTEP = 10, TMAXR = 5;
 const fmtY = y => y == null ? '' : y < 0 ? `${-y} BC` : `AD ${Math.max(1, y)}`;
 const fmtR = ([a, b]) => a === b ? fmtY(a) : a < 0 && b < 0 ? `${-a}–${-b} BC` : a >= 0 ? `AD ${Math.max(1, a)}–${b}` : `${fmtY(a)} – ${fmtY(b)}`;
-const LCFG = { time: true, tol: 25, gone: 'fade', undated: 'show', later: 'fade', rivers: true, lakes: true, twoCol: false, sites: false, cats: {}, coast: true, empires: true, regions: 'labels', roads: false, urban: true, fold: { text: true }, layScroll: 0 };
+const LCFG = { time: true, tol: 25, gone: 'fade', undated: 'show', later: 'fade', rivers: true, lakes: true, twoCol: false, sites: false, cats: { settl: true }, coast: true, empires: true, regions: 'labels', roads: false, urban: true, fold: { text: true }, layScroll: 0 };
 // the colours of the periods (when several are shown in their own colours); the reader can set them (Map settings → Period)
 const RANGE_COL = ['#c0503a', '#2f78b5', '#4a9a3a', '#9a55b5', '#c9922b'];
 const rangeCol = k => (M.cfg?.rangeCols?.[k]) || RANGE_COL[k % RANGE_COL.length];
@@ -81,8 +81,8 @@ function sitesData() {
   }
   return M.sitesFC = { type: 'FeatureCollection', features: feats };
 }
-// the categories chosen in the layer menu; none chosen = all
-const siteCats = () => { const c = SITE_CATS.map((c, i) => M.cfg.cats?.[c[0]] ? i : -1).filter(i => i >= 0); return c.length ? c : SITE_CATS.map((_, i) => i); };
+// the kinds of places ticked in the layer menu (settlements by default)
+const siteCats = () => SITE_CATS.map((c, i) => M.cfg.cats?.[c[0]] ? i : -1).filter(i => i >= 0);
 
 // ---------------------------------------------------------------- the layers in the map style
 const EMP_COL = { persia: '#9a6a2a', alexander: '#3f6fa8', rome60bc: '#b23a3a', rome117: '#b23a3a', rome200: '#b23a3a' };
@@ -129,7 +129,8 @@ function layerProps() {
     'a-roads-a': { vis: vis(c.roads), filter: ['all', ['!=', ['get', 'c'], 1], tf], paint: { 'line-opacity': tOpacity(0.7) } },
     rivers: { vis: vis(c.rivers !== false) }, lakes: { vis: vis(c.lakes !== false) },
     'a-urban': { vis: vis(c.urban) }, 'a-urban-line': { vis: vis(c.urban) },
-    sites: { vis: vis(c.pfOn === false),                           // "Places from" switched off: every place filter: ['all', ['in', ['get', 'c'], ['literal', siteCats()]], tf, ['!', ['in', ['get', 'id'], ['literal', shown]]]],
+    // "Places from" switched off: every place of the kinds ticked
+    sites: { vis: vis(c.pfOn === false), filter: ['all', ['in', ['get', 'c'], ['literal', siteCats()]], tf, ['!', ['in', ['get', 'id'], ['literal', shown]]]],
       paint: { 'circle-opacity': tOpacity(0.85), 'circle-stroke-opacity': tOpacity(0.85) } },
   };
 }
@@ -204,19 +205,23 @@ function moreLabels(placed, W, H) {
       h += `<span class="mlbl rl k-${L.k}"${L.pid ? ` data-pid="${L.pid}"` : ''} style="left:${Math.round(cx)}px;top:${Math.round(cy)}px;letter-spacing:${ls.toFixed(1)}px;transform:translate(-50%,-50%) rotate(${(ang * 180 / Math.PI).toFixed(1)}deg);opacity:${(st.o * (caps ? 0.75 : 0.85)).toFixed(2)}${col}">${esc(txt)}</span>`;
     }
   }
-  // the sites in view (from zoom 7): their names, where there is room
-  if (M.cfg.pfOn === false && z >= 7 && M.map.getLayer('sites')) {
-    const fs = M.map.queryRenderedFeatures({ layers: ['sites'] }).slice(0, 400);
-    const seen = new Set(); let n = 0;
-    for (const f of fs) {
+  // the places in view (from zoom 5): their names where there is room, the best-known first
+  if (M.cfg.pfOn === false && z >= 5 && M.map.getLayer('sites')) {
+    const seen = new Set(), cand = [];
+    for (const f of M.map.queryRenderedFeatures({ layers: ['sites'] })) {
       const id = f.properties.id; if (seen.has(id)) continue; seen.add(id);
       const p = M.P?.byId.get(id); if (!p) continue;
       const pt = M.map.project([p.lon, p.lat]); if (pt.x < 0 || pt.x > W || pt.y < 0 || pt.y > H) continue;
+      cand.push({ p, pt, w: p.names.length + (p.ty.includes(M.P.ti.urban) ? 6 : 0) + (p.rough ? -3 : 0) });
+    }
+    cand.sort((a, b) => b.w - a.w);
+    let n = 0;
+    for (const { p, pt } of cand) {
       const txt = labelOf({ p, names: {} }); ctx.font = '11.5px "Gentium Book Plus", serif';
       const w = ctx.measureText(txt).width + 4, r = [pt.x + 5, pt.y - 13, pt.x + 5 + w, pt.y + 1];
-      if (hit(r)) continue; placed.push(r); M.lblHit.push([r, id]);
-      h += `<span class="mlbl site" data-pid="${id}" style="left:${Math.round(r[0])}px;top:${Math.round(r[1])}px;opacity:${tState(p.y0, p.y1).o || 1}">${esc(txt)}</span>`;
-      if (++n > 120) break;
+      if (hit(r)) continue; placed.push(r); M.lblHit.push([r, p.id]);
+      h += `<span class="mlbl site" data-pid="${p.id}" style="left:${Math.round(r[0])}px;top:${Math.round(r[1])}px;opacity:${tState(p.y0, p.y1).o || 1}">${esc(txt)}</span>`;
+      if (++n > 180) break;
     }
   }
   return h;
@@ -330,7 +335,7 @@ function layersHTML() {
       + segc('twoCol', [[false, 'One colour'], [true, 'A colour for each']], 'Several periods')
       + `<div class="mcols">${RANGE_COL.map((_, k) => `<label title="Colour of period ${k + 1}"><input type="color" data-mcol="${k}" value="${rangeCol(k)}"><span>${k + 1}</span></label>`).join('')}<button type="button" class="mcolr" data-mcolreset="1">Standard colours</button></div>`
       + '<p class="hint small">Hold a date on the slider to make it a period, hold a period to split it in two; pull ends together to join them.</p>')
-    + foldSec('sites', 'Kinds of places', '<p class="hint small">Which places are shown while “Places from” is switched off. None ticked: all.</p><div class="mcats">' + SITE_CATS.map(([k, l, , c1, c2]) => `<button type="button" class="mtg${M.cfg.cats?.[k] ? ' on' : ''}" data-mcat="${k}"><span class="ck"></span><i class="dot" style="--c:${document.documentElement.dataset.theme === 'dark' ? c2 : c1}"></i>${l}</button>`).join('') + '</div>')
+    + foldSec('sites', 'Kinds of places', '<p class="hint small">Which places are shown while “Places from” is switched off.</p><div class="mcats">' + SITE_CATS.map(([k, l, , c1, c2]) => `<button type="button" class="mtg${M.cfg.cats?.[k] ? ' on' : ''}" data-mcat="${k}"><span class="ck"></span><i class="dot" style="--c:${document.documentElement.dataset.theme === 'dark' ? c2 : c1}"></i>${l}</button>`).join('') + '</div>')
     + foldSec('geo', 'Geography', tgl('rivers', 'Rivers', M.cfg.rivers !== false) + tgl('lakes', 'Lakes', M.cfg.lakes !== false))
     + foldSec('anc', 'Ancient world', anc ? tgl('coast', 'Coastlines of the period') + tgl('empires', 'Empires and Roman provinces')
       + segc('regions', [['off', 'Off'], ['labels', 'Names'], ['areas', 'Areas']], 'Regions and peoples') + tgl('roads', 'Roads (Barrington Atlas)') + tgl('urban', 'City outlines')

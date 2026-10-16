@@ -212,7 +212,7 @@ function scopeExplain() {
   if (sc === 'sel') return `<b>Selection</b> – ${esc(selSummary())}`;
   if (!t) return 'No text is open.';
   const author = w ? w.author : t.author, title = w ? w.title : t.title || 'the open text';
-  const work = `<i>${esc(title)}</i>${author ? ` (${esc(author)})` : ''}`;
+  const work = `${author ? esc(author) + ', ' : ''}<i>${esc(title)}</i>`;          // "Thucydides, History …" 
   const multi = w && w.books.length > 1, book = multi ? esc(w.books[t.bi]) : '';
   const inBook = multi ? ` of ${book} · ${work}` : ` · ${work}`;
   const R = S.refs || [], verse = R.length && R.every(r => /^\d+$/.test(r.s));

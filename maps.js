@@ -20,6 +20,7 @@ async function mapCfg() {
       if (saved.scope === 'all' || saved.scope === 'none') saved.scope = 'section';
       if (saved.sites) saved.pfOn = false;
     }
+    if (!saved.v4) { saved.v4 = true; if (!Object.values(saved.cats || {}).some(Boolean)) saved.cats = { settl: true }; }   // kinds of places: settlements by default
     M.cfg = Object.assign({ mark: false, jump: true, pfOn: true, sel: [], scope: 'section', names: 'text', peoples: false, borders: false, rough: true, persons: 'unsure' }, JSON.parse(JSON.stringify(LCFG)), saved);
   }
   return M.cfg;
@@ -435,6 +436,7 @@ async function showMap1() {
     M.map.touchZoomRotate.disableRotation();
     // the credits of the map are in ☰ → Acknowledgements (and on exported maps)
     M.map.on('move', () => { if (!M.lblRaf) M.lblRaf = requestAnimationFrame(() => { M.lblRaf = 0; drawLabels(); }); });
+    M.map.on('idle', () => { if (M.cfg.pfOn === false) drawLabels(); });     // the names of all places need the dots drawn first
     M.map.on('moveend', () => { const c = M.map.getCenter(), z = M.map.getZoom(), v = { c: [+c.lng.toFixed(4), +c.lat.toFixed(4)], z: +z.toFixed(2) }; setting('mpos|last', v); if (M.posKey) setting('mpos|' + M.posKey, v); });
     M.map.on('mouseenter', 'sites', () => { M.map.getCanvas().style.cursor = 'pointer'; });
     M.map.on('mouseleave', 'sites', () => { M.map.getCanvas().style.cursor = ''; });
