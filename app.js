@@ -1553,6 +1553,7 @@ async function settingsDialog() {
   const dlgP = dialog(`<h3>Settings</h3>
     ${sec('app', 'Appearance')}
       ${row('Theme', sw('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']]))}
+      ${row('Text size', `<div class="tzrow"><button type="button" data-tz="-1" aria-label="Smaller">A−</button><span id="tzVal">${Math.round((S.tz || 1) * 100)} %</span><button type="button" data-tz="1" aria-label="Larger">A+</button><button type="button" data-tz="0">100 %</button></div>`, 'Or pinch the text with two fingers (ctrl + mouse wheel on a computer).')}
       ${row('Top bar', withInfo(cb('gramBtn', S.gramBtn, 'Grammar button'), 'Shows the grammatical information beneath each word; hold it to choose for which word classes.'))}
       <details class="scol"${S.colOpen ? ' open' : ''}><summary>Word-class colours ${info('Used by the “Colours” button in the top bar (hold that button to open this list directly). Word classes follow the reading chosen for each word.')}</summary>
         <div class="list plain">${posRows}</div><div class="row" style="justify-content:flex-start"><button type="button" data-posreset="1">Reset colours</button></div></details>
@@ -1690,7 +1691,7 @@ async function backupData() {
     places: Object.fromEntries((await getAll('settings')).filter(r => /^(pl|plw|plg|pown|draw|dset|mmap|wyear)\|/.test(r.k)).map(r => [r.k, r.v])),
     mapCfg: (await setting('mapCfg')) || null,
     favourites: (await setting('favs')) || {},
-    prefs: { theme: document.documentElement.dataset.theme, posCfg: S.posCfg, posOn: S.posOn, gramCfg: S.gramCfg, showGloss: !document.body.classList.contains('nogloss'),
+    prefs: { theme: document.documentElement.dataset.theme, textZoom: S.tz || 1, posCfg: S.posCfg, posOn: S.posOn, gramCfg: S.gramCfg, showGloss: !document.body.classList.contains('nogloss'),
       glossMode: S.glossMode, latQuant: S.latQuant, gramBtn: S.gramBtn, showGram: S.gram, dictPrefs: S.dictPrefs } };
 }
 // ☰ → This Pult: what the reader has stored on this device, and backups
@@ -1741,6 +1742,7 @@ async function restoreBackup(file) {
   if (data.mapCfg) { await setting('mapCfg', data.mapCfg); if (typeof M !== 'undefined') { M.cfg = null; M.P = null; M.own = new Map(); } }
   if (data.favourites) { S.favs = Object.assign((await setting('favs')) || {}, data.favourites); await setting('favs', S.favs); }
   const p = data.prefs;                           // colours and display settings
+  if (p?.textZoom) { await setting('textZoom', p.textZoom); setTextZoom(p.textZoom); }
   if (p?.dictPrefs) { S.dictPrefs = Object.assign(S.dictPrefs || {}, p.dictPrefs); await setting('dictPrefs', S.dictPrefs); await loadDicts(); }
   if (p) {
     if (p.theme) setTheme(p.theme, true);
@@ -3257,6 +3259,54 @@ function wireMarker() {
 }
 
 // ---------------------------------------------------------------- start
+// ---- the size of the text: pinching the text pane (ctrl + wheel, trackpad) makes the text larger or smaller – all its
+// parts in proportion (CSS variable --tz on #textBody) – instead of zooming the whole page; the word under the fingers stays put
+const TZ_MIN = 0.6, TZ_MAX = 2.5;
+function setTextZoom(z, at) {
+  z = Math.max(TZ_MIN, Math.min(TZ_MAX, Math.round(z * 100) / 100));
+  const b = $('#textBody'), pane = $('#textPane'); S.tz = z; if (!b) return;
+  let el = null, top0 = 0;
+  if (at && pane) { el = document.elementFromPoint(at.x, at.y)?.closest('#textBody .w, #textBody .blk'); if (el) top0 = el.getBoundingClientRect().top; }
+  b.style.setProperty('--tz', z);
+  if (el) pane.scrollTop += el.getBoundingClientRect().top - top0;
+  setGlossMax?.();
+  const v = document.getElementById('tzVal'); if (v) v.textContent = Math.round(z * 100) + ' %';
+}
+let tzSaveT = 0;
+const tzSave = () => { clearTimeout(tzSaveT); tzSaveT = setTimeout(() => setting('textZoom', S.tz), 400); };
+(function wireTextZoom() {
+  let pinch = null, raf = 0, next = null;
+  const run = () => { raf = 0; if (next) { setTextZoom(next.z, next.at); next = null; } };
+  const mid = t => ({ x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 });
+  const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  document.addEventListener('touchstart', e => {
+    if (e.touches.length !== 2 || !e.target.closest?.('#textPane')) return;
+    e.preventDefault(); pinch = { d0: Math.max(20, dist(e.touches)), z0: S.tz || 1 };
+  }, { passive: false });
+  document.addEventListener('touchmove', e => {
+    if (e.touches.length < 2) return;
+    if (!e.target.closest?.('.maplibregl-canvas-container, .mtt')) e.preventDefault();   // never the page zoom (the map and the time slider pinch themselves)
+    if (!pinch) return;
+    next = { z: pinch.z0 * dist(e.touches) / pinch.d0, at: mid(e.touches) }; if (!raf) raf = requestAnimationFrame(run);
+  }, { passive: false });
+  document.addEventListener('touchend', e => { if (pinch && e.touches.length < 2) { pinch = null; tzSave(); toast(`Text ${Math.round(S.tz * 100)} %`, 1200); } });
+  // Safari (iPad, iPhone, Mac trackpad): its own pinch events – no page zoom anywhere; on the text: the text size
+  let g0 = null;
+  document.addEventListener('gesturestart', e => { e.preventDefault(); g0 = e.target.closest?.('#textPane') && !pinch ? S.tz || 1 : null; }, { passive: false });
+  document.addEventListener('gesturechange', e => { e.preventDefault(); if (g0 != null && !pinch) { next = { z: g0 * e.scale, at: { x: e.clientX, y: e.clientY } }; if (!raf) raf = requestAnimationFrame(run); } }, { passive: false });
+  document.addEventListener('gestureend', e => { e.preventDefault(); if (g0 != null) { g0 = null; tzSave(); } }, { passive: false });
+  // ctrl + wheel (and the pinch of a trackpad in Chrome): on the text the text size, elsewhere nothing
+  document.addEventListener('wheel', e => {
+    if (!e.ctrlKey) return;
+    if (e.target.closest?.('.maplibregl-canvas-container, .mtt')) return;
+    e.preventDefault();
+    if (e.target.closest?.('#textPane')) { setTextZoom((S.tz || 1) * Math.exp(-e.deltaY * 0.01), { x: e.clientX, y: e.clientY }); tzSave(); }
+  }, { passive: false });
+  document.addEventListener('click', e => {
+    const b = e.target.closest?.('[data-tz]'); if (!b) return;
+    const d = +b.dataset.tz; setTextZoom(d ? (S.tz || 1) * (d > 0 ? 1.1 : 1 / 1.1) : 1); tzSave();
+  });
+})();
 (async function main() {
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => { });
   // the map scripts (maps.js, maplayers.js, mapsaved.js) load after this one: wait until all of them have run,
@@ -3274,6 +3324,7 @@ function wireMarker() {
   S.gramBtn = (await setting('gramBtn')) !== false; applyTopButtons();
   setGram(S.gramBtn && !!(await setting('showGram')));
   const sp = await setting('split'); setSplit(sp || '50%', false);
+  setTextZoom((await setting('textZoom')) || 1);
   S.srcColors = (await setting('srcColors')) !== false; document.body.classList.toggle('nosrccol', !S.srcColors);
   S.posCfg = Object.assign(defaultPosCfg(), (await setting('posCfg')) || {});
   S.posOn = !!(await setting('posOn')); applyPosColors();
