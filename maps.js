@@ -466,7 +466,7 @@ async function showMap1() {
     } catch (e) { M.map = null; return mapFailed(e.message || String(e)); }
     // problems are shown instead of an empty map: errors while loading, the graphics memory lost (phones)
     M.map.on('error', e => { M.lastErr = e?.error?.message || String(e?.error || e); console.warn('map:', M.lastErr); });
-    M.map.getCanvas().addEventListener('webglcontextlost', () => mapFailed('The graphics memory of the device was needed elsewhere.'));
+    M.map.getCanvas().addEventListener('webglcontextlost', () => { if (!M.failing) mapFailed('The graphics memory of the device was needed elsewhere.'); });
     M.map.touchZoomRotate.disableRotation();
     // the credits of the map are in ☰ → Acknowledgements (and on exported maps)
     M.map.on('move', () => { if (!M.lblRaf) M.lblRaf = requestAnimationFrame(() => { M.lblRaf = 0; drawLabels(); }); });
@@ -491,7 +491,7 @@ async function showMap1() {
 }
 // the map could not start: say why, and offer to try again
 function mapFailed(msg) {
-  try { M.map?.remove(); } catch (_) { }
+  M.failing = true; try { M.map?.remove(); } catch (_) { } M.failing = false;    // (removing the map loses its graphics context: not a new failure)
   M.map = null; M.showP = null;
   $('#mapBody').innerHTML = `<div class="mapmsg"><p>${EUROPE_ICON}</p><p>The map could not be shown.</p><p class="hint small">${esc(msg)}</p><button type="button" id="mapRetry">Try again</button> <button type="button" id="mapResetCfg">Reset the map settings</button></div>`;
   $('#mapRetry').onclick = () => showMap();

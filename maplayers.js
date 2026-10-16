@@ -181,7 +181,9 @@ function applyLayersTo(layers) {
   for (const l of layers) {
     const p = P[l.id]; if (!p) continue;
     (l.layout ??= {}).visibility = p.vis;
-    if (p.filter !== undefined) l.filter = p.filter === true ? undefined : p.filter;
+    // no filter (the period filter is off, or no date is known yet): the key must be absent – "filter: undefined" makes
+    // the whole map style invalid, and the map never finishes loading (the cause of the failures since v133)
+    if (p.filter === true) delete l.filter; else if (p.filter !== undefined) l.filter = p.filter;
     if (p.paint) Object.assign(l.paint, p.paint);
   }
 }
