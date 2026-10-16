@@ -1,6 +1,6 @@
 // Offline cache for the app shell (dictionaries and texts live in IndexedDB, not here).
-const CACHE = 'lesepult-v116';
-const FILES = ['./', 'index.html', 'app.js', 'style.css', 'fonts.css', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'fonts/roboto-condensed-latin-400-normal.woff2',
+const CACHE = 'lesepult-v117';
+const FILES = ['./', 'index.html', 'app.js', 'maps.js', 'style.css', 'fonts.css', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'fonts/roboto-condensed-latin-400-normal.woff2',
   ...['greek', 'greek-ext', 'latin', 'latin-ext'].flatMap(s => ['400-normal', '700-normal', '400-italic'].map(w => `fonts/gentium-book-plus-${s}-${w}.woff2`))];
 
 self.addEventListener('install', e => e.waitUntil(
@@ -10,7 +10,7 @@ self.addEventListener('install', e => e.waitUntil(
   })))).then(() => self.skipWaiting())));
 
 self.addEventListener('activate', e => e.waitUntil(
-  caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));
+  caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE && k !== 'pult-maps').map(k => caches.delete(k)))).then(() => self.clients.claim())));
 
 // Safari refuses to show a page from a service worker if the response was redirected
 // (e.g. GitHub Pages: /lesepult → /lesepult/) – store and serve a clean copy instead.
@@ -31,6 +31,8 @@ self.addEventListener('fetch', e => {
   const url = new URL(req.url), path = url.pathname;
   if (url.origin !== self.location.origin) return;   // e.g. the private repository (GitHub API): never cached
   if (path.includes('/packages/') || path.includes('/texts/')) return;   // dictionary and text downloads go straight to the network (stored in IndexedDB)
+  // map data (Dictionaries → Maps): from the downloaded copy, otherwise from the network
+  if (path.includes('/maps/')) { e.respondWith(caches.open('pult-maps').then(c => c.match(url.href.split('?')[0])).then(r => r || fetch(req))); return; }
   const page = req.mode === 'navigate';
   const key = page ? 'index.html' : url.href.split('?')[0];
   // network first (so updates arrive), the cached copy when offline or slow

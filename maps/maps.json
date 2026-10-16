@@ -1,0 +1,29 @@
+{
+ "packages": [
+  {
+   "id": "base",
+   "name": "Base map",
+   "desc": "Land, lakes and rivers of the whole globe (Natural Earth, public domain) and the map engine (MapLibre GL JS)",
+   "files": [
+    "base/land.json",
+    "base/lakes.json",
+    "base/rivers.json",
+    "base/borders.json",
+    "base/lib/maplibre-gl.js",
+    "base/lib/maplibre-gl.css"
+   ],
+   "bytes": 4453438,
+   "v": "a40707ab085b"
+  },
+  {
+   "id": "places",
+   "name": "Ancient places",
+   "desc": "The Pleiades gazetteer (CC BY 3.0): about 40,000 places with their Greek and Latin names – needed to find the places of a text",
+   "files": [
+    "places/places.json"
+   ],
+   "bytes": 3525647,
+   "v": "d8f291929c4b"
+  }
+ ]
+}

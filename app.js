@@ -203,6 +203,7 @@ async function resolveTokens() {      // lemma + word class for every word of th
   const run = (resolveTokens.run = (resolveTokens.run || 0) + 1);
   await resolveTokens1(run);
   if (run === resolveTokens.run && S.dgPending) { S.dgPending = false; renderText(); }
+  if (run === resolveTokens.run && typeof placesForText === 'function') placesForText();
 }
 async function resolveTokens1(run) {
   const memo = new Map(), bmap = new Map();
@@ -637,6 +638,7 @@ function renderText() {
   body.innerHTML = html + '</div>' + bn;
   body.classList.toggle('lib', !!S.text.blocks);
   S.wordEls = body.querySelectorAll('.w');
+  if (typeof markPlaces === 'function') markPlaces();
   S.renderedText = S.text.id;
   if (anchor) { applyTextAnchor(anchor); const g = S.tGuard = { a: anchor, until: Date.now() + 1000 };
     const fix = () => { if (S.tGuard === g && Date.now() <= g.until && !S.tTouch) applyTextAnchor(g.a); };
@@ -986,7 +988,8 @@ async function showWord(word, opts = {}) {
   S.fwd = [];
   S.view = { form: word, lemma: opts.lemma || null, openDict: opts.openDict || null, ti: opts.ti ?? null };
   navButtons();
-  showTab('entry');
+  if (S.tab === 'map') { if (opts.ti != null) mapWordTapped(opts.ti); }       // the map stays; the entry is prepared behind it
+  else showTab('entry');
   await renderView();
 }
 function navButtons() { $('#btnBack').disabled = !S.hist.length; $('#btnFwd').disabled = !(S.fwd && S.fwd.length); }
@@ -1056,6 +1059,7 @@ async function renderView() {
   if (y == null) { const st = await setting(v.skey); if (st && st.l === lemma) { y = st.y; v.scroll = y; v.scrollL = lemma; } }
   $('#dictPane').scrollTop = y || 0;
   S.lastRendered = v;
+  if (typeof mapIconForView === 'function') mapIconForView();
   requestAnimationFrame(() => requestAnimationFrame(() => { if (S.view === v) S.dictRendering = false; S.tabSw = false; }));
 }
 async function saveOpenState() {   // remembered per lemma
@@ -1149,10 +1153,13 @@ function releaseTabSw() { requestAnimationFrame(() => requestAnimationFrame(() =
 function showTab(which) {
   // leaving the Lemmata list: remember where it was scrolled to (per text), for the way back
   // the pane is shared: while one tab is swapped for the other, its scroll events must not be stored as a position
-  const cur = $('#listBody').hidden ? 'entry' : 'list';
+  const cur = S.tab || ($('#listBody').hidden ? 'entry' : 'list');
   if (cur !== which) { S.tabSw = true; clearTimeout(S.tabSwT); S.tabSwT = setTimeout(() => { S.tabSw = false; }, 1500); }
-  $('#tabEntry').classList.toggle('on', which === 'entry'); $('#tabList').classList.toggle('on', which === 'list');
+  S.tab = which;
+  $('#tabEntry').classList.toggle('on', which === 'entry'); $('#tabList').classList.toggle('on', which === 'list'); $('#tabMap')?.classList.toggle('on', which === 'map');
   $('#dictBody').hidden = which !== 'entry'; $('#listBody').hidden = which !== 'list';
+  const mb = $('#mapBody'); if (mb) mb.hidden = which !== 'map';
+  $('#dictPane').classList.toggle('mapmode', which === 'map');
 }
 
 // ---------------------------------------------------------------- glosses
@@ -1449,6 +1456,7 @@ async function dictsDialog() {
       <div class="srow"><span class="sl">Latin analysis</span><div class="sc">${langToolSel('la')}</div></div>
       <div class="srow"><span class="sl">Vowel lengths</span><div class="sc">${withInfo(`<label class="sopt"><input type="checkbox" data-set="latQuant"${S.latQuant ? ' checked' : ''}> Mark them in Latin texts (ā long, ă short)</label>`, 'From Collatinus (also needed with Whitaker’s Words). Where a form has several readings, only the lengths they share are marked.')}</div></div></section>
     ${man ? '' : '<p class="hint">The website could not be reached (offline?) – download buttons are not available right now. Everything already installed works offline.</p>'}
+    ${typeof mapSectionHTML === 'function' ? await mapSectionHTML() : ''}
     <section class="dsec"><h4>Private dictionaries <small>${privState}</small></h4>
       <p class="hint small">Dictionaries that may not be published can be downloaded from a private GitHub repository. ${info('<b>Repository:</b> owner and name of the private repository. <b>Token:</b> a GitHub fine-grained personal access token with access to that repository only and the permission “Contents: Read-only”; it is stored only on this device.<br><b>Format:</b> the repository contains dictionary packages (<code>*.gdpkg.gz</code>, format <code>greekdict-pkg-2</code>, as made by the toolkit’s <code>python gd.py packages</code>) and a <code>packages.json</code> next to them that lists them (id, file, name, kind, bytes, version) – the same layout as the app’s public <code>packages</code> folder.')}</p>
       <div class="privf"><label>GitHub repository<input type="text" name="privRepo" value="${esc(privCfgNow.repo)}" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="owner/repository"></label>
@@ -1540,6 +1548,9 @@ async function settingsDialog() {
         <div class="list plain">${posRows}</div><div class="row" style="justify-content:flex-start"><button type="button" data-posreset="1">Reset colours</button></div></details>
       <details class="scol sgram"${S.gramOpen ? ' open' : ''}><summary>Grammar line ${info('Which words show their grammatical form beneath them when the grammar line is on (hold the “Grammar” button to open this list directly).')}</summary>
         <div class="gramcfg">${gramRowsHTML()}</div></details></section>
+    <section class="dsec"><h4>Map</h4>
+      ${row('Place names', withInfo(`<label class="sopt"><input type="checkbox" data-mapset="mark"${(await mapCfg()).mark ? ' checked' : ''}> Mark them in the text</label>`, 'Words that name a place on the map are underlined in blue (needs the “Ancient places” download).'))}
+      ${row('Tapping a place', withInfo(`<label class="sopt"><input type="checkbox" data-mapset="jump"${M.cfg.jump ? ' checked' : ''}> The map moves to it</label>`, 'Off: the map stays where it is and only marks the place; you move and zoom yourself.'))}</section>
     <section class="dsec"><h4>Glosses</h4>
       ${row('Own gloss', withInfo(sw('glossMode', S.glossMode === 'both' ? 'both' : 'replace', [['replace', 'Replaces default'], ['both', 'Show both']]), 'A word can have its own gloss; its lemma can have a default gloss that applies everywhere.'))}</section>
     <section class="dsec"><h4>About</h4>
@@ -1667,6 +1678,9 @@ async function backupData() {
     highlights: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('hl|', 'hl|￿'))).map(r => [r.k.slice(3), r.v])),
     markers: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('mk|', 'mk|￿'))).map(r => [r.k.slice(3), r.v])),
     readings: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('an|', 'an|￿'))).map(r => [r.k.slice(3), r.v])),
+    // map: corrected places, own places, the map settings
+    places: Object.fromEntries((await getAll('settings')).filter(r => /^(pl|plw|plg|pown)\|/.test(r.k)).map(r => [r.k, r.v])),
+    mapCfg: (await setting('mapCfg')) || null,
     favourites: (await setting('favs')) || {},
     prefs: { theme: document.documentElement.dataset.theme, posCfg: S.posCfg, posOn: S.posOn, gramCfg: S.gramCfg, showGloss: !document.body.classList.contains('nogloss'),
       glossMode: S.glossMode, latQuant: S.latQuant, gramBtn: S.gramBtn, showGram: S.gram, dictPrefs: S.dictPrefs } };
@@ -1714,6 +1728,8 @@ async function restoreBackup(file) {
   for (const [k, r] of Object.entries(data.highlights || {})) await setting('hl|' + k, r);
   for (const [k, r] of Object.entries(data.markers || {})) await setting('mk|' + k, r);
   for (const [k, r] of Object.entries(data.readings || {})) await setting('an|' + k, r);
+  for (const [k, r] of Object.entries(data.places || {})) if (/^(pl|plw|plg|pown)\|/.test(k)) await setting(k, r);
+  if (data.mapCfg) { await setting('mapCfg', data.mapCfg); if (typeof M !== 'undefined') { M.cfg = null; M.P = null; M.own = new Map(); } }
   if (data.favourites) { S.favs = Object.assign((await setting('favs')) || {}, data.favourites); await setting('favs', S.favs); }
   const p = data.prefs;                           // colours and display settings
   if (p?.dictPrefs) { S.dictPrefs = Object.assign(S.dictPrefs || {}, p.dictPrefs); await setting('dictPrefs', S.dictPrefs); await loadDicts(); }
@@ -2049,6 +2065,11 @@ const ACKS = [
   ['Private dictionaries (only on devices where they were imported)', [
     ['H. Frisk, Griechisches etymologisches Wörterbuch (Leiden IEED edition)', 'https://ieed.ullet.net/friskL.html', 'Greek etymology', 'copyright – private use only'],
     ['A. Bailly, Dictionnaire grec-français, éd. 2020 Hugo Chávez (G. Gréco et al.)', 'https://creativecommons.org/licenses/by-nc-nd/4.0/', 'Greek–French dictionary', 'CC BY-NC-ND 4.0 – private use only']]],
+  ['Maps', [
+    ['Pleiades – gazetteer of ancient places (ISAW, New York University, and contributors)', 'https://pleiades.stoa.org', 'ancient places, their names, positions and dates', 'CC BY 3.0'],
+    ['Natural Earth', 'https://www.naturalearthdata.com', 'land, lakes, rivers and modern borders of the base map', 'public domain'],
+    ['MapLibre GL JS', 'https://maplibre.org', 'the map engine', 'BSD 3-Clause'],
+  ]],
   ['Font', [
     ['Gentium Book Plus (SIL International)', 'https://software.sil.org/gentium/', 'type for Greek and Latin', 'SIL Open Font License 1.1'],
     ['Roboto Condensed (Google)', 'https://fonts.google.com/specimen/Roboto+Condensed', 'type of the grammar line', 'SIL Open Font License 1.1']]],
@@ -2324,6 +2345,7 @@ function wire() {
 }
 function setTheme(t, save) {
   document.documentElement.dataset.theme = t;
+  if (typeof M !== 'undefined' && M.map) { M.map.setStyle(mapStyle(mapColors())); M.map.once('styledata', () => setTimeout(refreshMapData, 50)); }
   document.querySelector('meta[name=theme-color]').content = t === 'dark' ? '#2a2926' : '#efe9da';
   if (save) setting('theme', t);
 }
@@ -2877,6 +2899,7 @@ function updateSecTitle() {
   const el = $('#titleSec'); if (!el) return;
   const r = curRef(), s = r ? r.s : '';
   if (s === S.secShown) return; S.secShown = s;
+  if (S.tab === 'map' && typeof refreshMapData === 'function' && ['section', 'chapter'].includes(M.cfg?.scope)) { clearTimeout(S.mapSecT); S.mapSecT = setTimeout(refreshMapData, 250); }
   el.innerHTML = s ? `<span class="sep">› </span>${esc(s)}` : '';
 }
 // groups for the chapter list: "14.1.6" -> chapter "14.1", "227a" -> page 227, verse lines in fifties
@@ -3046,7 +3069,7 @@ async function outlineHTML() {
     const tree = refTree(S.refs || []);
     return tree.kids.length ? outlineNodes(tree.kids, cur, cr, 0) : '<p class="hint" style="font-size:13px">This text has no numbered sections.</p>';
   }
-  const marks = new Set((await getAll('settings', IDBKeyRange.bound(`mk|w:${w.id}:`, `mk|w:${w.id}:\\uffff`))).map(r => +r.k.split(':').pop()));
+  const marks = new Set((await getAll('settings', IDBKeyRange.bound(`mk|w:${w.id}:`, `mk|w:${w.id}:\uffff`))).map(r => +r.k.split(':').pop()));
   let h = '';
   for (let bi = 0; bi < w.books.length; bi++) {
     const key = 'part|' + bi, here = bi === t.bi, open = S.navOpen.has(key) || (here && !S.navShut.has(key));
