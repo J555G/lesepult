@@ -872,3 +872,24 @@ body.gram #textBody .w>.gm:empty{padding-right:0}
 #textBody .w.plc>.g{text-decoration:underline;text-decoration-color:color-mix(in srgb,#5d93bd 70%,transparent);text-decoration-thickness:1.5px;text-underline-offset:4px}
 .mapico{display:inline-flex;align-items:center;justify-content:center;padding:.15rem .35rem;margin-left:.35rem;vertical-align:middle;color:var(--acc);border-color:var(--line)}
 @media (max-width:600px){.mcard{left:8px;right:8px;width:auto;bottom:22px;max-height:55%}}
+/* map button: the Mediterranean (grey/black; in colour while the map is open) */
+#tabMap .eu,.mapico .eu,.mapmsg .eu{display:block;border-radius:3.5px}
+#tabMap .eu .sea{fill:#0d0d0d}#tabMap .eu .land{fill:#8c8c8c}
+#tabMap.on .eu .sea,.mapico .eu .sea,.mapmsg .eu .sea{fill:#2f6ea3}
+#tabMap.on .eu .land,.mapico .eu .land,.mapmsg .eu .land{fill:url(#medLandG)}
+#tabMap.on{background:var(--card);border-color:var(--acc)}
+.mapmsg .eu{width:78px;height:60px;margin:0 auto}
+/* uncertain places */
+#textBody .w.plc.plcq>.g{text-decoration-style:dotted}
+.mlbl.unsure{opacity:.6;font-style:italic}.mlbl.unsure::after{content:"?"}
+.mtop{position:absolute;top:8px;left:8px;z-index:3;display:flex;gap:6px;max-width:calc(100% - 4rem);flex-wrap:wrap}
+.mtop .mscope{position:static;max-width:100%}
+.mcheck{font-size:13px;padding:.3rem .6rem;background:color-mix(in srgb,var(--card) 92%,transparent);color:var(--acc);border-color:var(--acc)}
+.munsure{font-size:12.5px;color:var(--acc);margin:.1rem 0 .3rem;display:flex;flex-wrap:wrap;gap:.35rem;align-items:center}
+.munsure button{font-size:12px;padding:.2rem .5rem}
+.mcklist{display:flex;flex-direction:column;max-height:50vh;overflow:auto}
+.mck{display:flex;align-items:center;gap:.3rem;border-top:1px solid var(--line)}
+.mckt{flex:1;min-width:0;text-align:left;border:0;background:none;padding:.35rem .1rem;font:14px var(--greek);color:var(--fg)}
+.mckt b{font:600 12px var(--ui);color:var(--acc);margin-right:.3rem}
+.mckt small{display:block;font:11.5px var(--ui);color:var(--mut)}
+.mico2{flex:none;width:32px;height:32px;padding:0;font-size:14px}

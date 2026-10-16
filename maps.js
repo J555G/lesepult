@@ -6,11 +6,12 @@
 // · plg|<name> (everywhere) · pown|<id> (own places) · mpos|<key> (map position) · mapCfg (layers, names, scope …)
 const MAPS = 'maps/', MAPCACHE = 'pult-maps';
 const M = { P: null, map: null, sel: null, hits: new Map(), scope: null, cfg: null, posKey: null, own: new Map() };
-const EUROPE_ICON = '<svg class="eu" width="22" height="20" viewBox="0 0 24 22" aria-hidden="true"><path d="M12.3,4.4L11.9,4.6L11.7,5.1L11.8,5.4L11.5,5.8L11.1,6.3L10.9,7.1L11.2,7.5L11.4,7.7L11.2,8.4L11.0,8.5L10.9,9.4L10.8,9.9L10.4,9.8L10.3,10.3L9.9,10.3L9.8,9.8L9.6,9.2L9.4,8.5L9.2,8.1L8.6,8.7L8.3,8.8L7.9,8.5L7.9,8.0L7.9,6.7L8.1,6.4L8.8,6.0L9.3,5.5L9.7,4.7L10.2,3.6L10.5,3.2L11.0,2.5L11.4,2.2L11.7,2.2L12.0,1.7L12.3,1.6L12.6,1.4L13.3,1.7L13.1,1.9L13.4,2.2L13.1,2.5L12.9,2.6L13.0,3.0L13.4,3.3L13.3,3.7L13.7,4.3L13.6,4.8L13.9,5.1L13.9,5.5L14.4,5.7L14.3,6.0L14.2,6.4L13.8,7.2L13.3,7.3L12.9,7.6L12.5,7.7L12.3,7.5L12.0,7.3L12.0,6.8L11.9,6.3L11.9,6.0L12.1,5.7L12.6,5.0L12.7,4.9L12.6,4.6ZM9.0,10.5L9.0,10.7L9.3,10.8L9.3,11.0L9.6,10.9L9.8,10.8L10.1,11.0L10.3,11.1L10.5,11.0L11.0,10.7L11.3,10.5L11.6,10.6L11.7,10.7L11.9,10.7L12.3,10.7L12.9,10.6L12.8,10.5L12.8,10.3L12.7,10.3L12.4,10.2L12.3,9.8L12.2,9.4L12.3,9.1L12.6,8.8L12.8,9.2L13.1,9.2L13.1,8.8L13.0,8.4L13.0,8.5L12.8,8.4L12.7,8.1L13.0,7.9L13.3,7.7L13.6,7.8L13.9,7.7L13.9,7.8L13.8,8.1L14.0,8.6L13.9,8.8L14.1,8.9L14.1,9.1L14.3,9.4L14.6,9.4L14.7,9.6L14.8,9.5L15.1,9.5L15.2,9.7L15.2,9.9L15.5,10.2L15.6,10.2L15.6,10.3L15.8,10.4L16.0,10.5L15.9,10.6L15.6,10.7L15.6,10.7L15.7,10.9L15.9,11.2L16.0,11.2L16.0,11.0L16.1,11.0L16.4,10.9L16.7,11.1L16.7,11.2L16.7,11.4L17.0,11.3L17.2,11.5L17.2,11.6L17.6,11.7L17.9,11.5L18.1,11.7L18.3,11.6L18.8,11.6L18.9,11.7L18.9,12.0L19.0,12.3L19.0,12.4L18.7,12.6L18.6,12.8L18.7,13.0L18.4,13.1L18.3,13.4L18,13.5L17.7,13.8L17.8,14.0L17.8,14.0L17.7,14.0L17.6,14.0L17.3,13.9L17.2,14.1L17.2,14.0L16.6,14.1L16.5,13.9L16.2,14.0L16.2,14.3L16.0,14.8L16.0,14.9L15.9,15.0L15.8,15.0L15.8,15.7L15.6,15.9L15.6,16.3L15.8,16.6L15.9,16.8L16.2,16.8L16.2,17.0L15.7,17.1L15.6,17.3L15.3,17.6L15.2,17.4L15.1,17.3L14.9,17.3L14.7,17.3L14.2,17.5L14.6,17.8L14.4,17.9L14.2,17.9L13.9,17.7L13.9,17.8L14.0,18.1L14.2,18.3L14.1,18.5L14.3,18.7L14.6,18.8L14.6,19.1L14.2,19.0L14.4,19.3L14.1,19.3L14.4,19.8L14.1,19.8L13.7,19.6L13.5,19.2L13.4,18.9L13.2,18.7L13.0,18.4L12.9,18.3L12.8,18.2L12.8,18.1L12.6,18.0L12.5,17.7L12.5,17.4L12.6,17.2L12.5,17.1L12.4,17.1L12.3,16.9L12.1,16.9L11.7,16.7L11.5,16.5L11.1,16.4L10.8,16.0L10.9,16.0L10.7,15.8L10.7,15.6L10.5,15.5L10.4,15.7L10.2,15.6L10.2,15.4L10.3,15.4L10.3,15.3L10.0,15.3L9.8,15.5L9.8,15.7L9.7,15.9L9.9,16.1L10.2,16.4L10.4,16.8L10.9,17.2L11.2,17.2L11.3,17.3L11.2,17.4L11.5,17.6L11.8,17.7L12.2,18.0L12.2,18.1L12.2,18.2L11.9,18.0L11.6,18.0L11.4,18.3L11.7,18.5L11.7,18.8L11.5,18.8L11.3,19.3L11.2,19.3L11.2,19.1L11.2,18.9L11.3,18.7L11.1,18.5L11.0,18.2L10.8,18.1L10.7,17.9L10.4,17.8L10.3,17.6L10.0,17.6L9.7,17.4L9.3,17.0L9.1,16.7L9.0,16.2L8.8,16.1L8.5,16.0L8.3,16.0L8.1,16.3L7.9,16.3L7.6,16.6L6.8,16.3L6.3,16.5L6.2,16.8L6.2,17.1L5.8,17.4L5.3,17.4L5.2,17.6L4.9,17.8L4.7,18.2L4.8,18.5L4.5,18.7L4.4,19.0L4.1,19.1L3.7,19.4L3.2,19.3L2.8,19.3L2.5,19.4L2.3,19.5L2.1,19.4L2.0,19.2L1.9,18.9L1.6,18.7L1.4,18.8L1.2,18.7L1,18.7L1.1,18.3L1.2,18.0L1.0,17.9L1.0,17.7L1.1,17.4L1.3,17.2L1.4,17.0L1.5,16.8L1.6,16.5L1.6,16.3L1.6,16.2L1.7,15.8L1.6,15.6L2.2,15.3L2.7,15.5L3.2,15.7L3.5,15.8L3.8,15.9L4.4,16.0L4.7,15.7L4.9,14.7L4.7,14.1L4.5,13.8L4.0,13.5L4.0,13.1L4.5,13.1L5.0,13.4L5.0,12.8L5.3,13.0L6.1,12.8L6.3,12.4L6.6,12.3L6.8,12.2L7.0,12.1L7.4,11.4L7.8,11.2L8.1,11.2L8.1,11.1L8.4,11.1L8.4,11.2L8.7,11.0L8.6,10.8L8.6,10.5L8.5,10.2L8.5,9.7L8.6,9.5L8.7,9.4L8.9,9.3L9.0,9.2L9.2,9.1L9.2,9.3L9.1,9.5L9.2,9.6L9.3,9.7L9.3,9.9L9.2,9.9L8.9,10.2ZM15.8,20.1L15.7,20.3L15.1,20.5L15.1,20.4L14.6,20.4L14.6,20.1L14.9,20.3L15.2,20.2L15.5,20.2L15.6,20.3ZM23,16.8L22.8,17.0L22.6,16.9L22.1,17.1L22.0,17.2L21.6,17.5L21.4,17.6L21.0,17.9L20.7,18.0L20.4,18.0L20.0,18.3L19.9,18.3L20.0,18.5L19.9,18.7L19.8,18.8L19.6,18.6L19.7,18.4L19.4,18.5L19.1,18.5L18.9,18.9L18.3,19.1L17.9,18.9L17.4,19.0L17.4,19.3L17.1,19.4L16.6,19.2L16.2,19.3L15.9,18.9L15.5,18.6L15.6,18.2L15.3,18.0L15.7,17.4L16.3,17.3L16.3,16.9L17.1,16.8L17.4,16.3L17.8,16.0L18.4,15.8L19.2,16.0L19.8,16.0L20.2,15.8L20.5,15.7L20.9,15.3L21.2,15.1L21.7,15.2L21.8,15.3L21.9,15.6L22.2,15.6L22.4,15.6L22.2,15.9L22.6,16.4L22.6,16.6ZM4.1,10.4L4.1,10.8L3.7,11.2L3.1,11.3L2.7,11.1L3.1,10.7L3.1,10.1L3.6,9.9L3.9,9.7L4.1,9.7L4.4,10.1ZM10.8,19.2L11.1,19.1L11.0,19.6L11.0,19.7L10.9,20.0L10.6,19.8L10.4,19.8L9.8,19.5L9.9,19.2L10.4,19.3ZM8.3,17.8L8.5,17.6L8.8,18.0L8.7,18.7L8.5,18.6L8.3,18.8L8.2,18.6L8.2,18.0L8.1,17.7ZM5.0,10.9L5.0,10.9L5.1,10.6L5.0,10.2L5.0,10.2L4.6,10.0L4.6,9.9L4.7,9.7L4.7,9.5L4.5,9.7L4.6,9.2L4.5,8.9L4.7,8.4L5.0,8.1L5.2,8.2L5.6,8.2L5.2,8.7L5.5,8.7L5.8,8.7L5.6,9.1L5.3,9.5L5.5,9.6L5.6,9.7L5.7,10.3L5.9,10.5L6.0,11.1L6.1,11.3L6.4,11.4L6.3,11.8L6.1,11.9L6.2,12.2L5.9,12.4L5.5,12.3L4.9,12.4L4.8,12.2L4.5,12.4L4.2,12.3L4.0,12.5L3.8,12.3L4.4,11.9L4.7,11.8L4.7,11.8L4.2,11.6L4.2,11.4L4.5,11.3L4.4,11.0L4.6,10.7ZM18.5,19.6L18.6,19.6L18.7,19.5L18.8,19.5L18.8,19.5L18.8,19.6L18.8,19.6L18.9,19.5L19.0,19.5L19.0,19.5L19.1,19.5L18.7,19.9L18.5,19.8L18.3,19.7Z" fill="currentColor" fill-opacity=".22" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>';
+// the map button: the Mediterranean, cut off at the edges of the button – grey land on black, in colour when the map is open
+const EUROPE_ICON = '<svg class="eu" width="26" height="20" viewBox="0 0 26 20" aria-hidden="true"><defs><linearGradient id="medLandG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6f9a4c"/><stop offset=".6" stop-color="#a7a05a"/><stop offset="1" stop-color="#c9a66b"/></linearGradient><clipPath id="medClip"><rect width="26" height="20" rx="3.5"/></clipPath></defs><g clip-path="url(#medClip)"><rect class="sea" width="26" height="20"/><path class="land" d="M23.0,13.3L22.6,13.6L22.7,13.7L22.7,13.8L22.1,14.1L21.9,14.0L21.8,13.7L22.0,13.7L22.1,13.7L22.1,13.5L22.5,13.5ZM17.1,13.3L17.4,13.5L17.8,13.5L18.2,13.5L18.2,13.6L18.5,13.6L18.5,13.8L17.7,13.8L17.7,13.7L17.0,13.6ZM12.7,11.6L12.5,12.1L12.6,12.3L12.5,12.7L12.0,12.4L11.8,12.4L11.0,12.0L11.1,11.7L11.7,11.7L12.3,11.6ZM9.3,9.5L9.6,10.0L9.5,10.9L9.3,10.9L9.1,11.1L8.8,10.9L8.8,10.1L8.7,9.7L9.0,9.7ZM9.5,8.8L9.3,9.4L9.0,9.2L8.9,8.7L9.0,8.5L9.4,8.2ZM-1,0.9L-0.6,0.2L-0.9,-0.7L-0.6,-1L1.1,-1L0.9,-0.6L1.0,-0.0L0.6,0.7L-0.3,1.2L-1,1.1L-1,0.9ZM4.1,-1L4.4,-0.1L4.5,0.1L5.2,0.3L5.1,0.9L4.9,1.1L5.1,1.6L4.6,2.0L3.9,2.0L2.9,2.2L2.7,2.1L2.3,2.5L1.8,2.4L1.4,2.7L1.2,2.5L1.9,1.6L2.4,1.4L1.6,1.3L1.4,0.9L2.0,0.7L1.7,0.2L1.8,-0.3L2.6,-0.2L2.7,-0.7L2.6,-1L4.1,-1ZM25.2,21L25.1,20.8L24.9,20.6L24.6,20.5L24.4,20.1L24.4,20.0L24.3,19.7L24.1,19.5L23.9,19.1L23.6,18.6L23.3,18.2L23.0,18.2L23.1,17.8L23.2,17.6L23.2,17.4L23.2,17.3L23.0,17.5L22.9,18.0L22.8,18.3L22.7,18.4L22.5,18.2L22.2,18.0L21.8,17.1L22.0,17.8L22.3,18.4L22.8,19.4L23.0,19.7L23.1,20.0L23.6,20.7L23.5,20.8L23.5,21L-1,21L-1,17.2L-0.8,17.0L-0.9,16.2L-0.7,15.7L-0.7,15.4L-0.3,14.9L0.1,14.6L0.5,14.4L0.9,13.7L1.1,13.3L1.5,13.3L1.8,13.5L2.3,13.5L2.9,13.7L3.1,13.7L3.6,13.3L4.2,13.2L4.6,12.9L5.1,12.7L6.0,12.6L6.9,12.5L7.2,12.6L7.7,12.4L8.3,12.3L8.5,12.5L8.8,12.5L9.4,12.2L9.8,12.3L9.8,12.6L10.3,12.4L10.3,12.5L10.0,12.8L10.0,13.1L10.2,13.3L10.1,13.9L9.8,14.2L9.9,14.6L10.2,14.6L10.3,14.9L10.5,15.0L11.1,15.2L11.4,15.2L11.8,15.3L12.5,15.5L12.8,16.1L13.3,16.2L14.0,16.5L14.6,16.8L14.9,16.7L15.1,16.4L15.0,15.9L15.2,15.6L15.6,15.3L16.0,15.2L16.7,15.3L16.9,15.6L17.1,15.6L17.2,15.7L17.8,15.8L17.9,16.0L18.6,16.0L19.2,16.2L19.7,16.3L19.9,16.4L20.4,16.2L20.6,16.1L21.1,16.0L21.4,16.1L21.6,16.4L21.7,16.2L22.2,16.3L22.6,16.4L22.8,16.2L23.0,16.0L23.1,15.7L23.2,15.2L23.3,15.0L23.5,14.5L23.8,14.0L23.7,13.5L23.9,13.2L23.7,12.9L23.9,12.7L23.5,12.7L23.1,12.6L22.7,13.0L21.9,13.0L21.5,12.7L20.9,12.6L20.7,12.9L20.4,13.0L19.8,12.6L19.3,12.7L18.9,12.0L18.5,11.6L18.8,11.1L18.5,10.7L19.1,10.1L19.9,10.0L20.1,9.5L21.2,9.6L21.8,9.1L22.4,8.9L23.3,8.9L24.3,9.4L25.1,9.7L25.7,9.6L26.2,9.6L26.8,9.3L26.9,8.9L26.7,8.4L26.4,8.2L26.1,8.1L25.9,7.9L25.2,7.2L24.6,6.9L24.1,6.5L24.5,6.4L25.0,5.7L24.7,5.4L25.5,5.1L25.5,4.9L25.0,5.0L24.6,5.1L24.2,5.4L23.7,5.4L23.2,5.7L23.3,6.2L23.5,6.4L24.1,6.3L24.0,6.6L23.4,6.7L22.6,7.2L22.3,7.0L22.5,6.7L21.9,6.4L22.0,6.3L22.5,6.0L22.3,5.8L21.5,5.6L21.4,5.3L20.9,5.4L20.7,5.9L20.3,6.5L20.3,6.6L20.1,6.8L19.9,6.7L19.8,7.7L19.5,8.0L19.3,8.5L19.4,8.9L19.5,9.2L20.0,9.4L19.9,9.6L19.2,9.6L19.0,9.9L18.6,10.2L18.4,9.9L18.4,9.8L18.1,9.7L17.8,9.7L17.1,9.9L17.5,10.3L17.2,10.4L16.9,10.4L16.6,10.0L16.5,10.2L16.7,10.6L16.9,10.9L16.7,11.1L17.0,11.4L17.3,11.6L17.3,12.0L16.8,11.8L17.0,12.2L16.6,12.2L16.8,12.8L16.5,12.8L16.0,12.5L15.8,12.0L15.7,11.5L15.5,11.2L15.2,10.8L15.2,10.6L15.1,10.6L15.1,10.4L14.8,10.2L14.7,9.8L14.8,9.3L14.9,9.1L14.8,9.0L14.7,8.9L14.5,8.7L14.3,8.6L13.8,8.3L13.5,8.0L13.0,7.8L12.5,7.3L12.6,7.2L12.4,6.9L12.4,6.6L12.0,6.5L11.8,6.8L11.7,6.6L11.7,6.3L11.8,6.2L11.4,6.1L11.0,6.4L11.0,6.8L10.9,7.0L11.1,7.4L11.6,7.7L11.9,8.4L12.5,8.9L12.9,8.9L13.0,9.1L12.9,9.3L13.4,9.5L13.8,9.7L14.2,10.1L14.3,10.2L14.2,10.5L13.9,10.2L13.4,10.0L13.2,10.5L13.6,10.8L13.5,11.1L13.3,11.2L13.0,11.8L12.8,11.8L12.8,11.6L12.9,11.2L13.0,11.1L12.8,10.7L12.6,10.3L12.4,10.2L12.2,9.9L11.9,9.8L11.7,9.5L11.3,9.5L10.8,9.1L10.3,8.7L10.0,8.2L9.8,7.5L9.5,7.4L9.1,7.2L8.8,7.3L8.5,7.6L8.3,7.7L7.8,8.1L6.8,7.9L6.0,8.1L5.9,8.6L5.9,9.0L5.4,9.5L4.7,9.6L4.7,9.9L4.3,10.3L4.1,10.8L4.3,11.2L4.0,11.5L3.9,12.0L3.5,12.1L3.1,12.7L2.4,12.7L1.9,12.6L1.6,12.9L1.4,13.1L1.1,13.1L0.9,12.9L0.8,12.5L0.2,12.4L0.0,12.5L-0.2,12.4L-0.4,12.5L-0.4,12.0L-0.4,11.6L-0.6,11.5L-0.8,11.2L-0.7,10.8L-0.5,10.5L-0.5,10.2L-0.4,9.8L-0.4,9.5L-0.5,9.2L-0.5,9.0L-0.5,8.5L-0.7,8.2L0.0,7.6L0.6,7.8L1.4,7.8L1.9,7.9L2.4,7.8L3.3,7.9L3.5,7.4L3.6,5.9L3.1,5.1L2.7,4.7L1.9,4.4L1.8,3.8L2.5,3.6L3.4,3.8L3.2,2.9L3.7,3.2L5.0,2.6L5.2,1.9L5.6,1.7L6.1,1.5L6.4,1.3L6.8,0.0L7.6,-0.3L8.0,-0.3L8.1,-0.5L8.6,-0.5L8.7,-0.3L9.1,-0.8L9.0,-1L10.2,-1L10.2,-0.8L10.8,-0.9L10.8,-1L11.5,-1L11.7,-0.8L11.9,-0.5L12.3,-0.8L12.6,-1L27,-1L27,21Z"/></g></svg>';
 
 // ---------------------------------------------------------------- settings of the map
 async function mapCfg() {
-  if (!M.cfg) M.cfg = Object.assign({ mark: true, jump: true, scope: 'section', names: 'text', peoples: false, borders: false, rough: true }, (await setting('mapCfg')) || {});
+  if (!M.cfg) M.cfg = Object.assign({ mark: true, jump: true, scope: 'section', names: 'text', peoples: false, borders: false, rough: true, persons: 'unsure' }, (await setting('mapCfg')) || {});
   return M.cfg;
 }
 async function saveMapCfg() { await setting('mapCfg', M.cfg); }
@@ -104,6 +105,9 @@ async function loadPlaceIndex() {
   const P = d.places.map(([id, t, lat, lon, ty, rough, y0, y1, names]) => ({ id, t, lat, lon, ty, rough, y0, y1, names, text: ty.some(x => textT.has(x)) }));
   P.forEach((p, i) => {
     byId.set(p.id, p);
+    // the title tells the period where the attestations do not ("Hellas (Late Roman province)")
+    const from = /late roman/i.test(p.t) ? 284 : /byzantine/i.test(p.t) ? 500 : /roman imperial|roman province|\(roman\)/i.test(p.t) ? -30 : null;
+    if (from != null) { p.y0 = Math.max(p.y0 ?? from, from); p.late = true; }
     if (!p.text) return;
     const forms = new Set([...p.t.split('/'), ...p.names.filter(n => n[1] === 'grc' || n[1] === 'la' || n[1] === 'r').map(n => n[0])]
       .map(s => s.replace(/[?()‘’'“”\[\]]/g, '').trim()).filter(Boolean));
@@ -140,14 +144,29 @@ function placeCands(name, exactOnly) {
   if (!c?.length && !exactOnly) c = (ix.st.get(stemKey(name)) || []).filter(i => ix.P[i].main);
   return c ? c.slice(0, 40) : [];
 }
-// proper nouns of a list of tokens: [{i, name, c:[place indices]}]
+// words around a name that say what it is: "Calycadni fluminis", "urbs …", "ποταμός", "ὄρος" …; or that it is a person
+const CUES = {
+  settlement: 'urbs oppidum civitas municipium colonia castellum castrum vicus polis polisma asty kome πολισ αστυ κωμη πολισμα πολιχνιον',
+  river: 'flumen fluvius amnis fluentum ποταμοσ ρευμα', mountain: 'mons iugum ορος ακρα', island: 'insula νησοσ νησιον',
+  region: 'regio provincia terra tractus χωρα γη', people: 'gens populus natio εθνοσ',
+};
+const CUE = new Map(); for (const [t, ws] of Object.entries(CUES)) for (const w of ws.split(' ')) CUE.set(w, t);
+// titles right next to a name: "Galli Caesaris", "Constantio Augusto", "rex Arsaces" – a person
+const TITLE_CUES = new Set('caesar augustus augusta imperator rex regina dux comes praefectus tribunus consul proconsul magister βασιλευσ στρατηγοσ'.split(' '));
+const plainName = n => isGreek(n) ? n : String(n || '').normalize('NFD').replace(/[\u0304\u0306]/g, '').normalize('NFC');
+const PERSON_CUES = new Set('uxor coniunx coniux filia filius soror frater maritus nepos neptis privignus γυνη θυγατηρ υιοσ αδελφοσ αδελφη μητηρ'.split(' '));
+// proper nouns of a list of tokens: [{i, name, c:[place indices], cue, person}]
 async function findPlaceHits(toks, lemmaOf) {
-  const out = []; let start = true;
+  const words = []; let start = true;
   for (const tk of toks) {
     if (tk.t === 'b') { start = true; continue; }
     if (tk.t === 'p') { if (/[.!?;·:]/.test(tk.s)) start = true; continue; }
-    if (tk.t !== 'w') continue;
-    const s0 = start; start = false;
+    if (tk.t === 'w') { words.push({ tk, s0: start }); start = false; }
+  }
+  const keyAt = async k => { const w = words[k]; if (!w) return ''; const l = w.tk.ctx?.l || w.tk.lemma || (lemmaOf && w.tk.s[0] === w.tk.s[0].toLowerCase() ? await lemmaOf(w.tk) : null); return exKey(l || w.tk.s); };
+  const out = [];
+  for (let n = 0; n < words.length; n++) {
+    const { tk, s0 } = words[n];
     const cap = tk.s[0] !== tk.s[0].toLowerCase();
     if (!cap) continue;
     let l = lemmaOf ? await lemmaOf(tk) : tk.lemma;
@@ -158,35 +177,84 @@ async function findPlaceHits(toks, lemmaOf) {
     if (/^[IVXLCDM]+$/.test(tk.s)) continue;                    // Roman numerals
     const name = l || tk.s;
     const c = placeCands(name, !!l || s0);
-    if (c.length) out.push({ i: tk.i, name, c });
+    if (!c.length) continue;
+    let cue = null, person = false;
+    for (const d of [-3, -2, -1, 1, 2, 3]) { const k = await keyAt(n + d); if (!k) continue; if (!cue && CUE.has(k)) cue = CUE.get(k); if (Math.abs(d) <= 2 && PERSON_CUES.has(k)) person = true; if (Math.abs(d) === 1 && TITLE_CUES.has(k) && k !== exKey(name)) person = true; }
+    out.push({ i: tk.i, name, c, cue, person, stem: !l && !placeCands(name, true).length });
   }
   return out;
 }
-// one place per word: corrections first, then the place that lies nearest to the unambiguous places of the same text
-async function choosePlaces(hits, textId, workKey) {
-  const P = M.P.P, res = new Map();
+// what the dictionaries say a proper name is: a person or a place (only a hint – the reader decides)
+async function dictSaysPerson(name) {
+  const k = gkey(name), memo = (M.personMemo ??= new Map());
+  if (memo.has(k)) return memo.get(k);
+  let r = false;
+  try {
+    const by = await entriesFor(k, isGreek(name) ? 'grc' : 'la');
+    // only the beginning of each entry: what the name is, not what is told about it
+    const heads = Object.values(by).flat().filter(e => e.html).slice(0, 4).map(e => e.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 110));
+    if (!heads.length) { memo.set(k, false); return false; }
+    const votes = heads.map(txt => {
+    const pers = txt.slice(0, 70).search(/\b(wife of|daughter of|son of|sister of|mother of|brother of|an? (?:Roman )?emperor|empress|a Roman|cognomen|praenomen|surname|name of (?:a|an|several|many) (?:man|men|woman|women|Roman)|Tochter|Gattin|Gemahlin|Gemahl|Sohn|Kaiser|Kaiserin|Beiname|Vorname|Name (?:eines|einer|mehrerer) (?:Römer|Röm\.|Mannes|Männer|Frau))/i);
+    const plc = txt.search(/\b(cit(?:y|ies)|towns?|rivers?|mountains?|islands?|country|region|district|people|province|promontory|capital|Städte|Stadt|Hauptstadt|Fluss|Fluß|Gebirge|Berg|Insel|Land|Landschaft|Völkerschaft|Provinz|Egypt)\b/i);
+    return pers >= 0 && (plc < 0 || pers < plc) ? 1 : plc >= 0 ? -1 : 0; });
+    r = votes.reduce((a, b) => a + b, 0) > 0;                   // most dictionaries call it a person
+  } catch (_) { }
+  memo.set(k, r); return r;
+}
+// the year the text is about (Settings of the work, later the time slider) – for now the author's date
+async function workYear(t) {
+  const o = await setting('wyear|' + workKeyOf(t)); if (o != null) return o;
+  if (t.work) { try { await fetchCatalog(); } catch (_) { } const a = S.catAuthor?.[t.work.id]; if (a?.year != null) return a.year; }
+  return t.year ?? null;
+}
+// one place per word: corrections first, then the place that fits best
+async function choosePlaces(hits, textId, workKey, year) {
+  const P = M.P.P, res = new Map(), cfg = await mapCfg();
   const occ = new Map((await getAll('settings', IDBKeyRange.bound(`pl|${textId}|`, `pl|${textId}|￿`))).map(r => [+r.k.split('|')[2], r.v]));
   const wk = new Map((await getAll('settings', IDBKeyRange.bound(`plw|${workKey}|`, `plw|${workKey}|￿`))).map(r => [r.k.slice(`plw|${workKey}|`.length), r.v]));
   const gl = new Map((await getAll('settings', IDBKeyRange.bound('plg|', 'plg|￿'))).map(r => [r.k.slice(4), r.v]));
-  // the unambiguous places nearby in the text decide between places of the same name (the nearer in the text, the more)
-  const fixed = hits.filter(h => h.c.length === 1 && P[h.c[0]].main && !P[h.c[0]].rough).map(h => ({ i: h.i, p: P[h.c[0]] }));
-  // a candidate scores by its distance to those places (capped, so that one remote mention does not pull far)
+  // 1. time: places first attested after the text's date are left out (unless nothing else is left)
+  // (Pleiades dates by broad periods and not always completely: only clearly later places are left out)
+  // natural features and regions are as old as the texts; the dates in the gazetteer are those of its sources
+  const natural = new Set(['river', 'mountain', 'mountain-range', 'island', 'archipelago', 'lake', 'water-open', 'strait', 'bay', 'cape', 'peninsula', 'region', 'people', 'plain', 'desert', 'forest', 'spring'].map(t => M.P.ti[t]));
+  const inTime = p => year == null || p.y0 == null || (!p.late && p.ty.some(t => natural.has(t))) || p.y0 <= year + (p.late ? 50 : 300);
+  for (const h of hits) { const cs = h.c.filter(i => inTime(P[i])); h.c0 = h.c; if (cs.length) h.c = cs; else h.later = true; }
+  // 2. the unambiguous places nearby in the text (the nearer in the text, the more), and 3. the text's home region
+  const fixed = hits.filter(h => h.c.length === 1 && P[h.c[0]].main && !P[h.c[0]].rough && !h.person).map(h => ({ i: h.i, p: P[h.c[0]] }));
   const dist = (a, b) => Math.hypot(a.lat - b.lat, (a.lon - b.lon) * Math.cos(a.lat * Math.PI / 180));
-  const cost = (p, i) => { let c = 0, w = 0; for (const f of fixed) { const g = 1 / (1 + Math.abs(f.i - i) / 80); if (g < 0.02) continue; c += g * Math.min(dist(p, f.p), 8); w += g; } return w ? c / w : 0; };
+  const cost = (p, i) => { let c = 0, w = 0; for (const f of fixed) { const g = 1 / (1 + Math.abs(f.i - i) / 80); if (g < 0.02) continue; c += g * Math.min(dist(p, f.p), 8); w += g; } return w ? c / w : null; };
+  const home = fixed.length ? (() => { const la = fixed.map(f => f.p.lat).sort((a, b) => a - b), lo = fixed.map(f => f.p.lon).sort((a, b) => a - b); return { lat: la[la.length >> 1], lon: lo[lo.length >> 1] }; })() : null;
+  const urban = M.P.ti.urban;
   for (const h of hits) {
     const k = exKey(h.name), fix = occ.get(h.i) || wk.get(k) || gl.get(k);
     if (fix?.none) continue;
-    let auto = P[h.c[0]];
+    let auto = P[h.c[0]], margin = Infinity;
+    const cuet = h.cue ? M.P.ti[h.cue === 'region' ? 'region' : h.cue] : null;
     if (h.c.length > 1) {
       const cs = h.c.map(i => P[i]), mains = cs.filter(p => p.main), pool = mains.length ? mains : cs;
-      // … and well-known places are preferred (many recorded names, a city): Antioch on the Orontes before the small Antiochs
-      const urban = M.P.ti.urban;
-      const d = p => cost(p, h.i) * (p.rough ? 1.15 : 1) + (p.rough ? 0.3 : 0) - 0.8 * Math.log(1 + p.names.length) - (p.ty.includes(urban) ? 1 : 0);
-      auto = pool.map(p => [p, d(p)]).sort((a, b) => a[1] - b[1])[0][0];
+      const d = p => {
+        const c = cost(p, h.i);
+        const rough = p.rough && p.names.length < 5;                // a vague position counts against small places only
+        let v = (c ?? (home ? Math.min(dist(p, home), 8) : 0)) * (rough ? 1.15 : 1) + (rough ? 0.3 : 0);
+        if (c != null && home) v += 0.25 * Math.min(dist(p, home), 8);
+        v -= 0.8 * Math.log(1 + p.names.length) + (p.ty.includes(urban) ? 1 : 0);         // well-known places first
+        if (cuet != null) v += p.ty.includes(cuet) ? -3 : 2;                                // "fluminis" -> the river
+        return v;
+      };
+      const sc = pool.map(p => [p, d(p)]).sort((a, b) => a[1] - b[1]);
+      auto = sc[0][0];
+      // uncertain only when the next best lies elsewhere (a region and a province of the same name are the same place here)
+      const alt = sc.slice(1).find(([q]) => dist(q, auto) > 1.5);
+      margin = alt ? alt[1] - sc[0][1] : Infinity;
     } else if (!auto.main && !fix) continue;                    // a lone match among villas, tombs, temples …: rather not
-    
     const p = fix?.p != null ? placeById(fix.p) : auto;
-    if (p) res.set(h.i, { p, name: h.name, cands: h.c, fixed: !!fix, auto });
+    if (!p) continue;
+    // 4. a person? (words around it, the dictionaries) – only marked as uncertain; the reader decides
+    const person = !fix && (h.person || await dictSaysPerson(h.name));
+    if (person && cfg.persons === 'hide') continue;
+    const why = fix ? null : h.later ? 'later' : person ? 'person' : margin < 0.7 ? 'ambiguous' : h.stem ? 'form' : null;
+    res.set(h.i, { p, name: h.name, cands: h.c0 || h.c, fixed: !!fix, auto, unsure: why });
   }
   // words the reader marked as places themselves
   for (const [i, v] of occ) if (!res.has(i) && v.p != null) { const p = placeById(v.p); if (p) res.set(i, { p, name: v.name || p.t, cands: [], fixed: true }); }
@@ -200,7 +268,8 @@ async function placesForText() {
   if (!(await loadPlaceIndex())) { M.hits = new Map(); markPlaces(); return; }
   const id = t.id, hits = await findPlaceHits(S.tokens);
   if (S.text?.id !== id) return;
-  M.hits = await choosePlaces(hits, textKeyOf(t), workKeyOf(t));
+  M.year = await workYear(t);
+  M.hits = await choosePlaces(hits, textKeyOf(t), workKeyOf(t), M.year);
   M.workCache = M.workCache?.key === workKeyOf(t) ? M.workCache : { key: workKeyOf(t), books: {} };
   if (t.work) M.workCache.books[t.bi] = M.hits;
   markPlaces();
@@ -211,7 +280,8 @@ function markPlaces() {
   const on = M.cfg?.mark !== false;
   document.querySelectorAll('#textBody .w.plc').forEach(e => e.classList.remove('plc'));
   if (!on || !S.wordEls) return;
-  for (const [i, h] of M.hits) if (!isPeople(h.p) || M.cfg?.peoples) S.wordEls[i]?.classList.add('plc');
+  document.querySelectorAll('#textBody .w.plcq').forEach(e => e.classList.remove('plcq'));
+  for (const [i, h] of M.hits) if (!isPeople(h.p) || M.cfg?.peoples) { const e = S.wordEls[i]; e?.classList.add('plc'); if (h.unsure) e?.classList.add('plcq'); }
 }
 // places of another part of the open work (read from the device, lemmas from the annotation or the analysis)
 async function placesOfPart(bi) {
@@ -228,7 +298,7 @@ async function placesOfPart(bi) {
     return memo.get(tk.s);
   };
   const hits = await findPlaceHits(toks, lemmaOf);
-  const res = await choosePlaces(hits, w.id ? `w:${w.id}:${bi}` : t.id, workKeyOf(t));
+  const res = await choosePlaces(hits, w.id ? `w:${w.id}:${bi}` : t.id, workKeyOf(t), M.year ?? await workYear(t));
   for (const h of res.values()) h.part = bi;
   M.workCache.books[bi] = res; M.workCache.toks ??= {}; M.workCache.toks[bi] = toks;
   return res;
@@ -261,8 +331,9 @@ async function scopePlaces() {
   const cfg = await mapCfg(), out = new Map(), t = S.text; if (!t) return out;
   const add = (h, bi) => {
     if (isPeople(h.p) && !cfg.peoples) return;
-    let x = out.get(h.p.id); if (!x) out.set(h.p.id, x = { p: h.p, n: 0, names: {} });
-    x.n++; x.names[h.name] = (x.names[h.name] || 0) + 1;
+    if (h.unsure === 'later' && M.sel?.h !== h) return;              // the time filter: later places only once confirmed
+    let x = out.get(h.p.id); if (!x) out.set(h.p.id, x = { p: h.p, n: 0, names: {}, unsure: 0 });
+    x.n++; x.names[h.name] = (x.names[h.name] || 0) + 1; if (h.unsure) x.unsure++;
   };
   if (cfg.scope === 'work' && t.work && t.work.books.length > 1) {
     for (let bi = 0; bi < t.work.books.length; bi++) { const hs = bi === t.bi ? M.hits : await placesOfPart(bi); for (const h of hs.values()) add(h, bi); }
@@ -318,7 +389,7 @@ async function showMap1() {
   await mapCfg();
   if (!M.map) {
     box.innerHTML = `<div id="mapCanvas"></div><div class="mlabels" id="mapLabels"></div>
-      <button type="button" class="mscope" id="mapScope"></button>
+      <div class="mtop"><button type="button" class="mscope" id="mapScope"></button><button type="button" class="mcheck" id="mapCheck" hidden></button></div>
       <div class="mctl"><button type="button" class="mico" id="mapLayersBtn" title="Layers" aria-label="Layers">${LAYERS_ICON}</button><button type="button" class="mico" id="mapFullBtn" title="Full screen" aria-label="Full screen">${FULL_ICON}</button></div>
       <div class="mcard" id="mapCard" hidden></div><div class="mpop" id="mapPop" hidden></div>`;
     try { await loadMapLib(); } catch (e) { box.innerHTML = `<div class="mapmsg"><p>${esc(e.message)}</p></div>`; return; }
@@ -354,9 +425,11 @@ async function refreshMapData() {
   const sp = M.shown = await scopePlaces(), sel = M.sel?.p?.id;
   if (M.sel && !sp.has(sel)) sp.set(sel, { p: M.sel.p, n: 0, names: { [M.sel.name || M.sel.p.t]: 1 }, extra: true });
   const feats = [...sp.values()].map(x => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [x.p.lon, x.p.lat] },
-    properties: { id: x.p.id, n: x.n, sel: x.p.id === sel, rough: !!x.p.rough, k: isRegion(x.p) ? 'region' : isWater(x.p) ? 'water' : 'place' } }));
+    properties: { id: x.p.id, n: x.n, sel: x.p.id === sel, rough: !!x.p.rough || x.unsure === x.n, k: isRegion(x.p) ? 'region' : isWater(x.p) ? 'water' : 'place' } }));
   M.map.getSource('places').setData({ type: 'FeatureCollection', features: feats });
   $('#mapScope').innerHTML = `${esc(scopeLabel(M.cfg.scope))} <small>· ${sp.size - (M.sel && sp.get(sel)?.extra ? 1 : 0)} place${sp.size === 1 ? '' : 's'}</small> ▾`;
+  const nq = [...M.hits.values()].filter(h => h.unsure).length, ck = $('#mapCheck');
+  ck.hidden = !nq; ck.innerHTML = `⚑ ${nq} to check`;
   drawLabels();
 }
 // labels: drawn as text above the map (Greek and Latin in the reading font), without overlaps, most important first
@@ -375,7 +448,7 @@ function drawLabels() {
     const r = [x, y, x + w, y + hgt];
     if (o.x.p.id !== sel && placed.some(q => r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1])) continue;
     placed.push(r);
-    h += `<span class="mlbl${reg ? ' reg' : ''}${isWater(o.x.p) ? ' wat' : ''}${o.x.p.id === sel ? ' sel' : ''}${o.x.extra ? ' extra' : ''}" data-pid="${esc(String(o.x.p.id))}" style="left:${Math.round(x)}px;top:${Math.round(y)}px">${esc(txt)}</span>`;
+    h += `<span class="mlbl${reg ? ' reg' : ''}${o.x.unsure && o.x.unsure === o.x.n ? ' unsure' : ''}${isWater(o.x.p) ? ' wat' : ''}${o.x.p.id === sel ? ' sel' : ''}${o.x.extra ? ' extra' : ''}" data-pid="${esc(String(o.x.p.id))}" style="left:${Math.round(x)}px;top:${Math.round(y)}px">${esc(txt)}</span>`;
   }
   box.innerHTML = h;
 }
@@ -412,6 +485,8 @@ async function showCard(p) {
   const nm = M.sel?.name || p.t; 
   card.innerHTML = `<div class="mch"><b>${esc(isGreek(nm) ? nm : nm.normalize('NFD').replace(/[\u0304\u0306]/g, '').normalize('NFC'))}</b>${cur != null ? '<button type="button" class="chip" data-mchange="1">change</button>' : ''}<button type="button" class="mx" data-mclose="1" aria-label="Close">✕</button></div>
     <div class="mcs">${esc(p.t)} · ${esc(typeLabel(p))}${p.rough ? ' · position approximate' : ''}</div>
+    ${M.sel?.h?.unsure ? `<div class="munsure">⚑ ${UNSURE[M.sel.h.unsure]} <button type="button" data-mok="1">Yes, this place</button></div>` : ''}
+    <div id="mapAlso"></div>
     <div class="mpass">${occ.length ? occ.map(o => `<button type="button" class="mps" data-mgo="${o.i}"><b>${multi ? esc(short[o.bi]) + ' · ' : ''}${esc(refOf(S.refs, o.i))}</b><span>${ctx(o.i)}</span></button>`).join('')
       : '<p class="hint small">Not named in this part of the text.</p>'}</div>
     <div class="macts">${w && multi ? '<button type="button" data-mwork="1">All passages in this work</button>' : ''}${cur != null ? '<button type="button" data-mnone="1">Not a place here</button>' : ''}</div>
@@ -419,6 +494,7 @@ async function showCard(p) {
   card.hidden = false;
   card.scrollTop = 0;
 }
+const UNSURE = { later: 'Known only from after the text’s time – not on the map', person: 'Possibly a person, not a place', ambiguous: 'Several places have this name', form: 'Recognised only from the form of the word' };
 // all passages of the work that name this place
 async function cardWork(p) {
   const t = S.text, w = t.work, short = stripCommon(w.books), list = $('#mapCard .mpass');
@@ -455,16 +531,24 @@ function searchPlaces(q) {
   }
   return out;
 }
-async function saveCorrection(v) {
+async function saveCorrection(v, quiet) {
   const s = M.sel, t = S.text, k = exKey(s.name), sc = M.chScope || 'occ';
   const key = sc === 'occ' ? `pl|${t.id}|${s.i}` : sc === 'work' ? `plw|${workKeyOf(t)}|${k}` : `plg|${k}`;
   if (v == null) { await del('settings', key); if (sc !== 'occ') await del('settings', `pl|${t.id}|${s.i}`); }
   else await setting(key, Object.assign({ name: s.name }, v));
   M.workCache = null;
   await placesForText();
+  if (quiet) { await refreshMapData(); return; }
   const h = M.hits.get(s.i);
   if (h) { M.sel = { p: h.p, i: s.i, name: h.name, h }; await refreshMapData(); showCard(h.p); M.map.easeTo({ center: [h.p.lon, h.p.lat], duration: 500 }); }
   else { closeCard(); toast('No longer marked as a place.'); }
+  // learn from the correction: the same for the other passages of this name?
+  if (v && sc === 'occ') {
+    const k = exKey(s.name), others = [...M.hits].filter(([i, x]) => i !== s.i && exKey(x.name) === k && (v.none || x.p.id !== v.p)).length;
+    const box = $('#mapAlso');
+    if (others && box) box.innerHTML = `<div class="munsure">Also for the other ${others} passage${others === 1 ? '' : 's'} of ${esc(plainName(s.name))}? <button type="button" data-malso='${JSON.stringify(v)}' data-mwhere="book">In this part</button><button type="button" data-malso='${JSON.stringify(v)}' data-mwhere="work">In the whole work</button></div>`;
+    else if (others && !h) toast(`${others} other passage${others === 1 ? '' : 's'} of ${plainName(s.name)} – change them on the map.`);
+  }
 }
 function wireMapUI() {
   const box = $('#mapBody');
@@ -473,6 +557,17 @@ function wireMapUI() {
     const d = b.dataset;
     if (b.classList.contains('mlbl')) return selectPlace(d.pid, { from: 'map' });
     if (d.mclose) return closeCard();
+    if (b.id === 'mapCheck') return checkPop();
+    if (d.mok) { M.chScope = 'occ'; return saveCorrection({ p: M.sel.p.id }); }
+    if (d.mck != null) { const i = +d.mck, h = M.hits.get(i); $('#mapPop').hidden = true; M.sel = { p: h.p, i, name: h.name, h }; return selectPlace(h.p.id, { from: 'word', i }); }
+    if (d.mckok != null) { const i = +d.mckok, h = M.hits.get(i); M.sel = { p: h.p, i, name: h.name, h }; M.chScope = 'occ'; await saveCorrection({ p: h.p.id }, true); return checkPop(true); }
+    if (d.mckno != null) { const i = +d.mckno, h = M.hits.get(i); M.sel = { p: h.p, i, name: h.name, h }; M.chScope = 'occ'; await saveCorrection({ none: 1 }, true); return checkPop(true); }
+    if (d.malso) {                     // the same correction for the other passages of this name
+      const s0 = M.sel, v = JSON.parse(d.malso), t = S.text;
+      if (b.dataset.mwhere === 'work') await setting(`plw|${workKeyOf(t)}|${exKey(s0.name)}`, Object.assign({ name: s0.name }, v));
+      else for (const [i, h] of M.hits) if (i !== s0.i && exKey(h.name) === exKey(s0.name)) await setting(`pl|${t.id}|${i}`, Object.assign({ name: h.name }, v));
+      $('#mapAlso').innerHTML = ''; M.workCache = null; await placesForText(); await refreshMapData(); toast('Applied.'); return;
+    }
     if (b.id === 'mapScope') return scopePop();
     if (b.id === 'mapLayersBtn') return layersPop();
     if (b.id === 'mapFullBtn') return mapFull();
@@ -497,6 +592,7 @@ function wireMapUI() {
     }
     if (d.mapdl) { return dictsDialog(); }
     if (d.mlay) { const k = d.mlay; M.cfg[k] = !M.cfg[k]; b.classList.toggle('on', M.cfg[k]); await saveMapCfg(); if (k === 'borders') M.map.setLayoutProperty('borders', 'visibility', M.cfg.borders ? 'visible' : 'none'); if (k === 'peoples') markPlaces(); return refreshMapData(); }
+    if (d.mpers) { M.cfg.persons = d.mpers; await saveMapCfg(); b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); M.workCache = null; await placesForText(); return refreshMapData(); }
     if (d.mnames) { M.cfg.names = d.mnames; await saveMapCfg(); b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); return drawLabels(); }
   });
   box.addEventListener('input', ev => {
@@ -513,11 +609,21 @@ function scopePop() {
   pop.innerHTML = `<div class="navh">Places from</div><div class="seg" role="group">${[['section', 'Section'], ['chapter', 'Chapter'], ['book', 'Book'], ['work', 'Work']].map(([v, l]) => `<button type="button" data-mscopev="${v}" class="${M.cfg.scope === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   pop.hidden = false;
 }
+// places to check: everything uncertain in this part of the text, each confirmed or changed with one tap
+function checkPop(keep) {
+  const pop = $('#mapPop'); if (!keep && !pop.hidden && pop.dataset.k === 'check') { pop.hidden = true; return; }
+  pop.dataset.k = 'check';
+  const list = [...M.hits].filter(([, h]) => h.unsure);
+  const refOf = i => { let r = ''; for (const x of S.refs || []) { if (x.i <= i) r = x.s; else break; } return r; };
+  pop.innerHTML = `<div class="navh">Places to check <small>· ${list.length}</small></div>` + (list.length ? `<div class="mcklist">${list.map(([i, h]) => `<div class="mck"><button type="button" class="mckt" data-mck="${i}"><b>${esc(refOf(i))}</b> ${esc(h.name.normalize('NFD').replace(/[\u0304\u0306]/g, '').normalize('NFC'))} → ${esc(h.p.t.split('/')[0])}<small>${esc(UNSURE[h.unsure])}</small></button><button type="button" class="mico2" data-mckok="${i}" title="Yes, this place">✓</button><button type="button" class="mico2" data-mckno="${i}" title="Not a place">✕</button></div>`).join('')}</div>` : '<p class="hint small">Nothing left to check.</p>');
+  pop.hidden = false;
+}
 function layersPop() {
   const pop = $('#mapPop'); if (!pop.hidden && pop.dataset.k === 'layers') { pop.hidden = true; return; }
   pop.dataset.k = 'layers';
   const tg = (k, l) => `<button type="button" class="mtg${M.cfg[k] ? ' on' : ''}" data-mlay="${k}"><span class="ck"></span>${l}</button>`;
   pop.innerHTML = `<div class="navh">Layers</div>${tg('peoples', 'Peoples (Isauri, Persae …)')}${tg('borders', 'Modern borders')}
+    <div class="navh">Words that may name a person</div><div class="seg" role="group">${[['unsure', 'Mark as uncertain'], ['hide', 'Not as places']].map(([v, l]) => `<button type="button" data-mpers="${v}" class="${M.cfg.persons === v ? 'on' : ''}">${l}</button>`).join('')}</div>
     <div class="navh">Names</div><div class="seg" role="group">${[['text', 'As in the text'], ['english', 'English'], ['modern', 'Modern']].map(([v, l]) => `<button type="button" data-mnames="${v}" class="${M.cfg.names === v ? 'on' : ''}">${l}</button>`).join('')}</div>
     <p class="hint small" style="margin:.5rem 0 0">More layers (roads, sites, provinces, time slider …) follow.</p>`;
   pop.hidden = false;
