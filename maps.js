@@ -413,21 +413,27 @@ function mapStyle(C) {
     ],
   }, C);                                                          // + the layers of maplayers.js
 }
-function showMap() { return M.showP ??= showMap1().finally(() => { M.showP = null; }); }   // one at a time
+// one at a time; any error, or a step that does not finish, is shown with the step it happened in (instead of an empty pane)
+function showMap() {
+  if (M.showP) return M.showP;
+  M.step = 'start';
+  const dog = setTimeout(() => { if (M.showP) mapFailed(`Stopped at step “${M.step}”.` + (M.lastErr ? ' Last error: ' + M.lastErr : '')); }, 25000);
+  return M.showP = showMap1().catch(e => { console.error(e); mapFailed(`${e?.message || e} (step “${M.step}”)`); }).finally(() => { clearTimeout(dog); M.showP = null; });
+}
 async function showMap1() {
   const box = $('#mapBody');
-  const [base, places] = [await mapHas('base'), await mapHas('places')];
+  M.step = 'packages'; const [base, places] = [await mapHas('base'), await mapHas('places')];
   if (!base || !places) {
     box.innerHTML = `<div class="mapmsg"><p>${EUROPE_ICON}</p><p>The map needs two downloads: <b>${[!base && 'Base map', !places && 'Ancient places'].filter(Boolean).join('</b> and <b>')}</b>.</p><button type="button" data-mapdl="1">Open Instruments → Maps</button></div>`;
     return;
   }
-  await mapCfg();
+  M.step = 'settings'; await mapCfg();
   M.anc = await mapHas('ancient');
   // which files of "Ancient world" are on the device (an older download lacks the newer layers; they are left out, not fetched)
   M.ancFiles = new Set();
   if (M.anc) { const c = await caches.open(MAPCACHE); for (const n of ['water', 'empires', 'provinces', 'areas', 'roads', 'urban', 'aqueducts', 'walls', 'canals']) if (await c.match(new URL(MAPS + 'ancient/' + n + '.json', location.href).href)) M.ancFiles.add(n); }
-  if (M.anc) await loadAncientLabels();
-  await loadPlaceIndex();
+  M.step = 'names of regions'; if (M.anc) await loadAncientLabels();
+  M.step = 'gazetteer'; await loadPlaceIndex();
   timeFor(S.text);
   if (!M.map) {
     box.innerHTML = `<div id="mapCanvas"></div><div class="mlabels" id="mapLabels"></div>
@@ -435,10 +441,10 @@ async function showMap1() {
       <div class="mctl"><button type="button" class="mico" id="mapLayersBtn" title="Layers" aria-label="Layers">${LAYERS_ICON}</button><button type="button" class="mico" id="mapTimeBtn" title="Period filter" aria-label="Period filter">${CLOCK_ICON}</button><button type="button" class="mico" id="mapSaveBtn" title="Saved maps and export" aria-label="Saved maps and export">${SAVE_ICON}</button></div>
       <div class="mtime" id="mapTime" hidden>${timeBarHTML()}</div>
       <div class="mcard" id="mapCard" hidden></div><div class="mpop" id="mapPop" hidden></div>`;
-    try { await loadMapLib(); } catch (e) { box.innerHTML = `<div class="mapmsg"><p>${esc(e.message)}</p></div>`; return; }
+    M.step = 'map engine'; try { await loadMapLib(); } catch (e) { box.innerHTML = `<div class="mapmsg"><p>${esc(e.message)}</p></div>`; return; }
     M.colors = mapColors();
     const v = (await setting('mpos|last')) || { c: [24, 38], z: 4 };
-    try {
+    M.step = 'map'; try {
       M.map = new maplibregl.Map({ container: 'mapCanvas', style: mapStyle(M.colors), center: v.c, zoom: v.z, attributionControl: false, dragRotate: false, pitchWithRotate: false, maxZoom: 16, minZoom: 1 });
     } catch (e) { M.map = null; return mapFailed(e.message || String(e)); }
     // problems are shown instead of an empty map: errors while loading, the graphics memory lost (phones)
@@ -458,19 +464,21 @@ async function showMap1() {
     M.map.on('movestart', () => { const c = $('#mapChoose'); if (c) c.hidden = true; });
     M.map.on('mouseenter', 'pl', () => { M.map.getCanvas().style.cursor = 'pointer'; });
     M.map.on('mouseleave', 'pl', () => { M.map.getCanvas().style.cursor = ''; });
-    const ok = await Promise.race([new Promise(r => M.map.once('load', () => r(true))), new Promise(r => setTimeout(() => r(false), 20000))]);
+    M.step = 'loading the map'; const ok = await Promise.race([new Promise(r => M.map.once('load', () => r(true))), new Promise(r => setTimeout(() => r(false), 20000))]);
     if (!ok) return mapFailed('The map did not finish loading.' + (M.lastErr ? ' Last error: ' + M.lastErr : ''));
     wireMapUI(); wireTime();
   } else M.map.resize();
-  renderTime();
+  M.step = 'places'; renderTime();
   await refreshMapData();
+  M.step = 'done';
 }
 // the map could not start: say why, and offer to try again
 function mapFailed(msg) {
   try { M.map?.remove(); } catch (_) { }
   M.map = null; M.showP = null;
-  $('#mapBody').innerHTML = `<div class="mapmsg"><p>${EUROPE_ICON}</p><p>The map could not be shown.</p><p class="hint small">${esc(msg)}</p><button type="button" id="mapRetry">Try again</button></div>`;
+  $('#mapBody').innerHTML = `<div class="mapmsg"><p>${EUROPE_ICON}</p><p>The map could not be shown.</p><p class="hint small">${esc(msg)}</p><button type="button" id="mapRetry">Try again</button> <button type="button" id="mapResetCfg">Reset the map settings</button></div>`;
   $('#mapRetry').onclick = () => showMap();
+  $('#mapResetCfg').onclick = async () => { await del('settings', 'mapCfg'); M.cfg = null; M.T = null; M.sitesFC = null; showMap(); };
 }
 const LAYERS_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5-9-5zM3 12.5l9 5 9-5M3 16.5l9 5 9-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
 // the gazetteer's title as a name: "Rhenus (river)" -> "Rhenus", "Lucus?" -> "Lucus"
