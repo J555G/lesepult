@@ -1,5 +1,5 @@
 // ================================================================ Pult · maps
-// Optional packages (Dictionaries → Maps): "base" = land, lakes, rivers, modern borders and the map engine (MapLibre);
+// Optional packages (Instruments → Maps): "base" = land, lakes, rivers, modern borders and the map engine (MapLibre);
 // "places" = the Pleiades gazetteer. The places of a text are found here, in the app: the lemma of every proper noun is
 // looked up among the names of the gazetteer (any text, also imported ones). The reader can correct every place.
 // Settings keys: mapPk (installed packages) · pl|<text>|<word> (correction of one passage) · plw|<work>|<name> (in a work)
@@ -44,7 +44,7 @@ async function deleteMapPkg(p) {
   if ((p.id === 'base' || p.id === 'ancient') && M.map) { M.map.remove(); M.map = null; M.ancLab = null; }
   if (p.id === 'places') M.sitesFC = null;
 }
-// the Maps section of the Dictionaries dialog
+// the Maps section of the Instruments dialog
 async function mapSectionHTML() {
   const man = await mapManifest(), inst = await mapInstalled();
   if (!man) return '';
@@ -52,7 +52,7 @@ async function mapSectionHTML() {
     + (inst[p.id] ? (inst[p.id] !== p.v ? `<button type="button" class="dlbtn" data-mapget="${p.id}">Update</button>` : '<button type="button" class="dlbtn" disabled>Installed</button>') + `<button type="button" class="danger" data-mapdel="${p.id}">Delete</button>`
       : `<button type="button" class="dlbtn" data-mapget="${p.id}">Download</button>`) + '</div>';
   M.man = man;
-  return `<section class="dsec"><h4>Maps ${info('Optional downloads for the map (button with the outline of Europe in the top bar). More layers can be added later as further packages.')}</h4><div class="list plain">${man.packages.map(row).join('')}</div></section>`;
+  return `<section class="dsec mapsec"><p class="hint small">Optional downloads for the map (the map button in the top bar). ${info('More layers can be added later as further packages.')}</p><div class="list plain">${man.packages.map(row).join('')}</div></section>`;
 }
 document.addEventListener('click', async ev => {
   const g = ev.target.closest?.('[data-mapget]'), d = ev.target.closest?.('[data-mapdel]');
@@ -63,6 +63,7 @@ document.addEventListener('click', async ev => {
   try {
     await downloadMapPkg(p, f => { g.style.setProperty('--p', Math.round(f * 100) + '%'); g.textContent = Math.round(f * 100) + ' %'; });
     g.textContent = 'Installed'; g.classList.remove('busy');
+    const sm = g.closest('details.ifold')?.querySelector('summary small'); if (sm) sm.textContent = Object.keys(await mapInstalled()).length + ' installed';
     if (!g.parentElement.querySelector('[data-mapdel]')) g.insertAdjacentHTML('afterend', `<button type="button" class="danger" data-mapdel="${p.id}">Delete</button>`);
     if (S.tab === 'map') showMap();
   } catch (e) { g.disabled = false; g.classList.remove('busy'); g.textContent = 'Download'; toast('Download failed: ' + e.message); }
@@ -392,7 +393,7 @@ async function showMap1() {
   const box = $('#mapBody');
   const [base, places] = [await mapHas('base'), await mapHas('places')];
   if (!base || !places) {
-    box.innerHTML = `<div class="mapmsg"><p>${EUROPE_ICON}</p><p>The map needs two downloads: <b>${[!base && 'Base map', !places && 'Ancient places'].filter(Boolean).join('</b> and <b>')}</b>.</p><button type="button" data-mapdl="1">Open Dictionaries → Maps</button></div>`;
+    box.innerHTML = `<div class="mapmsg"><p>${EUROPE_ICON}</p><p>The map needs two downloads: <b>${[!base && 'Base map', !places && 'Ancient places'].filter(Boolean).join('</b> and <b>')}</b>.</p><button type="button" data-mapdl="1">Open Instruments → Maps</button></div>`;
     return;
   }
   await mapCfg();
@@ -403,7 +404,7 @@ async function showMap1() {
   if (!M.map) {
     box.innerHTML = `<div id="mapCanvas"></div><div class="mlabels" id="mapLabels"></div>
       <div class="mtop"><button type="button" class="mscope" id="mapScope"></button><button type="button" class="mcheck" id="mapCheck" hidden></button></div>
-      <div class="mctl"><button type="button" class="mico" id="mapLayersBtn" title="Layers" aria-label="Layers">${LAYERS_ICON}</button><button type="button" class="mico" id="mapTimeBtn" title="Period filter" aria-label="Period filter">${CLOCK_ICON}</button><button type="button" class="mico" id="mapFullBtn" title="Full screen" aria-label="Full screen">${FULL_ICON}</button></div>
+      <div class="mctl"><button type="button" class="mico" id="mapLayersBtn" title="Layers" aria-label="Layers">${LAYERS_ICON}</button><button type="button" class="mico" id="mapTimeBtn" title="Period filter" aria-label="Period filter">${CLOCK_ICON}</button></div>
       <div class="mtime" id="mapTime" hidden>${timeBarHTML()}</div>
       <div class="mcard" id="mapCard" hidden></div><div class="mpop" id="mapPop" hidden></div>`;
     try { await loadMapLib(); } catch (e) { box.innerHTML = `<div class="mapmsg"><p>${esc(e.message)}</p></div>`; return; }
@@ -411,16 +412,13 @@ async function showMap1() {
     const v = (await setting('mpos|last')) || { c: [24, 38], z: 4 };
     M.map = new maplibregl.Map({ container: 'mapCanvas', style: mapStyle(M.colors), center: v.c, zoom: v.z, attributionControl: false, dragRotate: false, pitchWithRotate: false, maxZoom: 13, minZoom: 1 });
     M.map.touchZoomRotate.disableRotation();
-    M.map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: 'Places: Pleiades (CC BY) · Map: Natural Earth' + (M.anc ? ' · Ancient world: AWMC (ODbL)' : '') + ' · MapLibre' }));
-    M.map.once('load', () => document.querySelector('#mapBody .maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'));   // only the (i)
+    // the credits of the map are in ☰ → Acknowledgements (and on exported maps)
     M.map.on('move', () => { if (!M.lblRaf) M.lblRaf = requestAnimationFrame(() => { M.lblRaf = 0; drawLabels(); }); });
     M.map.on('moveend', () => { const c = M.map.getCenter(), z = M.map.getZoom(), v = { c: [+c.lng.toFixed(4), +c.lat.toFixed(4)], z: +z.toFixed(2) }; setting('mpos|last', v); if (M.posKey) setting('mpos|' + M.posKey, v); });
-    M.map.on('click', 'pl', e => { const f = e.features?.[0]; if (f) selectPlace(f.properties.id, { from: 'map' }); });
-    M.map.on('click', 'sites', e => { if (M.map.queryRenderedFeatures(e.point, { layers: ['pl'] }).length) return; const f = e.features?.[0]; if (f) selectPlace(f.properties.id, { from: 'map' }); });
     M.map.on('mouseenter', 'sites', () => { M.map.getCanvas().style.cursor = 'pointer'; });
     M.map.on('mouseleave', 'sites', () => { M.map.getCanvas().style.cursor = ''; });
     M.map.on('click', e => { if (M.pick) { const p = M.pick; M.pick = null; $('#mapCanvas').classList.remove('picking'); p(e.lngLat); return; }
-      if (!M.map.queryRenderedFeatures(e.point, { layers: ['pl', 'sites'] }).length && !e.originalEvent.target.closest?.('.mlbl')) closeCard(); });
+      const id = tapPlace(e.point); if (id != null) selectPlace(id, { from: 'map' }); else closeCard(); });
     M.map.on('mouseenter', 'pl', () => { M.map.getCanvas().style.cursor = 'pointer'; });
     M.map.on('mouseleave', 'pl', () => { M.map.getCanvas().style.cursor = ''; });
     await new Promise(r => M.map.once('load', r));
@@ -430,7 +428,6 @@ async function showMap1() {
   await refreshMapData();
 }
 const LAYERS_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5-9-5zM3 12.5l9 5 9-5M3 16.5l9 5 9-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
-const FULL_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
 // the gazetteer's title as a name: "Rhenus (river)" -> "Rhenus", "Lucus?" -> "Lucus"
 const cleanT = p => (p.t.split('/')[0].replace(/\s*\([^)]*\)|[?]/g, '').trim() || p.t);
 function labelOf(x) {
@@ -454,10 +451,23 @@ async function refreshMapData() {
   if (M.T?.work !== (S.text ? workKeyOf(S.text) : null)) { timeFor(S.text); renderTime(); }
   applyLayers();                                                    // (draws the labels)
 }
+// a tap on the map: the nearest place (circle or name) within reach of a finger tip
+// (the names do not take touches themselves, so that pinching and panning work everywhere)
+function tapPlace(pt) {
+  const r = matchMedia('(pointer: coarse)').matches ? 20 : 9;
+  const fs = M.map.queryRenderedFeatures([[pt.x - r, pt.y - r], [pt.x + r, pt.y + r]], { layers: ['pl', ...(M.map.getLayer('sites') ? ['sites'] : [])] });
+  let best = null, bd = Infinity;
+  for (const f of fs) { const c = M.map.project(f.geometry.coordinates), d = Math.hypot(c.x - pt.x, c.y - pt.y) - (f.layer.id === 'pl' ? 6 : 0); if (d < bd) { bd = d; best = f.properties.id; } }
+  if (best != null) return best;
+  const pad = r / 2;
+  for (const [b, id] of M.lblHit || []) if (pt.x >= b[0] - pad && pt.x <= b[2] + pad && pt.y >= b[1] - pad && pt.y <= b[3] + pad) return id;
+  return null;
+}
 // labels: drawn as text above the map (Greek and Latin in the reading font), without overlaps, most important first
 function drawLabels() {
   const box = $('#mapLabels'); if (!box || !M.map || !M.shown) return;
   const W = box.clientWidth, H = box.clientHeight, placed = [], sel = M.sel?.p?.id;
+  M.lblHit = [];
   const items = [...M.shown.values()].map(x => ({ x, pt: M.map.project([x.p.lon, x.p.lat]), pri: (x.p.id === sel ? 1e6 : 0) + (isRegion(x.p) ? 50 : 0) + x.n }))
     .filter(o => o.pt.x > -60 && o.pt.x < W + 60 && o.pt.y > -20 && o.pt.y < H + 20).sort((a, b) => b.pri - a.pri).slice(0, 220);
   let h = '';
@@ -469,7 +479,7 @@ function drawLabels() {
     const x = reg ? o.pt.x - w / 2 : o.pt.x + 7, y = reg ? o.pt.y - hgt / 2 : o.pt.y - hgt + 2;
     const r = [x, y, x + w, y + hgt];
     if (o.x.p.id !== sel && placed.some(q => r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1])) continue;
-    placed.push(r);
+    placed.push(r); M.lblHit.push([r, o.x.p.id]);
     h += `<span class="mlbl${reg ? ' reg' : ''}${o.x.unsure && o.x.unsure === o.x.n ? ' unsure' : ''}${isWater(o.x.p) ? ' wat' : ''}${o.x.p.id === sel ? ' sel' : ''}${o.x.extra ? ' extra' : ''}" data-pid="${esc(String(o.x.p.id))}" style="left:${Math.round(x)}px;top:${Math.round(y)}px">${esc(txt)}</span>`;
   }
   box.innerHTML = h + moreLabels(placed, W, H);
@@ -594,7 +604,6 @@ function wireMapUI() {
     if (await layerClick(b) || await savedClick(b)) return;
     if (b.id === 'mapScope') return scopePop();
     if (b.id === 'mapLayersBtn') return layersPop();
-    if (b.id === 'mapFullBtn') return mapFull();
     if (d.mscopev) { M.cfg.scope = d.mscopev; await saveMapCfg(); $('#mapPop').hidden = true; return refreshMapData(); }
     if (d.mgo != null) return mapGo(d.mpart != null ? +d.mpart : null, +d.mgo);
     if (d.mwork) return cardWork(M.sel.p);
@@ -614,7 +623,7 @@ function wireMapUI() {
       };
       return;
     }
-    if (d.mapdl) { return dictsDialog(); }
+    if (d.mapdl) { const f = (await setting('instFold')) || {}; f.maps = true; await setting('instFold', f); return dictsDialog(); }
   });
   box.addEventListener('input', ev => {
     if (ev.target.id !== 'mapSearch') return;
@@ -632,12 +641,6 @@ function checkPop(keep) {
   const refOf = i => { let r = ''; for (const x of S.refs || []) { if (x.i <= i) r = x.s; else break; } return r; };
   pop.innerHTML = `<div class="navh">Places to check <small>· ${list.length}</small></div>` + (list.length ? `<div class="mcklist">${list.map(([i, h]) => `<div class="mck"><button type="button" class="mckt" data-mck="${i}"><b>${esc(refOf(i))}</b> ${esc(h.name.normalize('NFD').replace(/[\u0304\u0306]/g, '').normalize('NFC'))} → ${esc(h.p.t.split('/')[0])}<small>${esc(UNSURE[h.unsure])}</small></button><button type="button" class="mico2" data-mckok="${i}" title="Yes, this place">✓</button><button type="button" class="mico2" data-mckno="${i}" title="Not a place">✕</button></div>`).join('')}</div>` : '<p class="hint small">Nothing left to check.</p>');
   pop.hidden = false;
-}
-// full screen: the divider moves all the way, the map takes the screen (and back)
-function mapFull() {
-  const n = parseFloat(getSplit());
-  if (n <= 0.5) setSplit(M.splitBefore || '50%'); else { M.splitBefore = getSplit(); setSplit('0%'); }
-  setTimeout(() => M.map?.resize(), 50);
 }
 async function mapGo(bi, i) {
   if (parseFloat(getSplit()) <= 0.5) { setSplit(M.splitBefore || '50%'); setTimeout(() => M.map?.resize(), 50); }

@@ -191,7 +191,7 @@ function moreLabels(placed, W, H) {
       const w = w0 + ls * (txt.length - 1), ang = Math.atan2(q.y - p.y, q.x - p.x), cx = (p.x + q.x) / 2, cy = (p.y + q.y) / 2;
       if (cx < -w || cx > W + w || cy < -20 || cy > H + 20) continue;
       const hw = Math.abs(Math.cos(ang)) * w / 2 + Math.abs(Math.sin(ang)) * fs / 2, hh = Math.abs(Math.sin(ang)) * w / 2 + Math.abs(Math.cos(ang)) * fs / 2;
-      const r = [cx - hw, cy - hh, cx + hw, cy + hh]; if (hit(r)) continue; placed.push(r);
+      const r = [cx - hw, cy - hh, cx + hw, cy + hh]; if (hit(r)) continue; placed.push(r); if (L.pid) M.lblHit.push([r, L.pid]);
       const col = M.cfg.twoCol && tRanges()?.length > 1 ? `;color:${RANGE_COL[st.k ? 1 : 0]}` : '';
       h += `<span class="mlbl rl k-${L.k}"${L.pid ? ` data-pid="${L.pid}"` : ''} style="left:${Math.round(cx)}px;top:${Math.round(cy)}px;letter-spacing:${ls.toFixed(1)}px;transform:translate(-50%,-50%) rotate(${(ang * 180 / Math.PI).toFixed(1)}deg);opacity:${(st.o * (caps ? 0.75 : 0.85)).toFixed(2)}${col}">${esc(txt)}</span>`;
     }
@@ -206,7 +206,7 @@ function moreLabels(placed, W, H) {
       const pt = M.map.project([p.lon, p.lat]); if (pt.x < 0 || pt.x > W || pt.y < 0 || pt.y > H) continue;
       const txt = labelOf({ p, names: {} }); ctx.font = '11.5px "Gentium Book Plus", serif';
       const w = ctx.measureText(txt).width + 4, r = [pt.x + 5, pt.y - 13, pt.x + 5 + w, pt.y + 1];
-      if (hit(r)) continue; placed.push(r);
+      if (hit(r)) continue; placed.push(r); M.lblHit.push([r, id]);
       h += `<span class="mlbl site" data-pid="${id}" style="left:${Math.round(r[0])}px;top:${Math.round(r[1])}px;opacity:${tState(p.y0, p.y1).o || 1}">${esc(txt)}</span>`;
       if (++n > 120) break;
     }
@@ -218,9 +218,9 @@ function moreLabels(placed, W, H) {
 const CLOCK_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
 const tPct = y => (y - TMIN) / (TMAX - TMIN) * 100;
 function timeBarHTML() {
-  const ticks = []; for (let y = -800; y <= TMAX; y += 200) ticks.push(`<i style="left:${tPct(y)}%"><span>${y < 0 ? -y : y === 0 ? '0' : y}</span></i>`);
+  const ticks = []; for (let y = -800; y <= TMAX; y += 200) ticks.push(`<i style="left:${tPct(y)}%"><span>${y < 0 ? -y : y === 0 ? 'BC | AD' : y}</span></i>`);
   return `<div class="mtl"><span class="mtv" id="mapTimeV"></span><button type="button" class="mtw" id="mapWDate" title="Date of this work – tap to correct"></button><button type="button" class="mtx" data-mtoff="1" title="Period filter off" aria-label="Period filter off">✕</button></div>
-    <div class="mtt" id="mapTrack"><div class="mtaxis">${ticks.join('')}<b style="left:${tPct(0)}%">BC | AD</b></div><div id="mapRanges"></div></div>`;
+    <div class="mtt" id="mapTrack"><div class="mtaxis">${ticks.join('')}</div><div id="mapRanges"></div></div>`;
 }
 function renderTime() {
   const bar = $('#mapTime'); if (!bar) return;
@@ -250,23 +250,25 @@ function wireTime() {
   const tr = $('#mapTrack'); if (!tr || tr._w) return; tr._w = true;
   const yAt = x => { const r = tr.getBoundingClientRect(); return snapY(TMIN + (x - r.left) / r.width * (TMAX - TMIN)); };
   let drag = null, lp = null;
+  const xAt = y => { const r = tr.getBoundingClientRect(); return r.left + tPct(y) / 100 * r.width; };
   tr.addEventListener('pointerdown', ev => {
-    ev.preventDefault(); tr.setPointerCapture(ev.pointerId);
-    const R = M.T.ranges, y = yAt(ev.clientX), h = ev.target.closest('.mth'), rg = ev.target.closest('.mtr');
-    if (!R.length) { M.T.ranges = [[y, y]]; drag = { k: 0, e: 0, x0: ev.clientX }; timeChanged(); return; }
-    if (h) drag = { k: +h.dataset.k, e: +h.dataset.e, x0: ev.clientX };
-    else if (rg && !rg.classList.contains('pt')) drag = { k: +rg.dataset.k, e: 'm', x0: ev.clientX, y0: y, r0: [...R[+rg.dataset.k]] };
-    else {                                    // on the line: the nearest end comes here
-      let best = null; R.forEach(([a, b], k) => { for (const [e, v] of [[0, a], [1, b]]) { const d = Math.abs(v - y); if (!best || d < best.d) best = { k, e, d }; } });
-      drag = { k: best.k, e: best.e, x0: ev.clientX };
-      const r = R[drag.k]; if (r[0] === r[1]) { r[0] = r[1] = y; } else r[drag.e] = y; timeChanged();
-    }
+    ev.preventDefault();
+    const R = M.T.ranges, y = yAt(ev.clientX), reach = ev.pointerType === 'mouse' ? 10 : 22;
+    if (!R.length) { tr.setPointerCapture(ev.pointerId); M.T.ranges = [[y, y]]; drag = { k: 0, e: 0, x0: ev.clientX }; timeChanged(); return; }
+    // the nearest end, if the finger is on it; otherwise inside a period: the period (moved by dragging, split by holding)
+    // (the reach of an end is at most a third of its period, so that the inside of a short period can still be held)
+    let best = null; R.forEach(([a, b], k) => { const rc = a === b ? reach : Math.min(reach, (xAt(b) - xAt(a)) / 3); for (const [e, v] of [[0, a], [1, b]]) { const d = Math.abs(xAt(v) - ev.clientX); if (d <= rc && (!best || d < best.d)) best = { k, e, d }; } });
+    if (best) drag = { k: best.k, e: best.e, x0: ev.clientX };
+    else { const k = R.findIndex(([a, b]) => a < b && y >= a && y <= b); if (k < 0) return; drag = { k, e: 'm', x0: ev.clientX, y0: y, r0: [...R[k]] }; }
+    tr.setPointerCapture(ev.pointerId);
     // long press: a date opens into a period; a period splits into two
     clearTimeout(lp); lp = setTimeout(() => {
       if (!drag || drag.moved) return;
       const r = M.T.ranges[drag.k];
-      if (r[0] === r[1]) { M.T.ranges[drag.k] = [snapY(r[0] - 50), snapY(r[0] + 50)]; toast('A period – pull the two ends apart or together'); }
-      else if (drag.e === 'm' && M.T.ranges.length < TMAXR && r[1] - r[0] >= 60) { const m = snapY(drag.y0); M.T.ranges.splice(drag.k, 1, [r[0], Math.max(r[0], m - 20)], [Math.min(r[1], m + 20), r[1]]); toast('Two periods – pull them together to join them'); }
+      // a new period about 90 px wide (at least a century), easy to hold and split
+      const half = Math.max(50, snapY((90 / tr.getBoundingClientRect().width) * (TMAX - TMIN) / 2));
+      if (r[0] === r[1]) { M.T.ranges[drag.k] = [Math.max(TMIN, snapY(r[0] - half)), Math.min(TMAX, snapY(r[0] + half))]; toast('A period – pull the two ends apart or together', 2500, true); }
+      else if (drag.e === 'm' && M.T.ranges.length < TMAXR && r[1] - r[0] >= 60) { const m = snapY(drag.y0); M.T.ranges.splice(drag.k, 1, [r[0], Math.max(r[0], m - 20)], [Math.min(r[1], m + 20), r[1]]); toast('Two periods – pull them together to join them', 2500, true); }
       else return;
       navigator.vibrate?.(15); drag = null; timeChanged();
     }, 550);
@@ -308,7 +310,8 @@ const tgl = (k, l, on) => `<button type="button" class="mtg${(on ?? M.cfg[k]) ? 
 const segc = (k, opts, lbl) => `${lbl ? `<div class="navh">${lbl}</div>` : ''}<div class="seg" role="group">${opts.map(([v, l]) => `<button type="button" data-mcfg="${k}" data-v="${v}" class="${String(M.cfg[k]) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
 function layersHTML() {
   const anc = M.anc;
-  return foldSec('text', 'The text', tgl('peoples', 'Peoples (Isauri, Persae …)')
+  return foldSec('general', 'General', tgl('mark', 'Mark place names in the text') + tgl('jump', 'Move the map to a place chosen in the text'))
+    + foldSec('text', 'The text', tgl('peoples', 'Peoples (Isauri, Persae …)')
       + segc('persons', [['unsure', 'Mark as uncertain'], ['hide', 'Not as places']], 'Words that may name a person')
       + segc('names', [['text', 'As in the text'], ['english', 'English'], ['modern', 'Modern']], 'Names'))
     + foldSec('time', 'Period', tgl('time', 'Period filter (time slider)')
@@ -320,13 +323,13 @@ function layersHTML() {
     + foldSec('sites', 'All ancient places', tgl('sites', 'Show the places of the gazetteer') + '<div class="mcats">' + SITE_CATS.map(([k, l, , c1, c2]) => `<button type="button" class="mtg${M.cfg.cats?.[k] ? ' on' : ''}" data-mcat="${k}"><span class="ck"></span><i class="dot" style="--c:${document.documentElement.dataset.theme === 'dark' ? c2 : c1}"></i>${l}</button>`).join('') + '</div>')
     + foldSec('anc', 'Ancient world', anc ? tgl('coast', 'Coastlines of the period') + tgl('empires', 'Empires and Roman provinces')
       + segc('regions', [['off', 'Off'], ['labels', 'Names'], ['areas', 'Areas']], 'Regions and peoples') + tgl('roads', 'Roads (Barrington Atlas)') + tgl('urban', 'City outlines')
-      : '<p class="hint small">Needs the download <b>Ancient world</b> (coastlines of the periods, empires and provinces, regions and peoples, roads).</p><button type="button" data-mapdl="1">Open Dictionaries → Maps</button>')
+      : '<p class="hint small">Needs the download <b>Ancient world</b> (coastlines of the periods, empires and provinces, regions and peoples, roads).</p><button type="button" data-mapdl="1">Open Instruments → Maps</button>')
     + foldSec('modern', 'Today', tgl('borders', 'Modern borders'));
 }
 function layersPop() {
   const pop = $('#mapPop'); if (!pop.hidden && pop.dataset.k === 'layers') { pop.hidden = true; return; }
   pop.dataset.k = 'layers'; pop.classList.add('mlayers');
-  pop.innerHTML = `<div class="navh">Layers</div>${layersHTML()}`;
+  pop.innerHTML = `<div class="navh">Map settings</div>${layersHTML()}`;
   pop.hidden = false; pop.scrollTop = M.cfg.layScroll || 0;
   if (!pop._sw) { pop._sw = true; pop.addEventListener('scroll', () => { if (pop.dataset.k !== 'layers') return; clearTimeout(pop._st); pop._st = setTimeout(() => { M.cfg.layScroll = pop.scrollTop; saveMapCfg(); }, 300); }); }
 }
@@ -346,7 +349,7 @@ async function layerClick(b) {
   if (d.mlay) {
     const k = d.mlay; M.cfg[k] = !M.cfg[k]; b.classList.toggle('on', M.cfg[k]); await saveMapCfg();
     if (k === 'borders') M.map.setLayoutProperty('borders', 'visibility', M.cfg.borders ? 'visible' : 'none');
-    if (k === 'peoples') { markPlaces(); await refreshMapData(); }
+    if (k === 'peoples' || k === 'mark') { markPlaces(); await refreshMapData(); }
     if (k === 'time') { timeFor(S.text); renderTime(); }
     if (k === 'sites' && M.cfg.sites && !siteCats().length) { M.cfg.cats = { ...LCFG.cats }; $('#mapPop .mcats')?.querySelectorAll('[data-mcat]').forEach(x => x.classList.toggle('on', !!M.cfg.cats[x.dataset.mcat])); }
     applyLayers(); return true;

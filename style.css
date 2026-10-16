@@ -124,7 +124,7 @@ dialog .item .t{flex:1}
 dialog .item small{color:var(--mut)}
 .prog{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin:.6rem 0}
 .prog>i{display:block;height:100%;background:var(--acc);width:0}
-#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(1.2rem + env(safe-area-inset-bottom));background:var(--fg);color:var(--bg);font:14px var(--ui);padding:.5rem .9rem;border-radius:8px;z-index:30;max-width:90vw}
+#toast{pointer-events:none;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(1.2rem + env(safe-area-inset-bottom));background:var(--fg);color:var(--bg);font:14px var(--ui);padding:.5rem .9rem;border-radius:8px;z-index:30;max-width:90vw}
 .btn{display:inline-block;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:.35rem .65rem;cursor:pointer;color:var(--fg);text-decoration:none;font-size:14px}
 .fileinput{position:fixed;left:-1000px;top:0;width:1px;height:1px;opacity:0}
 #top .grp{display:flex;align-items:center;gap:.25rem}
@@ -832,7 +832,7 @@ body.gram #textBody .w>.gm:empty{padding-right:0}
 #mapCanvas.picking .maplibregl-canvas{cursor:crosshair}
 .mapmsg{padding:2rem 1.2rem;text-align:center;color:var(--mut);font-size:15px}
 .mlabels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
-.mlbl{position:absolute;white-space:nowrap;font:13px/1 var(--greek);color:var(--fg);pointer-events:auto;cursor:pointer;padding:1px 2px;
+.mlbl{position:absolute;white-space:nowrap;font:13px/1 var(--greek);color:var(--fg);pointer-events:none;padding:1px 2px;
   text-shadow:0 0 3px var(--bg),0 0 3px var(--bg),0 0 2px var(--bg)}
 .mlbl.reg{font:600 11px/1 var(--greek);letter-spacing:.3em;text-transform:uppercase;opacity:.7}
 .mlbl.wat{font-style:italic;color:#5d93bd}
@@ -946,3 +946,17 @@ body.gram #textBody .w>.gm:empty{padding-right:0}
 .msaved{display:flex;align-items:center;gap:.3rem;border-top:1px solid var(--line)}
 .mtg small{color:var(--mut);font-size:12px}
 #mapBody.hastime .maplibregl-ctrl-bottom-right{top:150px;bottom:auto}
+/* ☰ → Instruments: folded groups */
+dialog details.ifold{border-top:1px solid var(--line)}
+dialog details.ifold:first-of-type{border-top:0}
+dialog details.ifold>summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:.6rem;padding:.65rem .1rem;font-size:16px}
+dialog details.ifold>summary::-webkit-details-marker{display:none}
+dialog details.ifold>summary::after{content:"▸";margin-left:auto;color:var(--mut);transition:transform .15s}
+dialog details.ifold[open]>summary::after{transform:rotate(90deg)}
+dialog details.ifold>summary small{color:var(--mut);font-size:13px}
+dialog details.ifold>.dsec:first-of-type{border-top:0;padding-top:0}
+dialog details.ifold{padding-bottom:.1rem}
+dialog .dsec.istore{border-top:1px solid var(--line);margin-top:.2rem}
+
+.mth{touch-action:none}
+#toast.high{bottom:auto;top:30%}

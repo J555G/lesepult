@@ -33,7 +33,7 @@ function stripSecondAccent(f) {  // enclitic accent: αἴτιός -> αἴτι�
   const last = idx[idx.length - 1];
   return (d.slice(0, last) + d.slice(last + 1)).normalize('NFC');
 }
-function toast(msg, ms = 2500) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, ms); }
+function toast(msg, ms = 2500, high = false) { const t = $('#toast'); t.textContent = msg; t.classList.toggle('high', !!high); t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, ms); }
 
 // ---------------------------------------------------------------- IndexedDB
 // Storage layout (since v3):
@@ -369,7 +369,7 @@ async function loadDicts() {
   const all = await getAll('dicts');
   for (const d of all) { d.splitSet = new Set(d.split || []); d.src ||= ['ls', 'georges', 'collatinus', 'morph-la', 'whitaker', 'morph-la-ww'].includes(d.id) ? 'la' : 'grc'; }
   S.dicts = all.filter(d => d.kind === 'dictionary').sort((a, b) => (a.order ?? 99) - (b.order ?? 99) || a.name.localeCompare(b.name));
-  // user's order and on/off choice (menu ☰ → Dictionaries); new dictionaries go to the end, switched on
+  // user's order and on/off choice (menu ☰ → Instruments → Dictionaries); new dictionaries go to the end, switched on
   S.dictPrefs = Object.assign({ order: [], off: [], locked: [], open: [] }, (await setting('dictPrefs')) || {});
   const pos = id => { const i = S.dictPrefs.order.indexOf(id); return i < 0 ? 1e6 : i; };
   S.dicts.sort((a, b) => pos(a.id) - pos(b.id));
@@ -379,7 +379,7 @@ async function loadDicts() {
   S.morphInst = all.find(d => d.kind === 'morph') || null; S.morph = on(S.morphInst);
   S.hintsInst = all.find(d => d.kind === 'morphhints') || null; S.hints = on(S.hintsInst);
   S.latMorphs = all.filter(d => d.kind === 'latmorph').sort((a, b) => a.id.localeCompare(b.id));
-  S.latMorphInst = S.latMorphs[0] || null; S.latMorph = S.latMorphs.find(d => on(d)) || null;     // the one chosen in ☰ → Dictionaries
+  S.latMorphInst = S.latMorphs[0] || null; S.latMorph = S.latMorphs.find(d => on(d)) || null;     // the one chosen in ☰ → Instruments
   if (S.morphInst?.name === 'Morphological analysis') S.morphInst.name = 'Greek morphology';
   const hintsOff = S.hintsInst && !S.hints;
   S.lemmapos = hintsOff ? {} : (await setting('lemmapos')) || {};
@@ -1001,7 +1001,7 @@ async function renderView() {
   const keep = S.lastRendered === v ? $('#dictPane').scrollTop : null;     // the same entry drawn again: stay where it is
   S.dictRendering = true;
   if (S.tsel) { S.tsel = null; paintTsel(); }
-  if (!S.dicts.length) { body.innerHTML = '<p class="hint">No dictionaries installed yet. Open the menu ☰ → Dictionaries and import the packages (*.gdpkg.gz).</p>'; S.dictRendering = false; return; }
+  if (!S.dicts.length) { body.innerHTML = '<p class="hint">No dictionaries installed yet. Open the menu ☰ → Instruments → Dictionaries and import the packages (*.gdpkg.gz).</p>'; S.dictRendering = false; return; }
   const lang = langOf(v.form);
   const A = await analyses(v.form);
   const tk = v.ti != null ? S.tokens.find(t => t.t === 'w' && t.i === v.ti) : null;      // a word of the text: its own reading
@@ -1036,7 +1036,7 @@ async function renderView() {
   const ost = await setting('open|' + k);
   const isOpen = id => Array.isArray(ost) ? ost.includes(id) : S.dictPrefs.open.includes(id) !== !!ost?.x?.includes(id);
   const shown = S.shown.filter(d => d.src === lang);
-  if (!shown.length) h += `<p class="hint">${S.dicts.some(d => d.src === lang) ? `All ${LANGS[lang]} dictionaries are switched off` : `No ${LANGS[lang]} dictionary installed`} (menu ☰ → Dictionaries).</p>`;
+  if (!shown.length) h += `<p class="hint">${S.dicts.some(d => d.src === lang) ? `All ${LANGS[lang]} dictionaries are switched off` : `No ${LANGS[lang]} dictionary installed`} (menu ☰ → Instruments → Dictionaries).</p>`;
   for (const d of shown) {
     let inner = '', has = false;
     const ents = by[d.id] || [];
@@ -1393,7 +1393,7 @@ async function cleanStorage() {
   toast(removed.length ? `Removed ${removed.length} unused item(s)` + (before && after ? ` · ${(before / 1e6).toFixed(0)} → ${(after / 1e6).toFixed(0)} MB` : '') : 'Nothing to clean up.', 4000);
 }
 // Frisk and Bailly may not be published: they live in a PRIVATE GitHub repository, read with a personal
-// access token that is stored only on this device (☰ → Dictionaries → Private dictionaries).
+// access token that is stored only on this device (☰ → Instruments → Private dictionaries).
 async function privCfg() { return (await setting('privRepo')) || { repo: '', token: '' }; }
 async function privFetch(cfg, path) {
   const r = await fetch(`https://api.github.com/repos/${cfg.repo}/contents/${path}`, {
@@ -1446,17 +1446,15 @@ async function dictsDialog() {
   try { const e = await navigator.storage?.estimate?.(); if (e) est = `The app uses ${(e.usage / 1e6).toFixed(0)} MB on this device`; } catch (_) { }
   try { pers = (await navigator.storage?.persisted?.()) ? ' · protected: downloads stay until you delete them' : ' · <b>not yet protected</b> – start the app from its Home Screen icon'; } catch (_) { }
   const privState = privCfgNow.token ? (S.privErr ? '<span class="bad">' + esc(S.privErr) + '</span>' : '<span class="ok">connected</span>') : 'not connected';
-  const r = await dialog(`<h3>Dictionaries</h3>
-    ${Object.entries(LANGS).map(([lang, name]) => { const rs = rowsFor(lang), ms = missFor(lang);
+  // three folded groups (fold state remembered): dictionaries, analysis instruments, maps
+  const fold = (await setting('instFold')) || {};
+  const grp = (k, title, sub, body) => `<details class="ifold" data-if="${k}"${fold[k] ? ' open' : ''}><summary><b>${title}</b><small>${sub}</small></summary>${body}</details>`;
+  const nD = S.dicts.length, nT = [S.morphInst, S.hintsInst, ...S.latMorphs].filter(Boolean).length;
+  const mapInst = typeof mapInstalled === 'function' ? Object.keys(await mapInstalled()).length : 0;
+  const r = await dialog(`<h3>Instruments</h3>
+    ${grp('dict', 'Dictionaries', `${nD} installed`, Object.entries(LANGS).map(([lang, name]) => { const rs = rowsFor(lang), ms = missFor(lang);
       return `<section class="dsec"><h4>${name} dictionaries ${info('Drag ⠿ to change the order · untick to hide · ▸/▾ folded or unfolded when a word is looked up.')}</h4>
-      <div class="list plain dictlist">${rs || ms ? rs + ms : `<p class="hint">No ${name} dictionaries installed.</p>`}</div></section>`; }).join('')}
-    <section class="dsec"><h4>Analysis instruments ${info('Untick an instrument to switch it off. The language of each word follows from its alphabet.')}</h4>
-      <div class="list plain">${tools || missT ? tools + missT : '<p class="hint">No analysis instruments installed.</p>'}</div>
-      <div class="srow"><span class="sl">Greek analysis</span><div class="sc">${langToolSel('grc')}</div></div>
-      <div class="srow"><span class="sl">Latin analysis</span><div class="sc">${langToolSel('la')}</div></div>
-      <div class="srow"><span class="sl">Vowel lengths</span><div class="sc">${withInfo(`<label class="sopt"><input type="checkbox" data-set="latQuant"${S.latQuant ? ' checked' : ''}> Mark them in Latin texts (ā long, ă short)</label>`, 'From Collatinus (also needed with Whitaker’s Words). Where a form has several readings, only the lengths they share are marked.')}</div></div></section>
-    ${man ? '' : '<p class="hint">The website could not be reached (offline?) – download buttons are not available right now. Everything already installed works offline.</p>'}
-    ${typeof mapSectionHTML === 'function' ? await mapSectionHTML() : ''}
+      <div class="list plain dictlist">${rs || ms ? rs + ms : `<p class="hint">No ${name} dictionaries installed.</p>`}</div></section>`; }).join('') + `
     <section class="dsec"><h4>Private dictionaries <small>${privState}</small></h4>
       <p class="hint small">Dictionaries that may not be published can be downloaded from a private GitHub repository. ${info('<b>Repository:</b> owner and name of the private repository. <b>Token:</b> a GitHub fine-grained personal access token with access to that repository only and the permission “Contents: Read-only”; it is stored only on this device.<br><b>Format:</b> the repository contains dictionary packages (<code>*.gdpkg.gz</code>, format <code>greekdict-pkg-2</code>, as made by the toolkit’s <code>python gd.py packages</code>) and a <code>packages.json</code> next to them that lists them (id, file, name, kind, bytes, version) – the same layout as the app’s public <code>packages</code> folder.')}</p>
       <div class="privf"><label>GitHub repository<input type="text" name="privRepo" value="${esc(privCfgNow.repo)}" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="owner/repository"></label>
@@ -1464,8 +1462,15 @@ async function dictsDialog() {
       <div class="row" style="justify-content:flex-start;margin-top:.4rem"><button type="button" data-v="privsave">Save and connect</button>${privCfgNow.token ? '<button type="button" class="danger" data-v="privforget">Forget token</button>' : ''}</div></section>
     <section class="dsec"><h4>Editors’ colour marks</h4>
       <label class="opt"><input type="checkbox" id="optSrcCol"${S.srcColors ? ' checked' : ''}> Show the colour marks of the Eulexis editors in Pape and LSJ</label>
-      <p class="legend">${Object.entries(FONT_MEANING).map(([c, t]) => `<span class="fc" data-c="${c}">■</span> ${esc(t)}`).join('<br>')}</p></section>
-    <section class="dsec"><h4>Storage</h4><p class="hint small">${est}${pers}.</p>
+      <p class="legend">${Object.entries(FONT_MEANING).map(([c, t]) => `<span class="fc" data-c="${c}">■</span> ${esc(t)}`).join('<br>')}</p></section>`)}
+    ${grp('tools', 'Analysis instruments', `${nT} installed`, `<section class="dsec">${info('Untick an instrument to switch it off. The language of each word follows from its alphabet.')}
+      <div class="list plain">${tools || missT ? tools + missT : '<p class="hint">No analysis instruments installed.</p>'}</div>
+      <div class="srow"><span class="sl">Greek analysis</span><div class="sc">${langToolSel('grc')}</div></div>
+      <div class="srow"><span class="sl">Latin analysis</span><div class="sc">${langToolSel('la')}</div></div>
+      <div class="srow"><span class="sl">Vowel lengths</span><div class="sc">${withInfo(`<label class="sopt"><input type="checkbox" data-set="latQuant"${S.latQuant ? ' checked' : ''}> Mark them in Latin texts (ā long, ă short)</label>`, 'From Collatinus (also needed with Whitaker’s Words). Where a form has several readings, only the lengths they share are marked.')}</div></div></section>`)}
+    ${typeof mapSectionHTML === 'function' ? grp('maps', 'Maps', `${mapInst} installed`, await mapSectionHTML()) : ''}
+    ${man ? '' : '<p class="hint">The website could not be reached (offline?) – download buttons are not available right now. Everything already installed works offline.</p>'}
+    <section class="dsec istore"><h4>Storage</h4><p class="hint small">${est}${pers}.</p>
       <div class="row" style="justify-content:flex-start"><button type="button" data-v="clean">Clean up storage</button></div></section>`,
     [['file', 'Import packages …', 'fileDict'], ['cancel', 'Close']]);
   if (r.action === 'clean') { await cleanStorage(); return dictsDialog(); }
@@ -1514,7 +1519,7 @@ function wireDictDrag() {
   document.addEventListener('pointerup', end);
   document.addEventListener('pointercancel', end);
 }
-// analysis tools per language (☰ → Dictionaries); switching one on switches the others of that language off
+// analysis tools per language (☰ → Instruments); switching one on switches the others of that language off
 function langToolSel(lang) {
   const ts = langTools(lang), cur = ts.find(d => !S.dictPrefs.off.includes(d.id));
   return ts.length ? `<select data-langtool="${lang}">${ts.map(d => `<option value="${d.id}"${d === cur ? ' selected' : ''}>${esc(d.name)}</option>`).join('')}<option value=""${cur ? '' : ' selected'}>None (no analysis)</option></select>`
@@ -1533,7 +1538,7 @@ async function settingsDialog() {
   const dark = document.documentElement.dataset.theme === 'dark';
   const toolSel = lang => { const ts = langTools(lang), cur = ts.find(d => !S.dictPrefs.off.includes(d.id));
     return ts.length ? `<select data-langtool="${lang}">${ts.map(d => `<option value="${d.id}"${d === cur ? ' selected' : ''}>${esc(d.name)}</option>`).join('')}<option value=""${cur ? '' : ' selected'}>None (no analysis)</option></select>`
-      : '<small class="hint">not installed – ☰ → Dictionaries</small>'; };
+      : '<small class="hint">not installed – ☰ → Instruments</small>'; };
   // a joined switch for either/or settings: Light | Dark
   const sw = (k, cur, opts) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button type="button" class="${cur === v ? 'on' : ''}" data-setk="${k}" data-setv="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div>`;
   const row = (label, ctl, hint = '') => `<div class="srow"><span class="sl">${label}</span><div class="sc">${ctl}${hint ? `<small class="sh">${hint}</small>` : ''}</div></div>`;
@@ -1632,7 +1637,7 @@ async function runDownloads() {
   if (S.view) renderView(); resetTokens(); resolveTokens();
   // refresh the open Dictionaries dialog so the new entries get their Delete button and size
   const d = $('#dlg');
-  if (d.open && $('#dlg h3')?.textContent === 'Dictionaries') { d.close(); dictsDialog(); }
+  if (d.open && $('#dlg h3')?.textContent === 'Instruments') { d.close(); dictsDialog(); }
 }
 // ids: download exactly these packages; without ids: everything that is new or changed (first start)
 async function syncPackages(ids = null) {
@@ -1708,7 +1713,7 @@ async function pultDialog() {
     ['Highlights in dictionaries', n(Object.keys(data.highlights).length)],
     ['Markers', n(Object.keys(data.markers).length)],
     ['Favourites', n(Object.keys(data.favourites).length)],
-    ['Dictionaries and tools', `${n(dicts.length)}${dsize ? ` · ≈ ${mb(dsize)}` : ''}`],
+    ['Instruments (dictionaries, analysis, maps)', `${n(dicts.length)}${dsize ? ` · ≈ ${mb(dsize)}` : ''}`],
     ['Storage', [use, prot].filter(Boolean).join(' · ') || '–']];
   const r = await dialog(`<h3>This Pult</h3>
     <p class="hint small">Everything is stored only on this device. ${info('A backup contains your imported texts, glosses, default glosses, chosen readings, lemma choices, highlights, markers, favourites, colours and display settings. Library texts and dictionaries are not included – they can be downloaded again.')}</p>
@@ -2261,6 +2266,7 @@ function wire() {
       for (const [id] of POS) { const cb = document.querySelector(`[data-poson="${id}"]`), ci = document.querySelector(`[data-posc="${id}"]`); if (cb) cb.checked = true; if (ci) ci.value = S.posCfg[id].c; } }
   });
   document.addEventListener('toggle', ev => { if (ev.target.matches?.('details.sgram')) S.gramOpen = ev.target.open; else if (ev.target.matches?.('details.scol')) S.colOpen = ev.target.open; }, true);
+  document.addEventListener('toggle', async ev => { if (!ev.target.matches?.('details.ifold')) return; const f = (await setting('instFold')) || {}; f[ev.target.dataset.if] = ev.target.open; setting('instFold', f); }, true);
   document.addEventListener('change', async ev => {
     const t = ev.target, id = t.dataset?.gramon, g = t.dataset?.gramgrp; if (!id && g == null) return;
     if (id) S.gramCfg[id] = t.checked; else for (const x of GRAM_GROUPS[+g][1]) S.gramCfg[x] = t.checked;
@@ -3266,7 +3272,7 @@ function wireMarker() {
   S.gramCfg = Object.assign(defaultGramCfg(), (await setting('gramCfg')) || {}); applyGramCfg();
   const cur = await setting('currentText');
   if (cur != null) await openText(cur);
-  if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! <button id="btnFirstSync">Download the free dictionaries</button> (Greek: Pape, LSJ and morphology; Latin: Lewis &amp; Short, Georges and Collatinus – about 60 MB). More dictionaries: ☰ → Dictionaries. Then get a text via ☰ → Library, or import your own via ☰ → Import text.</p>';
+  if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! <button id="btnFirstSync">Download the free dictionaries</button> (Greek: Pape, LSJ and morphology; Latin: Lewis &amp; Short, Georges and Collatinus – about 60 MB). More dictionaries: ☰ → Instruments → Dictionaries. Then get a text via ☰ → Library, or import your own via ☰ → Import text.</p>';
   $('#btnFirstSync')?.addEventListener('click', () => syncPackages());
   navigator.storage?.persist?.().catch(() => { });
 })();
