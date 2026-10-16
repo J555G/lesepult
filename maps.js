@@ -423,6 +423,9 @@ async function showMap1() {
   }
   await mapCfg();
   M.anc = await mapHas('ancient');
+  // which files of "Ancient world" are on the device (an older download lacks the newer layers; they are left out, not fetched)
+  M.ancFiles = new Set();
+  if (M.anc) { const c = await caches.open(MAPCACHE); for (const n of ['water', 'empires', 'provinces', 'areas', 'roads', 'urban', 'aqueducts', 'walls', 'canals']) if (await c.match(new URL(MAPS + 'ancient/' + n + '.json', location.href).href)) M.ancFiles.add(n); }
   if (M.anc) await loadAncientLabels();
   await loadPlaceIndex();
   timeFor(S.text);
@@ -435,7 +438,12 @@ async function showMap1() {
     try { await loadMapLib(); } catch (e) { box.innerHTML = `<div class="mapmsg"><p>${esc(e.message)}</p></div>`; return; }
     M.colors = mapColors();
     const v = (await setting('mpos|last')) || { c: [24, 38], z: 4 };
-    M.map = new maplibregl.Map({ container: 'mapCanvas', style: mapStyle(M.colors), center: v.c, zoom: v.z, attributionControl: false, dragRotate: false, pitchWithRotate: false, maxZoom: 16, minZoom: 1 });
+    try {
+      M.map = new maplibregl.Map({ container: 'mapCanvas', style: mapStyle(M.colors), center: v.c, zoom: v.z, attributionControl: false, dragRotate: false, pitchWithRotate: false, maxZoom: 16, minZoom: 1 });
+    } catch (e) { M.map = null; return mapFailed(e.message || String(e)); }
+    // problems are shown instead of an empty map: errors while loading, the graphics memory lost (phones)
+    M.map.on('error', e => { M.lastErr = e?.error?.message || String(e?.error || e); console.warn('map:', M.lastErr); });
+    M.map.getCanvas().addEventListener('webglcontextlost', () => mapFailed('The graphics memory of the device was needed elsewhere.'));
     M.map.touchZoomRotate.disableRotation();
     // the credits of the map are in ☰ → Acknowledgements (and on exported maps)
     M.map.on('move', () => { if (!M.lblRaf) M.lblRaf = requestAnimationFrame(() => { M.lblRaf = 0; drawLabels(); }); });
@@ -450,11 +458,19 @@ async function showMap1() {
     M.map.on('movestart', () => { const c = $('#mapChoose'); if (c) c.hidden = true; });
     M.map.on('mouseenter', 'pl', () => { M.map.getCanvas().style.cursor = 'pointer'; });
     M.map.on('mouseleave', 'pl', () => { M.map.getCanvas().style.cursor = ''; });
-    await new Promise(r => M.map.once('load', r));
+    const ok = await Promise.race([new Promise(r => M.map.once('load', () => r(true))), new Promise(r => setTimeout(() => r(false), 20000))]);
+    if (!ok) return mapFailed('The map did not finish loading.' + (M.lastErr ? ' Last error: ' + M.lastErr : ''));
     wireMapUI(); wireTime();
   } else M.map.resize();
   renderTime();
   await refreshMapData();
+}
+// the map could not start: say why, and offer to try again
+function mapFailed(msg) {
+  try { M.map?.remove(); } catch (_) { }
+  M.map = null; M.showP = null;
+  $('#mapBody').innerHTML = `<div class="mapmsg"><p>${EUROPE_ICON}</p><p>The map could not be shown.</p><p class="hint small">${esc(msg)}</p><button type="button" id="mapRetry">Try again</button></div>`;
+  $('#mapRetry').onclick = () => showMap();
 }
 const LAYERS_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5-9-5zM3 12.5l9 5 9-5M3 16.5l9 5 9-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
 // the gazetteer's title as a name: "Rhenus (river)" -> "Rhenus", "Lucus?" -> "Lucus"

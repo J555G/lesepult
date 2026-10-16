@@ -119,7 +119,8 @@ function layerStyle(st, C) {
   const before = (id, ...ls) => { const k = st.layers.findIndex(l => l.id === id); st.layers.splice(k < 0 ? st.layers.length : k, 0, ...ls); };
   st.sources.sites = { type: 'geojson', data: sitesData() };
   if (M.anc) {
-    for (const n of ['water', 'empires', 'provinces', 'areas', 'roads', 'urban', 'aqueducts', 'walls', 'canals']) st.sources['a_' + n] = { type: 'geojson', data: A + n + '.json' };
+    const empty = { type: 'FeatureCollection', features: [] };
+    for (const n of ['water', 'empires', 'provinces', 'areas', 'roads', 'urban', 'aqueducts', 'walls', 'canals']) st.sources['a_' + n] = { type: 'geojson', data: !M.ancFiles || M.ancFiles.has(n) ? A + n + '.json' : empty };
     const ac = ['match', ['get', 'k'], 'people', dark ? '#c98a5a' : '#c0703c', dark ? '#8fb86a' : '#6f9a46'];
     before('lakes',
       { id: 'a-water', type: 'fill', source: 'a_water', paint: { 'fill-color': C.sea } },
