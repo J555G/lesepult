@@ -20,6 +20,7 @@ async function mapCfg() {
       if (saved.scope === 'all' || saved.scope === 'none') saved.scope = 'section';
       if (saved.sites) saved.pfOn = false;
     }
+    if (!saved.v5) { saved.v5 = true; if (saved.regions) { saved.nmRegions = saved.regions !== 'off'; saved.regArea = saved.regions === 'areas'; } }   // the new layer menu
     if (!saved.v4) { saved.v4 = true; if (!Object.values(saved.cats || {}).some(Boolean)) saved.cats = { settl: true }; }   // kinds of places: settlements by default
     M.cfg = Object.assign({ mark: false, jump: true, pfOn: true, sel: [], scope: 'section', names: 'text', peoples: false, borders: false, rough: true, persons: 'unsure' }, JSON.parse(JSON.stringify(LCFG)), saved);
   }
@@ -495,15 +496,15 @@ function tapPlace(pt) {
   }
   const c = [...seen.values()].sort((a, b) => a.eff - b.eff);
   if (!c.length) {
-    const pad = r / 2;
+    const pad = r / 2;          // (near a name, but not on it)
     for (const [b, id] of M.lblHit || []) if (pt.x >= b[0] - pad && pt.x <= b[2] + pad && pt.y >= b[1] - pad && pt.y <= b[3] + pad) return id;
     return null;
   }
+  // a tap right on a name: that place (a name lies over the dots it covers)
+  for (const [b, id] of M.lblHit || []) if (pt.x >= b[0] && pt.x <= b[2] && pt.y >= b[1] && pt.y <= b[3]) return id;
   const direct = c.filter(x => x.d <= 5).sort((a, b) => a.d - b.d);
   if (direct.length === 1) return direct[0].id;                      // right on a dot
   if (direct.length > 1) { chooserAt(pt, direct.slice(0, 8)); return 'choose'; }   // several on the same spot
-  // a tap right on a name: that place
-  for (const [b, id] of M.lblHit || []) if (pt.x >= b[0] && pt.x <= b[2] && pt.y >= b[1] && pt.y <= b[3]) return id;
   if (c.length === 1 || c[1].eff - c[0].eff > 12) return c[0].id;   // a clear choice
   chooserAt(pt, c.slice(0, 8)); return 'choose';
 }
@@ -528,6 +529,7 @@ function drawLabels() {
   let h = '';
   const ctx = (drawLabels.c ??= document.createElement('canvas').getContext('2d'));
   for (const o of items) {
+    if (M.cfg.nmPlaces === false && o.x.p.id !== sel) continue;     // names of places switched off (Layers → Names on the map)
     const reg = isRegion(o.x.p), txt = labelOf(o.x), fs = reg ? 11 : +(12 + 0.3 * (o.x.p.w || 0)).toFixed(1);
     ctx.font = `${reg ? 600 : 400} ${fs}px "Gentium Book Plus", serif`;
     const w = ctx.measureText(reg ? txt.toUpperCase() : txt).width * (reg ? 1.35 : 1) + 4, hgt = fs + 4;

@@ -176,7 +176,7 @@ async function mapGoAny(id, i) {
 }
 
 // ---------------------------------------------------------------- saved maps
-const MAP_KEYS = ['pfOn', 'sel', 'sites', 'cats', 'coast', 'empires', 'regions', 'roads', 'urban', 'borders', 'peoples', 'names', 'time', 'tol', 'gone', 'undated', 'twoCol', 'rangeCols'];
+const MAP_KEYS = ['pfOn', 'sel', 'provinces', 'regArea', 'aqueducts', 'walls', 'canals', 'own', 'nmPlaces', 'nmRegions', 'nmMountains', 'nmIslands', 'rivers', 'lakes', 'sites', 'cats', 'coast', 'empires', 'regions', 'roads', 'urban', 'borders', 'peoples', 'names', 'time', 'tol', 'gone', 'undated', 'twoCol', 'rangeCols'];
 function mapState() {
   const c = M.map.getCenter();
   return { scope: M.cfg.scope, textId: S.text?.id ?? null, ref: curRef()?.s ?? null,
@@ -199,7 +199,7 @@ async function openSavedMap(m) {
   Object.assign(M.cfg, JSON.parse(JSON.stringify(m.layers || {})), { scope: m.scope }); await saveMapCfg();
   timeFor(S.text); if (m.ranges) M.T.ranges = JSON.parse(JSON.stringify(m.ranges));
   if (m.layers?.borders != null) M.map.setLayoutProperty('borders', 'visibility', M.cfg.borders ? 'visible' : 'none');
-  if (M.cfg.regions !== 'off') await loadAncientLabels();
+  await loadAncientLabels();
   M.map.jumpTo({ center: m.view.c, zoom: m.view.z });
   markPlaces(); renderTime(); await refreshMapData();
 }

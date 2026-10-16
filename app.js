@@ -2075,7 +2075,7 @@ const ACKS = [
     ['A. Bailly, Dictionnaire grec-français, éd. 2020 Hugo Chávez (G. Gréco et al.)', 'https://creativecommons.org/licenses/by-nc-nd/4.0/', 'Greek–French dictionary', 'CC BY-NC-ND 4.0 – private use only']]],
   ['Maps', [
     ['Pleiades – gazetteer of ancient places (ISAW, New York University, and contributors)', 'https://pleiades.stoa.org', 'ancient places, their names, positions and dates', 'CC BY 3.0'],
-    ['Ancient World Mapping Center (University of North Carolina) – geodata after the Barrington Atlas', 'https://github.com/AWMC/geodata', 'coastlines of the periods, empires and Roman provinces, names of regions and peoples, roads, city outlines (map package “Ancient world”)', 'ODbL 1.0'],
+    ['Ancient World Mapping Center (University of North Carolina) – geodata after the Barrington Atlas', 'https://github.com/AWMC/geodata', 'coastlines of the periods, empires and Roman provinces, names of regions and peoples, roads, aqueducts, frontier walls, canals, city outlines (map package “Ancient world”)', 'ODbL 1.0'],
     ['J. W. Hanson, An Urban Geography of the Roman World (2016), and J. W. Hanson & S. G. Ortman, estimating the populations of Greek and Roman settlements (2017)', 'https://oxrep.classics.ox.ac.uk/databases/cities/', 'areas and populations of about 900 cities (for the significance of places); data via the Roman ECI project (CC BY-SA 4.0)', 'CC BY-SA 4.0'],
     ['Natural Earth', 'https://www.naturalearthdata.com', 'land, lakes, rivers and modern borders of the base map', 'public domain'],
     ['MapLibre GL JS', 'https://maplibre.org', 'the map engine', 'BSD 3-Clause'],

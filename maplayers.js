@@ -6,7 +6,8 @@
 const TMIN = -1000, TMAX = 800, YSTEP = 10, TMAXR = 5;
 const fmtY = y => y == null ? '' : y < 0 ? `${-y} BC` : `AD ${Math.max(1, y)}`;
 const fmtR = ([a, b]) => a === b ? fmtY(a) : a < 0 && b < 0 ? `${-a}–${-b} BC` : a >= 0 ? `AD ${Math.max(1, a)}–${b}` : `${fmtY(a)} – ${fmtY(b)}`;
-const LCFG = { time: true, tol: 25, gone: 'fade', undated: 'show', later: 'fade', rivers: true, lakes: true, twoCol: false, sites: false, cats: { settl: true }, coast: true, empires: true, regions: 'labels', roads: false, urban: true, fold: { text: true }, layScroll: 0 };
+const LCFG = { time: true, tol: 25, gone: 'fade', undated: 'show', later: 'fade', rivers: true, lakes: true, provinces: true, regArea: false, aqueducts: false, walls: false, canals: false, own: true,
+  nmPlaces: true, nmRegions: true, nmMountains: true, nmIslands: true, twoCol: false, sites: false, cats: { settl: true }, coast: true, empires: true, regions: 'labels', roads: false, urban: true, fold: { text: true }, layScroll: 0 };
 // the colours of the periods (when several are shown in their own colours); the reader can set them (Map settings → Period)
 const RANGE_COL = ['#c0503a', '#2f78b5', '#4a9a3a', '#9a55b5', '#c9922b'];
 const rangeCol = k => (M.cfg?.rangeCols?.[k]) || RANGE_COL[k % RANGE_COL.length];
@@ -118,7 +119,7 @@ function layerStyle(st, C) {
   const before = (id, ...ls) => { const k = st.layers.findIndex(l => l.id === id); st.layers.splice(k < 0 ? st.layers.length : k, 0, ...ls); };
   st.sources.sites = { type: 'geojson', data: sitesData() };
   if (M.anc) {
-    for (const n of ['water', 'empires', 'provinces', 'areas', 'roads', 'urban']) st.sources['a_' + n] = { type: 'geojson', data: A + n + '.json' };
+    for (const n of ['water', 'empires', 'provinces', 'areas', 'roads', 'urban', 'aqueducts', 'walls', 'canals']) st.sources['a_' + n] = { type: 'geojson', data: A + n + '.json' };
     const ac = ['match', ['get', 'k'], 'people', dark ? '#c98a5a' : '#c0703c', dark ? '#8fb86a' : '#6f9a46'];
     before('lakes',
       { id: 'a-water', type: 'fill', source: 'a_water', paint: { 'fill-color': C.sea } },
@@ -130,9 +131,15 @@ function layerStyle(st, C) {
       { id: 'a-prov', type: 'line', source: 'a_provinces', paint: { 'line-color': '#b23a3a', 'line-width': 0.9, 'line-opacity': 0.7, 'line-dasharray': [3, 2] } },
       { id: 'a-roads', type: 'line', source: 'a_roads', filter: ['==', ['get', 'c'], 1], layout: { 'line-cap': 'round' }, paint: { 'line-color': dark ? '#b58a5e' : '#8a5a32', 'line-width': ['interpolate', ['linear'], ['zoom'], 3, ['case', ['==', ['get', 'm'], 1], 0.7, 0.35], 8, ['case', ['==', ['get', 'm'], 1], 2, 1]] } },
       { id: 'a-roads-a', type: 'line', source: 'a_roads', filter: ['!=', ['get', 'c'], 1], paint: { 'line-color': dark ? '#b58a5e' : '#8a5a32', 'line-dasharray': [2, 2], 'line-width': ['interpolate', ['linear'], ['zoom'], 3, ['case', ['==', ['get', 'm'], 1], 0.7, 0.35], 8, ['case', ['==', ['get', 'm'], 1], 2, 1]] } },
+      { id: 'a-canals', type: 'line', source: 'a_canals', paint: { 'line-color': C.river, 'line-width': ['interpolate', ['linear'], ['zoom'], 4, 0.8, 10, 2.5] } },
+      { id: 'a-aqueducts', type: 'line', source: 'a_aqueducts', paint: { 'line-color': dark ? '#7fb3d9' : '#3c78a8', 'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.7, 12, 2.4], 'line-dasharray': [4, 1.5] } },
+      { id: 'a-walls', type: 'line', source: 'a_walls', paint: { 'line-color': dark ? '#c9b48a' : '#6b5536', 'line-width': ['interpolate', ['linear'], ['zoom'], 4, 1.2, 12, 3.5] } },
       { id: 'a-urban', type: 'fill', source: 'a_urban', minzoom: 8, paint: { 'fill-color': dark ? '#5a5144' : '#d9cbb0', 'fill-opacity': 0.8 } },
       { id: 'a-urban-line', type: 'line', source: 'a_urban', minzoom: 8, paint: { 'line-color': dark ? '#8a7c66' : '#a8936c', 'line-width': 1 } });
   }
+  // your own places
+  st.sources.own = { type: 'geojson', data: ownFC() };
+  before('pl-region', { id: 'own', type: 'circle', source: 'own', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 3, 10, 6], 'circle-color': C.acc, 'circle-stroke-color': C.bg, 'circle-stroke-width': 1.5 } });
   before('pl-region', { id: 'sites', type: 'circle', source: 'sites', minzoom: 2.5, paint: {
     // zoomed out only the significant places (0–9), the others appear step by step
     'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, ['+', 1.4, ['*', 0.15, ['get', 'w']]], 8, ['+', 3, ['*', 0.2, ['get', 'w']]], 12, ['+', 4.5, ['*', 0.25, ['get', 'w']]]],
@@ -148,11 +155,15 @@ function layerProps() {
   const vis = v => v ? 'visible' : 'none';
   return {
     'a-water': { vis: vis(c.coast && sf), filter: sf || false },
-    'a-areas': { vis: vis(c.regions === 'areas'), filter: ['all', ['in', ['get', 'k'], ['literal', c.peoples ? ['region', 'people'] : ['region']]], tf], paint: { 'fill-opacity': tOpacity(0.12) } },
-    'a-areas-edge': { vis: vis(c.regions === 'areas'), filter: ['all', ['in', ['get', 'k'], ['literal', c.peoples ? ['region', 'people'] : ['region']]], tf], paint: { 'line-opacity': tOpacity(0.16) } },
+    'a-areas': { vis: vis(c.regArea), filter: ['all', ['in', ['get', 'k'], ['literal', c.peoples ? ['region', 'people'] : ['region']]], tf], paint: { 'fill-opacity': tOpacity(0.12) } },
+    'a-areas-edge': { vis: vis(c.regArea), filter: ['all', ['in', ['get', 'k'], ['literal', c.peoples ? ['region', 'people'] : ['region']]], tf], paint: { 'line-opacity': tOpacity(0.16) } },
     'a-emp': { vis: vis(c.empires && sf), filter: sf || false },
     'a-emp-line': { vis: vis(c.empires && sf), filter: sf || false },
-    'a-prov': { vis: vis(c.empires && sf), filter: sf || false },
+    'a-prov': { vis: vis(c.provinces !== false && sf), filter: sf || false },
+    'a-aqueducts': { vis: vis(c.aqueducts), filter: tf, paint: { 'line-opacity': tOpacity(0.85) } },
+    'a-walls': { vis: vis(c.walls), filter: tf, paint: { 'line-opacity': tOpacity(0.9) } },
+    'a-canals': { vis: vis(c.canals), filter: tf, paint: { 'line-opacity': tOpacity(0.85) } },
+    own: { vis: vis(c.own !== false) },
     'a-roads': { vis: vis(c.roads), filter: ['all', ['==', ['get', 'c'], 1], tf], paint: { 'line-opacity': tOpacity(0.85) } },
     'a-roads-a': { vis: vis(c.roads), filter: ['all', ['!=', ['get', 'c'], 1], tf], paint: { 'line-opacity': tOpacity(0.7) } },
     rivers: { vis: vis(c.rivers !== false) }, lakes: { vis: vis(c.lakes !== false) },
@@ -173,8 +184,10 @@ function applyLayersTo(layers) {
     if (p.paint) Object.assign(l.paint, p.paint);
   }
 }
+function ownFC() { return { type: 'FeatureCollection', features: [...(M.own?.values() || [])].map(p => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lon, p.lat] }, properties: { id: p.id } })) }; }
 function applyLayers() {
   if (!M.map?.getLayer('sites')) return;
+  M.map.getSource('own')?.setData(ownFC());
   const P = layerProps(), dark = document.documentElement.dataset.theme === 'dark';
   for (const [id, p] of Object.entries(P)) {
     if (!M.map.getLayer(id)) continue;
@@ -209,8 +222,9 @@ function moreLabels(placed, W, H) {
   const hit = r => placed.some(q => r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1]);
   const ctx = (drawLabels.c ??= document.createElement('canvas').getContext('2d'));
   // regions, peoples, mountains, islands along their lines (Barrington Atlas)
-  if (M.cfg.regions !== 'off' && M.ancLab) {
-    const kinds = new Set(['region', 'plain', 'water', ...(M.cfg.peoples ? ['people'] : []), ...(z >= 6 ? ['mountain', 'islands'] : [])]);
+  const c = M.cfg;
+  if ((c.nmRegions || c.nmMountains || c.nmIslands) && M.ancLab) {
+    const kinds = new Set([...(c.nmRegions ? ['region', 'plain', 'people'] : []), ...(c.nmIslands ? ['water', ...(z >= 6 ? ['islands'] : [])] : []), ...(c.nmMountains && z >= 6 ? ['mountain'] : [])]);
     const items = [];
     for (const L of M.ancLab) {
       if (!kinds.has(L.k) || L.bb[2] < b.getWest() || L.bb[0] > b.getEast() || L.bb[3] < b.getSouth() || L.bb[1] > b.getNorth()) continue;
@@ -236,7 +250,7 @@ function moreLabels(placed, W, H) {
     }
   }
   // the places in view: their names where there is room, the most significant first (zoomed out: only those)
-  if (M.cfg.pfOn === false && z >= 3 && M.map.getLayer('sites')) {
+  if (M.cfg.pfOn === false && c.nmPlaces !== false && z >= 3 && M.map.getLayer('sites')) {
     const minW = dotMinW(z) + (z < 7 ? 1 : 0);                     // names a step more selective than dots
     const seen = new Set(), cand = [];
     for (const f of M.map.queryRenderedFeatures({ layers: ['sites'] })) {
@@ -355,15 +369,21 @@ function foldSec(k, title, body) {
 const tgl = (k, l, on) => `<button type="button" class="mtg${(on ?? M.cfg[k]) ? ' on' : ''}" data-mlay="${k}"><span class="ck"></span>${l}</button>`;
 const segc = (k, opts, lbl) => `${lbl ? `<div class="navh">${lbl}</div>` : ''}<div class="seg" role="group">${opts.map(([v, l]) => `<button type="button" data-mcfg="${k}" data-mv="${v}" class="${String(M.cfg[k]) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
 // the layer menu (layers button): what the map shows
+// the layer menu: six groups, each with a count of what is switched on
 function layersHTML() {
-  const anc = M.anc;
-  return foldSec('ptext', 'Places of the text', tgl('peoples', 'Peoples (Isauri, Persae …)'))
-    + foldSec('sites', 'Kinds of places', '<p class="hint small">Which places are shown while “Places from” is switched off.</p><div class="macts" style="margin:.1rem 0 .3rem"><button type="button" data-mcatall="1">All</button><button type="button" data-mcatall="0">None</button></div><div class="mcats">' + SITE_CATS.map(([k, l, , c1, c2]) => `<button type="button" class="mtg${M.cfg.cats?.[k] ? ' on' : ''}" data-mcat="${k}"><span class="ck"></span><i class="dot" style="--c:${document.documentElement.dataset.theme === 'dark' ? c2 : c1}"></i>${l}</button>`).join('') + '</div>')
-    + foldSec('geo', 'Geography', tgl('rivers', 'Rivers', M.cfg.rivers !== false) + tgl('lakes', 'Lakes', M.cfg.lakes !== false))
-    + foldSec('anc', 'Ancient world', anc ? tgl('coast', 'Coastlines of the period') + tgl('empires', 'Empires and Roman provinces')
-      + segc('regions', [['off', 'Off'], ['labels', 'Names'], ['areas', 'Areas']], 'Regions and peoples') + tgl('roads', 'Roads (Barrington Atlas)') + tgl('urban', 'City outlines')
-      : '<p class="hint small">Needs the download <b>Ancient world</b> (coastlines of the periods, empires and provinces, regions and peoples, roads).</p><button type="button" data-mapdl="1">Open Instruments → Maps</button>')
-    + foldSec('modern', 'Today', tgl('borders', 'Modern borders'));
+  const c = M.cfg, anc = M.anc, dark = document.documentElement.dataset.theme === 'dark';
+  const need = '<p class="hint small">Needs the download <b>Ancient world</b>.</p><button type="button" data-mapdl="1">Open Instruments → Maps</button>';
+  const on = (...ks) => ks.filter(k => typeof k === 'boolean' ? k : c[k] !== false && !!c[k]).length;
+  const grp = (k, title, n, body) => foldSec(k, `${title}${n ? ` <small class="mon">· ${n} on</small>` : ''}`, body);
+  return grp('lplaces', 'Places', on('peoples', c.pfOn === false), tgl('peoples', 'Peoples among the places of the text')
+      + `<div class="navh">All places <small>(shown while “Places from” is switched off)</small></div><div class="macts" style="margin:.1rem 0 .3rem"><button type="button" data-mcatall="1">All</button><button type="button" data-mcatall="0">None</button></div><div class="mcats">`
+      + SITE_CATS.map(([k, lb, , c1, c2]) => `<button type="button" class="mtg${c.cats?.[k] ? ' on' : ''}" data-mcat="${k}"><span class="ck"></span><i class="dot" style="--c:${dark ? c2 : c1}"></i>${lb}</button>`).join('') + '</div>')
+    + grp('lland', 'Landscape', on(!!(anc && c.coast), 'rivers', 'lakes'), (anc ? segc('coast', [[false, 'Today'], [true, 'Of the period']], 'Coastline') : '') + tgl('rivers', 'Rivers', c.rivers !== false) + tgl('lakes', 'Lakes', c.lakes !== false)
+      + '<p class="hint small">Relief and contour lines follow (stage 4).</p>')
+    + grp('lpol', 'Political', on(!!(anc && c.empires), !!(anc && c.provinces !== false), !!(anc && c.regArea), 'borders'), (anc ? tgl('empires', 'Empires and kingdoms at the date') + tgl('provinces', 'Roman provinces at the date', c.provinces !== false) + tgl('regArea', 'Areas of regions and peoples') : need) + tgl('borders', 'Modern borders'))
+    + grp('lbuilt', 'Built world', anc ? on('roads', 'urban', 'aqueducts', 'walls', 'canals') : 0, anc ? tgl('roads', 'Roads (Barrington Atlas)') + tgl('aqueducts', 'Aqueducts') + tgl('walls', 'Frontier walls (Hadrian’s Wall, limes …)') + tgl('canals', 'Canals') + tgl('urban', 'City outlines') : need)
+    + grp('lnames', 'Names on the map', on(c.nmPlaces !== false, c.nmRegions !== false, c.nmMountains !== false, c.nmIslands !== false), tgl('nmPlaces', 'Places', c.nmPlaces !== false) + tgl('nmRegions', 'Regions and peoples', c.nmRegions !== false) + tgl('nmMountains', 'Mountains', c.nmMountains !== false) + tgl('nmIslands', 'Islands and seas', c.nmIslands !== false))
+    + grp('lown', 'Your own', on(c.own !== false), tgl('own', 'Your own places', c.own !== false) + '<p class="hint small">Drawings follow (stage 3).</p>');
 }
 // the map settings (hold the map button, or ☰ → Settings → More map settings): how the map behaves
 function settingsHTML() {
@@ -392,6 +412,11 @@ function rightPop(k, title, html) {
   if (!pop._sw) { pop._sw = true; pop.addEventListener('scroll', () => { const kk = pop.dataset.k; if (kk !== 'layers' && kk !== 'settings') return; clearTimeout(pop._st); pop._st = setTimeout(() => { (M.cfg.popScroll ??= {})[kk] = pop.scrollTop; saveMapCfg(); }, 300); }); }
 }
 function layersPop() { rightPop('layers', 'Layers', layersHTML()); }
+// after a change: the counts in the group headings are brought up to date (scroll position kept)
+function refreshLayersPop() {
+  const pop = $('#mapPop'); if (pop.hidden || pop.dataset.k !== 'layers') return;
+  const y = pop.scrollTop; pop.innerHTML = `<div class="mph"><span class="navh">Layers</span></div>${layersHTML()}`; pop.scrollTop = y;
+}
 // hold the map button: the map settings as one menu (like the colours and the grammar line)
 async function mapSettingsDialog() { await mapCfg(); await dialog(`<h3>Map settings</h3><div class="mapset">${settingsHTML()}</div>`, [['cancel', 'Close']]); }
 // the map settings also work inside dialogs (☰ → Settings → Map, and the dialog above)
@@ -401,6 +426,11 @@ document.addEventListener('click', async ev => {
 });
 // the clicks of the layer menu and the slider (wired once, from wireMapUI)
 async function layerClick(b) {
+  const r = await layerClick1(b);
+  if (r && !b.dataset.mfold && b.closest('#mapPop')) refreshLayersPop();
+  return r;
+}
+async function layerClick1(b) {
   const d = b.dataset;
   if (d.mfold) { const f = b.closest('.mfold'), on = !f.classList.contains('open'); f.classList.toggle('open', on); (M.cfg.fold ??= {})[d.mfold] = on; saveMapCfg(); return true; }
   if (d.mcount) { countDevice(b); return true; }
@@ -416,7 +446,7 @@ async function layerClick(b) {
     renderTime(); applyLayers(); return true;
   }
   if (d.mlay) {
-    const k = d.mlay; M.cfg[k] = !M.cfg[k]; b.classList.toggle('on', M.cfg[k]); await saveMapCfg();
+    const k = d.mlay; M.cfg[k] = !(M.cfg[k] ?? ['rivers', 'lakes', 'provinces', 'own', 'nmPlaces', 'nmRegions', 'nmMountains', 'nmIslands'].includes(k)); b.classList.toggle('on', M.cfg[k]); await saveMapCfg();
     if (k === 'borders') M.map?.setLayoutProperty('borders', 'visibility', M.cfg.borders ? 'visible' : 'none');
     if (k === 'peoples' || k === 'mark') { markPlaces(); await refreshMapData(); }
     if (k === 'time') { timeFor(S.text); renderTime(); }

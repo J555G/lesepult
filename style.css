@@ -1027,3 +1027,5 @@ details.mtree.l1{margin-left:1.2rem}details.mtree.l1>summary{font-size:14px}
 .mlbl.site.big{color:var(--fg)}
 .mtx{margin-left:auto}
 dialog .sver{margin:1rem 0 0;font:11.5px var(--ui);color:var(--mut);text-align:center}
+.mfh .mon{font-weight:400;color:var(--acc);font-size:12px}
+.mfb .navh small{font-weight:400}

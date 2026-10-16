@@ -18,7 +18,7 @@
   {
    "id": "ancient",
    "name": "Ancient world",
-   "desc": "Coastlines of the periods, empires and Roman provinces at several dates, names of regions and peoples, roads, city outlines (Ancient World Mapping Center, ODbL)",
+   "desc": "Coastlines of the periods, empires and Roman provinces at several dates, names of regions and peoples, roads, aqueducts, frontier walls, canals, city outlines (Ancient World Mapping Center, ODbL)",
    "files": [
     "ancient/water.json",
     "ancient/empires.json",
@@ -26,10 +26,13 @@
     "ancient/labels.json",
     "ancient/areas.json",
     "ancient/roads.json",
-    "ancient/urban.json"
+    "ancient/urban.json",
+    "ancient/aqueducts.json",
+    "ancient/walls.json",
+    "ancient/canals.json"
    ],
-   "bytes": 1923196,
-   "v": "9c9842d7acac"
+   "bytes": 2016341,
+   "v": "99a80f855cd0"
   },
   {
    "id": "places",
