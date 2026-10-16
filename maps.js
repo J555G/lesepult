@@ -57,8 +57,8 @@ async function mapHas(id) { return !!(await mapInstalled())[id]; }
 async function downloadMapPkg(p, onp) {
   const c = await caches.open(MAPCACHE); let done = 0;
   for (const f of p.files) {
-    const url = new URL(MAPS + f, location.href).href;
-    const r = await fetch(url, { cache: 'reload' }); if (!r.ok) throw new Error(f + ': ' + r.status);
+    const url = new URL(MAPS + f, location.href).href, from = p.url ? new URL(f, p.url).href : url;
+    const r = await fetch(from, { cache: 'reload' }); if (!r.ok) throw new Error(f + ': ' + r.status);
     const b = await r.blob(); await c.put(url, new Response(b, { headers: { 'Content-Type': f.endsWith('.js') ? 'text/javascript' : f.endsWith('.css') ? 'text/css' : f.endsWith('.json') ? 'application/json' : 'application/octet-stream' } }));
     done += b.size; onp?.(Math.min(1, done / p.bytes));
   }

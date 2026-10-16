@@ -180,7 +180,7 @@ async function mapGoAny(id, i) {
 }
 
 // ---------------------------------------------------------------- saved maps
-const MAP_KEYS = ['pfOn', 'sel', 'provinces', 'regArea', 'aqueducts', 'walls', 'canals', 'own', 'nmPlaces', 'nmRegions', 'nmMountains', 'nmIslands', 'rivers', 'lakes', 'dOff', 'dLen', 'sites', 'cats', 'coast', 'empires', 'regions', 'roads', 'urban', 'borders', 'peoples', 'names', 'time', 'tol', 'gone', 'undated', 'twoCol', 'rangeCols'];
+const MAP_KEYS = ['pfOn', 'sel', 'provinces', 'regArea', 'aqueducts', 'walls', 'canals', 'own', 'nmPlaces', 'nmRegions', 'nmMountains', 'nmIslands', 'rivers', 'lakes', 'dOff', 'dLen', 'basemap', 'sites', 'cats', 'coast', 'empires', 'regions', 'roads', 'urban', 'borders', 'peoples', 'names', 'time', 'tol', 'gone', 'undated', 'twoCol', 'rangeCols'];
 function mapState() {
   const c = M.map.getCenter();
   return { scope: M.cfg.scope, textId: S.text?.id ?? null, ref: curRef()?.s ?? null,
@@ -200,7 +200,9 @@ async function openSavedMap(m) {
   if (m.textId != null && (!S.text || String(S.text.id) !== String(m.textId)) && !['sel', 'author'].includes(m.scope)) {
     await openText(m.textId); if (m.ref) await goTo(m.ref);
   }
+  const bm = M.cfg.basemap;
   Object.assign(M.cfg, JSON.parse(JSON.stringify(m.layers || {})), { scope: m.scope }); await saveMapCfg();
+  if ((M.cfg.basemap || 'hd') !== (bm || 'hd')) { M.map.setStyle(mapStyle(M.colors)); await new Promise(r => M.map.once('styledata', r)); }
   timeFor(S.text); if (m.ranges) M.T.ranges = JSON.parse(JSON.stringify(m.ranges));
   if (m.layers?.borders != null) M.map.setLayoutProperty('borders', 'visibility', M.cfg.borders ? 'visible' : 'none');
   await loadAncientLabels();

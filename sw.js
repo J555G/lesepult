@@ -1,5 +1,5 @@
 // Offline cache for the app shell (dictionaries and texts live in IndexedDB, not here).
-const CACHE = 'lesepult-v141';
+const CACHE = 'lesepult-v142';
 const FILES = ['./', 'index.html', 'app.js', 'maps.js', 'maplayers.js', 'mapsaved.js', 'mapdraw.js', 'style.css', 'fonts.css', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'fonts/roboto-condensed-latin-400-normal.woff2',
   ...['greek', 'greek-ext', 'latin', 'latin-ext'].flatMap(s => ['400-normal', '700-normal', '400-italic'].map(w => `fonts/gentium-book-plus-${s}-${w}.woff2`))];
 
@@ -30,6 +30,7 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url), path = url.pathname;
   if (url.origin !== self.location.origin) return;   // e.g. the private repository (GitHub API): never cached
+  if (!path.startsWith(new URL(self.registration.scope).pathname)) return;   // other sites on the same host (the map packages, lesepult-maps): straight to the network
   if (path.includes('/packages/') || path.includes('/texts/')) return;   // dictionary and text downloads go straight to the network (stored in IndexedDB)
   // map data (Dictionaries → Maps): from the downloaded copy, otherwise from the network
   // the list of map packages: always the newest from the network (so new packages and updates show), the stored copy offline
