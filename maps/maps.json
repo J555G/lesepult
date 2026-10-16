@@ -10,10 +10,13 @@
     "base/rivers.json",
     "base/borders.json",
     "base/lib/maplibre-gl.js",
-    "base/lib/maplibre-gl.css"
+    "base/lib/maplibre-gl.css",
+    "base/lib5/maplibre-gl.js",
+    "base/lib5/maplibre-gl.css",
+    "base/lib/pmtiles.js"
    ],
-   "bytes": 4453438,
-   "v": "a40707ab085b"
+   "bytes": 5599967,
+   "v": "45214f4384b5"
   },
   {
    "id": "ancient",
@@ -31,8 +34,8 @@
     "ancient/walls.json",
     "ancient/canals.json"
    ],
-   "bytes": 2016341,
-   "v": "99a80f855cd0"
+   "bytes": 4251842,
+   "v": "4ceccda5cff3"
   },
   {
    "id": "places",
@@ -43,6 +46,16 @@
    ],
    "bytes": 3736829,
    "v": "cf3cace5e45f"
+  },
+  {
+   "id": "landscape",
+   "name": "Landscape – detailed",
+   "desc": "Coasts and lakes as exact as OpenStreetMap (edited by the Ancient World Mapping Center, ODbL), rivers and modern borders without simplification – for zooming in close (the base map is simplified)",
+   "files": [
+    "landscape/landscape.pmtiles"
+   ],
+   "bytes": 25459965,
+   "v": "93212c0c6b6b"
   }
  ]
 }

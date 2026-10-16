@@ -29,6 +29,7 @@ const EUROPE_ICON = '<i class="eu" aria-hidden="true"></i>'; // map image: Natur
 async function mapCfg() {
   if (!M.cfg) {
     await ensureMapScripts();
+    M.engineSet = (await setting('mapEngine')) || '5';
     const saved = (await setting('mapCfg')) || {};
     if (!saved.v2) { delete saved.mark; saved.v2 = true; }                 // place names are no longer marked in the text by default
     if (!saved.v3) {                                                     // "Places from": switch + scale + selection (v123→124)
@@ -58,19 +59,21 @@ async function downloadMapPkg(p, onp) {
   for (const f of p.files) {
     const url = new URL(MAPS + f, location.href).href;
     const r = await fetch(url, { cache: 'reload' }); if (!r.ok) throw new Error(f + ': ' + r.status);
-    const b = await r.blob(); await c.put(url, new Response(b, { headers: { 'Content-Type': f.endsWith('.js') ? 'text/javascript' : f.endsWith('.css') ? 'text/css' : 'application/json' } }));
+    const b = await r.blob(); await c.put(url, new Response(b, { headers: { 'Content-Type': f.endsWith('.js') ? 'text/javascript' : f.endsWith('.css') ? 'text/css' : f.endsWith('.json') ? 'application/json' : 'application/octet-stream' } }));
     done += b.size; onp?.(Math.min(1, done / p.bytes));
   }
   const inst = await mapInstalled(); inst[p.id] = p.v; await setting('mapPk', inst);
   if (p.id === 'places') { M.P = null; M.sitesFC = null; await placesForText(); }
-  if (p.id === 'ancient' && M.map) { M.map.remove(); M.map = null; M.ancLab = null; }
+  if ((p.id === 'ancient' || /\.pmtiles$/.test(p.files[0])) && M.map) { M.map.remove(); M.map = null; M.ancLab = null; }
+  for (const f of p.files) M.pmb?.delete(new URL(MAPS + f, location.href).href);
 }
 async function deleteMapPkg(p) {
   const c = await caches.open(MAPCACHE);
   for (const f of p.files) await c.delete(new URL(MAPS + f, location.href).href);
   const inst = await mapInstalled(); delete inst[p.id]; await setting('mapPk', inst);
   if (p.id === 'places') { M.P = null; M.hits = new Map(); markPlaces(); }
-  if ((p.id === 'base' || p.id === 'ancient') && M.map) { M.map.remove(); M.map = null; M.ancLab = null; }
+  if ((p.id === 'base' || p.id === 'ancient' || /\.pmtiles$/.test(p.files[0])) && M.map) { M.map.remove(); M.map = null; M.ancLab = null; }
+  for (const f of p.files) M.pmb?.delete(new URL(MAPS + f, location.href).href);
   if (p.id === 'places') M.sitesFC = null;
 }
 // the Maps section of the Instruments dialog
@@ -398,12 +401,39 @@ async function scopePlaces() {
 
 // ---------------------------------------------------------------- the map
 let mapLibP = null;
+// the map engine: MapLibre 5 (base/lib5) unless the reader chose the previous one (4.7, base/lib) in the map settings,
+// or the base map was downloaded before version 5 came with it
+const inCache = async f => !!(await (await caches.open(MAPCACHE)).match(new URL(MAPS + f, location.href).href));
+async function engineDir() { return (await setting('mapEngine')) !== '4' && await inCache('base/lib5/maplibre-gl.js') ? 'base/lib5/' : 'base/lib/'; }
+const addScript = src => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error(src.split('/').pop() + ' not available')); document.head.append(s); });
 function loadMapLib() {
   if (window.maplibregl) return Promise.resolve();
-  return mapLibP ??= new Promise((res, rej) => {
-    const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = MAPS + 'base/lib/maplibre-gl.css'; document.head.append(l);
-    const s = document.createElement('script'); s.src = MAPS + 'base/lib/maplibre-gl.js'; s.onload = res; s.onerror = () => { mapLibP = null; rej(new Error('map engine not available')); }; document.head.append(s);
-  });
+  return mapLibP ??= (async () => {
+    const dir = MAPS + (M.engineDir = await engineDir());
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = dir + 'maplibre-gl.css'; document.head.append(l);
+    try { await addScript(dir + 'maplibre-gl.js'); } catch (e) { mapLibP = null; throw new Error('map engine not available'); }
+    // packages in PMTiles format (one file each, read from the device)
+    if (await inCache('base/lib/pmtiles.js')) { try { await addScript(MAPS + 'base/lib/pmtiles.js'); pmInit(); } catch (_) { } }
+  })();
+}
+// PMTiles: the file is kept whole in the cache of the map packages; the map engine asks for pieces of it
+const pmBlob = u => { const m = (M.pmb ??= new Map()); if (!m.has(u)) m.set(u, caches.open(MAPCACHE).then(c => c.match(u)).then(r => { if (!r) { m.delete(u); throw new Error('package not downloaded'); } return r.blob(); })); return m.get(u); };
+class CacheSource {
+  constructor(u) { this.u = u; }
+  getKey() { return this.u; }
+  async getBytes(off, len) { const b = await pmBlob(this.u); return { data: await b.slice(off, off + len).arrayBuffer() }; }
+}
+function pmInit() {
+  if (M.pmProto || !window.pmtiles) return;
+  M.pmProto = new pmtiles.Protocol();
+  maplibregl.addProtocol('pmtiles', M.pmProto.tile);
+}
+// the address of a PMTiles package for the map style (null when it is not downloaded or cannot be read)
+function pmUrl(f) {
+  if (!M.pmProto || !M.pkFiles?.has(f)) return null;
+  const u = new URL(MAPS + f, location.href).href;
+  if (!M.pmAdded?.has(u)) { M.pmProto.add(new pmtiles.PMTiles(new CacheSource(u))); (M.pmAdded ??= new Set()).add(u); }
+  return 'pmtiles://' + u;
 }
 function mapColors() {
   const cs = getComputedStyle(document.documentElement), v = n => cs.getPropertyValue(n).trim();
@@ -449,6 +479,7 @@ async function showMap1() {
   // which files of "Ancient world" are on the device (an older download lacks the newer layers; they are left out, not fetched)
   M.ancFiles = new Set();
   if (M.anc) { const c = await caches.open(MAPCACHE); for (const n of ['water', 'empires', 'provinces', 'areas', 'roads', 'urban', 'aqueducts', 'walls', 'canals']) if (await c.match(new URL(MAPS + 'ancient/' + n + '.json', location.href).href)) M.ancFiles.add(n); }
+  M.pkFiles = new Set(); { const c = await caches.open(MAPCACHE); for (const f of ['landscape/landscape.pmtiles']) if (await c.match(new URL(MAPS + f, location.href).href)) M.pkFiles.add(f); }
   M.step = 'names of regions'; if (M.anc) await loadAncientLabels();
   M.step = 'gazetteer'; await loadPlaceIndex();
   M.step = 'drawings'; await loadDrawings(); await dScopeUpdate();
@@ -497,7 +528,8 @@ async function showMap1() {
 function mapFailed(msg) {
   M.failing = true; try { M.map?.remove(); } catch (_) { } M.failing = false;    // (removing the map loses its graphics context: not a new failure)
   M.map = null; M.showP = null;
-  $('#mapBody').innerHTML = `<div class="mapmsg"><p>${EUROPE_ICON}</p><p>The map could not be shown.</p><p class="hint small">${esc(msg)}</p><button type="button" id="mapRetry">Try again</button> <button type="button" id="mapResetCfg">Reset the map settings</button></div>`;
+  $('#mapBody').innerHTML = `<div class="mapmsg"><p>${EUROPE_ICON}</p><p>The map could not be shown.</p><p class="hint small">${esc(msg)}</p><button type="button" id="mapRetry">Try again</button> <button type="button" id="mapResetCfg">Reset the map settings</button>${M.engineDir === 'base/lib5/' ? ' <button type="button" id="mapEngine4">Use the previous map engine</button>' : ''}</div>`;
+  if ($('#mapEngine4')) $('#mapEngine4').onclick = async () => { await setting('mapEngine', '4'); location.reload(); };
   $('#mapRetry').onclick = () => showMap();
   // the settings that were in place are kept (mapCfgOld), so that the cause can be found later
   $('#mapResetCfg').onclick = async () => { const old = await setting('mapCfg'); if (old) await setting('mapCfgOld', { at: new Date().toISOString(), msg, cfg: old }); await del('settings', 'mapCfg'); M.cfg = null; M.T = null; M.sitesFC = null; showMap(); };

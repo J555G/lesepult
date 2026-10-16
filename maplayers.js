@@ -118,6 +118,21 @@ function layerStyle(st, C) {
   const dark = document.documentElement.dataset.theme === 'dark', A = MAPS + 'ancient/';
   const before = (id, ...ls) => { const k = st.layers.findIndex(l => l.id === id); st.layers.splice(k < 0 ? st.layers.length : k, 0, ...ls); };
   st.sources.sites = { type: 'geojson', data: sitesData() };
+  // Landscape – detailed (PMTiles): from zoom 5 the exact coasts, lakes and rivers replace those of the base map
+  const hd = pmUrl('landscape/landscape.pmtiles');
+  if (hd) {
+    const Z = 5, cut = id => { const l = st.layers.find(x => x.id === id); if (l) l.maxzoom = Z; };
+    ['lakes', 'rivers', 'borders'].forEach(cut);                 // (the land stays: outside the area of the package)
+    st.sources.hd = { type: 'vector', url: hd };
+    st.sources.hdarea = { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[[-20, 0], [80, 0], [80, 62], [-20, 62], [-20, 0]]] } } };
+    const after = (id, ...ls) => { const k = st.layers.findIndex(l => l.id === id); st.layers.splice(k + 1, 0, ...ls); };
+    after('land',
+      { id: 'hd-landbg', type: 'fill', source: 'hdarea', minzoom: Z, paint: { 'fill-color': C.land } },
+      { id: 'hd-sea', type: 'fill', source: 'hd', 'source-layer': 'sea', minzoom: Z, paint: { 'fill-color': C.sea } });   // (no outline: the edges of the tiles would show)
+    after('lakes', { id: 'hd-lakes', type: 'fill', source: 'hd', 'source-layer': 'lakes', minzoom: Z, paint: { 'fill-color': C.sea, 'fill-outline-color': C.coast } });
+    after('rivers', { id: 'hd-rivers', type: 'line', source: 'hd', 'source-layer': 'rivers', minzoom: Z, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': C.river, 'line-width': ['interpolate', ['linear'], ['zoom'], 5, 1, 9, 2.2, 13, 3.5] } });
+    after('borders', { id: 'hd-borders', type: 'line', source: 'hd', 'source-layer': 'borders', minzoom: Z, paint: { 'line-color': C.border, 'line-width': 0.8, 'line-dasharray': [3, 2] } });
+  }
   if (M.anc) {
     const empty = { type: 'FeatureCollection', features: [] };
     for (const n of ['water', 'empires', 'provinces', 'areas', 'roads', 'urban', 'aqueducts', 'walls', 'canals']) st.sources['a_' + n] = { type: 'geojson', data: !M.ancFiles || M.ancFiles.has(n) ? A + n + '.json' : empty };
@@ -168,6 +183,7 @@ function layerProps() {
     'a-roads': { vis: vis(c.roads), filter: ['all', ['==', ['get', 'c'], 1], tf], paint: { 'line-opacity': tOpacity(0.85) } },
     'a-roads-a': { vis: vis(c.roads), filter: ['all', ['!=', ['get', 'c'], 1], tf], paint: { 'line-opacity': tOpacity(0.7) } },
     rivers: { vis: vis(c.rivers !== false) }, lakes: { vis: vis(c.lakes !== false) },
+    'hd-rivers': { vis: vis(c.rivers !== false) }, 'hd-lakes': { vis: vis(c.lakes !== false) }, 'hd-borders': { vis: vis(!!c.borders) }, borders: { vis: vis(!!c.borders) },
     'a-urban': { vis: vis(c.urban) }, 'a-urban-line': { vis: vis(c.urban) },
     // "Places from" switched off: every place of the kinds ticked
     sites: { vis: vis(c.pfOn === false), filter: ['all', ['in', ['get', 'c'], ['literal', siteCats()]], ['>=', ['get', 'w'], dotMinW(M.map?.getZoom() ?? 6)], tf, ['!', ['in', ['get', 'id'], ['literal', shown]]]],
@@ -396,7 +412,8 @@ function layersHTML() {
 // the map settings (hold the map button, or ☰ → Settings → More map settings): how the map behaves
 function settingsHTML() {
   // folded sections (open ones remembered)
-  return foldSec('sgeneral', 'General', tgl('mark', 'Mark place names in the text') + tgl('jump', 'Move the map to a place chosen in the text'))
+  return foldSec('sgeneral', 'General', tgl('mark', 'Mark place names in the text') + tgl('jump', 'Move the map to a place chosen in the text')
+      + `<div class="navh">Map engine</div><div class="seg" role="group">${[['5', 'MapLibre 5.24'], ['4', 'MapLibre 4.7 (previous)']].map(([v, l]) => `<button type="button" data-mengine="${v}" class="${(M.engineSet || '5') === v ? 'on' : ''}">${l}</button>`).join('')}</div><p class="hint small">If the map does not appear or behaves oddly, the previous engine can be used. Takes effect when Pult is opened again.</p>`)
     + foldSec('stext', 'Places in texts', segc('persons', [['unsure', 'Mark as uncertain'], ['hide', 'Not as places']], 'Words that may name a person')
       + segc('names', [['text', 'As in the text'], ['english', 'English'], ['modern', 'Modern']], 'Names on the map'))
     + foldSec('stime', 'Period', tgl('time', 'Period filter (time slider)')
@@ -442,6 +459,8 @@ async function layerClick1(b) {
   const d = b.dataset;
   if (d.mfold) { const f = b.closest('.mfold'), on = !f.classList.contains('open'); f.classList.toggle('open', on); (M.cfg.fold ??= {})[d.mfold] = on; saveMapCfg(); return true; }
   if (d.mcount) { countDevice(b); return true; }
+  if (d.mengine) { M.engineSet = d.mengine; await setting('mapEngine', d.mengine); b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    if (d.mengine !== (M.engineDir === 'base/lib/' ? '4' : '5') && window.maplibregl) { const r = await dialog('<h3>Map engine</h3><p>Reload Pult now to use it?</p>', [['cancel', 'Later'], ['ok', 'Reload']], 'ok'); if (r.action === 'ok') location.reload(); } return true; }
   if (d.msigreset) { M.cfg.sigW = null; await saveMapCfg(); b.closest('.mfb').querySelectorAll('[data-msig]').forEach(x => { x.value = SIG_DEF[x.dataset.msig]; x.nextElementSibling.textContent = x.value; }); recomputeSig(); return true; }
   if (d.mcatall != null) { const on = d.mcatall === '1'; M.cfg.cats = Object.fromEntries(SITE_CATS.map(c => [c[0], on])); $('#mapPop .mcats')?.querySelectorAll('[data-mcat]').forEach(x => x.classList.toggle('on', on)); await saveMapCfg(); applyLayers(); return true; }
   if (d.mcat) { (M.cfg.cats ??= {})[d.mcat] = !M.cfg.cats[d.mcat]; b.classList.toggle('on', M.cfg.cats[d.mcat]);  await saveMapCfg(); applyLayers(); return true; }
