@@ -16,6 +16,22 @@
    "v": "a40707ab085b"
   },
   {
+   "id": "ancient",
+   "name": "Ancient world",
+   "desc": "Coastlines of the periods, empires and Roman provinces at several dates, names of regions and peoples, roads, city outlines (Ancient World Mapping Center, ODbL)",
+   "files": [
+    "ancient/water.json",
+    "ancient/empires.json",
+    "ancient/provinces.json",
+    "ancient/labels.json",
+    "ancient/areas.json",
+    "ancient/roads.json",
+    "ancient/urban.json"
+   ],
+   "bytes": 1923196,
+   "v": "9c9842d7acac"
+  },
+  {
    "id": "places",
    "name": "Ancient places",
    "desc": "The Pleiades gazetteer (CC BY 3.0): about 40,000 places with their Greek and Latin names – needed to find the places of a text",

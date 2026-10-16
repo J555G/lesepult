@@ -11,7 +11,7 @@ const EUROPE_ICON = '<i class="eu" aria-hidden="true"></i>'; // map image: Natur
 
 // ---------------------------------------------------------------- settings of the map
 async function mapCfg() {
-  if (!M.cfg) M.cfg = Object.assign({ mark: true, jump: true, scope: 'section', names: 'text', peoples: false, borders: false, rough: true, persons: 'unsure' }, (await setting('mapCfg')) || {});
+  if (!M.cfg) M.cfg = Object.assign({ mark: true, jump: true, scope: 'section', names: 'text', peoples: false, borders: false, rough: true, persons: 'unsure' }, JSON.parse(JSON.stringify(LCFG)), (await setting('mapCfg')) || {});
   return M.cfg;
 }
 async function saveMapCfg() { await setting('mapCfg', M.cfg); }
@@ -33,14 +33,16 @@ async function downloadMapPkg(p, onp) {
     done += b.size; onp?.(Math.min(1, done / p.bytes));
   }
   const inst = await mapInstalled(); inst[p.id] = p.v; await setting('mapPk', inst);
-  if (p.id === 'places') { M.P = null; await placesForText(); }
+  if (p.id === 'places') { M.P = null; M.sitesFC = null; await placesForText(); }
+  if (p.id === 'ancient' && M.map) { M.map.remove(); M.map = null; M.ancLab = null; }
 }
 async function deleteMapPkg(p) {
   const c = await caches.open(MAPCACHE);
   for (const f of p.files) await c.delete(new URL(MAPS + f, location.href).href);
   const inst = await mapInstalled(); delete inst[p.id]; await setting('mapPk', inst);
   if (p.id === 'places') { M.P = null; M.hits = new Map(); markPlaces(); }
-  if (p.id === 'base' && M.map) { M.map.remove(); M.map = null; }
+  if ((p.id === 'base' || p.id === 'ancient') && M.map) { M.map.remove(); M.map = null; M.ancLab = null; }
+  if (p.id === 'places') M.sitesFC = null;
 }
 // the Maps section of the Dictionaries dialog
 async function mapSectionHTML() {
@@ -155,6 +157,8 @@ const CUE = new Map(); for (const [t, ws] of Object.entries(CUES)) for (const w 
 const TITLE_CUES = new Set('caesar augustus augusta imperator rex regina dux comes praefectus tribunus consul proconsul magister βασιλευσ στρατηγοσ'.split(' '));
 const plainName = n => isGreek(n) ? n : String(n || '').normalize('NFD').replace(/[\u0304\u0306]/g, '').normalize('NFC');
 const PERSON_CUES = new Set('uxor coniunx coniux filia filius soror frater maritus nepos neptis privignus γυνη θυγατηρ υιοσ αδελφοσ αδελφη μητηρ'.split(' '));
+// short common words that begin sentences (Latin, Greek in Latin letters do not occur): never names when nothing analysed them
+const FUNC_WORDS = new Set('hic haec hoc huc hinc hanc hunc horum harum his ibi ita iam nam namque sed et at ac atque tum tunc cum ubi ut uti ne non quod quia qui quae quis quid quo qua quam quem quos quas eo ea eum eam eos eas id is ii iis in ad ab ex de per post ante inter sub super pro sine nec neque etiam quoque sic tamen enim autem ergo igitur deinde inde unde item interim postea postquam priusquam dum donec quamquam quamvis si nisi sin vel aut sive seu ille illa illud illi ipse ipsa ipsum iste ista nunc tum tandem omnes omnia multi multa pauci alii alius alia aliud ceteri reliqui nemo nihil nulla nullus magna magnus prima primum primo secundo tertio contra circiter circum propter ob prope apud sese se sibi suis suos sua sic hos has hae hi qui eodem eadem idem itaque proinde praeterea interea mox simul semel saepe diu'.split(' ').map(latkey));
 // proper nouns of a list of tokens: [{i, name, c:[place indices], cue, person}]
 async function findPlaceHits(toks, lemmaOf) {
   const words = []; let start = true;
@@ -175,6 +179,7 @@ async function findPlaceHits(toks, lemmaOf) {
     if (tk.ctx && tk.ctx.t?.[0] === 'a') continue;                                             // Greek treebank: an adjective (Ἀθηναῖος)
     if (l && !isGreek(l) && /\b(masc|fem|neut)\b/.test(tk.ana || '')) continue;               // Latin: an adjective (Romanus, Graecus)
     if (/^[IVXLCDM]+$/.test(tk.s)) continue;                    // Roman numerals
+    if (!l && s0 && (FUNC_WORDS.has(latkey(tk.s)) || tk.s.length <= 3)) continue;   // "Hic", "Quae" at the beginning of a sentence (no analysis)
     const name = l || tk.s;
     const c = placeCands(name, !!l || s0);
     if (!c.length) continue;
@@ -254,7 +259,7 @@ async function choosePlaces(hits, textId, workKey, year) {
     const person = !fix && (h.person || await dictSaysPerson(h.name));
     if (person && cfg.persons === 'hide') continue;
     const why = fix ? null : h.later ? 'later' : person ? 'person' : margin < 0.7 ? 'ambiguous' : h.stem ? 'form' : null;
-    res.set(h.i, { p, name: h.name, cands: h.c0 || h.c, fixed: !!fix, auto, unsure: why });
+    res.set(h.i, { p, name: h.name, cands: h.c0 || h.c, fixed: !!fix, auto, unsure: why, stem: !!h.stem && !fix });
   }
   // words the reader marked as places themselves
   for (const [i, v] of occ) if (!res.has(i) && v.p != null) { const p = placeById(v.p); if (p) res.set(i, { p, name: v.name || p.t, cands: [], fixed: true }); }
@@ -321,6 +326,7 @@ function scopeRange(scope) {
 }
 function scopeLabel(scope) {
   const cr = curRef(), w = S.text?.work;
+  if (scope === 'multi') return 'Several texts';
   if (scope === 'work') return w ? w.title : 'whole text';
   if (scope === 'book') return w && w.books.length > 1 ? w.books[S.text.bi] : 'whole text';
   if (!cr) return 'whole text';
@@ -328,14 +334,17 @@ function scopeLabel(scope) {
 }
 // places shown: {place id -> {p, n (passages), label}}
 async function scopePlaces() {
-  const cfg = await mapCfg(), out = new Map(), t = S.text; if (!t) return out;
+  const cfg = await mapCfg(), out = new Map(), t = S.text; if (!t && cfg.scope !== 'multi') return out;
   const add = (h, bi) => {
     if (isPeople(h.p) && !cfg.peoples) return;
     if (h.unsure === 'later' && M.sel?.h !== h) return;              // the time filter: later places only once confirmed
     let x = out.get(h.p.id); if (!x) out.set(h.p.id, x = { p: h.p, n: 0, names: {}, unsure: 0 });
-    x.n++; x.names[h.name] = (x.names[h.name] || 0) + 1; if (h.unsure) x.unsure++;
+    if (bi != null) (x.src ??= {})[bi] = (x.src[bi] || 0) + 1;
+    const nm = h.stem ? cleanT(h.p) : h.name;                // recognised by the stem only: the gazetteer's name, not the inflected word
+    x.n++; x.names[nm] = (x.names[nm] || 0) + 1; if (h.unsure) x.unsure++;
   };
-  if (cfg.scope === 'work' && t.work && t.work.books.length > 1) {
+  if (cfg.scope === 'multi') await multiPlaces(add);              // several texts (mapsaved.js)
+  else if (cfg.scope === 'work' && t.work && t.work.books.length > 1) {
     for (let bi = 0; bi < t.work.books.length; bi++) { const hs = bi === t.bi ? M.hits : await placesOfPart(bi); for (const h of hs.values()) add(h, bi); }
   } else {
     const [a, b] = scopeRange(cfg.scope);
@@ -359,7 +368,7 @@ function mapColors() {
   return { sea: dark ? '#1d2a33' : '#cfdde6', land: dark ? '#2e2b25' : '#f2ecdc', coast: dark ? '#5d5547' : '#b9ae92', river: dark ? '#4f84aa' : '#5d93bd', border: dark ? '#77706a' : '#a59c8a', fg: v('--fg'), acc: v('--acc'), bg: v('--bg') };
 }
 function mapStyle(C) {
-  return {
+  return layerStyle({
     version: 8, sources: {
       land: { type: 'geojson', data: MAPS + 'base/land.json' }, lakes: { type: 'geojson', data: MAPS + 'base/lakes.json' },
       rivers: { type: 'geojson', data: MAPS + 'base/rivers.json' }, borders: { type: 'geojson', data: MAPS + 'base/borders.json' },
@@ -376,7 +385,7 @@ function mapStyle(C) {
         paint: { 'circle-radius': ['case', ['get', 'sel'], 7, ['+', 3.5, ['min', 3, ['/', ['get', 'n'], 3]]]], 'circle-color': ['case', ['get', 'sel'], C.acc, ['==', ['get', 'k'], 'water'], C.river, C.fg],
           'circle-stroke-color': ['case', ['get', 'sel'], '#ffffff', C.bg], 'circle-stroke-width': ['case', ['get', 'sel'], 2, 1.2], 'circle-opacity': ['case', ['get', 'rough'], 0.55, 1] } },
     ],
-  };
+  }, C);                                                          // + the layers of maplayers.js
 }
 function showMap() { return M.showP ??= showMap1().finally(() => { M.showP = null; }); }   // one at a time
 async function showMap1() {
@@ -387,37 +396,49 @@ async function showMap1() {
     return;
   }
   await mapCfg();
+  M.anc = await mapHas('ancient');
+  if (M.anc) await loadAncientLabels();
+  await loadPlaceIndex();
+  timeFor(S.text);
   if (!M.map) {
     box.innerHTML = `<div id="mapCanvas"></div><div class="mlabels" id="mapLabels"></div>
       <div class="mtop"><button type="button" class="mscope" id="mapScope"></button><button type="button" class="mcheck" id="mapCheck" hidden></button></div>
-      <div class="mctl"><button type="button" class="mico" id="mapLayersBtn" title="Layers" aria-label="Layers">${LAYERS_ICON}</button><button type="button" class="mico" id="mapFullBtn" title="Full screen" aria-label="Full screen">${FULL_ICON}</button></div>
+      <div class="mctl"><button type="button" class="mico" id="mapLayersBtn" title="Layers" aria-label="Layers">${LAYERS_ICON}</button><button type="button" class="mico" id="mapTimeBtn" title="Period filter" aria-label="Period filter">${CLOCK_ICON}</button><button type="button" class="mico" id="mapFullBtn" title="Full screen" aria-label="Full screen">${FULL_ICON}</button></div>
+      <div class="mtime" id="mapTime" hidden>${timeBarHTML()}</div>
       <div class="mcard" id="mapCard" hidden></div><div class="mpop" id="mapPop" hidden></div>`;
     try { await loadMapLib(); } catch (e) { box.innerHTML = `<div class="mapmsg"><p>${esc(e.message)}</p></div>`; return; }
     M.colors = mapColors();
     const v = (await setting('mpos|last')) || { c: [24, 38], z: 4 };
     M.map = new maplibregl.Map({ container: 'mapCanvas', style: mapStyle(M.colors), center: v.c, zoom: v.z, attributionControl: false, dragRotate: false, pitchWithRotate: false, maxZoom: 13, minZoom: 1 });
     M.map.touchZoomRotate.disableRotation();
-    M.map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: 'Places: Pleiades (CC BY) · Map: Natural Earth · MapLibre' }));
+    M.map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: 'Places: Pleiades (CC BY) · Map: Natural Earth' + (M.anc ? ' · Ancient world: AWMC (ODbL)' : '') + ' · MapLibre' }));
+    M.map.once('load', () => document.querySelector('#mapBody .maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'));   // only the (i)
     M.map.on('move', () => { if (!M.lblRaf) M.lblRaf = requestAnimationFrame(() => { M.lblRaf = 0; drawLabels(); }); });
     M.map.on('moveend', () => { const c = M.map.getCenter(), z = M.map.getZoom(), v = { c: [+c.lng.toFixed(4), +c.lat.toFixed(4)], z: +z.toFixed(2) }; setting('mpos|last', v); if (M.posKey) setting('mpos|' + M.posKey, v); });
     M.map.on('click', 'pl', e => { const f = e.features?.[0]; if (f) selectPlace(f.properties.id, { from: 'map' }); });
+    M.map.on('click', 'sites', e => { if (M.map.queryRenderedFeatures(e.point, { layers: ['pl'] }).length) return; const f = e.features?.[0]; if (f) selectPlace(f.properties.id, { from: 'map' }); });
+    M.map.on('mouseenter', 'sites', () => { M.map.getCanvas().style.cursor = 'pointer'; });
+    M.map.on('mouseleave', 'sites', () => { M.map.getCanvas().style.cursor = ''; });
     M.map.on('click', e => { if (M.pick) { const p = M.pick; M.pick = null; $('#mapCanvas').classList.remove('picking'); p(e.lngLat); return; }
-      if (!M.map.queryRenderedFeatures(e.point, { layers: ['pl'] }).length && !e.originalEvent.target.closest?.('.mlbl')) closeCard(); });
+      if (!M.map.queryRenderedFeatures(e.point, { layers: ['pl', 'sites'] }).length && !e.originalEvent.target.closest?.('.mlbl')) closeCard(); });
     M.map.on('mouseenter', 'pl', () => { M.map.getCanvas().style.cursor = 'pointer'; });
     M.map.on('mouseleave', 'pl', () => { M.map.getCanvas().style.cursor = ''; });
     await new Promise(r => M.map.once('load', r));
-    wireMapUI();
+    wireMapUI(); wireTime();
   } else M.map.resize();
+  renderTime();
   await refreshMapData();
 }
 const LAYERS_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5-9-5zM3 12.5l9 5 9-5M3 16.5l9 5 9-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
 const FULL_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+// the gazetteer's title as a name: "Rhenus (river)" -> "Rhenus", "Lucus?" -> "Lucus"
+const cleanT = p => (p.t.split('/')[0].replace(/\s*\([^)]*\)|[?]/g, '').trim() || p.t);
 function labelOf(x) {
   const p = x.p, how = M.cfg.names;
-  if (how === 'english' || p.own) return p.own ? p.t : p.t.split('/')[0];
-  if (how === 'modern') { const m = p.names?.find(n => !['grc', 'la', 'r', ''].includes(n[1]) && /^[A-Za-zÀ-ɏ\s'’-]+$/.test(n[0])); return m ? m[0] : p.t.split('/')[0]; }
+  if (how === 'english' || p.own) return p.own ? p.t : cleanT(p);
+  if (how === 'modern') { const m = p.names?.find(n => !['grc', 'la', 'r', ''].includes(n[1]) && /^[A-Za-zÀ-ɏ\s'’-]+$/.test(n[0])); return m ? m[0] : cleanT(p); }
   const names = Object.entries(x.names || {}).sort((a, b) => b[1] - a[1]);         // as the text names it (its lemma)
-  const n = names[0]?.[0] || p.t.split('/')[0];
+  const n = names[0]?.[0] || cleanT(p);
   return isGreek(n) ? n : n.normalize('NFD').replace(/[\u0304\u0306]/g, '').normalize('NFC');   // Latin: without vowel lengths
 }
 async function refreshMapData() {
@@ -430,7 +451,8 @@ async function refreshMapData() {
   $('#mapScope').innerHTML = `${esc(scopeLabel(M.cfg.scope))} <small>· ${sp.size - (M.sel && sp.get(sel)?.extra ? 1 : 0)} place${sp.size === 1 ? '' : 's'}</small> ▾`;
   const nq = [...M.hits.values()].filter(h => h.unsure).length, ck = $('#mapCheck');
   ck.hidden = !nq; ck.innerHTML = `⚑ ${nq} to check`;
-  drawLabels();
+  if (M.T?.work !== (S.text ? workKeyOf(S.text) : null)) { timeFor(S.text); renderTime(); }
+  applyLayers();                                                    // (draws the labels)
 }
 // labels: drawn as text above the map (Greek and Latin in the reading font), without overlaps, most important first
 function drawLabels() {
@@ -450,7 +472,7 @@ function drawLabels() {
     placed.push(r);
     h += `<span class="mlbl${reg ? ' reg' : ''}${o.x.unsure && o.x.unsure === o.x.n ? ' unsure' : ''}${isWater(o.x.p) ? ' wat' : ''}${o.x.p.id === sel ? ' sel' : ''}${o.x.extra ? ' extra' : ''}" data-pid="${esc(String(o.x.p.id))}" style="left:${Math.round(x)}px;top:${Math.round(y)}px">${esc(txt)}</span>`;
   }
-  box.innerHTML = h;
+  box.innerHTML = h + moreLabels(placed, W, H);
 }
 
 // ---------------------------------------------------------------- choosing a place: from the text, the entry or the map
@@ -489,10 +511,11 @@ async function showCard(p) {
     <div id="mapAlso"></div>
     <div class="mpass">${occ.length ? occ.map(o => `<button type="button" class="mps" data-mgo="${o.i}"><b>${multi ? esc(short[o.bi]) + ' · ' : ''}${esc(refOf(S.refs, o.i))}</b><span>${ctx(o.i)}</span></button>`).join('')
       : '<p class="hint small">Not named in this part of the text.</p>'}</div>
-    <div class="macts">${w && multi ? '<button type="button" data-mwork="1">All passages in this work</button>' : ''}${cur != null ? '<button type="button" data-mnone="1">Not a place here</button>' : ''}</div>
+    <div class="macts">${w && multi && M.cfg.scope !== 'multi' ? '<button type="button" data-mwork="1">All passages in this work</button>' : ''}${cur != null ? '<button type="button" data-mnone="1">Not a place here</button>' : ''}</div>
     <div id="mapChange" hidden></div>`;
   card.hidden = false;
   card.scrollTop = 0;
+  if (M.cfg.scope === 'multi') cardMulti(p);
 }
 const UNSURE = { later: 'Known only from after the text’s time – not on the map', person: 'Possibly a person, not a place', ambiguous: 'Several places have this name', form: 'Recognised only from the form of the word' };
 // all passages of the work that name this place
@@ -536,7 +559,7 @@ async function saveCorrection(v, quiet) {
   const key = sc === 'occ' ? `pl|${t.id}|${s.i}` : sc === 'work' ? `plw|${workKeyOf(t)}|${k}` : `plg|${k}`;
   if (v == null) { await del('settings', key); if (sc !== 'occ') await del('settings', `pl|${t.id}|${s.i}`); }
   else await setting(key, Object.assign({ name: s.name }, v));
-  M.workCache = null;
+  M.workCache = null; M.anyCache = null;
   await placesForText();
   if (quiet) { await refreshMapData(); return; }
   const h = M.hits.get(s.i);
@@ -566,8 +589,9 @@ function wireMapUI() {
       const s0 = M.sel, v = JSON.parse(d.malso), t = S.text;
       if (b.dataset.mwhere === 'work') await setting(`plw|${workKeyOf(t)}|${exKey(s0.name)}`, Object.assign({ name: s0.name }, v));
       else for (const [i, h] of M.hits) if (i !== s0.i && exKey(h.name) === exKey(s0.name)) await setting(`pl|${t.id}|${i}`, Object.assign({ name: h.name }, v));
-      $('#mapAlso').innerHTML = ''; M.workCache = null; await placesForText(); await refreshMapData(); toast('Applied.'); return;
+      $('#mapAlso').innerHTML = ''; M.workCache = null; M.anyCache = null; await placesForText(); await refreshMapData(); toast('Applied.'); return;
     }
+    if (await layerClick(b) || await savedClick(b)) return;
     if (b.id === 'mapScope') return scopePop();
     if (b.id === 'mapLayersBtn') return layersPop();
     if (b.id === 'mapFullBtn') return mapFull();
@@ -591,9 +615,6 @@ function wireMapUI() {
       return;
     }
     if (d.mapdl) { return dictsDialog(); }
-    if (d.mlay) { const k = d.mlay; M.cfg[k] = !M.cfg[k]; b.classList.toggle('on', M.cfg[k]); await saveMapCfg(); if (k === 'borders') M.map.setLayoutProperty('borders', 'visibility', M.cfg.borders ? 'visible' : 'none'); if (k === 'peoples') markPlaces(); return refreshMapData(); }
-    if (d.mpers) { M.cfg.persons = d.mpers; await saveMapCfg(); b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); M.workCache = null; await placesForText(); return refreshMapData(); }
-    if (d.mnames) { M.cfg.names = d.mnames; await saveMapCfg(); b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); return drawLabels(); }
   });
   box.addEventListener('input', ev => {
     if (ev.target.id !== 'mapSearch') return;
@@ -603,29 +624,13 @@ function wireMapUI() {
     }, 200);
   });
 }
-function scopePop() {
-  const pop = $('#mapPop'); if (!pop.hidden && pop.dataset.k === 'scope') { pop.hidden = true; return; }
-  pop.dataset.k = 'scope';
-  pop.innerHTML = `<div class="navh">Places from</div><div class="seg" role="group">${[['section', 'Section'], ['chapter', 'Chapter'], ['book', 'Book'], ['work', 'Work']].map(([v, l]) => `<button type="button" data-mscopev="${v}" class="${M.cfg.scope === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
-  pop.hidden = false;
-}
 // places to check: everything uncertain in this part of the text, each confirmed or changed with one tap
 function checkPop(keep) {
   const pop = $('#mapPop'); if (!keep && !pop.hidden && pop.dataset.k === 'check') { pop.hidden = true; return; }
-  pop.dataset.k = 'check';
+  pop.dataset.k = 'check'; pop.classList.remove('mlayers');
   const list = [...M.hits].filter(([, h]) => h.unsure);
   const refOf = i => { let r = ''; for (const x of S.refs || []) { if (x.i <= i) r = x.s; else break; } return r; };
   pop.innerHTML = `<div class="navh">Places to check <small>· ${list.length}</small></div>` + (list.length ? `<div class="mcklist">${list.map(([i, h]) => `<div class="mck"><button type="button" class="mckt" data-mck="${i}"><b>${esc(refOf(i))}</b> ${esc(h.name.normalize('NFD').replace(/[\u0304\u0306]/g, '').normalize('NFC'))} → ${esc(h.p.t.split('/')[0])}<small>${esc(UNSURE[h.unsure])}</small></button><button type="button" class="mico2" data-mckok="${i}" title="Yes, this place">✓</button><button type="button" class="mico2" data-mckno="${i}" title="Not a place">✕</button></div>`).join('')}</div>` : '<p class="hint small">Nothing left to check.</p>');
-  pop.hidden = false;
-}
-function layersPop() {
-  const pop = $('#mapPop'); if (!pop.hidden && pop.dataset.k === 'layers') { pop.hidden = true; return; }
-  pop.dataset.k = 'layers';
-  const tg = (k, l) => `<button type="button" class="mtg${M.cfg[k] ? ' on' : ''}" data-mlay="${k}"><span class="ck"></span>${l}</button>`;
-  pop.innerHTML = `<div class="navh">Layers</div>${tg('peoples', 'Peoples (Isauri, Persae …)')}${tg('borders', 'Modern borders')}
-    <div class="navh">Words that may name a person</div><div class="seg" role="group">${[['unsure', 'Mark as uncertain'], ['hide', 'Not as places']].map(([v, l]) => `<button type="button" data-mpers="${v}" class="${M.cfg.persons === v ? 'on' : ''}">${l}</button>`).join('')}</div>
-    <div class="navh">Names</div><div class="seg" role="group">${[['text', 'As in the text'], ['english', 'English'], ['modern', 'Modern']].map(([v, l]) => `<button type="button" data-mnames="${v}" class="${M.cfg.names === v ? 'on' : ''}">${l}</button>`).join('')}</div>
-    <p class="hint small" style="margin:.5rem 0 0">More layers (roads, sites, provinces, time slider …) follow.</p>`;
   pop.hidden = false;
 }
 // full screen: the divider moves all the way, the map takes the screen (and back)

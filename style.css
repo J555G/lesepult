@@ -897,3 +897,52 @@ body.gram #textBody .w>.gm:empty{padding-right:0}
 #tabMap:not(.on) .eu{background:var(--mapgrey);-webkit-mask:var(--mapmask) center/cover no-repeat;mask:var(--mapmask) center/cover no-repeat}
 #tabMap:not(.on){background:var(--card)}
 .mapmsg .eu{width:78px;height:60px;margin:0 auto;border-radius:8px}
+/* layers menu: folded sections */
+.mpop.mlayers{max-height:min(70vh,calc(100% - 140px));overflow:auto;width:min(21rem,calc(100% - 4rem));box-sizing:border-box}
+.mfold{border-top:1px solid var(--line)}
+.mfh{display:flex;align-items:center;width:100%;border:0;background:none;padding:.45rem .1rem;font:600 13.5px var(--ui);color:var(--fg);text-align:left}
+.mfh i{margin-left:auto;font-style:normal;color:var(--mut);transition:transform .15s}
+.mfold.open .mfh i{transform:rotate(90deg)}
+.mfb{display:none;padding:0 0 .5rem .1rem}
+.mfold.open .mfb{display:block}
+.mfb .navh{margin-top:.5rem}
+.mcats{margin:.1rem 0 0 .6rem}
+.mcats .mtg{font-size:13px;padding:.25rem .1rem}
+.mtg .dot{width:9px;height:9px;border-radius:50%;background:var(--c);flex:none;margin-left:-.15rem}
+/* labels of regions, peoples, mountains (Barrington Atlas linework) and of the gazetteer's places */
+.mlbl.rl{font:600 10.5px/1 var(--greek);color:color-mix(in srgb,var(--fg) 70%,#6f9a46);transform-origin:center;padding:0;text-shadow:0 0 3px var(--bg),0 0 2px var(--bg)}
+.mlbl.rl.k-people{color:color-mix(in srgb,var(--fg) 60%,#c0703c)}
+.mlbl.rl.k-mountain,.mlbl.rl.k-islands,.mlbl.rl.k-water{font:italic 400 11.5px/1 var(--greek);color:var(--mut)}
+.mlbl.rl.k-water{color:#5d93bd}
+.mlbl.site{font-size:11.5px;color:var(--mut)}
+/* the time slider */
+.mtime{position:absolute;left:8px;right:56px;bottom:22px;z-index:3;background:color-mix(in srgb,var(--card) 94%,transparent);border:1px solid var(--line);border-radius:10px;padding:.35rem .6rem .25rem;font:13px var(--ui);user-select:none;-webkit-user-select:none}
+.mtime[hidden]{display:none}
+.mtl{display:flex;align-items:center;gap:.5rem;min-height:24px}
+.mtv{font-weight:600;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.mtv small,.mtw small{font-weight:400;color:var(--mut)}
+.mtw{margin-left:auto;flex:none;font-size:12px;padding:.15rem .45rem;background:none}
+.mtx{flex:none;border:0;background:none;color:var(--mut);padding:.1rem .3rem;font-size:13px}
+.mtt{position:relative;height:30px;margin:2px 6px 0;touch-action:none;cursor:pointer}
+.mtt::before{content:"";position:absolute;left:0;right:0;top:9px;height:3px;border-radius:2px;background:var(--line)}
+.mtaxis i{position:absolute;top:6px;width:1px;height:9px;background:var(--mut);opacity:.6}
+.mtaxis i span{position:absolute;top:10px;left:50%;transform:translateX(-50%);font:10px var(--ui);color:var(--mut);white-space:nowrap}
+.mtaxis b{position:absolute;top:-12px;transform:translateX(-50%);font:600 9px var(--ui);color:var(--mut);opacity:.7;white-space:nowrap}
+.mtr{position:absolute;top:7px;height:7px;border-radius:4px;background:var(--rc,var(--acc));opacity:.55;cursor:grab}
+.mtr.pt{width:0!important}
+.mth{position:absolute;top:2px;width:16px;height:16px;margin-left:-8px;border-radius:50%;background:var(--rc,var(--acc));border:2px solid var(--bg);box-sizing:border-box;box-shadow:0 1px 3px rgba(0,0,0,.35);cursor:ew-resize}
+.mtwk{position:absolute;top:0;width:2px;height:20px;margin-left:-1px;background:var(--fg);opacity:.35;pointer-events:none}
+#mapBody.hastime .mcard{bottom:100px}
+#mapBody.hastime .maplibregl-ctrl-bottom-right{bottom:0}
+.mico.on{color:var(--acc);border-color:var(--acc)}
+@media (max-width:600px){#mapBody.hastime .mcard{bottom:96px}.mtime{right:8px;bottom:20px}}
+.mtg.on{background:none;border:0;color:var(--fg)}
+.mico.on{background:color-mix(in srgb,var(--card) 92%,transparent);color:var(--acc);border-color:var(--acc)}
+/* several texts, saved maps */
+.mpicklist{max-height:55vh;overflow:auto;margin:.3rem 0}
+.mpicklist .navh{font:600 12px var(--ui);color:var(--mut);margin:.6rem 0 .2rem}
+.mpick{display:flex;align-items:baseline;gap:.45rem;padding:.25rem 0;font:15px var(--greek)}
+.mpick small{font:12px var(--ui);color:var(--mut)}
+.msaved{display:flex;align-items:center;gap:.3rem;border-top:1px solid var(--line)}
+.mtg small{color:var(--mut);font-size:12px}
+#mapBody.hastime .maplibregl-ctrl-bottom-right{top:150px;bottom:auto}

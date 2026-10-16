@@ -1679,7 +1679,7 @@ async function backupData() {
     markers: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('mk|', 'mk|￿'))).map(r => [r.k.slice(3), r.v])),
     readings: Object.fromEntries((await getAll('settings', IDBKeyRange.bound('an|', 'an|￿'))).map(r => [r.k.slice(3), r.v])),
     // map: corrected places, own places, the map settings
-    places: Object.fromEntries((await getAll('settings')).filter(r => /^(pl|plw|plg|pown)\|/.test(r.k)).map(r => [r.k, r.v])),
+    places: Object.fromEntries((await getAll('settings')).filter(r => /^(pl|plw|plg|pown|mmap|wyear)\|/.test(r.k)).map(r => [r.k, r.v])),
     mapCfg: (await setting('mapCfg')) || null,
     favourites: (await setting('favs')) || {},
     prefs: { theme: document.documentElement.dataset.theme, posCfg: S.posCfg, posOn: S.posOn, gramCfg: S.gramCfg, showGloss: !document.body.classList.contains('nogloss'),
@@ -1728,7 +1728,7 @@ async function restoreBackup(file) {
   for (const [k, r] of Object.entries(data.highlights || {})) await setting('hl|' + k, r);
   for (const [k, r] of Object.entries(data.markers || {})) await setting('mk|' + k, r);
   for (const [k, r] of Object.entries(data.readings || {})) await setting('an|' + k, r);
-  for (const [k, r] of Object.entries(data.places || {})) if (/^(pl|plw|plg|pown)\|/.test(k)) await setting(k, r);
+  for (const [k, r] of Object.entries(data.places || {})) if (/^(pl|plw|plg|pown|mmap|wyear)\|/.test(k)) await setting(k, r);
   if (data.mapCfg) { await setting('mapCfg', data.mapCfg); if (typeof M !== 'undefined') { M.cfg = null; M.P = null; M.own = new Map(); } }
   if (data.favourites) { S.favs = Object.assign((await setting('favs')) || {}, data.favourites); await setting('favs', S.favs); }
   const p = data.prefs;                           // colours and display settings
@@ -2067,6 +2067,7 @@ const ACKS = [
     ['A. Bailly, Dictionnaire grec-français, éd. 2020 Hugo Chávez (G. Gréco et al.)', 'https://creativecommons.org/licenses/by-nc-nd/4.0/', 'Greek–French dictionary', 'CC BY-NC-ND 4.0 – private use only']]],
   ['Maps', [
     ['Pleiades – gazetteer of ancient places (ISAW, New York University, and contributors)', 'https://pleiades.stoa.org', 'ancient places, their names, positions and dates', 'CC BY 3.0'],
+    ['Ancient World Mapping Center (University of North Carolina) – geodata after the Barrington Atlas', 'https://github.com/AWMC/geodata', 'coastlines of the periods, empires and Roman provinces, names of regions and peoples, roads, city outlines (map package “Ancient world”)', 'ODbL 1.0'],
     ['Natural Earth', 'https://www.naturalearthdata.com', 'land, lakes, rivers and modern borders of the base map', 'public domain'],
     ['MapLibre GL JS', 'https://maplibre.org', 'the map engine', 'BSD 3-Clause'],
   ]],
