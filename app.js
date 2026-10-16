@@ -1534,6 +1534,7 @@ async function setLangTool(lang, id) {
   await loadDicts(); bucketCache.clear(); S.latEngine = null; S.colEngine = undefined;
   resetTokens(); renderText(); resolveTokens(); if (S.view) renderView();
 }
+const PULT_DATE = '16 Oct 2026';     // the date this version was published (with the version number in sw.js)
 async function settingsDialog() {
   await loadDicts();
   const dark = document.documentElement.dataset.theme === 'dark';
@@ -1560,8 +1561,8 @@ async function settingsDialog() {
     ${typeof settingsHTML === 'function' ? sec('map', 'Map') + `<div class="mapset">${(await mapCfg(), settingsHTML())}</div></section></details>` : ''}
     ${sec('gloss', 'Glosses')}
       ${row('Own gloss', withInfo(sw('glossMode', S.glossMode === 'both' ? 'both' : 'replace', [['replace', 'Replaces default'], ['both', 'Show both']]), 'A word can have its own gloss; its lemma can have a default gloss that applies everywhere.'))}</section>
-    </details>${sec('about', 'About')}
-      ${row('Version', `Pult · version ${ver}`)}</section></details>`,
+    </details>
+    <p class="sver">Pult · version ${ver} · published ${PULT_DATE}</p>`,
     [['cancel', 'Close']]);
   syncGramRows($('#dlgForm'));
   await dlgP;

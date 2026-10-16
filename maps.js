@@ -116,7 +116,7 @@ async function loadPlaceIndex() {
   const mainT = new Set(MAIN_TYPES.map(t => d.types.indexOf(t)).filter(i => i >= 0));
   const okWord = w => w.length >= 3 && !/^[IVXLCDM]+\.?$/.test(w);
   const add = (m, k, i) => { if (!k) return; let a = m.get(k); if (!a) m.set(k, a = []); if (!a.includes(i)) a.push(i); };
-  const P = d.places.map(([id, t, lat, lon, ty, rough, y0, y1, names, w, pop]) => ({ id, t, lat, lon, ty, rough, y0, y1, names, conn: w || 0, pop: pop || 0, text: ty.some(x => textT.has(x)) }));
+  const P = d.places.map(([id, t, lat, lon, ty, rough, y0, y1, names, w, pop, mc]) => ({ id, t, lat, lon, ty, rough, y0, y1, names, conn: w || 0, pop: pop || 0, mc: mc || 0, text: ty.some(x => textT.has(x)) }));
   P.forEach((p, i) => {
     byId.set(p.id, p);
     // the title tells the period where the attestations do not ("Hellas (Late Roman province)")
@@ -134,7 +134,7 @@ async function loadPlaceIndex() {
   });
   const T = d.types, ti = Object.fromEntries(T.map((t, i) => [t, i]));
   M.P = { P, ex, st, byId, T, ti, src: d.src, hasConn: P.some(p => p.conn > 0) };
-  await mapCfg(); rankPlaces();                                    // significance 0–9 (maplayers.js; weights in the map settings)
+  await mapCfg(); await loadDevCounts(); rankPlaces();                                    // significance 0–9 (maplayers.js; weights in the map settings)
   for (const r of await getAll('settings', IDBKeyRange.bound('pown|', 'pown|￿'))) M.own.set(r.v.id, r.v);
   return M.P;
 }
@@ -288,6 +288,7 @@ async function placesForText() {
   if (S.text?.id !== id) return;
   M.year = await workYear(t);
   M.hits = await choosePlaces(hits, textKeyOf(t), workKeyOf(t), M.year);
+  storeCounts(t.id, M.hits);
   M.workCache = M.workCache?.key === workKeyOf(t) ? M.workCache : { key: workKeyOf(t), books: {} };
   if (t.work) M.workCache.books[t.bi] = M.hits;
   markPlaces();
@@ -433,7 +434,7 @@ async function showMap1() {
     try { await loadMapLib(); } catch (e) { box.innerHTML = `<div class="mapmsg"><p>${esc(e.message)}</p></div>`; return; }
     M.colors = mapColors();
     const v = (await setting('mpos|last')) || { c: [24, 38], z: 4 };
-    M.map = new maplibregl.Map({ container: 'mapCanvas', style: mapStyle(M.colors), center: v.c, zoom: v.z, attributionControl: false, dragRotate: false, pitchWithRotate: false, maxZoom: 13, minZoom: 1 });
+    M.map = new maplibregl.Map({ container: 'mapCanvas', style: mapStyle(M.colors), center: v.c, zoom: v.z, attributionControl: false, dragRotate: false, pitchWithRotate: false, maxZoom: 16, minZoom: 1 });
     M.map.touchZoomRotate.disableRotation();
     // the credits of the map are in ☰ → Acknowledgements (and on exported maps)
     M.map.on('move', () => { if (!M.lblRaf) M.lblRaf = requestAnimationFrame(() => { M.lblRaf = 0; drawLabels(); }); });
@@ -482,8 +483,6 @@ async function refreshMapData() {
 // (the names do not take touches themselves, so that pinching and panning work everywhere)
 function tapPlace(pt) {
   const r = matchMedia('(pointer: coarse)').matches ? 22 : 10;
-  // a tap right on a name: that place
-  for (const [b, id] of M.lblHit || []) if (pt.x >= b[0] && pt.x <= b[2] && pt.y >= b[1] && pt.y <= b[3]) return id;
   const fs = M.map.queryRenderedFeatures([[pt.x - r, pt.y - r], [pt.x + r, pt.y + r]], { layers: ['pl', ...(M.map.getLayer('sites') ? ['sites'] : [])] });
   const seen = new Map();
   for (const f of fs) {
@@ -491,7 +490,8 @@ function tapPlace(pt) {
     const p = placeById(id); if (!p) continue;
     const c = M.map.project([p.lon, p.lat]), d = Math.hypot(c.x - pt.x, c.y - pt.y); if (d > r * 1.2) continue;
     // nearness, with the significance of the place (and places of the text) counting as if nearer
-    seen.set(id, { id, p, d, eff: d - 2.4 * (p.w || 0) - (f.layer.id === 'pl' ? 8 : 0) });
+    const z = M.map.getZoom(), bonus = Math.max(0, Math.min(1, (10 - z) / 4));   // zoomed in, nearness alone decides
+    seen.set(id, { id, p, d, eff: d - bonus * 2.4 * (p.w || 0) - (f.layer.id === 'pl' ? 8 : 0) });
   }
   const c = [...seen.values()].sort((a, b) => a.eff - b.eff);
   if (!c.length) {
@@ -499,8 +499,13 @@ function tapPlace(pt) {
     for (const [b, id] of M.lblHit || []) if (pt.x >= b[0] - pad && pt.x <= b[2] + pad && pt.y >= b[1] - pad && pt.y <= b[3] + pad) return id;
     return null;
   }
+  const direct = c.filter(x => x.d <= 5).sort((a, b) => a.d - b.d);
+  if (direct.length === 1) return direct[0].id;                      // right on a dot
+  if (direct.length > 1) { chooserAt(pt, direct.slice(0, 8)); return 'choose'; }   // several on the same spot
+  // a tap right on a name: that place
+  for (const [b, id] of M.lblHit || []) if (pt.x >= b[0] && pt.x <= b[2] && pt.y >= b[1] && pt.y <= b[3]) return id;
   if (c.length === 1 || c[1].eff - c[0].eff > 12) return c[0].id;   // a clear choice
-  chooserAt(pt, c.slice(0, 7)); return 'choose';
+  chooserAt(pt, c.slice(0, 8)); return 'choose';
 }
 // several places within reach of the finger: a short list right there, the most significant first
 function chooserAt(pt, list) {

@@ -19,6 +19,7 @@ async function placesOfAny(id) {
   const hits = await findPlaceHits(toks, lemmaOf);
   const res = await choosePlaces(hits, t.id, workKeyOf(t), await workYear(t));
   const r = { hits: res, toks, t, refs: refsOf(toks, t.blocks) };
+  storeCounts(id, res);                                              // for "mentions in the texts on this device"
   M.anyCache.set(id, r); return r;
 }
 // ---------------------------------------------------------------- what "Places from" covers
@@ -242,7 +243,7 @@ async function savePop(keep) {
   const pop = $('#mapPop'); if (!keep && !pop.hidden && pop.dataset.k === 'save') { pop.hidden = true; return; }
   pop.dataset.k = 'save'; pop.classList.add('mlayers', 'right');
   const maps = await savedMaps();
-  pop.innerHTML = `<div class="mph"><span class="navh">Saved maps</span><button type="button" class="mx" data-mpopx="1" aria-label="Close">✕</button></div>
+  pop.innerHTML = `<div class="mph"><span class="navh">Saved maps</span></div>
     ${maps.length ? maps.map(m => `<div class="msaved"><button type="button" class="mckt" data-mopen="${m.id}">${esc(m.name)}<small>${new Date(m.created).toLocaleDateString('en-GB')}</small></button><button type="button" class="mico2" data-mdelmap="${m.id}" title="Delete" aria-label="Delete">✕</button></div>`).join('') : '<p class="hint small">None yet.</p>'}
     <div class="macts"><button type="button" data-msave="1">Save this map …</button><button type="button" data-mimport="1">Open a map file …</button></div>
     <div class="navh">Export this map</div><div class="macts"><button type="button" data-mexp="png">Image</button><button type="button" data-mexp="pdf">PDF</button><button type="button" data-mexp="pult">Pult map file</button></div>`;

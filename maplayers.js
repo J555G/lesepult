@@ -82,14 +82,14 @@ function sitesData() {
   return M.sitesFC = { type: 'FeatureCollection', features: feats };
 }
 // how significant a place is, 0–9: links from other places of the gazetteer, names, city, Greek and Latin names, position
-const SIG_DEF = { links: 3, pop: 1.5, names: 0.6, city: 2, both: 1.5, rough: 2 };
-const SIG_UI = [['links', 'Links from other places', 0, 6, 0.5], ['pop', 'Population (cities of the Roman world)', 0, 4, 0.5], ['names', 'Number of names', 0, 2, 0.1], ['city', 'City (polis, urban)', 0, 6, 0.5], ['both', 'Greek and Latin names', 0, 4, 0.5], ['rough', 'Position only approximate (less)', 0, 6, 0.5]];
+const SIG_DEF = { links: 3, pop: 1.5, corp: 1, dev: 0.5, names: 0.6, city: 2, both: 1.5, rough: 2 };
+const SIG_UI = [['links', 'Links from other places', 0, 6, 0.5], ['pop', 'Population (cities of the Roman world)', 0, 4, 0.5], ['corp', 'Mentions in all texts of the library', 0, 4, 0.5], ['dev', 'Mentions in the texts on this device', 0, 4, 0.5], ['names', 'Number of names', 0, 2, 0.1], ['city', 'City (polis, urban)', 0, 6, 0.5], ['both', 'Greek and Latin names', 0, 4, 0.5], ['rough', 'Position only approximate (less)', 0, 6, 0.5]];
 // the score of a place; the ranks 0–9 then go by position in the order (the top 30 get 9, the next 50 get 8 …),
 // so that the weights change which places come first, not how many are shown
 function placeScore(p) {
   const W = Object.assign({}, SIG_DEF, M.cfg?.sigW || {}), ti = M.P?.ti || {};
   const langs = new Set(p.names.map(n => n[1]));
-  const sc = W.links * Math.log2(1 + (p.conn || 0)) + W.pop * Math.log2(1 + (p.pop || 0) / 1000) + W.names * Math.min(p.names.length, 12) + (p.ty.includes(ti.urban) || p.ty.includes(ti.polis) ? W.city : 0)
+  const sc = W.links * Math.log2(1 + (p.conn || 0)) + W.pop * Math.log2(1 + (p.pop || 0) / 1000) + W.corp * Math.log2(1 + (p.mc || 0)) + W.dev * Math.log2(1 + (M.devCnt?.get(p.id) || 0)) + W.names * Math.min(p.names.length, 12) + (p.ty.includes(ti.urban) || p.ty.includes(ti.polis) ? W.city : 0)
     + (langs.has('grc') && langs.has('la') ? W.both : 0) - (p.rough ? W.rough : 0);
   return sc;
 }
@@ -382,12 +382,12 @@ function settingsHTML() {
       + '<p class="hint small">Hold a date on the slider to make it a period, hold a period to split it in two; pull ends together to join them.</p>')
     + foldSec('ssig', 'Significance of places', `<p class="hint small">Zoomed out, only the more significant places are shown, and their names come first. How much counts:</p>`
       + SIG_UI.map(([k, lb, a, b, st]) => { const v = (M.cfg.sigW?.[k] ?? SIG_DEF[k]); return `<label class="msig"><span>${lb}</span><input type="range" min="${a}" max="${b}" step="${st}" value="${v}" data-msig="${k}"><output>${v}</output></label>`; }).join('')
-      + `<div class="macts"><button type="button" data-msigreset="1">Standard weights</button></div>${M.P && !M.P.hasConn ? '<p class="hint small">Update the download <b>Ancient places</b> (Instruments → Maps) for the links between places.</p>' : ''}`);
+      + `<div class="macts"><button type="button" data-msigreset="1">Standard weights</button><button type="button" data-mcount="1">Count the places in all texts on this device</button></div>${M.P && !M.P.hasConn ? '<p class="hint small">Update the download <b>Ancient places</b> (Instruments → Maps) for the links between places.</p>' : ''}`);
 }
 function rightPop(k, title, html) {
   const pop = $('#mapPop'); if (!pop.hidden && pop.dataset.k === k) { pop.hidden = true; return; }
   pop.dataset.k = k; pop.classList.add('mlayers', 'right');
-  pop.innerHTML = `<div class="mph"><span class="navh">${title}</span><button type="button" class="mx" data-mpopx="1" aria-label="Close">✕</button></div>${html}`;
+  pop.innerHTML = `<div class="mph"><span class="navh">${title}</span></div>${html}`;   // closed by its button or another menu
   pop.hidden = false; pop.scrollTop = M.cfg.popScroll?.[k] || 0;
   if (!pop._sw) { pop._sw = true; pop.addEventListener('scroll', () => { const kk = pop.dataset.k; if (kk !== 'layers' && kk !== 'settings') return; clearTimeout(pop._st); pop._st = setTimeout(() => { (M.cfg.popScroll ??= {})[kk] = pop.scrollTop; saveMapCfg(); }, 300); }); }
 }
@@ -403,6 +403,7 @@ document.addEventListener('click', async ev => {
 async function layerClick(b) {
   const d = b.dataset;
   if (d.mfold) { const f = b.closest('.mfold'), on = !f.classList.contains('open'); f.classList.toggle('open', on); (M.cfg.fold ??= {})[d.mfold] = on; saveMapCfg(); return true; }
+  if (d.mcount) { countDevice(b); return true; }
   if (d.msigreset) { M.cfg.sigW = null; await saveMapCfg(); b.closest('.mfb').querySelectorAll('[data-msig]').forEach(x => { x.value = SIG_DEF[x.dataset.msig]; x.nextElementSibling.textContent = x.value; }); recomputeSig(); return true; }
   if (d.mcatall != null) { const on = d.mcatall === '1'; M.cfg.cats = Object.fromEntries(SITE_CATS.map(c => [c[0], on])); $('#mapPop .mcats')?.querySelectorAll('[data-mcat]').forEach(x => x.classList.toggle('on', on)); await saveMapCfg(); applyLayers(); return true; }
   if (d.mcat) { (M.cfg.cats ??= {})[d.mcat] = !M.cfg.cats[d.mcat]; b.classList.toggle('on', M.cfg.cats[d.mcat]);  await saveMapCfg(); applyLayers(); return true; }
@@ -437,6 +438,7 @@ document.addEventListener('input', ev => {
 document.addEventListener('pointerdown', ev => {
   const pop = document.getElementById('mapPop'); if (!pop || pop.hidden) return;
   if (ev.target.closest('#mapPop, #mapScope, #mapLayersBtn, #mapSaveBtn, #mapCheck, #tabMap, dialog, #toast')) return;
+  if (['layers', 'save'].includes(pop.dataset.k)) return;               // these stay open while the map is moved
   pop.hidden = true;
 }, true);
 
@@ -446,3 +448,28 @@ document.addEventListener('input', ev => {
   (M.cfg.sigW ??= { ...SIG_DEF })[k] = +ev.target.value; ev.target.nextElementSibling.textContent = ev.target.value;
   clearTimeout(M.sigT); M.sigT = setTimeout(() => { recomputeSig(); saveMapCfg(); }, 250);
 });
+
+// how often each place is named in the texts on this device (stored per text as its places are found)
+async function loadDevCounts() {
+  const m = new Map();
+  for (const r of await getAll('settings', IDBKeyRange.bound('pcnt|', 'pcnt|\uffff'))) for (const [id, n] of Object.entries(r.v || {})) m.set(+id || id, (m.get(+id || id) || 0) + n);
+  M.devCnt = m;
+}
+async function storeCounts(id, hits) {
+  const c = {}; for (const h of hits.values()) if (h.p && !h.unsure) c[h.p.id] = (c[h.p.id] || 0) + 1;
+  try { await setting('pcnt|' + id, c); } catch (_) { }
+}
+// read every text on this device once (its places are counted and kept)
+async function countDevice(btn) {
+  const ids = [];
+  for (const w of await libWorks()) w.books.forEach((_, bi) => ids.push(`w:${w.id}:${bi}`));
+  for (const t of await getAll('texts')) ids.push(t.id);
+  if (btn) btn.disabled = true;
+  for (let n = 0; n < ids.length; n++) {
+    if (btn) btn.textContent = `Reading ${n + 1} of ${ids.length} …`;
+    const r = await placesOfAny(ids[n]); if (r) await storeCounts(ids[n], r.hits);
+  }
+  await loadDevCounts(); recomputeSig();
+  if (btn) { btn.disabled = false; btn.textContent = 'Count the places in all texts on this device'; }
+  toast(`Places counted in ${ids.length} text${ids.length === 1 ? '' : 's'}.`);
+}
