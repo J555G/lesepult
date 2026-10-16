@@ -478,7 +478,8 @@ function mapFailed(msg) {
   M.map = null; M.showP = null;
   $('#mapBody').innerHTML = `<div class="mapmsg"><p>${EUROPE_ICON}</p><p>The map could not be shown.</p><p class="hint small">${esc(msg)}</p><button type="button" id="mapRetry">Try again</button> <button type="button" id="mapResetCfg">Reset the map settings</button></div>`;
   $('#mapRetry').onclick = () => showMap();
-  $('#mapResetCfg').onclick = async () => { await del('settings', 'mapCfg'); M.cfg = null; M.T = null; M.sitesFC = null; showMap(); };
+  // the settings that were in place are kept (mapCfgOld), so that the cause can be found later
+  $('#mapResetCfg').onclick = async () => { const old = await setting('mapCfg'); if (old) await setting('mapCfgOld', { at: new Date().toISOString(), msg, cfg: old }); await del('settings', 'mapCfg'); M.cfg = null; M.T = null; M.sitesFC = null; showMap(); };
 }
 const LAYERS_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5-9-5zM3 12.5l9 5 9-5M3 16.5l9 5 9-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
 // the gazetteer's title as a name: "Rhenus (river)" -> "Rhenus", "Lucus?" -> "Lucus"
