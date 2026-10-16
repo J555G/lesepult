@@ -3,7 +3,7 @@
 // layers of the "Ancient world" package (Ancient World Mapping Center, ODbL): coastlines of the periods, empires and Roman
 // provinces at several dates, names and rough areas of regions and peoples, roads, city outlines.
 // Settings: mapCfg (layers, time options, fold state of the layer menu) · wyear|<work> (date of a work, corrected by the reader)
-const TMIN = -1000, TMAX = 800, YSTEP = 10, TMAXR = 5;
+const TMAXR = 5;                                                   // at most five periods
 const fmtY = y => y == null ? '' : y < 0 ? `${-y} BC` : `AD ${Math.max(1, y)}`;
 const fmtR = ([a, b]) => a === b ? fmtY(a) : a < 0 && b < 0 ? `${-a}–${-b} BC` : a >= 0 ? `AD ${Math.max(1, a)}–${b}` : `${fmtY(a)} – ${fmtY(b)}`;
 const LCFG = { time: true, tol: 25, gone: 'fade', undated: 'show', later: 'fade', rivers: true, lakes: true, provinces: true, regArea: false, aqueducts: false, walls: false, canals: false, own: true, dOff: [], dLen: 'off', basemap: 'hd',
@@ -19,7 +19,7 @@ function timeFor(t) {
   if (!M.T || M.T.work !== wk) M.T = { work: wk, ranges: M.year != null ? [[snapY(M.year), snapY(M.year)]] : [] };
   return M.T;
 }
-const snapY = y => Math.max(TMIN, Math.min(TMAX, Math.round(y / YSTEP) * YSTEP));
+function snapY(y) { const [lo, hi] = TLIM(), st = tStep(); return Math.max(lo, Math.min(hi, Math.round(y / st) * st)); }
 function tRanges() {
   if (!M.cfg?.time || !M.T?.ranges?.length) return null;
   const tol = M.cfg.tol ?? 25; return M.T.ranges.map(([a, b]) => [a - tol, b + tol]);
@@ -301,11 +301,31 @@ function moreLabels(placed, W, H) {
 
 // ---------------------------------------------------------------- the time slider
 const CLOCK_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
-const tPct = y => (y - TMIN) / (TMAX - TMIN) * 100;
+// the slider covers tMin–tMax (Map settings → Period; 4000 BC – AD 2050); the part shown (tView) is zoomed by pinching or
+// the mouse wheel and moved by dragging the line; the steps of a date get finer as one zooms in
+const TLIM = () => [M.cfg?.tMin ?? -4000, M.cfg?.tMax ?? 2050];
+function tView() {
+  const [lo, hi] = TLIM(), v = M.cfg?.tView;
+  return v && v[0] >= lo && v[1] <= hi && v[1] - v[0] >= 20 ? v : [lo, hi];
+}
+const tStep = () => { const v = tView(), s = v[1] - v[0]; return s > 1500 ? 10 : s > 400 ? 5 : 1; };
+const tPct = y => { const [a, b] = tView(); return (y - a) / (b - a) * 100; };
 function timeBarHTML() {
-  const ticks = []; for (let y = -800; y <= TMAX; y += 200) ticks.push(`<i style="left:${tPct(y)}%"><span>${y < 0 ? -y : y === 0 ? 'BC | AD' : y}</span></i>`);
-  return `<div class="mtl"><span class="mtv" id="mapTimeV"></span><button type="button" class="mtx" data-mtoff="1" title="Period filter off" aria-label="Period filter off">✕</button></div>
-    <div class="mtt" id="mapTrack"><div class="mtaxis">${ticks.join('')}</div><div id="mapRanges"></div></div>`;
+  return `<div class="mtl"><span class="mtv" id="mapTimeV"></span></div>
+    <div class="mtt" id="mapTrack"><div class="mtaxis" id="mapAxis"></div><div id="mapRanges"></div></div>`;
+}
+// the scale: as many marks as fit, at round numbers
+function axisHTML() {
+  const [a, b] = tView(), W = $('#mapTrack')?.clientWidth || 300, span = b - a;
+  const step = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000].find(s => span / s <= W / 52) || 5000;
+  const out = []; let first = true;
+  for (let y = Math.ceil(a / step) * step; y <= b; y += step) {
+    const lbl = y === 0 ? 'BC | AD' : y < 0 ? -y + (first && b < 0 ? ' BC' : '') : (first && a > 0 ? 'AD ' : '') + y;
+    const pc = tPct(y);                                            // (at the ends the label stays inside the line)
+    out.push(`<i${pc < 6 ? ' class="l"' : pc > 94 ? ' class="r"' : ''} style="left:${pc}%"><span>${lbl}</span></i>`); first = false;
+  }
+  if (a < 0 && b > 0 && !out.some(x => x.includes('BC | AD'))) out.push(`<i class="z" style="left:${tPct(0)}%"></i>`);
+  return out.join('');
 }
 function renderTime() {
   const bar = $('#mapTime'); if (!bar) return;
@@ -314,6 +334,7 @@ function renderTime() {
   if (!M.cfg.time) return;
   const R = M.T?.ranges || [], two = M.cfg.twoCol && R.length > 1;
   $('#mapTimeV').innerHTML = R.length ? R.map((r, k) => `<span${two ? ` style="color:${rangeCol(k)}"` : ''}>${esc(fmtR(r))}</span>`).join(' · ') + (M.cfg.tol ? ` <small>± ${M.cfg.tol}</small>` : '') : '<small>Tap the line to choose a date</small>';
+  $('#mapAxis').innerHTML = axisHTML();
   $('#mapRanges').innerHTML = R.map(([a, b], k) => `<div class="mtr${a === b ? ' pt' : ''}" data-k="${k}" style="left:${tPct(a)}%;width:${tPct(b) - tPct(a)}%${two ? `;--rc:${rangeCol(k)}` : ''}"></div>`
     + `<div class="mth" data-k="${k}" data-e="0" style="left:${tPct(a)}%${two ? `;--rc:${rangeCol(k)}` : ''}"></div>` + (a !== b ? `<div class="mth" data-k="${k}" data-e="1" style="left:${tPct(b)}%${two ? `;--rc:${rangeCol(k)}` : ''}"></div>` : '')).join('')
     + (M.year != null ? `<div class="mtwk" style="left:${tPct(M.year)}%" title="Date of the work"></div>` : '');
@@ -326,48 +347,94 @@ function timeChanged(final) {
 // merging: a range whose ends meet becomes a date; ranges that touch become one
 function normRanges() {
   let R = M.T.ranges.map(([a, b]) => [Math.min(a, b), Math.max(a, b)]).sort((x, y) => x[0] - y[0]);
-  const out = [];
-  for (const r of R) { const l = out[out.length - 1]; if (l && r[0] <= l[1] + YSTEP) l[1] = Math.max(l[1], r[1]); else out.push(r); }
+  const out = [], st = tStep();
+  for (const r of R) { const l = out[out.length - 1]; if (l && r[0] <= l[1] + st) l[1] = Math.max(l[1], r[1]); else out.push(r); }
   M.T.ranges = out;
+}
+// the part of the slider shown: kept within the limits, at least 20 years
+function setView(a, b) {
+  const [lo, hi] = TLIM(); let span = Math.max(20, Math.min(hi - lo, b - a));
+  a = Math.max(lo, Math.min(hi - span, a));
+  M.cfg.tView = [Math.round(a), Math.round(a + span)];
+  renderTime(); clearTimeout(M.tvT); M.tvT = setTimeout(saveMapCfg, 400);
 }
 function wireTime() {
   const tr = $('#mapTrack'); if (!tr || tr._w) return; tr._w = true;
-  const yAt = x => { const r = tr.getBoundingClientRect(); return snapY(TMIN + (x - r.left) / r.width * (TMAX - TMIN)); };
-  let drag = null, lp = null;
+  const yRaw = x => { const r = tr.getBoundingClientRect(), [a, b] = tView(); return a + (x - r.left) / r.width * (b - a); };
+  const yAt = x => snapY(yRaw(x));
   const xAt = y => { const r = tr.getBoundingClientRect(); return r.left + tPct(y) / 100 * r.width; };
+  const ptrs = new Map();
+  let drag = null, lp = null, pinch = null;
   tr.addEventListener('pointerdown', ev => {
     ev.preventDefault();
+    ptrs.set(ev.pointerId, ev.clientX); tr.setPointerCapture(ev.pointerId);
+    if (ptrs.size === 2) {                                         // two fingers: zoom the scale (what was moved is put back)
+      clearTimeout(lp); if (drag?.r0 && drag.k != null && M.T.ranges[drag.k]) { M.T.ranges[drag.k] = [...drag.r0]; timeChanged(); }
+      drag = null;
+      const [x1, x2] = [...ptrs.values()], v = tView();
+      pinch = { d0: Math.max(10, Math.abs(x1 - x2)), span0: v[1] - v[0], ym: yRaw((x1 + x2) / 2) };
+      return;
+    }
+    if (ptrs.size > 2) return;
     const R = M.T.ranges, y = yAt(ev.clientX), reach = ev.pointerType === 'mouse' ? 10 : 22;
-    if (!R.length) { tr.setPointerCapture(ev.pointerId); M.T.ranges = [[y, y]]; drag = { k: 0, e: 0, x0: ev.clientX }; timeChanged(); return; }
     // the nearest end, if the finger is on it; otherwise inside a period: the period (moved by dragging, split by holding)
     // (the reach of an end is at most a third of its period, so that the inside of a short period can still be held)
     let best = null; R.forEach(([a, b], k) => { const rc = a === b ? reach : Math.min(reach, (xAt(b) - xAt(a)) / 3); for (const [e, v] of [[0, a], [1, b]]) { const d = Math.abs(xAt(v) - ev.clientX); if (d <= rc && (!best || d < best.d)) best = { k, e, d }; } });
-    if (best) drag = { k: best.k, e: best.e, x0: ev.clientX };
-    else { const k = R.findIndex(([a, b]) => a < b && y >= a && y <= b); if (k < 0) return; drag = { k, e: 'm', x0: ev.clientX, y0: y, r0: [...R[k]] }; }
-    tr.setPointerCapture(ev.pointerId);
+    if (best) drag = { k: best.k, e: best.e, x0: ev.clientX, r0: [...R[best.k]] };
+    else { const k = R.findIndex(([a, b]) => a < b && y >= a && y <= b); drag = k >= 0 ? { k, e: 'm', x0: ev.clientX, y0: y, r0: [...R[k]] } : { pan: true, x0: ev.clientX, v0: [...tView()], y }; }
+    if (drag.pan) return;
     // long press: a date opens into a period; a period splits into two
     clearTimeout(lp); lp = setTimeout(() => {
-      if (!drag || drag.moved) return;
-      const r = M.T.ranges[drag.k];
-      // a new period about 90 px wide (at least a century), easy to hold and split
-      const half = Math.max(50, snapY((90 / tr.getBoundingClientRect().width) * (TMAX - TMIN) / 2));
-      if (r[0] === r[1]) { M.T.ranges[drag.k] = [Math.max(TMIN, snapY(r[0] - half)), Math.min(TMAX, snapY(r[0] + half))]; toast('A period – pull the two ends apart or together', 2500, true); }
-      else if (drag.e === 'm' && M.T.ranges.length < TMAXR && r[1] - r[0] >= 60) { const m = snapY(drag.y0); M.T.ranges.splice(drag.k, 1, [r[0], Math.max(r[0], m - 20)], [Math.min(r[1], m + 20), r[1]]); toast('Two periods – pull them together to join them', 2500, true); }
+      if (!drag || drag.moved || drag.pan) return;
+      const r = M.T.ranges[drag.k], [lo, hi] = TLIM(), st = tStep(), v = tView();
+      // a new period about 90 px wide, easy to hold and split
+      const half = Math.max(2 * st, snapY((90 / tr.getBoundingClientRect().width) * (v[1] - v[0]) / 2));
+      if (r[0] === r[1]) { M.T.ranges[drag.k] = [Math.max(lo, snapY(r[0] - half)), Math.min(hi, snapY(r[0] + half))]; toast('A period – pull the two ends apart or together', 2500, true); }
+      else if (drag.e === 'm' && M.T.ranges.length < TMAXR && r[1] - r[0] >= 6 * st) { const m = snapY(drag.y0), g = Math.max(st, snapY((v[1] - v[0]) / 60)); M.T.ranges.splice(drag.k, 1, [r[0], Math.max(r[0], m - g)], [Math.min(r[1], m + g), r[1]]); toast('Two periods – pull them together to join them', 2500, true); }
       else return;
       navigator.vibrate?.(15); drag = null; timeChanged();
     }, 550);
   });
   tr.addEventListener('pointermove', ev => {
+    if (!ptrs.has(ev.pointerId)) return;
+    ptrs.set(ev.pointerId, ev.clientX);
+    if (pinch && ptrs.size >= 2) {
+      const [x1, x2] = [...ptrs.values()], r = tr.getBoundingClientRect(), [lo, hi] = TLIM();
+      const span = Math.max(20, Math.min(hi - lo, pinch.span0 * pinch.d0 / Math.max(10, Math.abs(x1 - x2))));
+      const f = ((x1 + x2) / 2 - r.left) / r.width; setView(pinch.ym - f * span, pinch.ym - f * span + span); return;
+    }
     if (!drag) return;
     if (Math.abs(ev.clientX - drag.x0) > 4) drag.moved = true; if (!drag.moved) return;
-    const y = yAt(ev.clientX), r = M.T.ranges[drag.k]; if (!r) return;
-    if (drag.e === 'm') { const d = y - drag.y0, w = drag.r0[1] - drag.r0[0], a = Math.max(TMIN, Math.min(TMAX - w, drag.r0[0] + d)); r[0] = a; r[1] = a + w; }
+    if (drag.pan) { const r = tr.getBoundingClientRect(), d = (ev.clientX - drag.x0) / r.width * (drag.v0[1] - drag.v0[0]); setView(drag.v0[0] - d, drag.v0[1] - d); return; }
+    // pulled past the end of the line: the scale moves along, a little with each movement
+    const tb = tr.getBoundingClientRect(), v = tView(), sh = (v[1] - v[0]) * 0.02;
+    if (ev.clientX > tb.right) setView(v[0] + sh, v[1] + sh); else if (ev.clientX < tb.left) setView(v[0] - sh, v[1] - sh);
+    const y = yAt(Math.max(tb.left, Math.min(tb.right, ev.clientX))), r = M.T.ranges[drag.k]; if (!r) return;
+    const [lo, hi] = TLIM();
+    if (drag.e === 'm') { const d = y - drag.y0, w = drag.r0[1] - drag.r0[0], a = Math.max(lo, Math.min(hi - w, drag.r0[0] + d)); r[0] = a; r[1] = a + w; }
     else if (r[0] === r[1]) { r[0] = r[1] = y; }
     else { r[drag.e] = y; if (r[0] > r[1]) { r.reverse(); drag.e = 1 - drag.e; } }
     timeChanged();
   });
-  const up = () => { clearTimeout(lp); if (!drag) return; drag = null; normRanges(); timeChanged(true); };
+  const up = ev => {
+    ptrs.delete(ev.pointerId); clearTimeout(lp);
+    if (pinch) { if (ptrs.size < 2) pinch = null; drag = null; return; }
+    if (!drag) return;
+    const d = drag; drag = null;
+    if (d.pan) { if (!d.moved && !M.T.ranges.length) { M.T.ranges = [[d.y, d.y]]; timeChanged(true); } return; }   // a tap on the empty line: a date (when none is set)
+    normRanges(); timeChanged(true);
+  };
   tr.addEventListener('pointerup', up); tr.addEventListener('pointercancel', up);
+  // mouse: the wheel zooms around the pointer (sideways: moves); a double click shows the whole range
+  tr.addEventListener('wheel', ev => {
+    ev.preventDefault();
+    const r = tr.getBoundingClientRect(), [a, b] = tView(), span = b - a;
+    if (Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) { const d = ev.deltaX / r.width * span; setView(a + d, b + d); return; }
+    const y = yRaw(ev.clientX), f = (ev.clientX - r.left) / r.width, ns = span * Math.exp(ev.deltaY * 0.0015);
+    setView(y - f * ns, y - f * ns + ns);
+  }, { passive: false });
+  tr.addEventListener('dblclick', () => { const [lo, hi] = TLIM(); setView(lo, hi); });
+  new ResizeObserver(() => { if (M.cfg?.time) renderTime(); }).observe(tr);
 }
 // the date of the work: the author's date, or what the reader set (for this work, remembered)
 async function workDateDialog() {
@@ -426,7 +493,8 @@ function settingsHTML() {
       + segc('undated', [['show', 'Shown'], ['fade', 'Faded'], ['hide', 'Hidden']], 'Places without a date')
       + segc('twoCol', [[false, 'One colour'], [true, 'A colour for each']], 'Several periods')
       + `<div class="mcols">${RANGE_COL.map((_, k) => `<label title="Colour of period ${k + 1}"><input type="color" data-mcol="${k}" value="${rangeCol(k)}"><span>${k + 1}</span></label>`).join('')}<button type="button" class="mcolr" data-mcolreset="1">Standard colours</button></div>`
-      + '<p class="hint small">Hold a date on the slider to make it a period, hold a period to split it in two; pull ends together to join them.</p>')
+      + `<div class="navh">Range of the slider</div><div class="mtlim"><label>Earliest<input type="text" data-mtlim="0" value="${esc(fmtY(TLIM()[0]))}" autocomplete="off" class="nofocus"></label><label>Latest<input type="text" data-mtlim="1" value="${esc(fmtY(TLIM()[1]))}" autocomplete="off" class="nofocus"></label><button type="button" data-mtlimreset="1">Standard</button></div>`
+      + '<p class="hint small">Hold a date on the slider to make it a period, hold a period to split it in two; pull ends together to join them. Pinch the slider (or use the mouse wheel) to zoom it, drag the line to move it; a double click shows the whole range.</p>')
     + foldSec('ssig', 'Significance of places', `<p class="hint small">Zoomed out, only the more significant places are shown, and their names come first. How much counts:</p>`
       + SIG_UI.map(([k, lb, a, b, st]) => { const v = (M.cfg.sigW?.[k] ?? SIG_DEF[k]); return `<label class="msig"><span>${lb}</span><input type="range" min="${a}" max="${b}" step="${st}" value="${v}" data-msig="${k}"><output>${v}</output></label>`; }).join('')
       + `<div class="macts"><button type="button" data-msigreset="1">Standard weights</button><button type="button" data-mcount="1">Count the places in all texts on this device</button></div>${M.P && !M.P.hasConn ? '<p class="hint small">Update the download <b>Ancient places</b> (Instruments → Maps) for the links between places.</p>' : ''}`);
@@ -482,12 +550,23 @@ async function layerClick1(b) {
     if (k === 'time') { timeFor(S.text); renderTime(); }
     applyLayers(); return true;
   }
-  if (d.mtoff || b.id === 'mapTimeBtn') { M.cfg.time = b.id === 'mapTimeBtn' ? !M.cfg.time : false; await saveMapCfg(); timeFor(S.text); renderTime(); applyLayers(); $('#mapPop [data-mlay="time"]')?.classList.toggle('on', M.cfg.time); return true; }
+  if (b.id === 'mapTimeBtn') { M.cfg.time = !M.cfg.time; await saveMapCfg(); timeFor(S.text); renderTime(); applyLayers(); $('#mapPop [data-mlay="time"]')?.classList.toggle('on', M.cfg.time); return true; }
   if (b.id === 'mapWDate' || d.mwdate) { if (b.closest('dialog')) $('#dlg').close(); setTimeout(workDateDialog, 50); return true; }
+  if (d.mtlimreset) { M.cfg.tMin = M.cfg.tMax = M.cfg.tView = null; await saveMapCfg(); const ins = b.parentElement.querySelectorAll('[data-mtlim]'); ins[0].value = fmtY(-4000); ins[1].value = fmtY(2050); renderTime(); return true; }
   if (d.mcolreset) { M.cfg.rangeCols = null; await saveMapCfg(); b.parentElement.querySelectorAll('[data-mcol]').forEach(x => { x.value = rangeCol(+x.dataset.mcol); }); renderTime(); applyLayers(); return true; }
   return false;
 }
 
+// the range of the slider, set by the reader (Map settings → Period)
+document.addEventListener('change', async ev => {
+  const k = ev.target.dataset?.mtlim; if (k == null) return;
+  await mapCfg();
+  const y = parseYear(ev.target.value), [lo, hi] = TLIM();
+  if (y == null || (k === '0' ? y >= hi - 50 : y <= lo + 50)) { toast('Not a usable year – e.g. “4000 BC” or “AD 2050”.'); ev.target.value = fmtY(+k ? hi : lo); return; }
+  M.cfg[+k ? 'tMax' : 'tMin'] = y; M.cfg.tView = null; ev.target.value = fmtY(y);
+  if (M.T) M.T.ranges = M.T.ranges.map(([a, b]) => [Math.max(TLIM()[0], a), Math.min(TLIM()[1], b)]).filter(([a, b]) => a <= b);
+  await saveMapCfg(); renderTime(); applyLayers();
+});
 // the colours of the periods, set by the reader
 document.addEventListener('input', ev => {
   const k = ev.target.dataset?.mcol; if (k == null) return;

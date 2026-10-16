@@ -1083,3 +1083,11 @@ dialog .sver{margin:1rem 0 0;font:11.5px var(--ui);color:var(--mut);text-align:c
 .mtop{max-width:calc(100% - 196px)}
 #mapBody.drawing .mcheck{display:none}
 .mdend{display:inline-flex;gap:.25rem;margin-left:auto}
+/* the time slider: zoomable scale (the part outside the line is cut off) */
+.mtt{clip-path:inset(-24px -9px -24px -9px)}
+.mtaxis i.z{height:13px;top:4px;opacity:.9}
+.mtlim{display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap}
+.mtlim label{flex:1 1 6rem;font-size:12.5px;color:var(--mut)}
+.mtlim input{display:block;width:100%;box-sizing:border-box;margin-top:.15rem}
+.mtlim button{font-size:12.5px;padding:.3rem .6rem}
+.mtaxis i.l span{left:0;transform:none}.mtaxis i.r span{left:auto;right:0;transform:none}
