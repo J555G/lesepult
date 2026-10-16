@@ -116,7 +116,7 @@ async function loadPlaceIndex() {
   const mainT = new Set(MAIN_TYPES.map(t => d.types.indexOf(t)).filter(i => i >= 0));
   const okWord = w => w.length >= 3 && !/^[IVXLCDM]+\.?$/.test(w);
   const add = (m, k, i) => { if (!k) return; let a = m.get(k); if (!a) m.set(k, a = []); if (!a.includes(i)) a.push(i); };
-  const P = d.places.map(([id, t, lat, lon, ty, rough, y0, y1, names]) => ({ id, t, lat, lon, ty, rough, y0, y1, names, text: ty.some(x => textT.has(x)) }));
+  const P = d.places.map(([id, t, lat, lon, ty, rough, y0, y1, names, w]) => ({ id, t, lat, lon, ty, rough, y0, y1, names, w: w || 0, text: ty.some(x => textT.has(x)) }));
   P.forEach((p, i) => {
     byId.set(p.id, p);
     // the title tells the period where the attestations do not ("Hellas (Late Roman province)")
@@ -255,7 +255,7 @@ async function choosePlaces(hits, textId, workKey, year) {
         const rough = p.rough && p.names.length < 5;                // a vague position counts against small places only
         let v = (c ?? (home ? Math.min(dist(p, home), 8) : 0)) * (rough ? 1.15 : 1) + (rough ? 0.3 : 0);
         if (c != null && home) v += 0.25 * Math.min(dist(p, home), 8);
-        v -= 0.8 * Math.log(1 + p.names.length) + (p.ty.includes(urban) ? 1 : 0);         // well-known places first
+        v -= 0.8 * Math.log(1 + p.names.length) + (p.ty.includes(urban) ? 1 : 0) + 0.35 * (p.w || 0);   // well-known places first
         if (cuet != null) v += p.ty.includes(cuet) ? -3 : 2;                                // "fluminis" -> the river
         return v;
       };

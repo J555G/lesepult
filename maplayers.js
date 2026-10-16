@@ -76,7 +76,7 @@ function sitesData() {
     if (p.ty.length === 1 && p.ty[0] === modern) continue;
     let c = null; for (const t of p.ty) if (catOf.has(t)) { c = catOf.get(t); break; }
     if (c == null) c = SITE_CATS.length - 1;                      // every place belongs somewhere
-    const pr = { id: p.id, c }; if (p.y0 != null) pr.y0 = p.y0; if (p.y1 != null) pr.y1 = p.y1; if (p.rough) pr.r = 1;
+    const pr = { id: p.id, c, w: p.w || 0 }; if (p.y0 != null) pr.y0 = p.y0; if (p.y1 != null) pr.y1 = p.y1; if (p.rough) pr.r = 1;
     feats.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lon, p.lat] }, properties: pr });
   }
   return M.sitesFC = { type: 'FeatureCollection', features: feats };
@@ -107,9 +107,11 @@ function layerStyle(st, C) {
       { id: 'a-urban-line', type: 'line', source: 'a_urban', minzoom: 8, paint: { 'line-color': dark ? '#8a7c66' : '#a8936c', 'line-width': 1 } });
   }
   before('pl-region', { id: 'sites', type: 'circle', source: 'sites', minzoom: 2.5, paint: {
-    'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 1.1, 5, 1.8, 8, 3.6, 12, 5],
+    // zoomed out only the significant places (0–9), the others appear step by step
+    'circle-radius': ['interpolate', ['linear'], ['zoom'], 2.5, ['case', ['>=', ['get', 'w'], 7], 2.2, 0], 4, ['case', ['>=', ['get', 'w'], 5], 2.2, ['>=', ['get', 'w'], 3], 1.4, 0],
+      5.5, ['case', ['>=', ['get', 'w'], 5], 2.8, ['>=', ['get', 'w'], 1], 1.8, 1.1], 8, ['+', 3, ['*', 0.2, ['get', 'w']]], 12, ['+', 4.5, ['*', 0.25, ['get', 'w']]]],
     'circle-color': tColor(['match', ['get', 'c'], ...SITE_CATS.flatMap((c, i) => [i, c[dark ? 4 : 3]]), C.fg]),
-    'circle-stroke-color': C.bg, 'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 4, 0.3, 8, 1],
+    'circle-stroke-color': C.bg, 'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 2.5, ['case', ['>=', ['get', 'w'], 7], 0.4, 0], 4, ['case', ['>=', ['get', 'w'], 3], 0.4, 0], 5.5, 0.4, 8, 1],
     'circle-opacity': 0.85, 'circle-stroke-opacity': 0.85 } });
   applyLayersTo(st.layers);
   return st;
@@ -205,14 +207,16 @@ function moreLabels(placed, W, H) {
       h += `<span class="mlbl rl k-${L.k}"${L.pid ? ` data-pid="${L.pid}"` : ''} style="left:${Math.round(cx)}px;top:${Math.round(cy)}px;letter-spacing:${ls.toFixed(1)}px;transform:translate(-50%,-50%) rotate(${(ang * 180 / Math.PI).toFixed(1)}deg);opacity:${(st.o * (caps ? 0.75 : 0.85)).toFixed(2)}${col}">${esc(txt)}</span>`;
     }
   }
-  // the places in view (from zoom 5): their names where there is room, the best-known first
-  if (M.cfg.pfOn === false && z >= 5 && M.map.getLayer('sites')) {
+  // the places in view: their names where there is room, the most significant first (zoomed out: only those)
+  if (M.cfg.pfOn === false && z >= 3 && M.map.getLayer('sites')) {
+    const minW = z < 4 ? 7 : z < 5 ? 5 : z < 6 ? 3 : z < 7 ? 1 : 0;
     const seen = new Set(), cand = [];
     for (const f of M.map.queryRenderedFeatures({ layers: ['sites'] })) {
       const id = f.properties.id; if (seen.has(id)) continue; seen.add(id);
       const p = M.P?.byId.get(id); if (!p) continue;
       const pt = M.map.project([p.lon, p.lat]); if (pt.x < 0 || pt.x > W || pt.y < 0 || pt.y > H) continue;
-      cand.push({ p, pt, w: p.names.length + (p.ty.includes(M.P.ti.urban) ? 6 : 0) + (p.rough ? -3 : 0) });
+      if ((p.w || 0) < minW) continue;
+      cand.push({ p, pt, w: (p.w || 0) * 100 + Math.min(p.names.length, 20) });
     }
     cand.sort((a, b) => b.w - a.w);
     let n = 0;
@@ -335,7 +339,7 @@ function layersHTML() {
       + segc('twoCol', [[false, 'One colour'], [true, 'A colour for each']], 'Several periods')
       + `<div class="mcols">${RANGE_COL.map((_, k) => `<label title="Colour of period ${k + 1}"><input type="color" data-mcol="${k}" value="${rangeCol(k)}"><span>${k + 1}</span></label>`).join('')}<button type="button" class="mcolr" data-mcolreset="1">Standard colours</button></div>`
       + '<p class="hint small">Hold a date on the slider to make it a period, hold a period to split it in two; pull ends together to join them.</p>')
-    + foldSec('sites', 'Kinds of places', '<p class="hint small">Which places are shown while “Places from” is switched off.</p><div class="mcats">' + SITE_CATS.map(([k, l, , c1, c2]) => `<button type="button" class="mtg${M.cfg.cats?.[k] ? ' on' : ''}" data-mcat="${k}"><span class="ck"></span><i class="dot" style="--c:${document.documentElement.dataset.theme === 'dark' ? c2 : c1}"></i>${l}</button>`).join('') + '</div>')
+    + foldSec('sites', 'Kinds of places', '<p class="hint small">Which places are shown while “Places from” is switched off.</p><div class="macts" style="margin:.1rem 0 .3rem"><button type="button" data-mcatall="1">All</button><button type="button" data-mcatall="0">None</button></div><div class="mcats">' + SITE_CATS.map(([k, l, , c1, c2]) => `<button type="button" class="mtg${M.cfg.cats?.[k] ? ' on' : ''}" data-mcat="${k}"><span class="ck"></span><i class="dot" style="--c:${document.documentElement.dataset.theme === 'dark' ? c2 : c1}"></i>${l}</button>`).join('') + '</div>')
     + foldSec('geo', 'Geography', tgl('rivers', 'Rivers', M.cfg.rivers !== false) + tgl('lakes', 'Lakes', M.cfg.lakes !== false))
     + foldSec('anc', 'Ancient world', anc ? tgl('coast', 'Coastlines of the period') + tgl('empires', 'Empires and Roman provinces')
       + segc('regions', [['off', 'Off'], ['labels', 'Names'], ['areas', 'Areas']], 'Regions and peoples') + tgl('roads', 'Roads (Barrington Atlas)') + tgl('urban', 'City outlines')
@@ -353,6 +357,7 @@ function layersPop() {
 async function layerClick(b) {
   const d = b.dataset;
   if (d.mfold) { const f = b.closest('.mfold'), on = !f.classList.contains('open'); f.classList.toggle('open', on); (M.cfg.fold ??= {})[d.mfold] = on; saveMapCfg(); return true; }
+  if (d.mcatall != null) { const on = d.mcatall === '1'; M.cfg.cats = Object.fromEntries(SITE_CATS.map(c => [c[0], on])); $('#mapPop .mcats')?.querySelectorAll('[data-mcat]').forEach(x => x.classList.toggle('on', on)); await saveMapCfg(); applyLayers(); return true; }
   if (d.mcat) { (M.cfg.cats ??= {})[d.mcat] = !M.cfg.cats[d.mcat]; b.classList.toggle('on', M.cfg.cats[d.mcat]);  await saveMapCfg(); applyLayers(); return true; }
   if (d.mcfg) {
     let v = d.v; if (v === 'true' || v === 'false') v = v === 'true'; else if (/^\d+$/.test(v)) v = +v;
