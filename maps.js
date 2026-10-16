@@ -116,7 +116,7 @@ async function loadPlaceIndex() {
   const mainT = new Set(MAIN_TYPES.map(t => d.types.indexOf(t)).filter(i => i >= 0));
   const okWord = w => w.length >= 3 && !/^[IVXLCDM]+\.?$/.test(w);
   const add = (m, k, i) => { if (!k) return; let a = m.get(k); if (!a) m.set(k, a = []); if (!a.includes(i)) a.push(i); };
-  const P = d.places.map(([id, t, lat, lon, ty, rough, y0, y1, names, w]) => ({ id, t, lat, lon, ty, rough, y0, y1, names, conn: w || 0, text: ty.some(x => textT.has(x)) }));
+  const P = d.places.map(([id, t, lat, lon, ty, rough, y0, y1, names, w, pop]) => ({ id, t, lat, lon, ty, rough, y0, y1, names, conn: w || 0, pop: pop || 0, text: ty.some(x => textT.has(x)) }));
   P.forEach((p, i) => {
     byId.set(p.id, p);
     // the title tells the period where the attestations do not ("Hellas (Late Roman province)")
@@ -443,7 +443,9 @@ async function showMap1() {
     M.map.on('mouseenter', 'sites', () => { M.map.getCanvas().style.cursor = 'pointer'; });
     M.map.on('mouseleave', 'sites', () => { M.map.getCanvas().style.cursor = ''; });
     M.map.on('click', e => { if (M.pick) { const p = M.pick; M.pick = null; $('#mapCanvas').classList.remove('picking'); p(e.lngLat); return; }
-      const id = tapPlace(e.point); if (id != null) selectPlace(id, { from: 'map' }); else closeCard(); });
+      if ($('#mapChoose') && !$('#mapChoose').hidden) { $('#mapChoose').hidden = true; return; }
+      const id = tapPlace(e.point); if (id === 'choose') return; if (id != null) selectPlace(id, { from: 'map' }); else closeCard(); });
+    M.map.on('movestart', () => { const c = $('#mapChoose'); if (c) c.hidden = true; });
     M.map.on('mouseenter', 'pl', () => { M.map.getCanvas().style.cursor = 'pointer'; });
     M.map.on('mouseleave', 'pl', () => { M.map.getCanvas().style.cursor = ''; });
     await new Promise(r => M.map.once('load', r));
@@ -479,14 +481,37 @@ async function refreshMapData() {
 // a tap on the map: the nearest place (circle or name) within reach of a finger tip
 // (the names do not take touches themselves, so that pinching and panning work everywhere)
 function tapPlace(pt) {
-  const r = matchMedia('(pointer: coarse)').matches ? 20 : 9;
+  const r = matchMedia('(pointer: coarse)').matches ? 22 : 10;
+  // a tap right on a name: that place
+  for (const [b, id] of M.lblHit || []) if (pt.x >= b[0] && pt.x <= b[2] && pt.y >= b[1] && pt.y <= b[3]) return id;
   const fs = M.map.queryRenderedFeatures([[pt.x - r, pt.y - r], [pt.x + r, pt.y + r]], { layers: ['pl', ...(M.map.getLayer('sites') ? ['sites'] : [])] });
-  let best = null, bd = Infinity;
-  for (const f of fs) { const c = M.map.project(f.geometry.coordinates), d = Math.hypot(c.x - pt.x, c.y - pt.y) - (f.layer.id === 'pl' ? 6 : 0); if (d < bd) { bd = d; best = f.properties.id; } }
-  if (best != null) return best;
-  const pad = r / 2;
-  for (const [b, id] of M.lblHit || []) if (pt.x >= b[0] - pad && pt.x <= b[2] + pad && pt.y >= b[1] - pad && pt.y <= b[3] + pad) return id;
-  return null;
+  const seen = new Map();
+  for (const f of fs) {
+    const id = f.properties.id; if (seen.has(id)) continue;
+    const p = placeById(id); if (!p) continue;
+    const c = M.map.project([p.lon, p.lat]), d = Math.hypot(c.x - pt.x, c.y - pt.y); if (d > r * 1.2) continue;
+    // nearness, with the significance of the place (and places of the text) counting as if nearer
+    seen.set(id, { id, p, d, eff: d - 2.4 * (p.w || 0) - (f.layer.id === 'pl' ? 8 : 0) });
+  }
+  const c = [...seen.values()].sort((a, b) => a.eff - b.eff);
+  if (!c.length) {
+    const pad = r / 2;
+    for (const [b, id] of M.lblHit || []) if (pt.x >= b[0] - pad && pt.x <= b[2] + pad && pt.y >= b[1] - pad && pt.y <= b[3] + pad) return id;
+    return null;
+  }
+  if (c.length === 1 || c[1].eff - c[0].eff > 12) return c[0].id;   // a clear choice
+  chooserAt(pt, c.slice(0, 7)); return 'choose';
+}
+// several places within reach of the finger: a short list right there, the most significant first
+function chooserAt(pt, list) {
+  const box = $('#mapChoose') || (() => { const e = document.createElement('div'); e.id = 'mapChoose'; e.className = 'mchoose'; $('#mapBody').append(e); return e; })();
+  list.sort((a, b) => (b.p.w || 0) - (a.p.w || 0) || a.d - b.d);
+  box.innerHTML = list.map(x => `<button type="button" data-mchoose="${esc(String(x.id))}"><b style="font-size:${(13 + 0.25 * (x.p.w || 0)).toFixed(1)}px">${esc(labelOf(M.shown?.get(x.id) || { p: x.p, names: {} }))}</b><small>${esc(typeLabel(x.p))}</small></button>`).join('');
+  const W = $('#mapBody').clientWidth, H = $('#mapBody').clientHeight;
+  box.hidden = false;
+  const bw = box.offsetWidth, bh = box.offsetHeight;
+  box.style.left = Math.max(8, Math.min(W - bw - 8, pt.x - bw / 2)) + 'px';
+  box.style.top = (pt.y + 18 + bh < H - 8 ? pt.y + 18 : Math.max(8, pt.y - bh - 18)) + 'px';
 }
 // labels: drawn as text above the map (Greek and Latin in the reading font), without overlaps, most important first
 function drawLabels() {
@@ -498,14 +523,14 @@ function drawLabels() {
   let h = '';
   const ctx = (drawLabels.c ??= document.createElement('canvas').getContext('2d'));
   for (const o of items) {
-    const reg = isRegion(o.x.p), txt = labelOf(o.x), fs = reg ? 11 : 13;
+    const reg = isRegion(o.x.p), txt = labelOf(o.x), fs = reg ? 11 : +(12 + 0.3 * (o.x.p.w || 0)).toFixed(1);
     ctx.font = `${reg ? 600 : 400} ${fs}px "Gentium Book Plus", serif`;
     const w = ctx.measureText(reg ? txt.toUpperCase() : txt).width * (reg ? 1.35 : 1) + 4, hgt = fs + 4;
     const x = reg ? o.pt.x - w / 2 : o.pt.x + 7, y = reg ? o.pt.y - hgt / 2 : o.pt.y - hgt + 2;
     const r = [x, y, x + w, y + hgt];
     if (o.x.p.id !== sel && placed.some(q => r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1])) continue;
     placed.push(r); M.lblHit.push([r, o.x.p.id]);
-    h += `<span class="mlbl${reg ? ' reg' : ''}${o.x.unsure && o.x.unsure === o.x.n ? ' unsure' : ''}${isWater(o.x.p) ? ' wat' : ''}${o.x.p.id === sel ? ' sel' : ''}${o.x.extra ? ' extra' : ''}" data-pid="${esc(String(o.x.p.id))}" style="left:${Math.round(x)}px;top:${Math.round(y)}px">${esc(txt)}</span>`;
+    h += `<span class="mlbl${reg ? ' reg' : ''}${o.x.unsure && o.x.unsure === o.x.n ? ' unsure' : ''}${isWater(o.x.p) ? ' wat' : ''}${o.x.p.id === sel ? ' sel' : ''}${o.x.extra ? ' extra' : ''}" data-pid="${esc(String(o.x.p.id))}" style="left:${Math.round(x)}px;top:${Math.round(y)}px${reg ? '' : `;font-size:${fs}px`}">${esc(txt)}</span>`;
   }
   box.innerHTML = h + moreLabels(placed, W, H);
 }
@@ -614,6 +639,7 @@ function wireMapUI() {
     const b = ev.target.closest('button,.mlbl'); if (!b) return;
     const d = b.dataset;
     if (b.classList.contains('mlbl')) return selectPlace(d.pid, { from: 'map' });
+    if (d.mchoose) { $('#mapChoose').hidden = true; return selectPlace(/^\d+$/.test(d.mchoose) ? +d.mchoose : d.mchoose, { from: 'map' }); }
     if (d.mclose) return closeCard();
     if (b.id === 'mapCheck') return checkPop();
     if (d.mok) { M.chScope = 'occ'; return saveCorrection({ p: M.sel.p.id }); }

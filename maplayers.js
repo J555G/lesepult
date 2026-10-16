@@ -82,14 +82,14 @@ function sitesData() {
   return M.sitesFC = { type: 'FeatureCollection', features: feats };
 }
 // how significant a place is, 0–9: links from other places of the gazetteer, names, city, Greek and Latin names, position
-const SIG_DEF = { links: 3, names: 0.6, city: 2, both: 1.5, rough: 2 };
-const SIG_UI = [['links', 'Links from other places', 0, 6, 0.5], ['names', 'Number of names', 0, 2, 0.1], ['city', 'City (polis, urban)', 0, 6, 0.5], ['both', 'Greek and Latin names', 0, 4, 0.5], ['rough', 'Position only approximate (less)', 0, 6, 0.5]];
+const SIG_DEF = { links: 3, pop: 1.5, names: 0.6, city: 2, both: 1.5, rough: 2 };
+const SIG_UI = [['links', 'Links from other places', 0, 6, 0.5], ['pop', 'Population (cities of the Roman world)', 0, 4, 0.5], ['names', 'Number of names', 0, 2, 0.1], ['city', 'City (polis, urban)', 0, 6, 0.5], ['both', 'Greek and Latin names', 0, 4, 0.5], ['rough', 'Position only approximate (less)', 0, 6, 0.5]];
 // the score of a place; the ranks 0–9 then go by position in the order (the top 30 get 9, the next 50 get 8 …),
 // so that the weights change which places come first, not how many are shown
 function placeScore(p) {
   const W = Object.assign({}, SIG_DEF, M.cfg?.sigW || {}), ti = M.P?.ti || {};
   const langs = new Set(p.names.map(n => n[1]));
-  const sc = W.links * Math.log2(1 + (p.conn || 0)) + W.names * Math.min(p.names.length, 12) + (p.ty.includes(ti.urban) || p.ty.includes(ti.polis) ? W.city : 0)
+  const sc = W.links * Math.log2(1 + (p.conn || 0)) + W.pop * Math.log2(1 + (p.pop || 0) / 1000) + W.names * Math.min(p.names.length, 12) + (p.ty.includes(ti.urban) || p.ty.includes(ti.polis) ? W.city : 0)
     + (langs.has('grc') && langs.has('la') ? W.both : 0) - (p.rough ? W.rough : 0);
   return sc;
 }
@@ -104,6 +104,8 @@ function recomputeSig() {
   rankPlaces();
   M.sitesFC = null; M.map?.getSource('sites')?.setData(sitesData()); applyLayers();
 }
+// the size of a place's name: larger for more significant places, at every zoom
+const siteFont = p => +(10.5 + 0.38 * (p.w || 0)).toFixed(1);
 // zoomed out, only places of at least this significance get a dot (and a name)
 const dotMinW = z => z < 3.5 ? 7 : z < 4.5 ? 5 : z < 5.5 ? 3 : z < 6.5 ? 1 : 0;
 // the kinds of places ticked in the layer menu (settlements by default)
@@ -247,12 +249,12 @@ function moreLabels(placed, W, H) {
     cand.sort((a, b) => b.w - a.w);
     let n = 0;
     for (const { p, pt } of cand) {
-      const txt = labelOf({ p, names: {} }); ctx.font = '11.5px "Gentium Book Plus", serif';
-      const w = ctx.measureText(txt).width + 4, r = [pt.x + 5, pt.y - 13, pt.x + 5 + w, pt.y + 1];
+      const fs = siteFont(p), txt = labelOf({ p, names: {} }); ctx.font = `${fs}px "Gentium Book Plus", serif`;
+      const w = ctx.measureText(txt).width + 4, r = [pt.x + 5, pt.y - fs - 1.5, pt.x + 5 + w, pt.y + 1];
       if (hit(r)) continue; placed.push(r); M.lblHit.push([r, p.id]);
       // zoomed out, names of less significant places are smaller and fainter
-      const fade = Math.min(1, 0.35 + 0.075 * (p.w || 0) + Math.max(0, z - 5) * 0.12), big = z < 7 && (p.w || 0) >= 7;
-      h += `<span class="mlbl site${big ? ' big' : ''}" data-pid="${p.id}" style="left:${Math.round(r[0])}px;top:${Math.round(r[1])}px;opacity:${((tState(p.y0, p.y1).o || 1) * fade).toFixed(2)}">${esc(txt)}</span>`;
+      const fade = Math.min(1, 0.35 + 0.075 * (p.w || 0) + Math.max(0, z - 5) * 0.12), big = (p.w || 0) >= 7;
+      h += `<span class="mlbl site${big ? ' big' : ''}" data-pid="${p.id}" style="left:${Math.round(r[0])}px;top:${Math.round(r[1])}px;font-size:${fs}px;opacity:${((tState(p.y0, p.y1).o || 1) * fade).toFixed(2)}">${esc(txt)}</span>`;
       if (++n > 180) break;
     }
   }
@@ -264,7 +266,7 @@ const CLOCK_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden=
 const tPct = y => (y - TMIN) / (TMAX - TMIN) * 100;
 function timeBarHTML() {
   const ticks = []; for (let y = -800; y <= TMAX; y += 200) ticks.push(`<i style="left:${tPct(y)}%"><span>${y < 0 ? -y : y === 0 ? 'BC | AD' : y}</span></i>`);
-  return `<div class="mtl"><span class="mtv" id="mapTimeV"></span><button type="button" class="mtw" id="mapWDate" title="Date of this work – tap to correct"></button><button type="button" class="mtx" data-mtoff="1" title="Period filter off" aria-label="Period filter off">✕</button></div>
+  return `<div class="mtl"><span class="mtv" id="mapTimeV"></span><button type="button" class="mtx" data-mtoff="1" title="Period filter off" aria-label="Period filter off">✕</button></div>
     <div class="mtt" id="mapTrack"><div class="mtaxis">${ticks.join('')}</div><div id="mapRanges"></div></div>`;
 }
 function renderTime() {
@@ -274,7 +276,6 @@ function renderTime() {
   if (!M.cfg.time) return;
   const R = M.T?.ranges || [], two = M.cfg.twoCol && R.length > 1;
   $('#mapTimeV').innerHTML = R.length ? R.map((r, k) => `<span${two ? ` style="color:${rangeCol(k)}"` : ''}>${esc(fmtR(r))}</span>`).join(' · ') + (M.cfg.tol ? ` <small>± ${M.cfg.tol}</small>` : '') : '<small>Tap the line to choose a date</small>';
-  const wd = $('#mapWDate'); wd.hidden = !S.text; wd.innerHTML = `Text: ${M.year != null ? esc(fmtY(M.year)) : 'no date'} <small>✎</small>`;
   $('#mapRanges').innerHTML = R.map(([a, b], k) => `<div class="mtr${a === b ? ' pt' : ''}" data-k="${k}" style="left:${tPct(a)}%;width:${tPct(b) - tPct(a)}%${two ? `;--rc:${rangeCol(k)}` : ''}"></div>`
     + `<div class="mth" data-k="${k}" data-e="0" style="left:${tPct(a)}%${two ? `;--rc:${rangeCol(k)}` : ''}"></div>` + (a !== b ? `<div class="mth" data-k="${k}" data-e="1" style="left:${tPct(b)}%${two ? `;--rc:${rangeCol(k)}` : ''}"></div>` : '')).join('')
     + (M.year != null ? `<div class="mtwk" style="left:${tPct(M.year)}%" title="Date of the work"></div>` : '');
@@ -366,12 +367,12 @@ function layersHTML() {
 }
 // the map settings (hold the map button, or ☰ → Settings → More map settings): how the map behaves
 function settingsHTML() {
-  // shown in full (no folding), with headings, as in the colour and grammar menus
-  const foldSec = (k, title, body) => `<div class="msec"><div class="navh msech">${title}</div>${body}</div>`;
-  return foldSec('general', 'General', tgl('mark', 'Mark place names in the text') + tgl('jump', 'Move the map to a place chosen in the text'))
-    + foldSec('text', 'Places in texts', segc('persons', [['unsure', 'Mark as uncertain'], ['hide', 'Not as places']], 'Words that may name a person')
+  // folded sections (open ones remembered)
+  return foldSec('sgeneral', 'General', tgl('mark', 'Mark place names in the text') + tgl('jump', 'Move the map to a place chosen in the text'))
+    + foldSec('stext', 'Places in texts', segc('persons', [['unsure', 'Mark as uncertain'], ['hide', 'Not as places']], 'Words that may name a person')
       + segc('names', [['text', 'As in the text'], ['english', 'English'], ['modern', 'Modern']], 'Names on the map'))
-    + foldSec('time', 'Period', tgl('time', 'Period filter (time slider)')
+    + foldSec('stime', 'Period', tgl('time', 'Period filter (time slider)')
+      + `<div class="mwd"><span>Date of the open work: <b>${S.text ? (M.year != null ? esc(fmtY(M.year)) : 'no date') : '–'}</b></span>${S.text ? '<button type="button" data-mwdate="1">Change …</button>' : ''}</div>`
       + segc('tol', [[0, '0'], [10, '± 10'], [25, '± 25'], [50, '± 50'], [100, '± 100']], 'Tolerance (years)')
       + segc('gone', [['fade', 'Faded'], ['hide', 'Hidden']], 'Places that no longer existed')
       + segc('later', [['show', 'Shown'], ['fade', 'Faded'], ['hide', 'Hidden']], 'Places known only from later sources')
@@ -379,7 +380,7 @@ function settingsHTML() {
       + segc('twoCol', [[false, 'One colour'], [true, 'A colour for each']], 'Several periods')
       + `<div class="mcols">${RANGE_COL.map((_, k) => `<label title="Colour of period ${k + 1}"><input type="color" data-mcol="${k}" value="${rangeCol(k)}"><span>${k + 1}</span></label>`).join('')}<button type="button" class="mcolr" data-mcolreset="1">Standard colours</button></div>`
       + '<p class="hint small">Hold a date on the slider to make it a period, hold a period to split it in two; pull ends together to join them.</p>')
-    + foldSec('sig', 'Significance of places', `<p class="hint small">Zoomed out, only the more significant places are shown, and their names come first. How much counts:</p>`
+    + foldSec('ssig', 'Significance of places', `<p class="hint small">Zoomed out, only the more significant places are shown, and their names come first. How much counts:</p>`
       + SIG_UI.map(([k, lb, a, b, st]) => { const v = (M.cfg.sigW?.[k] ?? SIG_DEF[k]); return `<label class="msig"><span>${lb}</span><input type="range" min="${a}" max="${b}" step="${st}" value="${v}" data-msig="${k}"><output>${v}</output></label>`; }).join('')
       + `<div class="macts"><button type="button" data-msigreset="1">Standard weights</button></div>${M.P && !M.P.hasConn ? '<p class="hint small">Update the download <b>Ancient places</b> (Instruments → Maps) for the links between places.</p>' : ''}`);
 }
@@ -421,7 +422,7 @@ async function layerClick(b) {
     applyLayers(); return true;
   }
   if (d.mtoff || b.id === 'mapTimeBtn') { M.cfg.time = b.id === 'mapTimeBtn' ? !M.cfg.time : false; await saveMapCfg(); timeFor(S.text); renderTime(); applyLayers(); $('#mapPop [data-mlay="time"]')?.classList.toggle('on', M.cfg.time); return true; }
-  if (b.id === 'mapWDate') { workDateDialog(); return true; }
+  if (b.id === 'mapWDate' || d.mwdate) { if (b.closest('dialog')) $('#dlg').close(); setTimeout(workDateDialog, 50); return true; }
   if (d.mcolreset) { M.cfg.rangeCols = null; await saveMapCfg(); b.parentElement.querySelectorAll('[data-mcol]').forEach(x => { x.value = rangeCol(+x.dataset.mcol); }); renderTime(); applyLayers(); return true; }
   return false;
 }

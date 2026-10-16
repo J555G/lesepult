@@ -1546,19 +1546,22 @@ async function settingsDialog() {
   const cb = (k, on, label) => `<label class="sopt"><input type="checkbox" data-set="${k}"${on ? ' checked' : ''}> ${label}</label>`;
   let ver = '–'; try { const ks = (await caches.keys()).filter(k => k.startsWith('lesepult-v')).map(k => +k.split('-v')[1]); if (ks.length) ver = Math.max(...ks); } catch (_) { }
   const posRows = POS.map(([id, label]) => `<div class="item posrow"><label class="t"><input type="checkbox" data-poson="${id}"${S.posCfg[id]?.on !== false ? ' checked' : ''}> ${label}</label><input type="color" data-posc="${id}" value="${S.posCfg[id]?.c}"></div>`).join('');
+  // the sections folded (open ones remembered, with the folds of ☰ → Instruments)
+  const fold = (await setting('instFold')) || {};
+  const sec = (k, title) => `<details class="ifold" data-if="set-${k}"${fold['set-' + k] ? ' open' : ''}><summary><b>${title}</b></summary><section class="dsec">`;
   const dlgP = dialog(`<h3>Settings</h3>
-    <section class="dsec"><h4>Appearance</h4>
+    ${sec('app', 'Appearance')}
       ${row('Theme', sw('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']]))}
       ${row('Top bar', withInfo(cb('gramBtn', S.gramBtn, 'Grammar button'), 'Shows the grammatical information beneath each word; hold it to choose for which word classes.'))}
       <details class="scol"${S.colOpen ? ' open' : ''}><summary>Word-class colours ${info('Used by the “Colours” button in the top bar (hold that button to open this list directly). Word classes follow the reading chosen for each word.')}</summary>
         <div class="list plain">${posRows}</div><div class="row" style="justify-content:flex-start"><button type="button" data-posreset="1">Reset colours</button></div></details>
       <details class="scol sgram"${S.gramOpen ? ' open' : ''}><summary>Grammar line ${info('Which words show their grammatical form beneath them when the grammar line is on (hold the “Grammar” button to open this list directly).')}</summary>
-        <div class="gramcfg">${gramRowsHTML()}</div></details></section>
-    <section class="dsec mapset"><h4>Map</h4>${typeof settingsHTML === 'function' ? (await mapCfg(), settingsHTML()) : ''}</section>
-    <section class="dsec"><h4>Glosses</h4>
+        <div class="gramcfg">${gramRowsHTML()}</div></details></section></details>
+    ${typeof settingsHTML === 'function' ? sec('map', 'Map') + `<div class="mapset">${(await mapCfg(), settingsHTML())}</div></section></details>` : ''}
+    ${sec('gloss', 'Glosses')}
       ${row('Own gloss', withInfo(sw('glossMode', S.glossMode === 'both' ? 'both' : 'replace', [['replace', 'Replaces default'], ['both', 'Show both']]), 'A word can have its own gloss; its lemma can have a default gloss that applies everywhere.'))}</section>
-    <section class="dsec"><h4>About</h4>
-      ${row('Version', `Pult · version ${ver}`)}</section>`,
+    </details>${sec('about', 'About')}
+      ${row('Version', `Pult · version ${ver}`)}</section></details>`,
     [['cancel', 'Close']]);
   syncGramRows($('#dlgForm'));
   await dlgP;

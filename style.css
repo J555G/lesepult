@@ -1014,3 +1014,15 @@ details.mtree.l1{margin-left:1.2rem}details.mtree.l1>summary{font-size:14px}
 .mph+.mfold{border-top:0}
 .mapset .msec{margin:.2rem 0 .6rem}.mapset .msech{font:600 14px var(--ui);color:var(--fg);margin:.6rem 0 .2rem}
 .mapset .msec .navh:not(.msech){font:600 12px var(--ui);color:var(--mut);margin:.45rem 0 .25rem}
+/* the time slider in the middle of the map */
+.mtime{left:0;right:0;margin:0 auto;width:min(640px,calc(100% - 16px));box-sizing:border-box}
+@media (max-width:600px){.mtime{left:0;right:0}}
+.mwd{display:flex;align-items:center;gap:.5rem;font-size:13px;margin:.3rem 0 .2rem}.mwd button{font-size:12.5px;padding:.2rem .55rem;margin-left:auto}
+/* choosing among places close together */
+.mchoose{position:absolute;z-index:6;display:flex;flex-direction:column;min-width:10rem;max-width:16rem;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.3);padding:.2rem 0;overflow:hidden}
+.mchoose[hidden]{display:none}
+.mchoose button{display:flex;flex-direction:column;align-items:flex-start;text-align:left;border:0;border-radius:0;background:none;padding:.35rem .7rem;color:var(--fg)}
+.mchoose button+button{border-top:1px solid var(--line)}
+.mchoose b{font:600 14px var(--greek)}.mchoose small{font:11.5px var(--ui);color:var(--mut)}
+.mlbl.site.big{color:var(--fg)}
+.mtx{margin-left:auto}
