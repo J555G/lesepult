@@ -1554,18 +1554,14 @@ async function settingsDialog() {
         <div class="list plain">${posRows}</div><div class="row" style="justify-content:flex-start"><button type="button" data-posreset="1">Reset colours</button></div></details>
       <details class="scol sgram"${S.gramOpen ? ' open' : ''}><summary>Grammar line ${info('Which words show their grammatical form beneath them when the grammar line is on (hold the “Grammar” button to open this list directly).')}</summary>
         <div class="gramcfg">${gramRowsHTML()}</div></details></section>
-    <section class="dsec"><h4>Map</h4>
-      ${row('Place names', withInfo(`<label class="sopt"><input type="checkbox" data-mapset="mark"${(await mapCfg()).mark ? ' checked' : ''}> Mark them in the text</label>`, 'Words that name a place on the map are underlined in blue (needs the “Ancient places” download).'))}
-      ${row('Tapping a place', withInfo(`<label class="sopt"><input type="checkbox" data-mapset="jump"${M.cfg.jump ? ' checked' : ''}> The map moves to it</label>`, 'Off: the map stays where it is and only marks the place; you move and zoom yourself.'))}
-      ${row('', '<button type="button" data-v="mapsettings">More map settings …</button>')}</section>
+    <section class="dsec mapset"><h4>Map</h4>${typeof settingsHTML === 'function' ? (await mapCfg(), settingsHTML()) : ''}</section>
     <section class="dsec"><h4>Glosses</h4>
       ${row('Own gloss', withInfo(sw('glossMode', S.glossMode === 'both' ? 'both' : 'replace', [['replace', 'Replaces default'], ['both', 'Show both']]), 'A word can have its own gloss; its lemma can have a default gloss that applies everywhere.'))}</section>
     <section class="dsec"><h4>About</h4>
       ${row('Version', `Pult · version ${ver}`)}</section>`,
     [['cancel', 'Close']]);
   syncGramRows($('#dlgForm'));
-  const res = await dlgP;
-  if (res?.action === 'mapsettings') { toggleMapTab(true); await showMap(); if (M.map) mapSettingsPop(); }   // ☰ → Settings → More map settings
+  await dlgP;
 }
 // hold a top-bar button: its list opens when the finger is lifted (so nothing beneath it gets selected)
 function holdButton(bp, held, open) {

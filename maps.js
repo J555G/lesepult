@@ -717,5 +717,5 @@ document.addEventListener('DOMContentLoaded', () => {
   const b = $('#tabMap'); if (!b) return;
   b.innerHTML = EUROPE_ICON;
   b.addEventListener('click', () => { if (S.mapHeld) { S.mapHeld = false; return; } toggleMapTab(); });
-  holdButton(b, v => S.mapHeld = v, async () => { if (S.tab !== 'map') { toggleMapTab(true); await showMap(); } if (M.map) mapSettingsPop(); });   // hold: the map settings
+  holdButton(b, v => S.mapHeld = v, () => mapSettingsDialog());   // hold: the map settings
 });

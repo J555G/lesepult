@@ -352,7 +352,7 @@ function foldSec(k, title, body) {
   return `<div class="mfold${open ? ' open' : ''}" data-fk="${k}"><button type="button" class="mfh" data-mfold="${k}"><span>${title}</span><i>▸</i></button><div class="mfb">${body}</div></div>`;
 }
 const tgl = (k, l, on) => `<button type="button" class="mtg${(on ?? M.cfg[k]) ? ' on' : ''}" data-mlay="${k}"><span class="ck"></span>${l}</button>`;
-const segc = (k, opts, lbl) => `${lbl ? `<div class="navh">${lbl}</div>` : ''}<div class="seg" role="group">${opts.map(([v, l]) => `<button type="button" data-mcfg="${k}" data-v="${v}" class="${String(M.cfg[k]) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+const segc = (k, opts, lbl) => `${lbl ? `<div class="navh">${lbl}</div>` : ''}<div class="seg" role="group">${opts.map(([v, l]) => `<button type="button" data-mcfg="${k}" data-mv="${v}" class="${String(M.cfg[k]) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
 // the layer menu (layers button): what the map shows
 function layersHTML() {
   const anc = M.anc;
@@ -366,6 +366,8 @@ function layersHTML() {
 }
 // the map settings (hold the map button, or ☰ → Settings → More map settings): how the map behaves
 function settingsHTML() {
+  // shown in full (no folding), with headings, as in the colour and grammar menus
+  const foldSec = (k, title, body) => `<div class="msec"><div class="navh msech">${title}</div>${body}</div>`;
   return foldSec('general', 'General', tgl('mark', 'Mark place names in the text') + tgl('jump', 'Move the map to a place chosen in the text'))
     + foldSec('text', 'Places in texts', segc('persons', [['unsure', 'Mark as uncertain'], ['hide', 'Not as places']], 'Words that may name a person')
       + segc('names', [['text', 'As in the text'], ['english', 'English'], ['modern', 'Modern']], 'Names on the map'))
@@ -389,7 +391,13 @@ function rightPop(k, title, html) {
   if (!pop._sw) { pop._sw = true; pop.addEventListener('scroll', () => { const kk = pop.dataset.k; if (kk !== 'layers' && kk !== 'settings') return; clearTimeout(pop._st); pop._st = setTimeout(() => { (M.cfg.popScroll ??= {})[kk] = pop.scrollTop; saveMapCfg(); }, 300); }); }
 }
 function layersPop() { rightPop('layers', 'Layers', layersHTML()); }
-function mapSettingsPop() { rightPop('settings', 'Map settings', settingsHTML()); }
+// hold the map button: the map settings as one menu (like the colours and the grammar line)
+async function mapSettingsDialog() { await mapCfg(); await dialog(`<h3>Map settings</h3><div class="mapset">${settingsHTML()}</div>`, [['cancel', 'Close']]); }
+// the map settings also work inside dialogs (☰ → Settings → Map, and the dialog above)
+document.addEventListener('click', async ev => {
+  const b = ev.target.closest?.('#dlg .mapset button'); if (!b) return;
+  await mapCfg(); await layerClick(b);
+});
 // the clicks of the layer menu and the slider (wired once, from wireMapUI)
 async function layerClick(b) {
   const d = b.dataset;
@@ -398,7 +406,7 @@ async function layerClick(b) {
   if (d.mcatall != null) { const on = d.mcatall === '1'; M.cfg.cats = Object.fromEntries(SITE_CATS.map(c => [c[0], on])); $('#mapPop .mcats')?.querySelectorAll('[data-mcat]').forEach(x => x.classList.toggle('on', on)); await saveMapCfg(); applyLayers(); return true; }
   if (d.mcat) { (M.cfg.cats ??= {})[d.mcat] = !M.cfg.cats[d.mcat]; b.classList.toggle('on', M.cfg.cats[d.mcat]);  await saveMapCfg(); applyLayers(); return true; }
   if (d.mcfg) {
-    let v = d.v; if (v === 'true' || v === 'false') v = v === 'true'; else if (/^\d+$/.test(v)) v = +v;
+    let v = d.mv; if (v === 'true' || v === 'false') v = v === 'true'; else if (/^\d+$/.test(v)) v = +v;
     M.cfg[d.mcfg] = v; b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); await saveMapCfg();
     if (d.mcfg === 'persons') { M.workCache = null; await placesForText(); return refreshMapData(), true; }
     if (d.mcfg === 'names') return drawLabels(), true;
@@ -407,7 +415,7 @@ async function layerClick(b) {
   }
   if (d.mlay) {
     const k = d.mlay; M.cfg[k] = !M.cfg[k]; b.classList.toggle('on', M.cfg[k]); await saveMapCfg();
-    if (k === 'borders') M.map.setLayoutProperty('borders', 'visibility', M.cfg.borders ? 'visible' : 'none');
+    if (k === 'borders') M.map?.setLayoutProperty('borders', 'visibility', M.cfg.borders ? 'visible' : 'none');
     if (k === 'peoples' || k === 'mark') { markPlaces(); await refreshMapData(); }
     if (k === 'time') { timeFor(S.text); renderTime(); }
     applyLayers(); return true;
