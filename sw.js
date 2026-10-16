@@ -1,5 +1,5 @@
 // Offline cache for the app shell (dictionaries and texts live in IndexedDB, not here).
-const CACHE = 'lesepult-v136';
+const CACHE = 'lesepult-v137';
 const FILES = ['./', 'index.html', 'app.js', 'maps.js', 'maplayers.js', 'mapsaved.js', 'style.css', 'fonts.css', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'fonts/roboto-condensed-latin-400-normal.woff2',
   ...['greek', 'greek-ext', 'latin', 'latin-ext'].flatMap(s => ['400-normal', '700-normal', '400-italic'].map(w => `fonts/gentium-book-plus-${s}-${w}.woff2`))];
 
@@ -46,6 +46,7 @@ self.addEventListener('fetch', e => {
   }).catch(async () => {
     const hit = await caches.match(key, { ignoreSearch: true }) || await caches.match(req, { ignoreSearch: true })
       || (page && (await caches.match('./') || await caches.match('index.html')));
-    return hit || Response.error();
+    // not in the cache either (e.g. just replaced by a new version): the network once more, without a time limit
+    return hit || fetch(req).catch(() => Response.error());
   }));
 });

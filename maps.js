@@ -5,6 +5,21 @@
 // Settings keys: mapPk (installed packages) · pl|<text>|<word> (correction of one passage) · plw|<work>|<name> (in a work)
 // · plg|<name> (everywhere) · pown|<id> (own places) · mpos|<key> (map position) · mapCfg (layers, names, scope …)
 const MAPS = 'maps/', MAPCACHE = 'pult-maps';
+// errors of the map scripts (maplayers.js, mapsaved.js): kept to be shown if the map cannot start
+const SCRIPT_ERR = [];
+window.addEventListener('error', e => {
+  const f = (e.filename || e.target?.src || '').split('/').pop().split('?')[0];
+  if (/^map/.test(f)) SCRIPT_ERR.push(`${f}: ${e.message || 'could not be loaded'}${e.lineno ? ' (line ' + e.lineno + ')' : ''}`);
+}, true);
+// the map scripts must have run; if one is missing (not loaded, or stopped by an error), it is loaded once more from the website
+async function ensureMapScripts() {
+  const need = [['maplayers.js', () => typeof layerStyle === 'function'], ['mapsaved.js', () => typeof savePop === 'function']];
+  for (const [f, ok] of need) {
+    if (ok()) continue;
+    await new Promise(res => { const s = document.createElement('script'); s.src = f + '?r=' + Date.now(); s.onload = s.onerror = res; document.head.append(s); });
+    if (!ok()) throw new Error(`${f} could not be started. ${SCRIPT_ERR.join(' · ')}`);
+  }
+}
 const M = { P: null, map: null, sel: null, hits: new Map(), scope: null, cfg: null, posKey: null, own: new Map() };
 // the map button: the Mediterranean, cut off at the edges of the button – grey land on black, in colour when the map is open
 const EUROPE_ICON = '<i class="eu" aria-hidden="true"></i>'; // map image: Natural Earth II (public domain), see style.css
@@ -12,6 +27,7 @@ const EUROPE_ICON = '<i class="eu" aria-hidden="true"></i>'; // map image: Natur
 // ---------------------------------------------------------------- settings of the map
 async function mapCfg() {
   if (!M.cfg) {
+    await ensureMapScripts();
     const saved = (await setting('mapCfg')) || {};
     if (!saved.v2) { delete saved.mark; saved.v2 = true; }                 // place names are no longer marked in the text by default
     if (!saved.v3) {                                                     // "Places from": switch + scale + selection (v123→124)
