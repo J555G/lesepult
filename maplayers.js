@@ -157,7 +157,9 @@ function layerProps() {
     'a-urban': { vis: vis(c.urban) }, 'a-urban-line': { vis: vis(c.urban) },
     // "Places from" switched off: every place of the kinds ticked
     sites: { vis: vis(c.pfOn === false), filter: ['all', ['in', ['get', 'c'], ['literal', siteCats()]], ['>=', ['get', 'w'], dotMinW(M.map?.getZoom() ?? 6)], tf, ['!', ['in', ['get', 'id'], ['literal', shown]]]],
-      paint: { 'circle-opacity': tOpacity(0.85), 'circle-stroke-opacity': tOpacity(0.85) } },
+      // zoomed out, the less significant places are fainter (fading in as one zooms in)
+      paint: { 'circle-opacity': ['interpolate', ['linear'], ['zoom'], 3, tOpacity(['min', 0.9, ['+', 0.15, ['*', 0.085, ['get', 'w']]]]), 7, tOpacity(['min', 0.9, ['+', 0.55, ['*', 0.05, ['get', 'w']]]]), 9, tOpacity(0.9)],
+        'circle-stroke-opacity': ['interpolate', ['linear'], ['zoom'], 3, tOpacity(['min', 0.9, ['+', 0.1, ['*', 0.085, ['get', 'w']]]]), 7, tOpacity(0.7), 9, tOpacity(0.9)] } },
   };
 }
 function applyLayersTo(layers) {
@@ -228,7 +230,7 @@ function moreLabels(placed, W, H) {
       const hw = Math.abs(Math.cos(ang)) * w / 2 + Math.abs(Math.sin(ang)) * fs / 2, hh = Math.abs(Math.sin(ang)) * w / 2 + Math.abs(Math.cos(ang)) * fs / 2;
       const r = [cx - hw, cy - hh, cx + hw, cy + hh]; if (hit(r)) continue; placed.push(r);              // (names of regions are not tappable: a tap there would pick a place by chance)
       const col = M.cfg.twoCol && tRanges()?.length > 1 ? `;color:${rangeCol(st.k)}` : '';
-      h += `<span class="mlbl rl k-${L.k}"${L.pid ? ` data-pid="${L.pid}"` : ''} style="left:${Math.round(cx)}px;top:${Math.round(cy)}px;letter-spacing:${ls.toFixed(1)}px;transform:translate(-50%,-50%) rotate(${(ang * 180 / Math.PI).toFixed(1)}deg);opacity:${(st.o * (caps ? 0.75 : 0.85)).toFixed(2)}${col}">${esc(txt)}</span>`;
+      h += `<span class="mlbl rl k-${L.k}"${L.pid ? ` data-pid="${L.pid}"` : ''} style="left:${Math.round(cx)}px;top:${Math.round(cy)}px;letter-spacing:${ls.toFixed(1)}px;transform:translate(-50%,-50%) rotate(${(ang * 180 / Math.PI).toFixed(1)}deg);opacity:${(st.o * (caps ? 0.75 : 0.85) * Math.min(1, 0.45 + Math.max(0, z - 3.5) * 0.18)).toFixed(2)}${col}">${esc(txt)}</span>`;
     }
   }
   // the places in view: their names where there is room, the most significant first (zoomed out: only those)
@@ -248,7 +250,9 @@ function moreLabels(placed, W, H) {
       const txt = labelOf({ p, names: {} }); ctx.font = '11.5px "Gentium Book Plus", serif';
       const w = ctx.measureText(txt).width + 4, r = [pt.x + 5, pt.y - 13, pt.x + 5 + w, pt.y + 1];
       if (hit(r)) continue; placed.push(r); M.lblHit.push([r, p.id]);
-      h += `<span class="mlbl site" data-pid="${p.id}" style="left:${Math.round(r[0])}px;top:${Math.round(r[1])}px;opacity:${tState(p.y0, p.y1).o || 1}">${esc(txt)}</span>`;
+      // zoomed out, names of less significant places are smaller and fainter
+      const fade = Math.min(1, 0.35 + 0.075 * (p.w || 0) + Math.max(0, z - 5) * 0.12), big = z < 7 && (p.w || 0) >= 7;
+      h += `<span class="mlbl site${big ? ' big' : ''}" data-pid="${p.id}" style="left:${Math.round(r[0])}px;top:${Math.round(r[1])}px;opacity:${((tState(p.y0, p.y1).o || 1) * fade).toFixed(2)}">${esc(txt)}</span>`;
       if (++n > 180) break;
     }
   }
@@ -349,12 +353,22 @@ function foldSec(k, title, body) {
 }
 const tgl = (k, l, on) => `<button type="button" class="mtg${(on ?? M.cfg[k]) ? ' on' : ''}" data-mlay="${k}"><span class="ck"></span>${l}</button>`;
 const segc = (k, opts, lbl) => `${lbl ? `<div class="navh">${lbl}</div>` : ''}<div class="seg" role="group">${opts.map(([v, l]) => `<button type="button" data-mcfg="${k}" data-v="${v}" class="${String(M.cfg[k]) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+// the layer menu (layers button): what the map shows
 function layersHTML() {
   const anc = M.anc;
+  return foldSec('ptext', 'Places of the text', tgl('peoples', 'Peoples (Isauri, Persae …)'))
+    + foldSec('sites', 'Kinds of places', '<p class="hint small">Which places are shown while “Places from” is switched off.</p><div class="macts" style="margin:.1rem 0 .3rem"><button type="button" data-mcatall="1">All</button><button type="button" data-mcatall="0">None</button></div><div class="mcats">' + SITE_CATS.map(([k, l, , c1, c2]) => `<button type="button" class="mtg${M.cfg.cats?.[k] ? ' on' : ''}" data-mcat="${k}"><span class="ck"></span><i class="dot" style="--c:${document.documentElement.dataset.theme === 'dark' ? c2 : c1}"></i>${l}</button>`).join('') + '</div>')
+    + foldSec('geo', 'Geography', tgl('rivers', 'Rivers', M.cfg.rivers !== false) + tgl('lakes', 'Lakes', M.cfg.lakes !== false))
+    + foldSec('anc', 'Ancient world', anc ? tgl('coast', 'Coastlines of the period') + tgl('empires', 'Empires and Roman provinces')
+      + segc('regions', [['off', 'Off'], ['labels', 'Names'], ['areas', 'Areas']], 'Regions and peoples') + tgl('roads', 'Roads (Barrington Atlas)') + tgl('urban', 'City outlines')
+      : '<p class="hint small">Needs the download <b>Ancient world</b> (coastlines of the periods, empires and provinces, regions and peoples, roads).</p><button type="button" data-mapdl="1">Open Instruments → Maps</button>')
+    + foldSec('modern', 'Today', tgl('borders', 'Modern borders'));
+}
+// the map settings (hold the map button, or ☰ → Settings → More map settings): how the map behaves
+function settingsHTML() {
   return foldSec('general', 'General', tgl('mark', 'Mark place names in the text') + tgl('jump', 'Move the map to a place chosen in the text'))
-    + foldSec('text', 'The text', tgl('peoples', 'Peoples (Isauri, Persae …)')
-      + segc('persons', [['unsure', 'Mark as uncertain'], ['hide', 'Not as places']], 'Words that may name a person')
-      + segc('names', [['text', 'As in the text'], ['english', 'English'], ['modern', 'Modern']], 'Names'))
+    + foldSec('text', 'Places in texts', segc('persons', [['unsure', 'Mark as uncertain'], ['hide', 'Not as places']], 'Words that may name a person')
+      + segc('names', [['text', 'As in the text'], ['english', 'English'], ['modern', 'Modern']], 'Names on the map'))
     + foldSec('time', 'Period', tgl('time', 'Period filter (time slider)')
       + segc('tol', [[0, '0'], [10, '± 10'], [25, '± 25'], [50, '± 50'], [100, '± 100']], 'Tolerance (years)')
       + segc('gone', [['fade', 'Faded'], ['hide', 'Hidden']], 'Places that no longer existed')
@@ -363,23 +377,19 @@ function layersHTML() {
       + segc('twoCol', [[false, 'One colour'], [true, 'A colour for each']], 'Several periods')
       + `<div class="mcols">${RANGE_COL.map((_, k) => `<label title="Colour of period ${k + 1}"><input type="color" data-mcol="${k}" value="${rangeCol(k)}"><span>${k + 1}</span></label>`).join('')}<button type="button" class="mcolr" data-mcolreset="1">Standard colours</button></div>`
       + '<p class="hint small">Hold a date on the slider to make it a period, hold a period to split it in two; pull ends together to join them.</p>')
-    + foldSec('sites', 'Kinds of places', '<p class="hint small">Which places are shown while “Places from” is switched off.</p><div class="macts" style="margin:.1rem 0 .3rem"><button type="button" data-mcatall="1">All</button><button type="button" data-mcatall="0">None</button></div><div class="mcats">' + SITE_CATS.map(([k, l, , c1, c2]) => `<button type="button" class="mtg${M.cfg.cats?.[k] ? ' on' : ''}" data-mcat="${k}"><span class="ck"></span><i class="dot" style="--c:${document.documentElement.dataset.theme === 'dark' ? c2 : c1}"></i>${l}</button>`).join('') + '</div>')
-    + foldSec('geo', 'Geography', tgl('rivers', 'Rivers', M.cfg.rivers !== false) + tgl('lakes', 'Lakes', M.cfg.lakes !== false))
     + foldSec('sig', 'Significance of places', `<p class="hint small">Zoomed out, only the more significant places are shown, and their names come first. How much counts:</p>`
       + SIG_UI.map(([k, lb, a, b, st]) => { const v = (M.cfg.sigW?.[k] ?? SIG_DEF[k]); return `<label class="msig"><span>${lb}</span><input type="range" min="${a}" max="${b}" step="${st}" value="${v}" data-msig="${k}"><output>${v}</output></label>`; }).join('')
-      + `<div class="macts"><button type="button" data-msigreset="1">Standard weights</button></div>${M.P && !M.P.hasConn ? '<p class="hint small">Update the download <b>Ancient places</b> (Instruments → Maps) for the links between places.</p>' : ''}`)
-    + foldSec('anc', 'Ancient world', anc ? tgl('coast', 'Coastlines of the period') + tgl('empires', 'Empires and Roman provinces')
-      + segc('regions', [['off', 'Off'], ['labels', 'Names'], ['areas', 'Areas']], 'Regions and peoples') + tgl('roads', 'Roads (Barrington Atlas)') + tgl('urban', 'City outlines')
-      : '<p class="hint small">Needs the download <b>Ancient world</b> (coastlines of the periods, empires and provinces, regions and peoples, roads).</p><button type="button" data-mapdl="1">Open Instruments → Maps</button>')
-    + foldSec('modern', 'Today', tgl('borders', 'Modern borders'));
+      + `<div class="macts"><button type="button" data-msigreset="1">Standard weights</button></div>${M.P && !M.P.hasConn ? '<p class="hint small">Update the download <b>Ancient places</b> (Instruments → Maps) for the links between places.</p>' : ''}`);
 }
-function layersPop() {
-  const pop = $('#mapPop'); if (!pop.hidden && pop.dataset.k === 'layers') { pop.hidden = true; return; }
-  pop.dataset.k = 'layers'; pop.classList.add('mlayers'); pop.classList.add('right');
-  pop.innerHTML = `<div class="navh">Map settings</div>${layersHTML()}`;
-  pop.hidden = false; pop.scrollTop = M.cfg.layScroll || 0;
-  if (!pop._sw) { pop._sw = true; pop.addEventListener('scroll', () => { if (pop.dataset.k !== 'layers') return; clearTimeout(pop._st); pop._st = setTimeout(() => { M.cfg.layScroll = pop.scrollTop; saveMapCfg(); }, 300); }); }
+function rightPop(k, title, html) {
+  const pop = $('#mapPop'); if (!pop.hidden && pop.dataset.k === k) { pop.hidden = true; return; }
+  pop.dataset.k = k; pop.classList.add('mlayers', 'right');
+  pop.innerHTML = `<div class="mph"><span class="navh">${title}</span><button type="button" class="mx" data-mpopx="1" aria-label="Close">✕</button></div>${html}`;
+  pop.hidden = false; pop.scrollTop = M.cfg.popScroll?.[k] || 0;
+  if (!pop._sw) { pop._sw = true; pop.addEventListener('scroll', () => { const kk = pop.dataset.k; if (kk !== 'layers' && kk !== 'settings') return; clearTimeout(pop._st); pop._st = setTimeout(() => { (M.cfg.popScroll ??= {})[kk] = pop.scrollTop; saveMapCfg(); }, 300); }); }
 }
+function layersPop() { rightPop('layers', 'Layers', layersHTML()); }
+function mapSettingsPop() { rightPop('settings', 'Map settings', settingsHTML()); }
 // the clicks of the layer menu and the slider (wired once, from wireMapUI)
 async function layerClick(b) {
   const d = b.dataset;
