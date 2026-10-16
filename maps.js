@@ -322,10 +322,18 @@ async function placesOfPart(bi) {
 
 // ---------------------------------------------------------------- what the map shows (section · chapter · book · work)
 function chapterKey(s) { const m = s.match(/^(.*)[.,:]\w+$/) || s.match(/^(\d+)[a-e]$/i); return m ? m[1] : null; }
+// verse (references are line numbers): a "section" is a block of 20 lines, a "chapter" one of 100 (1–20, 21–40 …)
+const isVerse = R => !!R?.length && R.every(r => /^\d+$/.test(r.s));
+function verseBlock(R, line, kind) {
+  const n = kind === 'chapter' ? 100 : 20, a = Math.floor((line - 1) / n) * n + 1, b = a + n - 1;
+  const inside = R.filter(r => +r.s >= a && +r.s <= b);
+  return { a, b: Math.min(b, +R[R.length - 1].s), first: inside[0], next: R.find(r => +r.s > b) };
+}
 function scopeRange(scope) {
   const R = S.refs || [], last = S.tokens.filter(x => x.t === 'w').length - 1;
   if (scope === 'book' || !R.length) return [0, last];
   const cr = curRef(); if (!cr) return [0, last];
+  if (isVerse(R)) { const v = verseBlock(R, +cr.s, scope); return [v.first?.i ?? cr.i, (v.next?.i ?? last + 1) - 1]; }
   const k = R.indexOf(cr), end = j => (R[j + 1]?.i ?? last + 1) - 1;
   if (scope === 'section') return [cr.i, end(k)];
   const ck = chapterKey(cr.s);
@@ -343,6 +351,7 @@ function scopeLabel(scope) {
   if (scope === 'work') return w ? w.title : 'whole text';
   if (scope === 'book') return w && w.books.length > 1 ? w.books[S.text.bi] : 'whole text';
   if (!cr) return 'whole text';
+  if (isVerse(S.refs)) { const v = verseBlock(S.refs, +cr.s, scope); return `lines ${v.a}–${v.b}`; }
   return scope === 'chapter' ? 'chapter ' + (chapterKey(cr.s) ?? cr.s) : 'section ' + cr.s;
 }
 // places shown: {place id -> {p, n (passages), label}}

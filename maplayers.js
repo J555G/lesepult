@@ -6,7 +6,7 @@
 const TMIN = -1000, TMAX = 800, YSTEP = 10, TMAXR = 5;
 const fmtY = y => y == null ? '' : y < 0 ? `${-y} BC` : `AD ${Math.max(1, y)}`;
 const fmtR = ([a, b]) => a === b ? fmtY(a) : a < 0 && b < 0 ? `${-a}–${-b} BC` : a >= 0 ? `AD ${Math.max(1, a)}–${b}` : `${fmtY(a)} – ${fmtY(b)}`;
-const LCFG = { time: true, tol: 25, gone: 'fade', undated: 'show', twoCol: false, sites: false, cats: { settl: true, sacred: true, mil: true }, coast: true, empires: true, regions: 'labels', roads: false, urban: true, fold: { text: true }, layScroll: 0 };
+const LCFG = { time: true, tol: 25, gone: 'fade', undated: 'show', later: 'fade', rivers: true, lakes: true, twoCol: false, sites: false, cats: {}, coast: true, empires: true, regions: 'labels', roads: false, urban: true, fold: { text: true }, layScroll: 0 };
 // the colours of the periods (when several are shown in their own colours); the reader can set them (Map settings → Period)
 const RANGE_COL = ['#c0503a', '#2f78b5', '#4a9a3a', '#9a55b5', '#c9922b'];
 const rangeCol = k => (M.cfg?.rangeCols?.[k]) || RANGE_COL[k % RANGE_COL.length];
@@ -31,9 +31,12 @@ const tIn = r => ['all', ['<=', Y0, r[1]], ['>=', Y1, r[0]]];
 const tGone = r => ['all', ['<=', Y0, r[1]], ['<', Y1, r[0]]];
 const tUnd = () => M.cfg.undated === 'hide' ? 0 : M.cfg.undated === 'fade' ? 0.35 : 1;
 const tGoneO = () => M.cfg.gone === 'hide' ? 0 : 0.3;
+// known only from sources after the date: the gazetteer dates a place by its sources, not by its founding –
+// many towns are attested only in Roman times, so they are faded by default rather than hidden
+const tLateO = () => M.cfg.later === 'hide' ? 0 : M.cfg.later === 'show' ? 1 : 0.35;
 function tOpacity(base = 1) {
   const R = tRanges(); if (!R) return base;
-  return ['*', base, ['case', UND, tUnd(), ['any', ...R.map(tIn)], 1, ['any', ...R.map(tGone)], tGoneO(), 0]];
+  return ['*', base, ['case', UND, tUnd(), ['any', ...R.map(tIn)], 1, ['any', ...R.map(tGone)], tGoneO(), tLateO()]];
 }
 function tFilter() { const R = tRanges(); return R ? ['>', tOpacity(1), 0] : true; }
 // the same in JavaScript (labels): {o: opacity, k: which period}
@@ -42,7 +45,7 @@ function tState(y0, y1) {
   if (y0 == null && y1 == null) return { o: tUnd(), k: 0 };
   const a = y0 ?? -99999, b = y1 ?? 99999;
   for (let k = 0; k < R.length; k++) if (a <= R[k][1] && b >= R[k][0]) return { o: 1, k };
-  return { o: R.some(r => a <= r[1] && b < r[0]) ? tGoneO() : 0, k: 0 };
+  return { o: R.some(r => a <= r[1] && b < r[0]) ? tGoneO() : tLateO(), k: 0 };
 }
 // several periods in two colours (setting): the colour of the period a feature belongs to
 function tColor(base) {
@@ -62,7 +65,8 @@ const SITE_CATS = [
   ['econ', 'Mines, quarries, workshops', 'mine,mine-2,quarry,production,kiln,salt-marsh,findspot', '#9a5229', '#e09a6c'],
   ['infra', 'Bridges, aqueducts, harbours', 'bridge,aqueduct,canal,harbor,dam,lighthouse,cistern,road', '#3f6f96', '#86b6dd'],
   ['nature', 'Mountains, islands, rivers …', 'mountain,mountain-range,hill,island,archipelago,cape,river,lake,spring,cave,pass,plain,forest,bay,water-open,peninsula,valley,strait', '#2e6d8f', '#7ab4d6'],
-  ['arch', 'Other ancient sites', 'archaeological-site,tell,nuraghe,unknown,labeled feature,unlabeled,feature,architecturalcomplex', '#8a8478', '#b5ae9f'],
+  ['region', 'Regions, provinces, peoples', 'region,province,province-2,people,ethnic-region,tribe,state,nome-gr,district,tribus', '#6f9a46', '#9ccd73'],
+  ['arch', 'Everything else', '', '#8a8478', '#b5ae9f'],          // all other kinds (sites, buildings, labels …)
 ];
 function sitesData() {
   if (M.sitesFC || !M.P) return M.sitesFC || { type: 'FeatureCollection', features: [] };
@@ -71,7 +75,7 @@ function sitesData() {
   for (const p of M.P.P) {
     if (p.ty.length === 1 && p.ty[0] === modern) continue;
     let c = null; for (const t of p.ty) if (catOf.has(t)) { c = catOf.get(t); break; }
-    if (c == null) continue;
+    if (c == null) c = SITE_CATS.length - 1;                      // every place belongs somewhere
     const pr = { id: p.id, c }; if (p.y0 != null) pr.y0 = p.y0; if (p.y1 != null) pr.y1 = p.y1; if (p.rough) pr.r = 1;
     feats.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lon, p.lat] }, properties: pr });
   }
@@ -102,8 +106,8 @@ function layerStyle(st, C) {
       { id: 'a-urban', type: 'fill', source: 'a_urban', minzoom: 8, paint: { 'fill-color': dark ? '#5a5144' : '#d9cbb0', 'fill-opacity': 0.8 } },
       { id: 'a-urban-line', type: 'line', source: 'a_urban', minzoom: 8, paint: { 'line-color': dark ? '#8a7c66' : '#a8936c', 'line-width': 1 } });
   }
-  before('pl-region', { id: 'sites', type: 'circle', source: 'sites', minzoom: 3.5, paint: {
-    'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 1.6, 8, 3.6, 12, 5],
+  before('pl-region', { id: 'sites', type: 'circle', source: 'sites', minzoom: 2.5, paint: {
+    'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 1.1, 5, 1.8, 8, 3.6, 12, 5],
     'circle-color': tColor(['match', ['get', 'c'], ...SITE_CATS.flatMap((c, i) => [i, c[dark ? 4 : 3]]), C.fg]),
     'circle-stroke-color': C.bg, 'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 4, 0.3, 8, 1],
     'circle-opacity': 0.85, 'circle-stroke-opacity': 0.85 } });
@@ -123,6 +127,7 @@ function layerProps() {
     'a-prov': { vis: vis(c.empires && sf), filter: sf || false },
     'a-roads': { vis: vis(c.roads), filter: ['all', ['==', ['get', 'c'], 1], tf], paint: { 'line-opacity': tOpacity(0.85) } },
     'a-roads-a': { vis: vis(c.roads), filter: ['all', ['!=', ['get', 'c'], 1], tf], paint: { 'line-opacity': tOpacity(0.7) } },
+    rivers: { vis: vis(c.rivers !== false) }, lakes: { vis: vis(c.lakes !== false) },
     'a-urban': { vis: vis(c.urban) }, 'a-urban-line': { vis: vis(c.urban) },
     sites: { vis: vis(c.pfOn === false),                           // "Places from" switched off: every place filter: ['all', ['in', ['get', 'c'], ['literal', siteCats()]], tf, ['!', ['in', ['get', 'id'], ['literal', shown]]]],
       paint: { 'circle-opacity': tOpacity(0.85), 'circle-stroke-opacity': tOpacity(0.85) } },
@@ -320,11 +325,13 @@ function layersHTML() {
     + foldSec('time', 'Period', tgl('time', 'Period filter (time slider)')
       + segc('tol', [[0, '0'], [10, '± 10'], [25, '± 25'], [50, '± 50'], [100, '± 100']], 'Tolerance (years)')
       + segc('gone', [['fade', 'Faded'], ['hide', 'Hidden']], 'Places that no longer existed')
+      + segc('later', [['show', 'Shown'], ['fade', 'Faded'], ['hide', 'Hidden']], 'Places known only from later sources')
       + segc('undated', [['show', 'Shown'], ['fade', 'Faded'], ['hide', 'Hidden']], 'Places without a date')
       + segc('twoCol', [[false, 'One colour'], [true, 'A colour for each']], 'Several periods')
       + `<div class="mcols">${RANGE_COL.map((_, k) => `<label title="Colour of period ${k + 1}"><input type="color" data-mcol="${k}" value="${rangeCol(k)}"><span>${k + 1}</span></label>`).join('')}<button type="button" class="mcolr" data-mcolreset="1">Standard colours</button></div>`
       + '<p class="hint small">Hold a date on the slider to make it a period, hold a period to split it in two; pull ends together to join them.</p>')
     + foldSec('sites', 'Kinds of places', '<p class="hint small">Which places are shown while “Places from” is switched off. None ticked: all.</p><div class="mcats">' + SITE_CATS.map(([k, l, , c1, c2]) => `<button type="button" class="mtg${M.cfg.cats?.[k] ? ' on' : ''}" data-mcat="${k}"><span class="ck"></span><i class="dot" style="--c:${document.documentElement.dataset.theme === 'dark' ? c2 : c1}"></i>${l}</button>`).join('') + '</div>')
+    + foldSec('geo', 'Geography', tgl('rivers', 'Rivers', M.cfg.rivers !== false) + tgl('lakes', 'Lakes', M.cfg.lakes !== false))
     + foldSec('anc', 'Ancient world', anc ? tgl('coast', 'Coastlines of the period') + tgl('empires', 'Empires and Roman provinces')
       + segc('regions', [['off', 'Off'], ['labels', 'Names'], ['areas', 'Areas']], 'Regions and peoples') + tgl('roads', 'Roads (Barrington Atlas)') + tgl('urban', 'City outlines')
       : '<p class="hint small">Needs the download <b>Ancient world</b> (coastlines of the periods, empires and provinces, regions and peoples, roads).</p><button type="button" data-mapdl="1">Open Instruments → Maps</button>')

@@ -46,6 +46,10 @@ async function scopeParts() {
 function refRange(r, kind, ref) {
   if (!kind || kind === 'book') return null;
   const R = r.refs || [], last = r.toks.filter(x => x.t === 'w').length - 1;
+  if (kind === 'lines') {                                            // "a-b": the lines a to b of a verse text
+    const [a, b] = ref.split('-').map(Number), first = R.find(x => +x.s >= a), next = R.find(x => +x.s > b);
+    return first ? [first.i, (next?.i ?? last + 1) - 1] : [1, 0];
+  }
   let a = -1, b = -1;
   R.forEach((x, j) => { if (x.s === ref || (kind === 'chapter' && chapterKey(x.s) === ref)) { if (a < 0) a = j; b = j; } });
   if (a < 0) return [1, 0];                                        // no longer found: nothing
@@ -69,8 +73,8 @@ function selSummary() {
   const s = M.cfg.sel || []; if (!s.length) return 'nothing chosen yet';
   const c = {}; for (const x of s) c[x.kind] = (c[x.kind] || 0) + 1;
   const works = new Set(s.map(x => x.kind === 'work' ? x.w : String(x.t).replace(/^w:(.*):\d+$/, '$1')));
-  const nm = { work: ['work', 'works'], book: ['book', 'books'], chapter: ['chapter', 'chapters'], section: ['section', 'sections'] };
-  return ['work', 'book', 'chapter', 'section'].filter(k => c[k]).map(k => `${c[k]} ${nm[k][c[k] === 1 ? 0 : 1]}`).join(', ') + (works.size > 1 ? ` from ${works.size} works` : '');
+  const nm = { work: ['work', 'works'], book: ['book', 'books'], chapter: ['chapter', 'chapters'], section: ['section', 'sections'], lines: ['passage of lines', 'passages of lines'] };
+  return ['work', 'book', 'chapter', 'section', 'lines'].filter(k => c[k]).map(k => `${c[k]} ${nm[k][c[k] === 1 ? 0 : 1]}`).join(', ') + (works.size > 1 ? ` from ${works.size} works` : '');
 }
 const shortWork = t => t.work ? `${t.work.author ? t.work.author + ', ' : ''}${t.work.title}` : (t.title || 'Text');
 // add what is being read to the selection
@@ -80,6 +84,10 @@ function selAdd(kind) {
   let x;
   if (kind === 'work') x = t.work ? { kind: 'work', w: t.work.id, label: shortWork(t), sub: 'the whole work' } : { kind: 'book', t: t.id, label: shortWork(t), sub: 'the whole text' };
   else if (kind === 'book' || !cr) x = { kind: 'book', t: t.id, label: `${shortWork(t)}${multi ? ' · ' + t.work.books[t.bi] : ''}`, sub: multi ? 'the whole book' : 'the whole text' };
+  else if (isVerse(S.refs)) {                                        // verse: a block of 20 or 100 lines
+    const v = verseBlock(S.refs, +cr.s, kind);
+    x = { kind: 'lines', t: t.id, ref: `${v.a}-${v.b}`, label: `${shortWork(t)} · ${multi ? t.work.books[t.bi] + ', ' : ''}lines ${v.a}–${v.b}`, sub: 'lines' };
+  }
   else { const ref = kind === 'chapter' ? (chapterKey(cr.s) ?? cr.s) : cr.s; x = { kind, t: t.id, ref, label: `${shortWork(t)} · ${part && !String(ref).startsWith(part + '.') ? part + '.' : ''}${ref}`, sub: kind }; }
   M.cfg.sel ??= [];
   if (M.cfg.sel.some(y => selKey(y) === selKey(x))) return toast('Already in the selection.');
@@ -89,7 +97,7 @@ function selAdd(kind) {
 function selPop() {
   const pop = $('#mapPop'); pop.dataset.k = 'sel'; pop.classList.add('mlayers'); pop.classList.remove('right');
   const s = M.cfg.sel || [];
-  pop.innerHTML = `<div class="mph"><span class="navh">Selection</span><small class="mcnt">${s.length} item${s.length === 1 ? '' : 's'}</small><button type="button" class="mx" data-mpopx="1" aria-label="Close">✕</button></div>
+  pop.innerHTML = `<div class="mph"><button type="button" class="mback" data-mselback="1" aria-label="Back">‹ Places from</button><span class="navh" style="margin-left:.5rem">Selection</span><small class="mcnt">${s.length} item${s.length === 1 ? '' : 's'}</small><button type="button" class="mx" data-mpopx="1" aria-label="Close">✕</button></div>
     ${s.length ? s.map((x, k) => `<div class="msel"><div><span>${esc(x.label)}</span><small>${esc(x.sub || x.kind)}</small></div><button type="button" class="mico2" data-mseldel="${k}" aria-label="Remove">✕</button></div>`).join('') : '<p class="hint small">Nothing chosen yet. Add what you are reading, or browse the library.</p>'}
     <div class="macts"><button type="button" data-mseladd="section">+ this section</button><button type="button" data-mseladd="chapter">+ this chapter</button><button type="button" data-mseladd="book">+ this book</button><button type="button" data-mseladd="work">+ this work</button></div>
     <div class="macts"><button type="button" data-mselbrowse="1">Browse the library …</button><button type="button" class="acc" data-mselshow="1" style="margin-left:auto">Show on the map</button></div>`;
@@ -112,11 +120,16 @@ async function selBrowse() {
     const d = ev.target; if (!d.matches?.('details[data-bk]') || !d.open || loaded.has(d.dataset.bk)) return;
     loaded.add(d.dataset.bk);
     const r = await placesOfAny(d.dataset.bk) || {}, keys = [];
-    for (const x of r.refs || []) { const k = chapterKey(x.s) ?? x.s; if (!keys.includes(k)) keys.push(k); }
+    const verse = (r.refs || []).length && r.refs.every(x => /^\d+$/.test(x.s));      // verse: line numbers, no chapters
+    if (!verse) for (const x of r.refs || []) { const k = chapterKey(x.s) ?? x.s; if (!keys.includes(k)) keys.push(k); }
+    if (verse) {                                                     // verse: blocks of 100 lines
+      const n = +r.refs[r.refs.length - 1].s, bl = []; for (let a = 1; a <= n; a += 100) bl.push(`${a}-${Math.min(a + 99, n)}`);
+      d.querySelector('.mchs').innerHTML = bl.map(k => `<label class="mpick l2"><input type="checkbox" name="lines|${esc(d.dataset.bk)}|${k}"${has(`lines|${d.dataset.bk}|${k}`) ? ' checked' : ''}> ${k.replace('-', '–')}</label>`).join(''); return;
+    }
     d.querySelector('.mchs').innerHTML = keys.length ? keys.map(k => `<label class="mpick l2"><input type="checkbox" name="chapter|${esc(d.dataset.bk)}|${esc(k)}"${has(`chapter|${d.dataset.bk}|${k}`) ? ' checked' : ''}> ${esc(k)}</label>`).join('') : '<p class="hint small">No chapters.</p>';
   };
   document.addEventListener('toggle', onToggle, true);
-  const r = await dialog(`<h3>Selection</h3><p class="hint small">Tick whole works, books or chapters. Sections are added with “+ this section” while reading.</p><div class="mpicklist">${h || '<p class="hint">No texts in the library yet.</p>'}</div>`, [['cancel', 'Cancel'], ['ok', 'Apply']], 'ok');
+  const r = await dialog(`<h3>Selection</h3><p class="hint small">Tick whole works, books or chapters (in verse: blocks of 100 lines). Sections are added with “+ this section” while reading.</p><div class="mpicklist">${h || '<p class="hint">No texts in the library yet.</p>'}</div>`, [['cancel', 'Cancel'], ['ok', 'Apply']], 'ok');
   document.removeEventListener('toggle', onToggle, true);
   if (r.action !== 'ok') return false;
   const on = new Set(Object.keys(r.data).filter(k => r.data[k] === 'on'));
@@ -124,17 +137,18 @@ async function selBrowse() {
   const titleOf = async id => { const p = await placesOfAny(id); return p ? p.t : null; };
   const out = [];
   // kept: sections, and chapters of books whose chapters were not unfolded
-  for (const x of sel) if (x.kind === 'section' || (x.kind === 'chapter' && !loaded.has(x.t))) if (!on.has('w|' + wOf(x.t)) && !on.has(`book|${x.t}|`)) out.push(x);
+  for (const x of sel) if (x.kind === 'section' || ((x.kind === 'chapter' || x.kind === 'lines') && !loaded.has(x.t))) if (!on.has('w|' + wOf(x.t)) && !on.has(`book|${x.t}|`)) out.push(x);
   for (const k of on) {
     const [kind, a, ref] = k.split('|');
     if (kind === 'w') { const w = works.find(z => z.id === a); out.push({ kind: 'work', w: a, label: `${w?.author ? w.author + ', ' : ''}${w?.title || a}`, sub: 'the whole work' }); continue; }
     const id = /^\d+$/.test(a) ? +a : a;
     if (on.has('w|' + wOf(id)) && String(id).startsWith('w:')) continue;
-    if (kind === 'chapter' && on.has(`book|${a}|`)) continue;
+    if ((kind === 'chapter' || kind === 'lines') && on.has(`book|${a}|`)) continue;
     const old = sel.find(x => selKey(x) === `${kind}|${id}|${ref || ''}`); if (old) { out.push(old); continue; }
     const t = await titleOf(id); if (!t) continue;
     const multi = t.work && t.work.books.length > 1;
     out.push(kind === 'book' ? { kind, t: id, label: `${shortWork(t)}${multi ? ' · ' + t.work.books[t.bi] : ''}`, sub: multi ? 'the whole book' : 'the whole text' }
+      : kind === 'lines' ? { kind, t: id, ref, label: `${shortWork(t)} · ${multi ? t.work.books[t.bi] + ', ' : ''}lines ${ref.replace('-', '–')}`, sub: 'lines' }
       : { kind, t: id, ref, label: `${shortWork(t)} · ${multi ? stripCommon(t.work.books)[t.bi] + '.' : ''}${ref}`, sub: 'chapter' });
   }
   M.cfg.sel = out; await saveMapCfg(); return true;
@@ -191,15 +205,26 @@ async function openSavedMap(m) {
 
 // ---------------------------------------------------------------- the menu of the scope button ("Places from")
 const SCOPES = [['section', 'Section'], ['chapter', 'Chapter'], ['book', 'Book'], ['work', 'Work'], ['author', 'Author'], ['sel', 'Selection']];
+// what the chosen step covers: "Section 1.3 of Book 2 · History of the Peloponnesian War (Thucydides)"
 function scopeExplain() {
   const t = S.text, w = t?.work, cr = curRef(), sc = M.cfg.scope;
-  if (!M.cfg.pfOn) return '<b>Switched off</b> – every place is shown, whether a text names it or not (choose which in the layer menu)';
-  if (sc === 'section') return cr ? `<b>Section ${esc(cr.s)}</b> – the section at the top of the text` : '<b>Section</b> – the section you are reading';
-  if (sc === 'chapter') return cr ? `<b>Chapter ${esc(chapterKey(cr.s) ?? cr.s)}</b> – the chapter at the top of the text` : '<b>Chapter</b> – the chapter you are reading';
-  if (sc === 'book') return w && w.books.length > 1 ? `<b>${esc(w.books[t.bi])}</b> – the part that is open` : '<b>Book</b> – the open text';
-  if (sc === 'work') return w ? `<b>${esc(w.title)}</b> – all its parts` : `<b>${esc(t?.title || 'Work')}</b> – the open text`;
-  if (sc === 'author') { const a = w ? w.author : t?.author; return `<b>${esc(a || 'Author')}</b> – all works in your library`; }
-  return `<b>Selection</b> – ${esc(selSummary())}`;
+  if (!M.cfg.pfOn) return '<b>Switched off</b> – every place is shown, whether a text names it or not (choose which kinds in the layer menu)';
+  if (sc === 'sel') return `<b>Selection</b> – ${esc(selSummary())}`;
+  if (!t) return 'No text is open.';
+  const author = w ? w.author : t.author, title = w ? w.title : t.title || 'the open text';
+  const work = `<i>${esc(title)}</i>${author ? ` (${esc(author)})` : ''}`;
+  const multi = w && w.books.length > 1, book = multi ? esc(w.books[t.bi]) : '';
+  const inBook = multi ? ` of ${book} · ${work}` : ` · ${work}`;
+  const R = S.refs || [], verse = R.length && R.every(r => /^\d+$/.test(r.s));
+  if (verse && cr && (sc === 'section' || sc === 'chapter')) { const v = verseBlock(R, +cr.s, sc); return `<b>Lines ${v.a}–${v.b}</b>${inBook}`; }
+  if (sc === 'section' || (sc === 'chapter' && cr && chapterKey(cr.s) == null)) {
+    if (!cr) return `<b>${multi ? book : 'The text'}</b> · ${work}`;
+    return `<b>Section ${esc(cr.s)}</b>${inBook}`;
+  }
+  if (sc === 'chapter') return `<b>Chapter ${esc(chapterKey(cr.s))}</b>${inBook}`;
+  if (sc === 'book') return multi ? `<b>${book}</b> · ${work}` : `<b>The whole text</b> · ${work}`;
+  if (sc === 'work') return `<b>${work}</b>${multi ? ` – all ${w.books.length} books` : ''}`;
+  return `<b>${esc(author || 'The author')}</b> – all works in your library`;
 }
 async function scopePop(keep) {
   const pop = $('#mapPop'); if (!keep && !pop.hidden && pop.dataset.k === 'scope') { pop.hidden = true; return; }
@@ -227,6 +252,7 @@ async function savedClick(b) {
   const d = b.dataset;
   if (d.mpfon) { M.cfg.pfOn = M.cfg.pfOn === false; await saveMapCfg(); await refreshMapData(); await scopePop(true); return true; }
   if (d.mseledit) { selPop(); return true; }
+  if (d.mselback) { await refreshMapData(); scopePop(true); return true; }
   if (d.mseladd) { selAdd(d.mseladd); selPop(); return true; }
   if (d.mseldel != null) { M.cfg.sel.splice(+d.mseldel, 1); await saveMapCfg(); selPop(); if (M.cfg.scope === 'sel') refreshMapData(); return true; }
   if (d.mselbrowse) { if (await selBrowse() && M.cfg.scope === 'sel') refreshMapData(); selPop(); return true; }   // the card stays open

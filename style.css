@@ -1005,3 +1005,5 @@ details.mtree.l1{margin-left:1.2rem}details.mtree.l1>summary{font-size:14px}
 .mpick.l2{margin-left:2.4rem;padding:.15rem 0;font-size:14px}
 .mchs{display:flex;flex-wrap:wrap;gap:.15rem .2rem;margin:.1rem 0 .4rem 2.4rem}
 .mchs .mpick.l2{margin:0;display:inline-flex;align-items:center;gap:.25rem;min-width:3.4rem;padding:.2rem .1rem;font:13.5px var(--ui)}
+.mback{border:0;background:none;color:var(--acc);font:600 13px var(--ui);padding:.1rem .2rem .1rem 0}
+.mex i{font-style:italic}
