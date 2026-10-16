@@ -316,7 +316,7 @@ function tView() {
 const tStep = () => { const v = tView(), s = v[1] - v[0]; return s > 1500 ? 10 : s > 400 ? 5 : 1; };
 const tPct = y => { const [a, b] = tView(); return (y - a) / (b - a) * 100; };
 function timeBarHTML() {
-  return `<div class="mtl"><span class="mtv" id="mapTimeV"></span><button type="button" class="mtreset" data-mtview="1" title="Show the default part of the time line">Default view</button></div>
+  return `<div class="mtl"><span class="mtv" id="mapTimeV"></span><button type="button" class="mtreset" data-mtview="1" title="Default view of the time line" aria-label="Default view of the time line"><svg width="18" height="14" viewBox="0 0 24 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3v12M22 3v12M6 9h12M9.5 5.5 6 9l3.5 3.5M14.5 5.5 18 9l-3.5 3.5"/></svg></button></div>
     <div class="mtt" id="mapTrack"><div class="mtaxis" id="mapAxis"></div><div id="mapRanges"></div></div>`;
 }
 // the scale: as many marks as fit, at round numbers
@@ -499,7 +499,7 @@ function settingsHTML() {
       + segc('twoCol', [[false, 'One colour'], [true, 'A colour for each']], 'Several periods')
       + `<div class="mcols">${RANGE_COL.map((_, k) => `<label title="Colour of period ${k + 1}"><input type="color" data-mcol="${k}" value="${rangeCol(k)}"><span>${k + 1}</span></label>`).join('')}<button type="button" class="mcolr" data-mcolreset="1">Standard colours</button></div>`
       + `<div class="navh">Range of the slider</div><div class="mtlim"><label>Earliest<input type="text" data-mtlim="0" value="${esc(fmtY(TLIM()[0]))}" autocomplete="off" class="nofocus"></label><label>Latest<input type="text" data-mtlim="1" value="${esc(fmtY(TLIM()[1]))}" autocomplete="off" class="nofocus"></label><button type="button" data-mtlimreset="1">Standard</button></div>`
-      + `<div class="navh">Shown at first <small>(and with “Default view” on the slider)</small></div><div class="mtlim"><label>From<input type="text" data-mtdef="0" value="${esc(fmtY(tDefView()[0]))}" autocomplete="off" class="nofocus"></label><label>To<input type="text" data-mtdef="1" value="${esc(fmtY(tDefView()[1]))}" autocomplete="off" class="nofocus"></label><button type="button" data-mtdefreset="1">Standard</button></div>`
+      + `<div class="navh">Shown at first <small>(and with the button |↔| on the slider)</small></div><div class="mtlim"><label>From<input type="text" data-mtdef="0" value="${esc(fmtY(tDefView()[0]))}" autocomplete="off" class="nofocus"></label><label>To<input type="text" data-mtdef="1" value="${esc(fmtY(tDefView()[1]))}" autocomplete="off" class="nofocus"></label><button type="button" data-mtdefreset="1">Standard</button></div>`
       + '<p class="hint small">Hold a date on the slider to make it a period, hold a period to split it in two; pull ends together to join them. Pinch the slider (or use the mouse wheel) to zoom it, drag the line to move it; a double click shows the whole range.</p>')
     + foldSec('ssig', 'Significance of places', `<p class="hint small">Zoomed out, only the more significant places are shown, and their names come first. How much counts:</p>`
       + SIG_UI.map(([k, lb, a, b, st]) => { const v = (M.cfg.sigW?.[k] ?? SIG_DEF[k]); return `<label class="msig"><span>${lb}</span><input type="range" min="${a}" max="${b}" step="${st}" value="${v}" data-msig="${k}"><output>${v}</output></label>`; }).join('')

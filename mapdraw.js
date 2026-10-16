@@ -330,7 +330,7 @@ function dInfo() {
   } else if (d.last && dGet(d.last) && d.tool !== 'edit') { const y = dGet(d.last), m = dMeasure(y);
     el.innerHTML = `<span>${esc(D_KIND[dKind(y)])} saved${m ? ' · ' + esc(m.replace(/^Length /, '')) : ''}</span><button type="button" data-dedit="${esc(y.id)}">Edit …</button>`;
   } else if (d.tool === 'edit' && x) el.innerHTML = `<span><b>${esc(x.t || D_KIND[dKind(x)])}</b>${dMeasure(x) ? ' · ' + esc(dMeasure(x).replace(/^Length /, '')) : ''}${dDates(x) ? ' · ' + esc(dDates(x)) : ''}</span><button type="button" data-dedit="${esc(x.id)}">Edit …</button><button type="button" class="danger" data-ddel="${esc(x.id)}">Delete</button>`;
-  else el.innerHTML = `<span>${D_HINT[d.tool]}</span>`;
+  else el.innerHTML = `<span>${d.tool ? D_HINT[d.tool] : 'No tool chosen – tap a tool to draw.'}</span>`;
   $('#mapBody').style.setProperty('--dbh', ($('#mapDraw')?.offsetHeight || 110) + 'px');
 }
 function dTmp() {
@@ -364,9 +364,9 @@ async function drawToggle(on = !M.dm) {
 }
 async function dTool(t) {
   if (M.dm.cur) await dFinish();
-  M.dm.tool = t; M.dm.last = null; M.cfg.dTool = t; saveMapCfg();
+  M.dm.tool = t; M.dm.last = null; if (t) M.cfg.dTool = t; saveMapCfg();
   if (t === 'free') M.map.dragPan.disable(); else M.map.dragPan.enable();
-  M.map.getCanvas().style.cursor = t === 'edit' ? '' : 'crosshair';
+  M.map.getCanvas().style.cursor = !t || t === 'edit' ? '' : 'crosshair';
   $('#mapDraw')?.querySelectorAll('[data-dtool]').forEach(b => b.classList.toggle('on', b.dataset.dtool === t));
   if (t !== 'edit') { M.dSel = null; $('#mapCard').hidden = true; applyLayers(); }
   dInfo(); dHandles();
@@ -381,7 +381,7 @@ async function dFinish() {
 }
 // a tap on the map while drawing (called first by the click handler of the map)
 function drawClick(e) {
-  if (!M.dm) return false;
+  if (!M.dm || !M.dm.tool) return false;                         // no tool chosen: the map as usual
   const ll = [r5(e.lngLat.lng), r5(e.lngLat.lat)], d = M.dm, t = d.tool;
   if (t === 'place') { dAddPoint(ll); return true; }
   if (t === 'text') { dAddText(ll); return true; }
@@ -584,7 +584,7 @@ async function dSetMenu(id) {
 async function drawUIClick(b) {
   const d = b.dataset;
   if (b.id === 'mapDrawBtn') { await drawToggle(); return true; }
-  if (d.dtool) { await dTool(d.dtool); return true; }
+  if (d.dtool) { await dTool(M.dm.tool === d.dtool ? null : d.dtool); return true; }   // the chosen tool again: none
   if (d.dcol) { M.dm.c = M.cfg.dCol = d.dcol; saveMapCfg(); b.parentElement.querySelectorAll('.mdc').forEach(x => x.classList.toggle('on', x === b)); $('#dColIn').value = d.dcol; dTmp(); await dStyleSel(x => { x.c = d.dcol; }); return true; }
   if (d.dlw) { M.dm.lw = M.cfg.dLw = +d.dlw; saveMapCfg(); b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); dTmp(); await dStyleSel(x => { if (!x.own) x.lw = +d.dlw; }); return true; }
   if (d.ddash) { M.dm.dash = M.cfg.dDash = !M.dm.dash; saveMapCfg(); b.classList.toggle('on', M.dm.dash); await dStyleSel(x => { if (!x.own && x.kind !== 'text') { if (M.dm.dash) x.dash = 1; else delete x.dash; } }); return true; }

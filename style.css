@@ -1098,3 +1098,7 @@ dialog .sver{margin:1rem 0 0;font:11.5px var(--ui);color:var(--mut);text-align:c
 #tabMap,#mapBody button{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .mtreset{flex:none;margin-left:auto;font-size:11.5px;padding:.12rem .5rem;border-radius:7px;color:var(--mut)}
 .tzrow{display:flex;align-items:center;gap:.4rem}.tzrow span{min-width:3.4em;text-align:center;font-variant-numeric:tabular-nums}.tzrow button{min-width:2.6rem}
+/* the map button next to a headword: grey, on the line of the word */
+.form .mapico{font-size:14px;width:28px;height:21px;margin-left:.45rem;vertical-align:.12em;background:var(--card)}
+.mapico .eu{background:var(--mapgrey);-webkit-mask:var(--mapmask) center/cover no-repeat;mask:var(--mapmask) center/cover no-repeat}
+.mtreset{display:flex;align-items:center;justify-content:center;width:30px;height:22px;padding:0}

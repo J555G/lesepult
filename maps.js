@@ -512,6 +512,7 @@ async function showMap1() {
     M.map.on('mouseenter', 'sites', () => { M.map.getCanvas().style.cursor = 'pointer'; });
     M.map.on('mouseleave', 'sites', () => { M.map.getCanvas().style.cursor = ''; });
     M.map.on('click', e => { if (M.pick) { const p = M.pick; M.pick = null; $('#mapCanvas').classList.remove('picking'); p(e.lngLat); return; }
+      { const pop = $('#mapPop'); if (!pop.hidden && ['layers', 'save'].includes(pop.dataset.k)) { pop.hidden = true; return; } }   // a tap (not a drag or pinch) closes these menus
       if (drawClick(e)) return;                                   // drawing (mapdraw.js)
       if ($('#mapChoose') && !$('#mapChoose').hidden) { $('#mapChoose').hidden = true; return; }
       const id = tapPlace(e.point); if (id === 'choose') return; if (id != null) return selectPlace(id, { from: 'map' });
@@ -804,9 +805,9 @@ function toggleMapTab(on = S.tab !== 'map') {
 // the entry of a word that is a place: a small map button next to the word
 function mapIconForView() {
   const v = S.view, f = $('#dictBody .vtop .form'); if (!f) return;
-  f.parentElement.querySelector('.mapico')?.remove();
+  f.parentElement.querySelectorAll('.mapico').forEach(e => e.remove());
   if (v?.ti == null || !M.hits.has(v.ti)) return;
-  f.insertAdjacentHTML('afterend', `<button type="button" class="mapico" data-mapword="${v.ti}" title="Show on the map" aria-label="Show on the map">${EUROPE_ICON}</button>`);
+  f.insertAdjacentHTML('beforeend', `<button type="button" class="mapico" data-mapword="${v.ti}" title="Show on the map" aria-label="Show on the map">${EUROPE_ICON}</button>`);
 }
 document.addEventListener('click', async ev => {
   const b = ev.target.closest?.('[data-mapword]'); if (!b) return;
