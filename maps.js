@@ -13,6 +13,7 @@ window.addEventListener('error', e => {
 }, true);
 // the map scripts must have run; if one is missing (not loaded, or stopped by an error), it is loaded once more from the website
 async function ensureMapScripts() {
+  if (document.readyState === 'loading') await new Promise(r => document.addEventListener('DOMContentLoaded', r, { once: true }));
   const need = [['maplayers.js', () => typeof layerStyle === 'function'], ['mapsaved.js', () => typeof savePop === 'function']];
   for (const [f, ok] of need) {
     if (ok()) continue;

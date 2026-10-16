@@ -3258,6 +3258,9 @@ function wireMarker() {
 // ---------------------------------------------------------------- start
 (async function main() {
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => { });
+  // the map scripts (maps.js, maplayers.js, mapsaved.js) load after this one: wait until all of them have run,
+  // otherwise opening the last text could reach the map code while one of them is still on its way (slow connections)
+  if (document.readyState === 'loading') await new Promise(r => document.addEventListener('DOMContentLoaded', r, { once: true }));
   db = await openDB();
   await migrateOld();
   wire();
