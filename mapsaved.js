@@ -1,5 +1,5 @@
 // ================================================================ Pult · several texts on one map, saved maps, export
-// "Places from: Several texts" – the places of any works and imported texts of the library together.
+// "Places from": the author's works, or a saved selection of works, books, chapters and sections of the library.
 // Saved maps (settings key mmap|<id>): what the map showed – texts, part, view, period, layers – to be opened again.
 // Export: an image (PNG), a PDF, or a Pult map file (the saved map with its places and the corrections that belong to it).
 
@@ -21,74 +21,137 @@ async function placesOfAny(id) {
   const r = { hits: res, toks, t, refs: refsOf(toks, t.blocks) };
   M.anyCache.set(id, r); return r;
 }
-// the texts of the scope: chosen ones, all works of the author, or all texts of the library
-// ('w:<work id>' = all its parts, 'imp:<text id>' = an imported text)
-async function scopeKeys() {
-  const sc = M.cfg.scope;
-  if (sc === 'multi') return M.cfg.multi || [];
-  const works = await libWorks(), imp = await getAll('texts');
-  if (sc === 'all') return [...works.map(w => 'w:' + w.id), ...imp.map(t => 'imp:' + t.id)];
+// ---------------------------------------------------------------- what "Places from" covers
+// cfg.pfOn – the switch (off: no restriction – every place of the gazetteer, filtered in the layer menu)
+// cfg.scope – section · chapter · book · work · author · sel (the selection)
+// cfg.sel – the selection, saved: [{kind: 'work', w} | {kind: 'book', t} | {kind: 'chapter'|'section', t, ref}, …, with a label]
+const selKey = x => x.kind === 'work' ? 'w|' + x.w : `${x.kind}|${x.t}|${x.ref ?? ''}`;
+// the parts of texts to read, each with the word range that counts (null = all of it)
+async function scopeParts() {
+  const sc = M.cfg.scope, out = [];
   if (sc === 'author') {
-    const t = S.text; if (!t) return [];
-    if (t.work) return works.filter(w => w.authorId === t.work.authorId || (w.author && w.author === t.work.author)).map(w => 'w:' + w.id);
-    return imp.filter(x => x.id === t.id || (t.author && x.author === t.author)).map(x => 'imp:' + x.id);
+    const t = S.text; if (!t) return out;
+    if (t.work) { for (const w of await libWorks()) if (w.authorId === t.work.authorId || (w.author && w.author === t.work.author)) w.books.forEach((_, bi) => out.push({ id: `w:${w.id}:${bi}` })); }
+    else for (const x of await getAll('texts')) if (x.id === t.id || (t.author && x.author === t.author)) out.push({ id: x.id });
+    return out;
   }
-  return [];
-}
-async function multiTextIds() {
-  const out = [];
-  for (const k of await scopeKeys()) {
-    if (k.startsWith('imp:')) out.push(+k.slice(4));
-    else { const w = await libGet('works', k.slice(2)); if (w) w.books.forEach((_, bi) => out.push(`w:${w.id}:${bi}`)); }
+  if (sc !== 'sel') return out;
+  for (const x of M.cfg.sel || []) {
+    if (x.kind === 'work') { const w = await libGet('works', x.w); if (w) w.books.forEach((_, bi) => out.push({ id: `w:${w.id}:${bi}` })); }
+    else out.push({ id: x.t, kind: x.kind, ref: x.ref });
   }
   return out;
 }
-async function multiLabel() {
-  const ks = M.cfg.multi || []; if (!ks.length) return 'no texts chosen';
-  if (ks.length > 1) return `${ks.length} texts`;
-  const k = ks[0]; if (k.startsWith('imp:')) return (await get('texts', +k.slice(4)))?.title || 'imported text';
-  return (await libGet('works', k.slice(2)))?.title || 'a work';
+// the word range of a chapter or section in a text
+function refRange(r, kind, ref) {
+  if (!kind || kind === 'book') return null;
+  const R = r.refs || [], last = r.toks.filter(x => x.t === 'w').length - 1;
+  let a = -1, b = -1;
+  R.forEach((x, j) => { if (x.s === ref || (kind === 'chapter' && chapterKey(x.s) === ref)) { if (a < 0) a = j; b = j; } });
+  if (a < 0) return [1, 0];                                        // no longer found: nothing
+  return [R[a].i, (R[b + 1]?.i ?? last + 1) - 1];
 }
-// called from scopePlaces: all places of the chosen texts (with the texts each comes from)
+async function eachScopeHit(fn, progress) {
+  const parts = await scopeParts();
+  for (let n = 0; n < parts.length; n++) {
+    progress?.(n, parts.length);
+    const r = await placesOfAny(parts[n].id); if (!r) continue;
+    const rg = refRange(r, parts[n].kind, parts[n].ref);
+    for (const [i, h] of r.hits) if (!rg || (i >= rg[0] && i <= rg[1])) fn(h, i, r, parts[n].id);
+  }
+}
+// called from scopePlaces: the places of the author's works or of the selection
 async function multiPlaces(add) {
-  const ids = await multiTextIds(), lbl = $('#mapScope');
-  for (let n = 0; n < ids.length; n++) {
-    if (lbl && ids.length > 2) lbl.innerHTML = `${esc(scopeLabel(M.cfg.scope))} <small>· reading ${n + 1} of ${ids.length} …</small>`;
-    const r = await placesOfAny(ids[n]); if (!r) continue;
-    for (const h of r.hits.values()) add(h, ids[n]);
-  }
+  const lbl = $('#mapScope');
+  await eachScopeHit((h, i, r, id) => add(h, id), (n, all) => { if (lbl && all > 2) lbl.innerHTML = `${esc(scopeLabel(M.cfg.scope))} <small>· reading ${n + 1} of ${all} …</small>`; });
 }
-async function pickTextsDialog() {
-  const works = (await libWorks()).sort((a, b) => (a.author || '').localeCompare(b.author || '') || a.title.localeCompare(b.title));
-  const imp = await getAll('texts');
-  const sel = new Set(M.cfg.multi?.length ? M.cfg.multi : S.text ? [S.text.work ? 'w:' + S.text.work.id : 'imp:' + S.text.id] : []);
-  let h = '', last = null;
+function selSummary() {
+  const s = M.cfg.sel || []; if (!s.length) return 'nothing chosen yet';
+  const c = {}; for (const x of s) c[x.kind] = (c[x.kind] || 0) + 1;
+  const works = new Set(s.map(x => x.kind === 'work' ? x.w : String(x.t).replace(/^w:(.*):\d+$/, '$1')));
+  const nm = { work: ['work', 'works'], book: ['book', 'books'], chapter: ['chapter', 'chapters'], section: ['section', 'sections'] };
+  return ['work', 'book', 'chapter', 'section'].filter(k => c[k]).map(k => `${c[k]} ${nm[k][c[k] === 1 ? 0 : 1]}`).join(', ') + (works.size > 1 ? ` from ${works.size} works` : '');
+}
+const shortWork = t => t.work ? `${t.work.author ? t.work.author + ', ' : ''}${t.work.title}` : (t.title || 'Text');
+// add what is being read to the selection
+function selAdd(kind) {
+  const t = S.text; if (!t) return toast('Open a text first.');
+  const cr = curRef(), multi = t.work && t.work.books.length > 1, part = multi ? stripCommon(t.work.books)[t.bi] : '';
+  let x;
+  if (kind === 'work') x = t.work ? { kind: 'work', w: t.work.id, label: shortWork(t), sub: 'the whole work' } : { kind: 'book', t: t.id, label: shortWork(t), sub: 'the whole text' };
+  else if (kind === 'book' || !cr) x = { kind: 'book', t: t.id, label: `${shortWork(t)}${multi ? ' · ' + t.work.books[t.bi] : ''}`, sub: multi ? 'the whole book' : 'the whole text' };
+  else { const ref = kind === 'chapter' ? (chapterKey(cr.s) ?? cr.s) : cr.s; x = { kind, t: t.id, ref, label: `${shortWork(t)} · ${part && !String(ref).startsWith(part + '.') ? part + '.' : ''}${ref}`, sub: kind }; }
+  M.cfg.sel ??= [];
+  if (M.cfg.sel.some(y => selKey(y) === selKey(x))) return toast('Already in the selection.');
+  M.cfg.sel.push(x); saveMapCfg();
+}
+// the editor of the selection: a list (with ✕) and ways to add to it
+function selPop() {
+  const pop = $('#mapPop'); pop.dataset.k = 'sel'; pop.classList.add('mlayers'); pop.classList.remove('right');
+  const s = M.cfg.sel || [];
+  pop.innerHTML = `<div class="mph"><span class="navh">Selection</span><small class="mcnt">${s.length} item${s.length === 1 ? '' : 's'}</small><button type="button" class="mx" data-mpopx="1" aria-label="Close">✕</button></div>
+    ${s.length ? s.map((x, k) => `<div class="msel"><div><span>${esc(x.label)}</span><small>${esc(x.sub || x.kind)}</small></div><button type="button" class="mico2" data-mseldel="${k}" aria-label="Remove">✕</button></div>`).join('') : '<p class="hint small">Nothing chosen yet. Add what you are reading, or browse the library.</p>'}
+    <div class="macts"><button type="button" data-mseladd="section">+ this section</button><button type="button" data-mseladd="chapter">+ this chapter</button><button type="button" data-mseladd="book">+ this book</button><button type="button" data-mseladd="work">+ this work</button></div>
+    <div class="macts"><button type="button" data-mselbrowse="1">Browse the library …</button><button type="button" class="acc" data-mselshow="1" style="margin-left:auto">Show on the map</button></div>`;
+  pop.hidden = false;
+}
+// the library as a tree: works → books → chapters (chapters are read when a book is unfolded)
+async function selBrowse() {
+  const works = (await libWorks()).sort((a, b) => (a.author || '').localeCompare(b.author || '') || a.title.localeCompare(b.title)), imp = await getAll('texts');
+  const sel = M.cfg.sel || [], has = k => sel.some(x => selKey(x) === k);
+  const loaded = new Set();
+  let h = '';
   for (const w of works) {
-    if (w.author !== last) { h += `<div class="navh">${esc(w.author || '')}</div>`; last = w.author; }
-    h += `<label class="mpick"><input type="checkbox" name="w:${esc(w.id)}"${sel.has('w:' + w.id) ? ' checked' : ''}> ${esc(w.title)}${w.books.length > 1 ? ` <small>${w.books.length} parts</small>` : ''}</label>`;
+    const any = sel.some(x => x.kind === 'work' ? x.w === w.id : String(x.t).startsWith(`w:${w.id}:`));
+    h += `<details class="mtree"${any ? ' open' : ''}><summary><input type="checkbox" name="w|${esc(w.id)}"${has('w|' + w.id) ? ' checked' : ''}> <span>${esc(w.author ? w.author + ' · ' : '')}${esc(w.title)}</span></summary>`
+      + w.books.map((b, bi) => { const id = `w:${w.id}:${bi}`, part = sel.some(x => x.t === id && x.kind !== 'book');
+        return `<details class="mtree l1" data-bk="${esc(id)}"><summary><input type="checkbox" name="book|${esc(id)}|"${has(`book|${id}|`) ? ' checked' : ''}> <span>${esc(b)}</span>${part ? '<small>part chosen</small>' : ''}</summary><div class="mchs"><p class="hint small">…</p></div></details>`; }).join('') + '</details>';
   }
-  if (imp.length) { h += '<div class="navh">Imported</div>'; for (const t of imp) h += `<label class="mpick"><input type="checkbox" name="imp:${t.id}"${sel.has('imp:' + t.id) ? ' checked' : ''}> ${esc(t.title || 'Untitled')}</label>`; }
-  const r = await dialog(`<h3>Places from several texts</h3><p class="hint small">The map shows the places of all texts chosen here. Long works take a moment the first time.</p><div class="mpicklist">${h || '<p class="hint">No texts in the library yet.</p>'}</div>`, [['cancel', 'Cancel'], ['ok', 'Show']], 'ok');
+  if (imp.length) h += '<div class="navh">Imported</div>' + imp.map(t => `<label class="mpick"><input type="checkbox" name="book|${t.id}|"${has(`book|${t.id}|`) ? ' checked' : ''}> ${esc(t.title || 'Untitled')}</label>`).join('');
+  const onToggle = async ev => {
+    const d = ev.target; if (!d.matches?.('details[data-bk]') || !d.open || loaded.has(d.dataset.bk)) return;
+    loaded.add(d.dataset.bk);
+    const r = await placesOfAny(d.dataset.bk) || {}, keys = [];
+    for (const x of r.refs || []) { const k = chapterKey(x.s) ?? x.s; if (!keys.includes(k)) keys.push(k); }
+    d.querySelector('.mchs').innerHTML = keys.length ? keys.map(k => `<label class="mpick l2"><input type="checkbox" name="chapter|${esc(d.dataset.bk)}|${esc(k)}"${has(`chapter|${d.dataset.bk}|${k}`) ? ' checked' : ''}> ${esc(k)}</label>`).join('') : '<p class="hint small">No chapters.</p>';
+  };
+  document.addEventListener('toggle', onToggle, true);
+  const r = await dialog(`<h3>Selection</h3><p class="hint small">Tick whole works, books or chapters. Sections are added with “+ this section” while reading.</p><div class="mpicklist">${h || '<p class="hint">No texts in the library yet.</p>'}</div>`, [['cancel', 'Cancel'], ['ok', 'Apply']], 'ok');
+  document.removeEventListener('toggle', onToggle, true);
   if (r.action !== 'ok') return false;
-  M.cfg.multi = Object.keys(r.data).filter(k => r.data[k] === 'on'); M.cfg.scope = 'multi'; await saveMapCfg();
-  return true;
+  const on = new Set(Object.keys(r.data).filter(k => r.data[k] === 'on'));
+  const wOf = id => String(id).replace(/^w:(.*):\d+$/, '$1');
+  const titleOf = async id => { const p = await placesOfAny(id); return p ? p.t : null; };
+  const out = [];
+  // kept: sections, and chapters of books whose chapters were not unfolded
+  for (const x of sel) if (x.kind === 'section' || (x.kind === 'chapter' && !loaded.has(x.t))) if (!on.has('w|' + wOf(x.t)) && !on.has(`book|${x.t}|`)) out.push(x);
+  for (const k of on) {
+    const [kind, a, ref] = k.split('|');
+    if (kind === 'w') { const w = works.find(z => z.id === a); out.push({ kind: 'work', w: a, label: `${w?.author ? w.author + ', ' : ''}${w?.title || a}`, sub: 'the whole work' }); continue; }
+    const id = /^\d+$/.test(a) ? +a : a;
+    if (on.has('w|' + wOf(id)) && String(id).startsWith('w:')) continue;
+    if (kind === 'chapter' && on.has(`book|${a}|`)) continue;
+    const old = sel.find(x => selKey(x) === `${kind}|${id}|${ref || ''}`); if (old) { out.push(old); continue; }
+    const t = await titleOf(id); if (!t) continue;
+    const multi = t.work && t.work.books.length > 1;
+    out.push(kind === 'book' ? { kind, t: id, label: `${shortWork(t)}${multi ? ' · ' + t.work.books[t.bi] : ''}`, sub: multi ? 'the whole book' : 'the whole text' }
+      : { kind, t: id, ref, label: `${shortWork(t)} · ${multi ? stripCommon(t.work.books)[t.bi] + '.' : ''}${ref}`, sub: 'chapter' });
+  }
+  M.cfg.sel = out; await saveMapCfg(); return true;
 }
-// the card of a place: its passages in all chosen texts
+// the card of a place: its passages in the author's works or in the selection
 async function cardMulti(p) {
   const list = $('#mapCard .mpass'); if (!list) return;
-  list.innerHTML = '<p class="hint small">Searching the chosen texts …</p>';
+  list.innerHTML = '<p class="hint small">Searching …</p>';
   let h = '';
-  for (const id of await multiTextIds()) {
-    const r = await placesOfAny(id); if (!r) continue;
-    const words = r.toks.filter(x => x.t === 'w'), title = r.t.work ? `${r.t.work.title}${r.t.work.books.length > 1 ? ' ' + stripCommon(r.t.work.books)[r.t.bi] : ''}` : r.t.title;
-    for (const [i, x] of r.hits) {
-      if (x.p.id !== p.id) continue;
-      let ref = ''; for (const y of r.refs || []) { if (y.i <= i) ref = y.s; else break; }
-      const k = words.findIndex(z => z.i === i), c = words.slice(Math.max(0, k - 5), k + 6).map(z => z.i === i ? `<u>${esc(z.s)}</u>` : esc(z.s)).join(' ');
-      h += `<button type="button" class="mps" data-mgoany="${esc(String(id))}" data-mi="${i}"><b>${esc(title)}${ref ? ' · ' + esc(ref) : ''}</b><span>${c}</span></button>`;
-    }
-  }
-  list.innerHTML = h || '<p class="hint small">Not named in the chosen texts.</p>';
+  await eachScopeHit((x, i, r, id) => {
+    if (x.p.id !== p.id) return;
+    const words = r.toks.filter(z => z.t === 'w'), title = r.t.work ? `${r.t.work.title}${r.t.work.books.length > 1 ? ' ' + stripCommon(r.t.work.books)[r.t.bi] : ''}` : r.t.title;
+    let ref = ''; for (const y of r.refs || []) { if (y.i <= i) ref = y.s; else break; }
+    const k = words.findIndex(z => z.i === i), c = words.slice(Math.max(0, k - 5), k + 6).map(z => z.i === i ? `<u>${esc(z.s)}</u>` : esc(z.s)).join(' ');
+    h += `<button type="button" class="mps" data-mgoany="${esc(String(id))}" data-mi="${i}"><b>${esc(title)}${ref ? ' · ' + esc(ref) : ''}</b><span>${c}</span></button>`;
+  });
+  list.innerHTML = h || '<p class="hint small">Not named here.</p>';
 }
 async function mapGoAny(id, i) {
   if (parseFloat(getSplit()) <= 0.5) { setSplit(M.splitBefore || '50%'); setTimeout(() => M.map?.resize(), 50); }
@@ -98,27 +161,27 @@ async function mapGoAny(id, i) {
 }
 
 // ---------------------------------------------------------------- saved maps
-const MAP_KEYS = ['sites', 'cats', 'coast', 'empires', 'regions', 'roads', 'urban', 'borders', 'peoples', 'names', 'time', 'tol', 'gone', 'undated', 'twoCol', 'rangeCols'];
+const MAP_KEYS = ['pfOn', 'sel', 'sites', 'cats', 'coast', 'empires', 'regions', 'roads', 'urban', 'borders', 'peoples', 'names', 'time', 'tol', 'gone', 'undated', 'twoCol', 'rangeCols'];
 function mapState() {
   const c = M.map.getCenter();
-  return { scope: M.cfg.scope, multi: M.cfg.scope === 'multi' ? [...(M.cfg.multi || [])] : undefined, textId: S.text?.id ?? null, ref: curRef()?.s ?? null,
+  return { scope: M.cfg.scope, textId: S.text?.id ?? null, ref: curRef()?.s ?? null,
     view: { c: [+c.lng.toFixed(4), +c.lat.toFixed(4)], z: +M.map.getZoom().toFixed(2) }, ranges: JSON.parse(JSON.stringify(M.T?.ranges || [])),
     layers: Object.fromEntries(MAP_KEYS.map(k => [k, JSON.parse(JSON.stringify(M.cfg[k] ?? null))])) };
 }
 async function savedMaps() { return (await getAll('settings', IDBKeyRange.bound('mmap|', 'mmap|￿'))).map(r => r.v).sort((a, b) => b.created - a.created); }
 async function saveMapDialog() {
-  const t = S.text, sug = M.cfg.scope === 'multi' ? await multiLabel() : t ? `${t.work ? t.work.title : t.title} – ${scopeLabel(M.cfg.scope)}` : 'Map';
-  const r = await dialog(`<h3>Save this map</h3><p class="hint small">Keeps the texts, the part, the view, the period and the layers – to open again later (Places from → Saved maps).</p><label>Name<input type="text" name="n" value="${esc(sug)}" autocomplete="off"></label>`, [['cancel', 'Cancel'], ['ok', 'Save']], 'ok');
+  const t = S.text, sug = M.cfg.scope === 'sel' ? 'Selection – ' + selSummary() : t ? `${t.work ? t.work.title : t.title} – ${scopeLabel(M.cfg.scope)}` : 'Map';
+  const r = await dialog(`<h3>Save this map</h3><p class="hint small">Keeps the texts, the part, the view, the period and the layers – to open again later (the bookmark button of the map).</p><label>Name<input type="text" name="n" value="${esc(sug)}" autocomplete="off"></label>`, [['cancel', 'Cancel'], ['ok', 'Save']], 'ok');
   if (r.action !== 'ok' || !r.data.n?.trim()) return;
   const m = Object.assign(mapState(), { id: Date.now().toString(36), name: r.data.n.trim(), created: Date.now() });
   await setting('mmap|' + m.id, m); toast('Map saved');
 }
 async function openSavedMap(m) {
   $('#mapPop').hidden = true;
-  if (m.textId != null && (!S.text || String(S.text.id) !== String(m.textId)) && m.scope !== 'multi') {
+  if (m.textId != null && (!S.text || String(S.text.id) !== String(m.textId)) && !['sel', 'author'].includes(m.scope)) {
     await openText(m.textId); if (m.ref) await goTo(m.ref);
   }
-  Object.assign(M.cfg, JSON.parse(JSON.stringify(m.layers || {})), { scope: m.scope, ...(m.multi ? { multi: m.multi } : {}) }); await saveMapCfg();
+  Object.assign(M.cfg, JSON.parse(JSON.stringify(m.layers || {})), { scope: m.scope }); await saveMapCfg();
   timeFor(S.text); if (m.ranges) M.T.ranges = JSON.parse(JSON.stringify(m.ranges));
   if (m.layers?.borders != null) M.map.setLayoutProperty('borders', 'visibility', M.cfg.borders ? 'visible' : 'none');
   if (M.cfg.regions !== 'off') await loadAncientLabels();
@@ -126,27 +189,27 @@ async function openSavedMap(m) {
   markPlaces(); renderTime(); await refreshMapData();
 }
 
-// ---------------------------------------------------------------- the menu of the scope button
+// ---------------------------------------------------------------- the menu of the scope button ("Places from")
+const SCOPES = [['section', 'Section'], ['chapter', 'Chapter'], ['book', 'Book'], ['work', 'Work'], ['author', 'Author'], ['sel', 'Selection']];
+function scopeExplain() {
+  const t = S.text, w = t?.work, cr = curRef(), sc = M.cfg.scope;
+  if (!M.cfg.pfOn) return '<b>Switched off</b> – every place is shown, whether a text names it or not (choose which in the layer menu)';
+  if (sc === 'section') return cr ? `<b>Section ${esc(cr.s)}</b> – the section at the top of the text` : '<b>Section</b> – the section you are reading';
+  if (sc === 'chapter') return cr ? `<b>Chapter ${esc(chapterKey(cr.s) ?? cr.s)}</b> – the chapter at the top of the text` : '<b>Chapter</b> – the chapter you are reading';
+  if (sc === 'book') return w && w.books.length > 1 ? `<b>${esc(w.books[t.bi])}</b> – the part that is open` : '<b>Book</b> – the open text';
+  if (sc === 'work') return w ? `<b>${esc(w.title)}</b> – all its parts` : `<b>${esc(t?.title || 'Work')}</b> – the open text`;
+  if (sc === 'author') { const a = w ? w.author : t?.author; return `<b>${esc(a || 'Author')}</b> – all works in your library`; }
+  return `<b>Selection</b> – ${esc(selSummary())}`;
+}
 async function scopePop(keep) {
   const pop = $('#mapPop'); if (!keep && !pop.hidden && pop.dataset.k === 'scope') { pop.hidden = true; return; }
   pop.dataset.k = 'scope'; pop.classList.add('mlayers'); pop.classList.remove('right');
-  const t = S.text, w = t?.work, cr = curRef();
-  const author = w ? w.author : t?.author;
-  // what each choice refers to, with the reading position
-  const opts = [
-    ['none', 'None', 'only the layers – no places of texts'],
-    ['section', 'Section', cr ? `${esc(cr.s)} – the section at the top of the text` : 'the section you are reading'],
-    ['chapter', 'Chapter', cr ? `${esc(chapterKey(cr.s) ?? cr.s)} – the chapter at the top of the text` : 'the chapter you are reading'],
-    ['book', 'Book', w && w.books.length > 1 ? `${esc(w.books[t.bi])} – the part that is open` : 'the open text'],
-    ['work', 'Work', w ? `${esc(w.title)} – all its parts` : t ? esc(t.title || 'the open text') : 'the open text'],
-    ['author', 'Author', author ? `all works of ${esc(author)} in your library` : 'all works of the author in your library'],
-    ['all', 'All', 'every text in your library'],
-    ['multi', 'Several texts …', M.cfg.scope === 'multi' ? esc(await multiLabel()) + ' – tap to change' : 'texts you choose'],
-  ];
-  pop.innerHTML = `<div class="mph"><span class="navh">Places from</span><button type="button" class="mx" data-mpopx="1" aria-label="Close">✕</button></div>
-    <div class="mscl">${opts.map(([v, l, d]) => `<button type="button" class="mso${M.cfg.scope === v ? ' on' : ''}" ${v === 'multi' ? 'data-mmulti="1"' : `data-mscopev="${v}"`}><span class="rd"></span><span><b>${l}</b><small>${d}</small></span></button>`).join('')}</div>
-`;
-  pop.hidden = false; if (!keep) pop.scrollTop = 0;
+  const on = M.cfg.pfOn !== false;
+  pop.innerHTML = `<div class="mph"><span class="navh">Places from</span><button type="button" class="mswitch${on ? ' on' : ''}" data-mpfon="1" role="switch" aria-checked="${on}" aria-label="Places from texts"><i></i></button><button type="button" class="mx" data-mpopx="1" aria-label="Close">✕</button></div>
+    <div class="mseg${on ? '' : ' off'}" role="group">${SCOPES.map(([v, l]) => `<button type="button" data-mscopev="${v}" class="${M.cfg.scope === v ? 'on' : ''}">${l}</button>`).join('')}</div>
+    <div class="mex">${scopeExplain()}</div>
+    ${on && M.cfg.scope === 'sel' ? '<div class="macts"><button type="button" class="acc" data-mseledit="1">Edit selection …</button></div>' : ''}`;
+  pop.hidden = false;
 }
 // the third map button: saved maps, saving, opening a map file, export
 const SAVE_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-4-5.5 4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 7.5v5.5M9.5 10.5 12 13l2.5-2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -162,7 +225,12 @@ async function savePop(keep) {
 }
 async function savedClick(b) {
   const d = b.dataset;
-  if (d.mmulti) { const ok = await pickTextsDialog(); await scopePop(true); if (ok) { await refreshMapData(); await scopePop(true); } return true; }   // the card stays open
+  if (d.mpfon) { M.cfg.pfOn = M.cfg.pfOn === false; await saveMapCfg(); await refreshMapData(); await scopePop(true); return true; }
+  if (d.mseledit) { selPop(); return true; }
+  if (d.mseladd) { selAdd(d.mseladd); selPop(); return true; }
+  if (d.mseldel != null) { M.cfg.sel.splice(+d.mseldel, 1); await saveMapCfg(); selPop(); if (M.cfg.scope === 'sel') refreshMapData(); return true; }
+  if (d.mselbrowse) { if (await selBrowse() && M.cfg.scope === 'sel') refreshMapData(); selPop(); return true; }   // the card stays open
+  if (d.mselshow) { M.cfg.scope = 'sel'; M.cfg.pfOn = true; await saveMapCfg(); await refreshMapData(); await scopePop(true); return true; }
   if (d.mgoany != null) { mapGoAny(d.mgoany, +d.mi); return true; }
   if (d.msave) { $('#mapPop').hidden = true; await saveMapDialog(); return true; }
   if (d.mopen) { const m = await setting('mmap|' + d.mopen); if (m) await openSavedMap(m); return true; }
@@ -179,7 +247,7 @@ async function savedClick(b) {
 // ---------------------------------------------------------------- export
 function mapTitle() {
   const t = S.text, sc = M.cfg.scope;
-  const what = sc === 'multi' ? 'Several texts' : t ? `${t.work ? `${t.work.author ? t.work.author + ', ' : ''}${t.work.title}` : t.title} – ${scopeLabel(sc)}` : 'Map';
+  const what = sc === 'sel' ? 'Selection' : t ? `${t.work ? `${t.work.author ? t.work.author + ', ' : ''}${t.work.title}` : t.title} – ${scopeLabel(sc)}` : 'Map';
   const R = M.cfg.time && M.T?.ranges?.length ? M.T.ranges.map(fmtR).join(' · ') : '';
   return [what, R].filter(Boolean).join(' · ');
 }
@@ -238,7 +306,7 @@ async function exportMap(fmt) {
   let blob, name;
   if (fmt === 'pult') {
     const st = Object.assign(mapState(), { id: Date.now().toString(36), name: base, created: Date.now() });
-    const ids = M.cfg.scope === 'multi' ? await multiTextIds() : S.text ? [S.text.id] : [];
+    const ids = ['sel', 'author'].includes(M.cfg.scope) ? (await scopeParts()).map(x => x.id) : S.text ? [S.text.id] : [];
     const corr = (await getAll('settings')).filter(r => /^(plg|pown)\|/.test(r.k) || ids.some(id => r.k.startsWith(`pl|${id}|`)) || (r.k.startsWith('plw|') && ids.some(id => { const w = String(id).match(/^w:(.*):\d+$/); return r.k.startsWith(`plw|${w ? w[1] : 'imp:' + id}|`); })));
     const places = [...(M.shown?.values() || [])].map(x => ({ id: x.p.id, t: x.p.t, lat: x.p.lat, lon: x.p.lon, n: x.n, names: x.names }));
     blob = new Blob([JSON.stringify({ format: 'pult-map-1', date: new Date().toISOString(), map: st, places, corrections: Object.fromEntries(corr.map(r => [r.k, r.v])) })], { type: 'application/json' });

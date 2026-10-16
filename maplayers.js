@@ -77,7 +77,8 @@ function sitesData() {
   }
   return M.sitesFC = { type: 'FeatureCollection', features: feats };
 }
-const siteCats = () => SITE_CATS.map((c, i) => M.cfg.cats?.[c[0]] ? i : -1).filter(i => i >= 0);
+// the categories chosen in the layer menu; none chosen = all
+const siteCats = () => { const c = SITE_CATS.map((c, i) => M.cfg.cats?.[c[0]] ? i : -1).filter(i => i >= 0); return c.length ? c : SITE_CATS.map((_, i) => i); };
 
 // ---------------------------------------------------------------- the layers in the map style
 const EMP_COL = { persia: '#9a6a2a', alexander: '#3f6fa8', rome60bc: '#b23a3a', rome117: '#b23a3a', rome200: '#b23a3a' };
@@ -123,7 +124,7 @@ function layerProps() {
     'a-roads': { vis: vis(c.roads), filter: ['all', ['==', ['get', 'c'], 1], tf], paint: { 'line-opacity': tOpacity(0.85) } },
     'a-roads-a': { vis: vis(c.roads), filter: ['all', ['!=', ['get', 'c'], 1], tf], paint: { 'line-opacity': tOpacity(0.7) } },
     'a-urban': { vis: vis(c.urban) }, 'a-urban-line': { vis: vis(c.urban) },
-    sites: { vis: vis(c.sites && siteCats().length), filter: ['all', ['in', ['get', 'c'], ['literal', siteCats()]], tf, ['!', ['in', ['get', 'id'], ['literal', shown]]]],
+    sites: { vis: vis(c.pfOn === false),                           // "Places from" switched off: every place filter: ['all', ['in', ['get', 'c'], ['literal', siteCats()]], tf, ['!', ['in', ['get', 'id'], ['literal', shown]]]],
       paint: { 'circle-opacity': tOpacity(0.85), 'circle-stroke-opacity': tOpacity(0.85) } },
   };
 }
@@ -199,7 +200,7 @@ function moreLabels(placed, W, H) {
     }
   }
   // the sites in view (from zoom 7): their names, where there is room
-  if (M.cfg.sites && z >= 7 && M.map.getLayer('sites')) {
+  if (M.cfg.pfOn === false && z >= 7 && M.map.getLayer('sites')) {
     const fs = M.map.queryRenderedFeatures({ layers: ['sites'] }).slice(0, 400);
     const seen = new Set(); let n = 0;
     for (const f of fs) {
@@ -323,7 +324,7 @@ function layersHTML() {
       + segc('twoCol', [[false, 'One colour'], [true, 'A colour for each']], 'Several periods')
       + `<div class="mcols">${RANGE_COL.map((_, k) => `<label title="Colour of period ${k + 1}"><input type="color" data-mcol="${k}" value="${rangeCol(k)}"><span>${k + 1}</span></label>`).join('')}<button type="button" class="mcolr" data-mcolreset="1">Standard colours</button></div>`
       + '<p class="hint small">Hold a date on the slider to make it a period, hold a period to split it in two; pull ends together to join them.</p>')
-    + foldSec('sites', 'All ancient places', tgl('sites', 'Show the places of the gazetteer') + `<div class="mcats${M.cfg.sites ? '' : ' off'}">` + SITE_CATS.map(([k, l, , c1, c2]) => `<button type="button" class="mtg${M.cfg.cats?.[k] ? ' on' : ''}" data-mcat="${k}"><span class="ck"></span><i class="dot" style="--c:${document.documentElement.dataset.theme === 'dark' ? c2 : c1}"></i>${l}</button>`).join('') + '</div>')
+    + foldSec('sites', 'Kinds of places', '<p class="hint small">Which places are shown while “Places from” is switched off. None ticked: all.</p><div class="mcats">' + SITE_CATS.map(([k, l, , c1, c2]) => `<button type="button" class="mtg${M.cfg.cats?.[k] ? ' on' : ''}" data-mcat="${k}"><span class="ck"></span><i class="dot" style="--c:${document.documentElement.dataset.theme === 'dark' ? c2 : c1}"></i>${l}</button>`).join('') + '</div>')
     + foldSec('anc', 'Ancient world', anc ? tgl('coast', 'Coastlines of the period') + tgl('empires', 'Empires and Roman provinces')
       + segc('regions', [['off', 'Off'], ['labels', 'Names'], ['areas', 'Areas']], 'Regions and peoples') + tgl('roads', 'Roads (Barrington Atlas)') + tgl('urban', 'City outlines')
       : '<p class="hint small">Needs the download <b>Ancient world</b> (coastlines of the periods, empires and provinces, regions and peoples, roads).</p><button type="button" data-mapdl="1">Open Instruments → Maps</button>')
@@ -340,7 +341,7 @@ function layersPop() {
 async function layerClick(b) {
   const d = b.dataset;
   if (d.mfold) { const f = b.closest('.mfold'), on = !f.classList.contains('open'); f.classList.toggle('open', on); (M.cfg.fold ??= {})[d.mfold] = on; saveMapCfg(); return true; }
-  if (d.mcat) { (M.cfg.cats ??= {})[d.mcat] = !M.cfg.cats[d.mcat]; b.classList.toggle('on', M.cfg.cats[d.mcat]); if (M.cfg.cats[d.mcat] && !M.cfg.sites) { M.cfg.sites = true; $('#mapPop [data-mlay="sites"]')?.classList.add('on'); $('#mapPop .mcats')?.classList.remove('off'); } await saveMapCfg(); applyLayers(); return true; }
+  if (d.mcat) { (M.cfg.cats ??= {})[d.mcat] = !M.cfg.cats[d.mcat]; b.classList.toggle('on', M.cfg.cats[d.mcat]);  await saveMapCfg(); applyLayers(); return true; }
   if (d.mcfg) {
     let v = d.v; if (v === 'true' || v === 'false') v = v === 'true'; else if (/^\d+$/.test(v)) v = +v;
     M.cfg[d.mcfg] = v; b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); await saveMapCfg();
@@ -354,7 +355,6 @@ async function layerClick(b) {
     if (k === 'borders') M.map.setLayoutProperty('borders', 'visibility', M.cfg.borders ? 'visible' : 'none');
     if (k === 'peoples' || k === 'mark') { markPlaces(); await refreshMapData(); }
     if (k === 'time') { timeFor(S.text); renderTime(); }
-    if (k === 'sites') $('#mapPop .mcats')?.classList.toggle('off', !M.cfg.sites);     // the categories are greyed while the places are off
     applyLayers(); return true;
   }
   if (d.mtoff || b.id === 'mapTimeBtn') { M.cfg.time = b.id === 'mapTimeBtn' ? !M.cfg.time : false; await saveMapCfg(); timeFor(S.text); renderTime(); applyLayers(); $('#mapPop [data-mlay="time"]')?.classList.toggle('on', M.cfg.time); return true; }

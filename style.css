@@ -983,3 +983,25 @@ dialog details.ifold.sub>summary b{font-weight:600}
 .mctl{flex-direction:row}
 .mtop{max-width:calc(100% - 150px)}
 .mpop.right{left:auto;right:8px}
+/* Places from: switch, one scale, one explanation */
+.mswitch{margin-left:auto;width:36px;height:21px;padding:0;border-radius:11px;border:0;background:var(--line);position:relative;flex:none}
+.mswitch i{position:absolute;left:2px;top:2px;width:17px;height:17px;border-radius:50%;background:var(--bg);transition:left .15s}
+.mswitch.on{background:var(--acc)}.mswitch.on i{left:17px}
+.mph .mswitch+.mx{margin-left:.35rem}
+.mseg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.mseg button{flex:1 1 auto;min-width:0;border:0;border-left:1px solid var(--line);border-radius:0;background:none;padding:.4rem .15rem;font-size:12.5px;color:var(--fg);white-space:nowrap}
+.mseg button:first-child{border-left:0}
+.mseg button.on{background:var(--acc);color:var(--bg);font-weight:600}
+.mseg.off{opacity:.4}
+.mex{font-size:12.5px;line-height:1.4;color:var(--mut);margin:.45rem .1rem .1rem}.mex b{color:var(--fg);font-weight:600}
+.mpop button.acc{border-color:var(--acc);color:var(--acc)}
+/* the selection */
+.mcnt{margin-left:auto;color:var(--mut);font-size:12px}.mcnt+.mx{margin-left:.35rem}
+.msel{display:flex;align-items:center;gap:.4rem;border-top:1px solid var(--line);padding:.3rem 0}
+.msel>div{flex:1;min-width:0;font-size:13.5px}.msel small{display:block;color:var(--mut);font-size:11.5px}
+details.mtree{margin:.1rem 0}details.mtree>summary{display:flex;align-items:center;gap:.45rem;padding:.3rem 0;cursor:pointer;font-size:14.5px}
+details.mtree>summary small{margin-left:auto;color:var(--mut);font-size:11.5px}
+details.mtree.l1{margin-left:1.2rem}details.mtree.l1>summary{font-size:14px}
+.mpick.l2{margin-left:2.4rem;padding:.15rem 0;font-size:14px}
+.mchs{display:flex;flex-wrap:wrap;gap:.15rem .2rem;margin:.1rem 0 .4rem 2.4rem}
+.mchs .mpick.l2{margin:0;display:inline-flex;align-items:center;gap:.25rem;min-width:3.4rem;padding:.2rem .1rem;font:13.5px var(--ui)}

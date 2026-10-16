@@ -14,7 +14,13 @@ async function mapCfg() {
   if (!M.cfg) {
     const saved = (await setting('mapCfg')) || {};
     if (!saved.v2) { delete saved.mark; saved.v2 = true; }                 // place names are no longer marked in the text by default
-    M.cfg = Object.assign({ mark: false, jump: true, scope: 'section', names: 'text', peoples: false, borders: false, rough: true, persons: 'unsure' }, JSON.parse(JSON.stringify(LCFG)), saved);
+    if (!saved.v3) {                                                     // "Places from": switch + scale + selection (v123→124)
+      saved.v3 = true;
+      if (saved.scope === 'multi') { saved.sel = (saved.multi || []).map(k => k.startsWith('imp:') ? { kind: 'book', t: +k.slice(4), label: 'Imported text', sub: 'the whole text' } : { kind: 'work', w: k.slice(2), label: k.slice(2), sub: 'the whole work' }); saved.scope = 'sel'; }
+      if (saved.scope === 'all' || saved.scope === 'none') saved.scope = 'section';
+      if (saved.sites) saved.pfOn = false;
+    }
+    M.cfg = Object.assign({ mark: false, jump: true, pfOn: true, sel: [], scope: 'section', names: 'text', peoples: false, borders: false, rough: true, persons: 'unsure' }, JSON.parse(JSON.stringify(LCFG)), saved);
   }
   return M.cfg;
 }
@@ -331,9 +337,8 @@ function scopeRange(scope) {
 }
 function scopeLabel(scope) {
   const cr = curRef(), w = S.text?.work;
-  if (scope === 'multi') return 'Several texts';
-  if (scope === 'none') return 'No places of texts';
-  if (scope === 'all') return 'All texts';
+  if (!M.cfg?.pfOn) return 'All places';
+  if (scope === 'sel') return 'Selection';
   if (scope === 'author') return S.text ? (S.text.work ? S.text.work.author || 'this author' : S.text.author || 'this author') + ' – all works' : 'this author';
   if (scope === 'work') return w ? w.title : 'whole text';
   if (scope === 'book') return w && w.books.length > 1 ? w.books[S.text.bi] : 'whole text';
@@ -342,7 +347,7 @@ function scopeLabel(scope) {
 }
 // places shown: {place id -> {p, n (passages), label}}
 async function scopePlaces() {
-  const cfg = await mapCfg(), out = new Map(), t = S.text; if (cfg.scope === 'none' || (!t && !['multi', 'all'].includes(cfg.scope))) return out;
+  const cfg = await mapCfg(), out = new Map(), t = S.text; if (!cfg.pfOn || (!t && cfg.scope !== 'sel')) return out;     // switched off: no places of texts – every place (layer "sites")
   const add = (h, bi) => {
     if (isPeople(h.p) && !cfg.peoples) return;
     if (h.unsure === 'later' && M.sel?.h !== h) return;              // the time filter: later places only once confirmed
@@ -351,7 +356,7 @@ async function scopePlaces() {
     const nm = h.stem ? cleanT(h.p) : h.name;                // recognised by the stem only: the gazetteer's name, not the inflected word
     x.n++; x.names[nm] = (x.names[nm] || 0) + 1; if (h.unsure) x.unsure++;
   };
-  if (['multi', 'author', 'all'].includes(cfg.scope)) await multiPlaces(add);   // several texts (mapsaved.js)
+  if (['sel', 'author'].includes(cfg.scope)) await multiPlaces(add);   // several texts (mapsaved.js)
   else if (cfg.scope === 'work' && t.work && t.work.books.length > 1) {
     for (let bi = 0; bi < t.work.books.length; bi++) { const hs = bi === t.bi ? M.hits : await placesOfPart(bi); for (const h of hs.values()) add(h, bi); }
   } else {
@@ -452,7 +457,7 @@ async function refreshMapData() {
   const feats = [...sp.values()].map(x => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [x.p.lon, x.p.lat] },
     properties: { id: x.p.id, n: x.n, sel: x.p.id === sel, rough: !!x.p.rough || x.unsure === x.n, k: isRegion(x.p) ? 'region' : isWater(x.p) ? 'water' : 'place' } }));
   M.map.getSource('places').setData({ type: 'FeatureCollection', features: feats });
-  $('#mapScope').innerHTML = `${esc(scopeLabel(M.cfg.scope))} <small>· ${sp.size - (M.sel && sp.get(sel)?.extra ? 1 : 0)} place${sp.size === 1 ? '' : 's'}</small> ▾`;
+  $('#mapScope').innerHTML = !M.cfg.pfOn ? 'All places ▾' : `${esc(scopeLabel(M.cfg.scope))} <small>· ${sp.size - (M.sel && sp.get(sel)?.extra ? 1 : 0)} place${sp.size === 1 ? '' : 's'}</small> ▾`;
   const nq = [...M.hits.values()].filter(h => h.unsure).length, ck = $('#mapCheck');
   ck.hidden = !nq; ck.innerHTML = `⚑ ${nq} to check`;
   if (M.T?.work !== (S.text ? workKeyOf(S.text) : null)) { timeFor(S.text); renderTime(); }
@@ -528,11 +533,11 @@ async function showCard(p) {
     <div id="mapAlso"></div>
     <div class="mpass">${occ.length ? occ.map(o => `<button type="button" class="mps" data-mgo="${o.i}"><b>${multi ? esc(short[o.bi]) + ' · ' : ''}${esc(refOf(S.refs, o.i))}</b><span>${ctx(o.i)}</span></button>`).join('')
       : '<p class="hint small">Not named in this part of the text.</p>'}</div>
-    <div class="macts">${w && multi && !['multi', 'author', 'all'].includes(M.cfg.scope) ? '<button type="button" data-mwork="1">All passages in this work</button>' : ''}${cur != null ? '<button type="button" data-mnone="1">Not a place here</button>' : ''}</div>
+    <div class="macts">${w && multi && !['sel', 'author'].includes(M.cfg.scope) ? '<button type="button" data-mwork="1">All passages in this work</button>' : ''}${cur != null ? '<button type="button" data-mnone="1">Not a place here</button>' : ''}</div>
     <div id="mapChange" hidden></div>`;
   card.hidden = false;
   card.scrollTop = 0;
-  if (['multi', 'author', 'all'].includes(M.cfg.scope)) cardMulti(p);
+  if (M.cfg.pfOn && ['sel', 'author'].includes(M.cfg.scope)) cardMulti(p);
 }
 const UNSURE = { later: 'Known only from after the text’s time – not on the map', person: 'Possibly a person, not a place', ambiguous: 'Several places have this name', form: 'Recognised only from the form of the word' };
 // all passages of the work that name this place
@@ -612,7 +617,11 @@ function wireMapUI() {
     if (b.id === 'mapScope') return scopePop();
     if (b.id === 'mapLayersBtn') return layersPop();
     if (b.id === 'mapSaveBtn') return savePop();
-    if (d.mscopev) { M.cfg.scope = d.mscopev; await saveMapCfg(); $('#mapPop').hidden = true; return refreshMapData(); }
+    if (d.mscopev) {                    // the menu stays open; "Selection" with nothing chosen opens its editor
+      M.cfg.scope = d.mscopev; M.cfg.pfOn = true; await saveMapCfg();
+      if (d.mscopev === 'sel' && !(M.cfg.sel || []).length) { selPop(); return; }
+      await refreshMapData(); return scopePop(true);
+    }
     if (d.mpopx) { $('#mapPop').hidden = true; return; }
     if (d.mgo != null) return mapGo(d.mpart != null ? +d.mpart : null, +d.mgo);
     if (d.mwork) return cardWork(M.sel.p);
