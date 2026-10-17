@@ -1331,3 +1331,9 @@ dialog input.cswatch::-webkit-color-swatch-wrapper{padding:2px}
 dialog input.cswatch::-webkit-color-swatch{border:0;border-radius:4px}
 dialog input.cswatch::-moz-color-swatch{border:0;border-radius:4px}
 dialog details.sglo .mline>span:first-child{font-size:14px}
+
+/* text size icons: one baseline, the A growing from tiny to too large for the box */
+dialog .tzrow button.tzi{position:relative;width:2.6rem;height:2.6rem;min-width:0;padding:0;overflow:hidden;color:var(--fg)}
+dialog .tzi .tzA{position:absolute;inset:0;width:100%;height:100%;overflow:hidden}
+dialog .tzi .tzA text{font-family:var(--greek);fill:currentColor}
+dialog .tzi .tzrst{position:absolute;right:.28rem;top:.3rem;width:.8rem;height:.8rem;color:var(--mut)}

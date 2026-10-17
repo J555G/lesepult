@@ -388,6 +388,9 @@ async function setLangTool(lang, id) {
   await loadDicts(); bucketCache.clear(); S.latEngine = null; S.colEngine = undefined;
   resetTokens(); renderText(); resolveTokens(); if (S.view) renderView();
 }
+// text size buttons: the letter A in the text's typeface, at the size it stands for (A++ too large for its box); 100 %: with a ↺
+const TZ_SIZE = { tz1: 11, tz2: 17, tz3: 21, tz4: 26, tz5: 62 };
+const tzBtn = (d, cls, label, extra = '') => `<button type="button" class="tzi ${cls}" data-tz="${d}" aria-label="${label}" title="${label}"><svg class="tzA" viewBox="0 0 40 40" aria-hidden="true"><text x="${cls === 'tz3' ? 17 : 20}" y="30" text-anchor="middle" font-size="${TZ_SIZE[cls]}">A</text></svg>${extra}</button>`;
 const PULT_DATE = '17 Oct 2026';     // the date this version was published (with the version number in sw.js)
 // focus: 'colours' | 'grammar' | 'map' – opened by holding that button: its section unfolded and in view
 async function settingsDialog(focus) {
@@ -404,7 +407,7 @@ async function settingsDialog(focus) {
   const coll = S.installed?.collatinus && !S.dictPrefs.off.includes('collatinus');
   const hasMap = typeof settingsHTML === 'function';
   if (hasMap) await mapCfg();
-  const reading = line('Text size', `<div class="tzrow"><button type="button" data-tz="-7" aria-label="Smaller by 7 %">A−−</button><button type="button" data-tz="-1" aria-label="Smaller by 1 %">A−</button><span id="tzVal">${Math.round((S.tz || 1) * 100)} %</span><button type="button" data-tz="1" aria-label="Larger by 1 %">A+</button><button type="button" data-tz="7" aria-label="Larger by 7 %">A++</button><button type="button" data-tz="0">100 %</button></div>`, 'or pinch the text · on a computer: ctrl + mouse wheel')
+  const reading = line('Text size', `<div class="tzrow">${tzBtn(-7, 'tz1', 'Smaller by 7 %')}${tzBtn(-1, 'tz2', 'Smaller by 1 %')}<span id="tzVal">${Math.round((S.tz || 1) * 100)} %</span>${tzBtn(1, 'tz4', 'Larger by 1 %')}${tzBtn(7, 'tz5', 'Larger by 7 %')}${tzBtn(0, 'tz3', 'Back to 100 %', '<svg class="tzrst" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.2 8a4.8 4.8 0 1 0 1.5-3.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M3.4 1.9v3.2h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>')}</div>`, 'pinch the text · ctrl + mouse wheel')
     + `<details class="subfold shead sglo"><summary>Glosses</summary><div class="gramcfg">${line('Should a word’s particular gloss replace its lemma’s default gloss?', seg('glossMode', S.glossMode === 'both' ? 'both' : 'replace', [['replace', 'Replace'], ['both', 'Show both']]))}</div></details>`
     + `<details class="subfold shead sgram"${focus === 'grammar' ? ' open' : ''}><summary>Grammar Line</summary><div class="gramcfg">${gramRowsHTML()}</div></details>`
     + `<details class="subfold shead scolours"${focus === 'colours' ? ' open' : ''}><summary>Colourisation</summary><div class="gramcfg">${chipGroupsHTML('pos')}<div class="row" style="justify-content:flex-start"><button type="button" data-posreset="1">Reset colours</button></div></div></details>`
