@@ -62,6 +62,9 @@
    "bytes": 39366636,
    "v": "f5cc2cc1b402",
    "group": "relief",
+   "parts": {
+    "relief/overview7.pmtiles": 3
+   },
    "url": "https://j555g.github.io/lesepult-maps/"
   },
   {
@@ -77,7 +80,7 @@
    "v": "55be59bf84d0",
    "group": "relief",
    "parts": {
-    "relief/overview8.pmtiles": 2
+    "relief/overview8.pmtiles": 9
    },
    "url": "https://j555g.github.io/lesepult-maps/"
   },
@@ -91,6 +94,9 @@
    "bytes": 20461410,
    "v": "166363bf7235",
    "group": "relief-greece",
+   "parts": {
+    "relief/greece10.pmtiles": 2
+   },
    "url": "https://j555g.github.io/lesepult-maps/"
   },
   {
@@ -103,6 +109,9 @@
    "bytes": 61423624,
    "v": "9cc5d4c42ff5",
    "group": "relief-greece",
+   "parts": {
+    "relief/greece11.pmtiles": 4
+   },
    "url": "https://j555g.github.io/lesepult-maps/"
   },
   {
@@ -115,6 +124,9 @@
    "bytes": 36977992,
    "v": "a4b48429e6f4",
    "group": "relief-italy",
+   "parts": {
+    "relief/italy10.pmtiles": 3
+   },
    "url": "https://j555g.github.io/lesepult-maps/"
   },
   {
@@ -128,7 +140,7 @@
    "v": "d1dae2b001e7",
    "group": "relief-italy",
    "parts": {
-    "relief/italy11.pmtiles": 2
+    "relief/italy11.pmtiles": 7
    },
    "url": "https://j555g.github.io/lesepult-maps/"
   },
@@ -142,6 +154,9 @@
    "bytes": 56045619,
    "v": "966ba83bc4e5",
    "group": "relief-asiaminor",
+   "parts": {
+    "relief/asiaminor10.pmtiles": 4
+   },
    "url": "https://j555g.github.io/lesepult-maps/"
   },
   {
@@ -154,6 +169,9 @@
    "bytes": 55434869,
    "v": "f258b0208a30",
    "group": "relief-levant",
+   "parts": {
+    "relief/levant10.pmtiles": 4
+   },
    "url": "https://j555g.github.io/lesepult-maps/"
   },
   {
@@ -178,6 +196,9 @@
    "bytes": 38725338,
    "v": "e5068fa79d44",
    "group": "itinere",
+   "parts": {
+    "itinere/roads_full.pmtiles": 3
+   },
    "url": "https://j555g.github.io/lesepult-maps/"
   },
   {
@@ -200,6 +221,9 @@
    ],
    "bytes": 25459965,
    "v": "93212c0c6b6b",
+   "parts": {
+    "landscape/landscape.pmtiles": 2
+   },
    "url": "https://j555g.github.io/lesepult-maps/"
   }
  ]
