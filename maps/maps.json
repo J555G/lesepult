@@ -214,12 +214,324 @@
   {
    "id": "ne2",
    "name": "Natural Earth II",
-   "desc": "The painted landscape as a base map: shaded relief, deserts, green lowlands, rivers (Tom Patterson, Natural Earth, public domain) – the whole world when zoomed out, sharp up to medium zoom in the map area",
+   "desc": "The painted landscape as a base map: shaded relief, deserts, green lowlands, rivers (Tom Patterson, Natural Earth, public domain) – the whole world, sharp up to zoom 4; the regions below make it sharper",
    "files": [
     "ne2/ne2.pmtiles"
    ],
-   "bytes": 7207896,
-   "v": "59131839d7b1",
+   "bytes": 1844382,
+   "v": "2c073651049e",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-europe5",
+   "name": "Natural Earth II – Europe and the Mediterranean (Basic)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/europe5.pmtiles"
+   ],
+   "bytes": 429008,
+   "v": "910ef605b210",
+   "group": "ne2-europe",
+   "lvl": "Basic",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-europe6",
+   "name": "Natural Earth II – Europe and the Mediterranean (Medium)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/europe6.pmtiles"
+   ],
+   "bytes": 1468474,
+   "v": "90618f39009f",
+   "group": "ne2-europe",
+   "lvl": "Medium",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-europe7",
+   "name": "Natural Earth II – Europe and the Mediterranean (Detailed)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/europe7.pmtiles"
+   ],
+   "bytes": 3858324,
+   "v": "b87f545d06a6",
+   "group": "ne2-europe",
+   "lvl": "Detailed",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-neareast5",
+   "name": "Natural Earth II – Near East and Central Asia (Basic)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/neareast5.pmtiles"
+   ],
+   "bytes": 447181,
+   "v": "2e665f2c7042",
+   "group": "ne2-neareast",
+   "lvl": "Basic",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-neareast6",
+   "name": "Natural Earth II – Near East and Central Asia (Medium)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/neareast6.pmtiles"
+   ],
+   "bytes": 1707697,
+   "v": "aa176eb97468",
+   "group": "ne2-neareast",
+   "lvl": "Medium",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-neareast7",
+   "name": "Natural Earth II – Near East and Central Asia (Detailed)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/neareast7.pmtiles"
+   ],
+   "bytes": 4847767,
+   "v": "9b09dfd3ea3d",
+   "group": "ne2-neareast",
+   "lvl": "Detailed",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-africa5",
+   "name": "Natural Earth II – Africa (Basic)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/africa5.pmtiles"
+   ],
+   "bytes": 383335,
+   "v": "c02162020d3a",
+   "group": "ne2-africa",
+   "lvl": "Basic",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-africa6",
+   "name": "Natural Earth II – Africa (Medium)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/africa6.pmtiles"
+   ],
+   "bytes": 1436782,
+   "v": "ea7243f16c51",
+   "group": "ne2-africa",
+   "lvl": "Medium",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-africa7",
+   "name": "Natural Earth II – Africa (Detailed)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/africa7.pmtiles"
+   ],
+   "bytes": 3986057,
+   "v": "8bb98764bd0d",
+   "group": "ne2-africa",
+   "lvl": "Detailed",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-southasia5",
+   "name": "Natural Earth II – South Asia (Basic)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/southasia5.pmtiles"
+   ],
+   "bytes": 172321,
+   "v": "50100296edaa",
+   "group": "ne2-southasia",
+   "lvl": "Basic",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-southasia6",
+   "name": "Natural Earth II – South Asia (Medium)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/southasia6.pmtiles"
+   ],
+   "bytes": 688922,
+   "v": "7ab922cfb5bd",
+   "group": "ne2-southasia",
+   "lvl": "Medium",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-southasia7",
+   "name": "Natural Earth II – South Asia (Detailed)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/southasia7.pmtiles"
+   ],
+   "bytes": 1832094,
+   "v": "455d0018163a",
+   "group": "ne2-southasia",
+   "lvl": "Detailed",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-eastasia5",
+   "name": "Natural Earth II – East Asia (Basic)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/eastasia5.pmtiles"
+   ],
+   "bytes": 789460,
+   "v": "0e24e687f4f2",
+   "group": "ne2-eastasia",
+   "lvl": "Basic",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-eastasia6",
+   "name": "Natural Earth II – East Asia (Medium)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/eastasia6.pmtiles"
+   ],
+   "bytes": 2716333,
+   "v": "7c2bb5d9137f",
+   "group": "ne2-eastasia",
+   "lvl": "Medium",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-eastasia7",
+   "name": "Natural Earth II – East Asia (Detailed)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/eastasia7.pmtiles"
+   ],
+   "bytes": 7241389,
+   "v": "82daef6b19ba",
+   "group": "ne2-eastasia",
+   "lvl": "Detailed",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-seasia5",
+   "name": "Natural Earth II – Southeast Asia and Oceania (Basic)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/seasia5.pmtiles"
+   ],
+   "bytes": 436465,
+   "v": "f7b0c4e968f3",
+   "group": "ne2-seasia",
+   "lvl": "Basic",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-seasia6",
+   "name": "Natural Earth II – Southeast Asia and Oceania (Medium)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/seasia6.pmtiles"
+   ],
+   "bytes": 1496608,
+   "v": "8a1cc39488d9",
+   "group": "ne2-seasia",
+   "lvl": "Medium",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-seasia7",
+   "name": "Natural Earth II – Southeast Asia and Oceania (Detailed)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/seasia7.pmtiles"
+   ],
+   "bytes": 4159711,
+   "v": "272d3d33d390",
+   "group": "ne2-seasia",
+   "lvl": "Detailed",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-namerica5",
+   "name": "Natural Earth II – North America (Basic)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/namerica5.pmtiles"
+   ],
+   "bytes": 1218744,
+   "v": "ed9f31355c0b",
+   "group": "ne2-namerica",
+   "lvl": "Basic",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-namerica6",
+   "name": "Natural Earth II – North America (Medium)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/namerica6.pmtiles"
+   ],
+   "bytes": 4182563,
+   "v": "603d2276e8c8",
+   "group": "ne2-namerica",
+   "lvl": "Medium",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-namerica7",
+   "name": "Natural Earth II – North America (Detailed)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/namerica7.pmtiles"
+   ],
+   "bytes": 11387539,
+   "v": "b8c09687a6b3",
+   "group": "ne2-namerica",
+   "lvl": "Detailed",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-samerica5",
+   "name": "Natural Earth II – South America (Basic)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/samerica5.pmtiles"
+   ],
+   "bytes": 373333,
+   "v": "b7577d351086",
+   "group": "ne2-samerica",
+   "lvl": "Basic",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-samerica6",
+   "name": "Natural Earth II – South America (Medium)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/samerica6.pmtiles"
+   ],
+   "bytes": 1233744,
+   "v": "626936ac691a",
+   "group": "ne2-samerica",
+   "lvl": "Medium",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-samerica7",
+   "name": "Natural Earth II – South America (Detailed)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/samerica7.pmtiles"
+   ],
+   "bytes": 3328997,
+   "v": "7f67653b758e",
+   "group": "ne2-samerica",
+   "lvl": "Detailed",
    "url": "https://j555g.github.io/lesepult-maps/"
   },
   {

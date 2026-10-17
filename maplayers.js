@@ -127,7 +127,11 @@ function layerStyle(st, C) {
   if (ne2) {
     st.sources.ne2 = { type: 'raster', url: ne2, tileSize: 256 };
     const k = st.layers.findIndex(l => l.id === 'land');
-    st.layers.splice(k + 1, 0, { id: 'ne2', type: 'raster', source: 'ne2', paint: { 'raster-resampling': 'linear', 'raster-fade-duration': 0, ...(dark ? { 'raster-brightness-max': 0.62, 'raster-saturation': -0.3 } : {}) } });
+    const paint = { 'raster-resampling': 'linear', 'raster-fade-duration': 0, ...(dark ? { 'raster-brightness-max': 0.62, 'raster-saturation': -0.3 } : {}) };
+    // the regions downloaded (zoom 5–7) above the whole world (zoom 0–4, enlarged beyond): the base map stays covered everywhere
+    const regs = [...(M.pkFiles || [])].filter(f => /^ne2\/.+\.pmtiles$/.test(f) && f !== 'ne2/ne2.pmtiles').sort();
+    regs.forEach((f, i) => { st.sources['ne2r' + i] = { type: 'raster', url: pmUrl(f), tileSize: 256 }; });
+    st.layers.splice(k + 1, 0, { id: 'ne2', type: 'raster', source: 'ne2', paint }, ...regs.map((f, i) => ({ id: 'ne2r' + i, type: 'raster', source: 'ne2r' + i, paint })));
     C = Object.assign({}, C, { sea: dark ? '#2b4558' : '#70a9d0' });
   }
   if (hd) {
@@ -502,7 +506,7 @@ function layersHTML() {
       + `<div class="navh">All places <small>(shown while “Places from” is switched off)</small></div><div class="macts" style="margin:.1rem 0 .3rem"><button type="button" data-mcatall="1">All</button><button type="button" data-mcatall="0">None</button></div><div class="mcats">`
       + SITE_CATS.map(([k, lb, , c1, c2]) => `<button type="button" class="mtg${c.cats?.[k] ? ' on' : ''}" data-mcat="${k}"><span class="ck"></span><i class="dot" style="--c:${dark ? c2 : c1}"></i>${lb}</button>`).join('') + '</div>')
     + grp('lland', 'Landscape', on(!!(anc && c.coast), 'rivers', 'lakes'), segc('basemap', [['std', 'Standard'], ['hd', 'Detailed'], ['ne2', 'Natural Earth II']], 'Base map')
-      + `<p class="hint small">${({ std: 'Natural Earth, simplified (light).', hd: 'Coasts and lakes as exact as OpenStreetMap, from zoom 5.', ne2: 'The painted landscape of Natural Earth II (sharp up to zoom 7).' })[c.basemap || 'hd']}</p>`
+      + `<p class="hint small">${({ std: 'Natural Earth, simplified (light).', hd: 'Coasts and lakes as exact as OpenStreetMap, from zoom 5.', ne2: 'The painted landscape of Natural Earth II: the whole world; sharper where a region is downloaded (Instruments → Map → Natural Earth II – regions).' })[c.basemap || 'hd']}</p>`
       + ((c.basemap || 'hd') === 'hd' && !M.pkFiles?.has('landscape/landscape.pmtiles') ? '<p class="hint small">Needs the download <b>Landscape – detailed</b>.</p><button type="button" data-mapdl="1">Open Instruments → Map</button>'
         : c.basemap === 'ne2' && !M.pkFiles?.has('ne2/ne2.pmtiles') ? '<p class="hint small">Needs the download <b>Natural Earth II</b>.</p><button type="button" data-mapdl="1">Open Instruments → Map</button>' : '')
       + (anc ? segc('coast', [[false, 'Today'], [true, 'Of the period']], 'Coastline') : '') + tgl('rivers', 'Rivers', c.rivers !== false) + tgl('lakes', 'Lakes', c.lakes !== false)

@@ -104,7 +104,7 @@ async function deleteMapPkg(p) {
 // the Map section of ☰ → Instruments: "Enable map", then the packages in three groups. A package that comes in two
 // levels of detail is one row with a choice between them; each installed package can be switched off without deleting it.
 const MAP_GROUPS = [['Basic', ['base']],
-  ['Appearance', ['landscape', 'ne2', 'ancient-land', 'relief', 'relief-*']],
+  ['Appearance', ['landscape', 'ne2', 'ne2-*', 'ancient-land', 'relief', 'relief-*']],
   ['Gazetteers and databases', ['places', 'itinere', 'ancient-built']]];
 async function mapSectionHTML() {
   const man = await mapManifest(); if (!man) return '';
@@ -116,9 +116,9 @@ async function mapSectionHTML() {
   const row = k => {
     const ps = units.get(k); if (!ps) return '';
     const cur = ps.find(p => inst[p.id]), p0 = cur || ps[0];
-    const name = ps[0].name.replace(/\s*\((?:detailed|[^)]*full detail)\)$/, '').replace(/, full detail\)$/, ')');
+    const name = ps[0].name.replace(/\s*\((?:detailed|[^)]*full detail|Basic|Medium|Detailed)\)$/, '').replace(/, full detail\)$/, ')');
     const busy = M.dlBusy?.[k];
-    const lv = ps.length > 1 ? `<div class="seg lvl" role="group">${ps.map((p, i) => `<button type="button" data-mapget="${p.id}" class="${cur === p ? 'on' : ''}"${busy ? ' disabled' : ''} title="${cur === p ? 'Installed' : 'Download this level' + (cur ? ' (replaces the other)' : '')}">${cur === p ? '' : '⤓ '}${i ? 'Detailed' : 'Standard'} <small>${mbs(p.bytes)}</small></button>`).join('')}</div>` : '';
+    const lv = ps.length > 1 ? `<div class="seg lvl" role="group">${ps.map((p, i) => `<button type="button" data-mapget="${p.id}" class="${cur === p ? 'on' : ''}"${busy ? ' disabled' : ''} title="${cur === p ? 'Installed' : 'Download this level' + (cur ? ' (replaces the other)' : '')}">${cur === p ? '' : '⤓ '}${p.lvl || (i ? 'Detailed' : 'Standard')} <small>${mbs(p.bytes)}</small></button>`).join('')}</div>` : '';
     const right = busy ? `<button type="button" class="dlbtn busy" disabled style="--p:${busy}%">${busy} %</button>`
       : !cur ? (ps.length > 1 ? '' : `<button type="button" class="dlbtn" data-mapget="${p0.id}">Download</button>`)
       : inst[cur.id] !== cur.v ? `<button type="button" class="dlbtn" data-mapget="${cur.id}">Update</button>` : '';
@@ -127,11 +127,12 @@ async function mapSectionHTML() {
       name: esc(name), desc: esc(p0.desc) + (ps.length > 1 ? '' : ' · ' + mbs(p0.bytes)) + (cur && off[cur.id] ? ' · <i>switched off</i>' : ''),
       right, del: cur ? delBtn('map', cur.id, name) : '', more: cur && k === 'places' ? (`<button type="button" data-pidx="1">Rebuild place index</button><small class="hint" id="pidxInfo">${pinfo?.built ? 'built ' + new Date(pinfo.built).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ` · ${pinfo.n.toLocaleString('en')} places` : 'not built yet – it is built when first needed'}</small>`) : '' }) + lv + '</div>';
   };
-  const regions = [...units.keys()].filter(k => /^relief-/.test(k));
-  const regFold = (await setting('instFold'))?.['map-reg'];
-  const group = ([h, keys]) => `<div class="navh2">${h}</div><div class="list plain">` + keys.map(k => k === 'relief-*'
-    ? (regions.length ? `<details class="subfold" data-if="map-reg"${regFold ? ' open' : ''}><summary>Relief – regions <small>${regions.filter(r => units.get(r).some(p => inst[p.id])).length} of ${regions.length} installed</small></summary>${regions.map(row).join('')}</details>` : '')
-    : row(k)).join('') + '</div>';
+  // regions (relief, Natural Earth II): folded together, each region a row with its levels of detail
+  const folds = (await setting('instFold')) || {};
+  const regFold = (pre, title, fk) => { const regions = [...units.keys()].filter(k => k.startsWith(pre));
+    return regions.length ? `<details class="subfold" data-if="${fk}"${folds[fk] ? ' open' : ''}><summary>${title} <small>${regions.filter(r => units.get(r).some(p => inst[p.id])).length} of ${regions.length} installed</small></summary>${regions.map(row).join('')}</details>` : ''; };
+  const group = ([h, keys]) => `<div class="navh2">${h}</div><div class="list plain">` + keys.map(k => k === 'relief-*' ? regFold('relief-', 'Relief – regions', 'map-reg')
+    : k === 'ne2-*' ? regFold('ne2-', 'Natural Earth II – regions', 'map-ne2reg') : row(k)).join('') + '</div>';
   return `<section class="dsec mapsec">`
     + `<div class="mapgroups">${MAP_GROUPS.map(group).join('')}<p class="hint small">Only <b>Base map</b> is needed; everything else adds to it. Where there are two levels of detail, one is enough – the detailed one is for zooming in close.</p></div></section>`;
 }
