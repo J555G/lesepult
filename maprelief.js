@@ -61,10 +61,33 @@ async function decodeDem(data) {
   for (let i = 0; i < n * n; i++) h[i] = px[i * 4] * 256 + px[i * 4 + 1] + px[i * 4 + 2] / 256 - 32768;
   return { n, h };
 }
-function encodeDem(h, n) {
-  const cv = relCanvas(n), ctx = cv.getContext('2d'), im = ctx.createImageData(n, n), d = im.data;
-  for (let i = 0; i < n * n; i++) { const v = Math.max(0, Math.min(65535, Math.round(h[i]) + 32768)); d[i * 4] = v >> 8; d[i * 4 + 1] = v & 255; d[i * 4 + 2] = 0; d[i * 4 + 3] = 255; }
-  ctx.putImageData(im, 0, 0); return canvasBlob(cv);
+// the heights as a PNG of our own making (Terrarium; the fraction of a metre in blue): a PNG from a canvas can carry colour
+// information, and a desktop with colour management then shifts the colours slightly when the map reads them – each shift a
+// pit or a bump of a metre or more, shaded as little holes. This PNG has none, so its colours are read exactly.
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function pngChunk(type, data) {
+  const out = new Uint8Array(12 + data.length), dv = new DataView(out.buffer);
+  dv.setUint32(0, data.length); for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i); out.set(data, 8);
+  let c = 0xffffffff; for (let i = 4; i < 8 + data.length; i++) c = CRC[(c ^ out[i]) & 255] ^ (c >>> 8);
+  dv.setUint32(8 + data.length, (c ^ 0xffffffff) >>> 0); return out;
+}
+async function zlib(raw) {
+  if (typeof CompressionStream !== 'undefined') return new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer());
+  const blocks = Math.ceil(raw.length / 65535), out = new Uint8Array(2 + raw.length + blocks * 5 + 4);      // (stored, uncompressed)
+  out[0] = 0x78; out[1] = 0x01; let o = 2, a = 1, b = 0;
+  for (let i = 0; i < raw.length; i += 65535) { const n = Math.min(65535, raw.length - i); out[o++] = i + n >= raw.length ? 1 : 0; out[o++] = n & 255; out[o++] = n >> 8; out[o++] = ~n & 255; out[o++] = (~n >> 8) & 255; out.set(raw.subarray(i, i + n), o); o += n; }
+  for (let i = 0; i < raw.length; i++) { a = (a + raw[i]) % 65521; b = (b + a) % 65521; }
+  new DataView(out.buffer).setUint32(o, ((b << 16) | a) >>> 0); return out;
+}
+async function encodeDem(h, n) {
+  const raw = new Uint8Array(n * (1 + 3 * n));
+  for (let y = 0; y < n; y++) {
+    let o = y * (1 + 3 * n) + 1;                                   // (filter byte 0)
+    for (let x = 0; x < n; x++) { const v = Math.max(0, Math.min(65535.996, h[y * n + x] + 32768)), w = Math.floor(v); raw[o++] = w >> 8; raw[o++] = w & 255; raw[o++] = Math.floor((v - w) * 256); }
+  }
+  const ihdr = new Uint8Array(13), dv = new DataView(ihdr.buffer); dv.setUint32(0, n); dv.setUint32(4, n); ihdr[8] = 8; ihdr[9] = 2;   // 8 bit, RGB
+  const parts = [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), pngChunk('IHDR', ihdr), pngChunk('IDAT', await zlib(raw)), pngChunk('IEND', new Uint8Array(0))];
+  return new Blob(parts, { type: 'image/png' });
 }
 // a quarter (eighth …) of a tile, enlarged to a whole tile (heights interpolated between the pixel centres)
 async function enlarge(data, dz, ox, oy) {
