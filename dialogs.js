@@ -172,9 +172,15 @@ const dlgHead = t => `<div class="dlghead"><h3>${t}</h3></div>`;
 function pagedHTML(menu, title, rows, pages, overviewEnd = '') {
   const cur = S.menuPage?.[menu] && pages[S.menuPage[menu]] != null ? S.menuPage[menu] : '';
   const row = r => `<button type="button" class="pgrow" data-pg-open="${r.k}"><span class="t"><b>${r.title}</b><small data-pgsum="${r.k}">${r.sub}</small></span><i aria-hidden="true">›</i></button>`;
-  return `<div class="dlghead" data-menu="${menu}"><button type="button" class="dlgback" data-pg-back="1"${cur ? '' : ' hidden'}>‹ ${title}</button><h3 data-root="${title}" data-titles='${esc(JSON.stringify(Object.fromEntries(rows.map(r => [r.k, r.title]))))}'>${cur ? rows.find(r => r.k === cur)?.title : title}</h3></div>`
+  return `<div class="dlghead" data-menu="${menu}"><h3 data-root="${title}" data-titles='${esc(JSON.stringify(Object.fromEntries(rows.map(r => [r.k, r.title]))))}'>${crumbs(title, cur ? rows.find(r => r.k === cur)?.title : '')}</h3></div>`
     + `<div class="dpage" data-pg=""${cur ? ' hidden' : ''}><div class="pglist">${rows.map(row).join('')}</div>${overviewEnd}</div>`
     + Object.entries(pages).map(([k, html]) => `<div class="dpage" data-pg="${k}"${k === cur ? '' : ' hidden'}><section class="dsec">${html}</section></div>`).join('');
+}
+// the title as a path: "Settings › Reading" – the menu's name stays where it is and leads back (deeper levels can follow)
+function crumbs(root, ...path) {
+  path = path.filter(Boolean);
+  return (path.length ? `<button type="button" class="crumb" data-pg-back="1" title="Back to ${root}">${root}</button>` : `<span class="crumb">${root}</span>`)
+    + path.map((t, i) => `<span class="csep" aria-hidden="true">›</span><span class="ccur">${t}</span>`).join('');
 }
 function showPage(k, { fromPop = false } = {}) {
   const f = $('#dlgForm'), head = f?.querySelector('.dlghead[data-menu]'); if (!head) return;
@@ -182,8 +188,7 @@ function showPage(k, { fromPop = false } = {}) {
   const was = (S.menuPage ??= {})[menu] || '';
   if (!was) S.menuRootY = d.scrollTop;
   f.querySelectorAll('.dpage').forEach(p => { p.hidden = p.dataset.pg !== k; });
-  head.querySelector('.dlgback').hidden = !k;
-  h3.textContent = k ? titles[k] : h3.dataset.root;
+  h3.innerHTML = crumbs(h3.dataset.root, k ? titles[k] : '');
   S.menuPage[menu] = k; setting('menuPage', S.menuPage);
   d.scrollTop = k ? 0 : (S.menuRootY || 0);
 }
@@ -194,7 +199,7 @@ document.addEventListener('click', ev => {
 addEventListener('popstate', () => {
   S.menuEntry = false;
   if (!$('#dlg').open || !$('#dlgForm .dlghead[data-menu]')) return;
-  if (!$('#dlgForm .dlgback').hidden) { showPage(''); history.pushState({ pultMenu: 1 }, ''); S.menuEntry = true; }   // section → overview
+  if ($('#dlgForm .dlghead [data-pg-back]')) { showPage(''); history.pushState({ pultMenu: 1 }, ''); S.menuEntry = true; }   // section → overview
   else $('#dlg').close();                                                                                       // overview → closed
 });
 document.addEventListener('DOMContentLoaded', () => {
@@ -204,7 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // the dialog. On a section page that cancel goes back to the overview instead (also Esc on a computer).
 document.addEventListener('DOMContentLoaded', () => {
   $('#dlg').addEventListener('cancel', ev => {
-    if ($('#dlgForm .dlghead[data-menu]') && !$('#dlgForm .dlgback').hidden) { ev.preventDefault(); showPage(''); }
+    if ($('#dlgForm .dlghead[data-menu] [data-pg-back]')) { ev.preventDefault(); showPage(''); }
   });
 });
 // a page asked for when opening (holding Grammar → Settings → Reading …)

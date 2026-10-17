@@ -1310,3 +1310,10 @@ dialog .dlghead .dlgback[hidden]{display:none}
 dialog .dlghead .dlgback:not([hidden])+h3{text-align:center;padding-right:2.4rem}
 dialog .dpage[hidden]{display:none}
 dialog .dpage>.dsec{padding-top:.3rem}
+/* the title path of the two-level menus: "Settings › Reading"; the menu's name looks the same on every level */
+dialog .dlghead h3{display:flex;align-items:baseline;gap:.35rem;min-width:0;white-space:nowrap}
+dialog .dlghead .crumb{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:default;flex:none}
+dialog .dlghead button.crumb{cursor:pointer;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:.2em;transition:text-decoration-color .15s}
+@media (hover:hover){dialog .dlghead button.crumb:hover{text-decoration-color:currentColor}}
+dialog .dlghead .csep{color:var(--mut);font-weight:400}
+dialog .dlghead .ccur{min-width:0;overflow:hidden;text-overflow:ellipsis}
