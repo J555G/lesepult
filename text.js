@@ -47,13 +47,10 @@ function guardText(ms = 1000) {      // keep the position for a moment, unless t
   requestAnimationFrame(fix); setTimeout(fix, 120); setTimeout(fix, 400); setTimeout(fix, ms - 50);
   return g;
 }
-// ---- drawing the text. Long texts (Settings → Reading → Long texts):
-//   'window' – only the parts near the screen are drawn, the rest is empty space of the right height (least memory)
-//   'skip'   – everything is drawn, but the browser skips the layout of parts off screen (content-visibility)
-//   'all'    – everything is drawn and laid out
+// ---- drawing the text. Long texts: only the parts near the screen are drawn, the rest is empty space of the
+// right height (least memory); shorter texts are drawn whole
 const LONG_TEXT = 2500;            // words: shorter texts are always drawn whole
 const CHUNK_W = 200;               // words per part (parts begin at a section, so a part can be a little longer)
-const textMode = () => S.textMode || 'window';
 // the HTML of the tokens n0 … n1-1 (a part begins at a section break, or at the start of the text)
 function textHTML(n0, n1, gl, covered) {
   const toks = S.tokens; let html = '';
@@ -107,11 +104,10 @@ function renderText() {
   if (S.TW) { S.TW.io?.disconnect(); S.TW = null; }
   if (!S.text) { body.innerHTML = '<p class="hint">No text yet. Open the menu ☰ (top left) → Library to download Greek texts, or → Import text to paste or load your own.</p>'; return; }
   const [gl, covered] = glossMaps();
-  const nWords = S.tokens.reduce((n, t) => n + (t.t === 'w'), 0), mode = textMode();
-  const chunks = mode === 'window' && nWords > LONG_TEXT ? textChunks() : null;
+  const nWords = S.tokens.reduce((n, t) => n + (t.t === 'w'), 0);
+  const chunks = nWords > LONG_TEXT ? textChunks() : null;
   const w = S.text.work, bi = S.text.bi;
   const bn = w && w.books.length > 1 ? `<div class="booknav">${bi > 0 ? `<button type="button" data-step="-1">◂ ${esc(w.books[bi - 1])}</button>` : '<span></span>'}${bi < w.books.length - 1 ? `<button type="button" data-step="1">${esc(w.books[bi + 1])} ▸</button>` : ''}</div>` : '';
-  body.classList.toggle('cv', mode === 'skip' && nWords > LONG_TEXT);
   body.classList.toggle('tw', !!chunks); $('#textPane').style.overflowAnchor = chunks ? 'none' : '';   // (the browser's own scroll anchoring would move the text twice)
   if (chunks) textWindowStart(chunks, gl, covered, bn, same);
   else {
@@ -445,7 +441,7 @@ const tzSave = () => { clearTimeout(tzSaveT); tzSaveT = setTimeout(() => setting
   }, { passive: false });
   document.addEventListener('click', e => {
     const b = e.target.closest?.('[data-tz]'); if (!b) return;
-    const d = +b.dataset.tz; setTextZoom(d ? (S.tz || 1) * (d > 0 ? 1.1 : 1 / 1.1) : 1); tzSave();
+    const d = +b.dataset.tz; setTextZoom(d ? Math.round((S.tz || 1) * 100 + d) / 100 : 1); tzSave();   // steps in percentage points (±1, ±7); 0: back to 100 %
   });
 })();
 // ---- touch screens: a scroll handle for the text pane with a wide grip (the browser's own indicator is hard to catch).

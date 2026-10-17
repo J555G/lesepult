@@ -310,13 +310,10 @@ async function settingsDialog(focus) {
   const coll = S.installed?.collatinus && !S.dictPrefs.off.includes('collatinus');
   const hasMap = typeof settingsHTML === 'function';
   if (hasMap) await mapCfg();
-  const reading = line('Text size', `<div class="tzrow"><button type="button" data-tz="-1" aria-label="Smaller">A−</button><span id="tzVal">${Math.round((S.tz || 1) * 100)} %</span><button type="button" data-tz="1" aria-label="Larger">A+</button><button type="button" data-tz="0">100 %</button></div>`, 'or pinch the text')
+  const reading = line('Text size', `<div class="tzrow"><button type="button" data-tz="-7" aria-label="Smaller by 7 %">A−−</button><button type="button" data-tz="-1" aria-label="Smaller by 1 %">A−</button><span id="tzVal">${Math.round((S.tz || 1) * 100)} %</span><button type="button" data-tz="1" aria-label="Larger by 1 %">A+</button><button type="button" data-tz="7" aria-label="Larger by 7 %">A++</button><button type="button" data-tz="0">100 %</button></div>`, 'or pinch the text · on a computer: ctrl + mouse wheel')
     + line('Own gloss', seg('glossMode', S.glossMode === 'both' ? 'both' : 'replace', [['replace', 'Replaces default'], ['both', 'Show both']]), 'a word’s own gloss and its lemma’s default gloss')
-    + line('Long texts', seg('textMode', textMode(), [['window', 'Least memory'], ['skip', 'Faster'], ['all', 'Draw all']]), 'books over 2,500 words: drawn only near the screen · all drawn, laid out near the screen · all drawn and laid out')
-    + `<div class="navh hgram">Grammar Line</div>
-       <details class="subfold sgram"${focus === 'grammar' ? ' open' : ''}><summary>For which words</summary><div class="gramcfg">${gramRowsHTML()}</div></details>`
-    + `<div class="navh hcol">Colourisation</div>
-       <details class="subfold scolours"${focus === 'colours' ? ' open' : ''}><summary>Colours</summary><div class="list plain">${posRows}</div><div class="row" style="justify-content:flex-start"><button type="button" data-posreset="1">Reset colours</button></div></details>`
+    + `<details class="subfold shead sgram"${focus === 'grammar' ? ' open' : ''}><summary>Grammar Line</summary><div class="gramcfg">${gramRowsHTML()}</div></details>`
+    + `<details class="subfold shead scolours"${focus === 'colours' ? ' open' : ''}><summary>Colourisation</summary><div class="list plain">${posRows}</div><div class="row" style="justify-content:flex-start"><button type="button" data-posreset="1">Reset colours</button></div></details>`
     + `<div class="navh">Latin</div><label class="srow1${coll ? '' : ' dis'}">${SW('data-set="latQuant"', S.latQuant && coll, !coll)}<span>Mark vowel lengths (ā, ĕ …)${coll ? '' : '<small class="hint">needs Collatinus (Instruments → Analysis)</small>'}</span></label>`
     + (hasMap ? `<div class="navh">Places</div><label class="srow1">${SW('data-mapset="mark"', M.cfg.mark !== false)}<span>Mark place names in the text<small class="hint">a dotted line beneath names found on the map</small></span></label>` : '');
   const dlgP = dialog(`${dlgHead('Settings')}
@@ -326,7 +323,7 @@ async function settingsDialog(focus) {
     <p class="sver">Pult · version ${ver} · published ${PULT_DATE}</p>`, []);
   syncGramRows($('#dlgForm'));
   if (focus) {                                                   // the part asked for, at the top of the dialog
-    const el = $('#dlgForm').querySelector(focus === 'map' ? 'details[data-if="set-map"]' : focus === 'colours' ? '.navh.hcol' : '.navh.hgram');
+    const el = $('#dlgForm').querySelector(focus === 'map' ? 'details[data-if="set-map"]' : focus === 'colours' ? 'details.scolours' : 'details.sgram');
     const go = () => { if (!el || !$('#dlg').open) return; const d = $('#dlg'); d.scrollTop += el.getBoundingClientRect().top - d.getBoundingClientRect().top - 52; };
     requestAnimationFrame(go); setTimeout(go, 160); setTimeout(go, 620);   // (after the dialog's own scroll restore)
   }

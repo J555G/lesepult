@@ -1097,7 +1097,7 @@ dialog .sver{margin:1rem 0 0;font:11.5px var(--ui);color:var(--mut);text-align:c
 #mapBody :is(input,textarea,select){-webkit-user-select:text;user-select:text;touch-action:manipulation}
 #tabMap,#mapBody button{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .mtreset{flex:none;margin-left:auto;font-size:11.5px;padding:.12rem .5rem;border-radius:7px;color:var(--mut)}
-.tzrow{display:flex;align-items:center;gap:.4rem}.tzrow span{min-width:3.4em;text-align:center;font-variant-numeric:tabular-nums}.tzrow button{min-width:2.6rem}
+.tzrow{display:flex;align-items:center;gap:.3rem;flex-wrap:wrap}.tzrow span{min-width:3.4em;text-align:center;font-variant-numeric:tabular-nums}.tzrow button{min-width:2.6rem}
 /* the map button next to a headword: grey, on the line of the word */
 .form .mapico{font-size:14px;width:33px;height:25px;margin-left:.45rem;vertical-align:baseline;background:var(--card);border-radius:7px}   /* the bottom on the base line of the word; a little lower than a lemma chip */
 .mapico .eu{background:var(--mapgrey);-webkit-mask:var(--mapmask) center/cover no-repeat;mask:var(--mapmask) center/cover no-repeat}
@@ -1227,7 +1227,6 @@ dialog .mpk .seg.lvl button{flex:1 1 50%!important;white-space:nowrap}
 ::-webkit-scrollbar-button{display:none}
 }
 /* long texts: 'faster' – parts off screen are not laid out until they come near */
-#textBody.cv>.para,#textBody.cv>.blk{content-visibility:auto;contain-intrinsic-size:auto 320px}
 #textBody .tchunk{display:flow-root}
 #textBody .tchunk>:first-child{margin-top:0}
 #textBody .tchunk>.blk.k-s:first-child,#textBody .tchunk>.blk.k-h:first-child{margin-top:.9em}
@@ -1259,3 +1258,5 @@ html.tsh #textPane{scrollbar-width:none}
 html.tsh #textPane::-webkit-scrollbar{display:none}
 body.reading #tScroll{z-index:30}
 #textTitle .ts{text-align:left}   /* (buttons centre their text: the arrow would move with the number's width) */
+dialog details.subfold.shead>summary{font:600 14px var(--ui);color:var(--fg);padding:.55rem 0}
+.tzrow button{min-width:2.4rem;padding-left:.4rem;padding-right:.4rem}

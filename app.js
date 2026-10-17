@@ -130,7 +130,6 @@ function wire() {
     b.parentElement.querySelectorAll('button').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); });
     if (k === 'theme') setTheme(v, true);
     if (k === 'glossMode') { S.glossMode = v; setting('glossMode', v); renderText(); }
-    if (k === 'textMode') { S.textMode = v; setting('textMode', v); renderText(); }
   });
   $('#btnPos').onclick = async () => { if (S.posHeld) { S.posHeld = false; return; } S.posOn = !S.posOn; await setting('posOn', S.posOn); applyPosColors(); };
   { let t = null; const bp = $('#btnPos');          // hold the Colours button: the list of word-class colours
@@ -378,7 +377,6 @@ function splitIcon() {   // an open book: the fold sits where the split is, the 
   setTheme((await setting('theme')) || 'dark');
   S.glossMode = (await setting('glossMode')) || 'replace';
   S.latQuant = !!(await setting('latQuant'));
-  S.textMode = (await setting('textMode')) || 'window';
   for (const r of await getAll('settings', IDBKeyRange.bound('lg|', 'lg|\uffff'))) S.lemmaGloss[r.k.slice(3)] = r.v;
   await loadDicts();
   setGlossVisible((await setting('showGloss')) !== false);
