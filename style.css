@@ -1337,3 +1337,20 @@ dialog .tzrow button.tzi{position:relative;width:2.6rem;height:2.6rem;min-width:
 dialog .tzi .tzA{position:absolute;inset:0;width:100%;height:100%;overflow:hidden}
 dialog .tzi .tzA text{font-family:var(--greek);fill:currentColor}
 dialog .tzi .tzrst{position:absolute;right:.28rem;top:.3rem;width:.8rem;height:.8rem;color:var(--mut)}
+
+/* Grammar line: the word classes in the grammar line's own type, compact */
+dialog button.gchip{font:400 13.5px/1.2 'Roboto Condensed','Arial Narrow',var(--ui);padding:.28rem .6rem;border-radius:7px}
+dialog .chips:has(.gchip){gap:.35rem}
+/* Colourisation: the word in the text's type; switched on, it lights up in its colour (hold to choose it) */
+dialog .cwrap{position:relative;display:inline-flex}
+dialog button.cchip{font:400 16px/1.2 var(--greek);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:.25rem .65rem;
+  -webkit-touch-callout:none;-webkit-user-select:none;user-select:none;transition:color .12s,border-color .12s,box-shadow .12s}
+dialog button.cchip[aria-pressed="true"]{color:var(--c);background:var(--bg);border-color:color-mix(in srgb,var(--c) 55%,var(--line))}
+dialog button.cchip.held{box-shadow:0 0 0 2px var(--c)}
+dialog input.cpick{position:absolute;left:0;bottom:0;width:100%;height:0;opacity:0;pointer-events:none;border:0;padding:0}
+dialog .crow{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;margin-top:.2rem}
+dialog .crow .hint{font-size:12.5px}
+dialog button.creset{position:relative;font:400 16px/1.2 var(--greek);padding:.25rem 1.45rem .25rem .7rem;border-radius:7px;background:var(--bg)}
+dialog .creset .rr{color:#c62828}dialog .creset .rg{color:#2e8b3e}dialog .creset .ry{color:#c9a000}dialog .creset .rb{color:#1f5fc8}
+:root[data-theme=dark] dialog .creset .rr{color:#ef5350}:root[data-theme=dark] dialog .creset .rg{color:#5cc06a}:root[data-theme=dark] dialog .creset .ry{color:#f2cc3a}:root[data-theme=dark] dialog .creset .rb{color:#5b9cf0}
+dialog .creset .tzrst{position:absolute;right:.32rem;top:.28rem;width:.75rem;height:.75rem;color:var(--mut)}

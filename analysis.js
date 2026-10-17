@@ -49,8 +49,9 @@ const posOnOf = id => S.posCfg[id]?.on !== false;
 function chipGroupsHTML(kind) {
   const col = kind === 'pos', groups = col ? COL_GROUPS : GRAM_GROUPS, on = col ? posOnOf : id => !!S.gramCfg[id];
   return `<div class="chipcfg">` + groups.map(([g, ids], gi) => `<div class="cgrp"><button type="button" class="ghead" data-${kind}grp="${gi}" title="Switch the whole group on or off">${g}</button><div class="chips">`
-    + ids.map(id => { const b = `<button type="button" class="chip" data-${kind === 'pos' ? 'poson' : 'gramon'}="${id}" aria-pressed="${on(id)}">${posLab(id)}</button>`;
-      return col ? `<span class="cchip">${b}<input type="color" class="cswatch" data-posc="${id}" value="${S.posCfg[id]?.c}" aria-label="Colour of ${posLab(id)}"></span>` : b; }).join('')
+    + ids.map(id => col
+      ? `<span class="cwrap"><button type="button" class="chip cchip" data-poson="${id}" aria-pressed="${on(id)}" style="--c:${S.posCfg[id]?.c}" title="Tap: on or off · hold: choose the colour">${posLab(id)}</button><input type="color" class="cpick" data-posc="${id}" value="${S.posCfg[id]?.c}" tabindex="-1" aria-label="Colour of ${posLab(id)}"></span>`
+      : `<button type="button" class="chip gchip" data-gramon="${id}" aria-pressed="${on(id)}">${posLab(id)}</button>`).join('')
     + `</div></div>`).join('') + `</div>`;
 }
 function gramRowsHTML() { return chipGroupsHTML('gram'); }
@@ -58,7 +59,7 @@ function syncGramRows(root = document) {
   for (const id of Object.keys(S.gramCfg)) root.querySelectorAll(`[data-gramon="${id}"]`).forEach(b => b.setAttribute('aria-pressed', !!S.gramCfg[id]));
 }
 function syncPosRows(root = document) {
-  for (const [id] of POS) { root.querySelectorAll(`[data-poson="${id}"]`).forEach(b => b.setAttribute('aria-pressed', posOnOf(id))); root.querySelectorAll(`input[data-posc="${id}"]`).forEach(i => { i.value = S.posCfg[id]?.c; }); }
+  for (const [id] of POS) { root.querySelectorAll(`[data-poson="${id}"]`).forEach(b => b.setAttribute('aria-pressed', posOnOf(id))); root.querySelectorAll(`input[data-posc="${id}"]`).forEach(i => { i.value = S.posCfg[id]?.c; }); root.querySelectorAll(`[data-poson="${id}"]`).forEach(b => b.style.setProperty('--c', S.posCfg[id]?.c)); }
 }
 async function gramDialog() {
   const p = dialog(`<h3>Grammar line</h3><p class="hint small">Which words show their grammatical form beneath them. A group switches all its word classes at once.</p>

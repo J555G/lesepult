@@ -170,7 +170,19 @@ function wire() {
     S.posCfg[c] = Object.assign({}, S.posCfg[c], { c: t.value });
     await setting('posCfg', S.posCfg); applyPosColors();
   });
-  document.addEventListener('input', ev => { const c = ev.target.dataset?.posc; if (c) { S.posCfg[c] = Object.assign({}, S.posCfg[c], { c: ev.target.value }); applyPosColors(); } });
+  document.addEventListener('input', ev => { const c = ev.target.dataset?.posc; if (c) { S.posCfg[c] = Object.assign({}, S.posCfg[c], { c: ev.target.value }); applyPosColors(); syncPosRows(); } });
+  // Colourisation: hold a word (or right-click it) to choose its colour – the picker opens when the finger is lifted
+  { let t = null, x0 = 0, y0 = 0, chip = null;
+    const pick = b => { const i = b.parentElement.querySelector('input.cpick'); if (!i) return; try { i.showPicker(); } catch (_) { i.click(); } };
+    const stop = () => { clearTimeout(t); t = null; chip?.classList.remove('held'); };
+    document.addEventListener('pointerdown', e => { const b = e.target.closest?.('#dlg button.cchip'); if (!b || e.button > 0) return;
+      chip = b; b._held = false; x0 = e.clientX; y0 = e.clientY; clearTimeout(t); t = setTimeout(() => { b._held = true; b.classList.add('held'); }, 500); });
+    document.addEventListener('pointermove', e => { if (t && Math.hypot(e.clientX - x0, e.clientY - y0) > 10) { stop(); if (chip) chip._held = false; } });
+    document.addEventListener('pointerup', e => { const b = chip; stop(); chip = null; if (b?._held) { b._held = false; b._skip = true; pick(b); } });
+    document.addEventListener('pointercancel', () => { stop(); if (chip) chip._held = false; });
+    document.addEventListener('contextmenu', e => { const b = e.target.closest?.('#dlg button.cchip'); if (!b) return; e.preventDefault();
+      if (e.pointerType === 'mouse' || (!e.pointerType && !chip?._held && !t)) { b._skip = true; stop(); pick(b); setTimeout(() => { b._skip = false; }, 400); } });
+  }
   document.addEventListener('click', async ev => {
     if (ev.target.closest('[data-info]')) { const b = ev.target.closest('[data-info]'), t = b.nextElementSibling; t.hidden = !t.hidden; b.setAttribute('aria-expanded', !t.hidden); ev.preventDefault(); return; }
     if (ev.target.closest('[data-posreset]')) { S.posCfg = defaultPosCfg(); await setting('posCfg', S.posCfg); applyPosColors();
@@ -182,6 +194,7 @@ function wire() {
   document.addEventListener('click', async ev => {
     const b = ev.target.closest?.('#dlg [data-gramon], #dlg [data-gramgrp], #dlg [data-poson], #dlg [data-posgrp]'); if (!b) return;
     const d = b.dataset;
+    if (b._skip) { b._skip = false; return; }                // the end of a hold: the colour picker, not on/off
     if (d.gramon || d.gramgrp != null) {
       const ids = d.gramon ? [d.gramon] : GRAM_GROUPS[+d.gramgrp][1], v = !ids.every(x => S.gramCfg[x]);
       for (const x of ids) S.gramCfg[x] = v;
