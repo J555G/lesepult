@@ -3303,21 +3303,25 @@ const tzSave = () => { clearTimeout(tzSaveT); tzSaveT = setTimeout(() => setting
   const run = () => { raf = 0; if (next) { setTextZoom(next.z, next.at); next = null; } };
   const mid = t => ({ x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 });
   const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  // on the text: either finger on the text pane (the target of a touch can be a text node or the other finger's element)
+  const onText = e => [...e.touches].some(t => (t.target.nodeType === 1 ? t.target : t.target.parentElement)?.closest?.('#textPane')) && !document.querySelector('dialog[open]');
+  const start = e => { pinch = { d0: Math.max(20, dist(e.touches)), z0: S.tz || 1 }; };
   document.addEventListener('touchstart', e => {
-    if (e.touches.length !== 2 || !e.target.closest?.('#textPane')) return;
-    e.preventDefault(); pinch = { d0: Math.max(20, dist(e.touches)), z0: S.tz || 1 };
+    if (e.touches.length !== 2 || !onText(e)) return;
+    e.preventDefault(); start(e);
   }, { passive: false });
   document.addEventListener('touchmove', e => {
     if (e.touches.length < 2) return;
     if (!e.target.closest?.('.maplibregl-canvas-container, .mtt')) e.preventDefault();   // never the page zoom (the map and the time slider pinch themselves)
-    if (!pinch) return;
-    next = { z: pinch.z0 * Math.pow(dist(e.touches) / pinch.d0, 0.75), at: mid(e.touches) };   // (a little gentler than the fingers) if (!raf) raf = requestAnimationFrame(run);
+    if (!pinch) { if (e.touches.length === 2 && onText(e)) start(e); return; }   // (when the start was missed)
+    next = { z: pinch.z0 * Math.pow(dist(e.touches) / pinch.d0, 0.75), at: mid(e.touches) };   // (a little gentler than the fingers)
+    if (!raf) raf = requestAnimationFrame(run);
   }, { passive: false });
   document.addEventListener('touchend', e => { if (pinch && e.touches.length < 2) { pinch = null; tzSave(); toast(`Text ${Math.round(S.tz * 100)} %`, 1200); } });
   // Safari (iPad, iPhone, Mac trackpad): its own pinch events – no page zoom anywhere; on the text: the text size
   let g0 = null;
-  document.addEventListener('gesturestart', e => { e.preventDefault(); g0 = e.target.closest?.('#textPane') && !pinch ? S.tz || 1 : null; }, { passive: false });
-  document.addEventListener('gesturechange', e => { e.preventDefault(); if (g0 != null && !pinch) { next = { z: g0 * e.scale, at: { x: e.clientX, y: e.clientY } }; if (!raf) raf = requestAnimationFrame(run); } }, { passive: false });
+  document.addEventListener('gesturestart', e => { e.preventDefault(); const tg = e.target?.nodeType === 1 ? e.target : e.target?.parentElement; g0 = tg?.closest?.('#textPane') && !document.querySelector('dialog[open]') ? S.tz || 1 : null; }, { passive: false });
+  document.addEventListener('gesturechange', e => { e.preventDefault(); if (g0 != null && !pinch) { next = { z: g0 * Math.pow(e.scale, 0.75), at: { x: e.clientX, y: e.clientY } }; if (!raf) raf = requestAnimationFrame(run); } }, { passive: false });
   document.addEventListener('gestureend', e => { e.preventDefault(); if (g0 != null) { g0 = null; tzSave(); } }, { passive: false });
   // ctrl + wheel (and the pinch of a trackpad in Chrome): on the text the text size, elsewhere nothing
   document.addEventListener('wheel', e => {
@@ -3325,9 +3329,9 @@ const tzSave = () => { clearTimeout(tzSaveT); tzSaveT = setTimeout(() => setting
     if (e.target.closest?.('.maplibregl-canvas-container, .mtt')) return;
     e.preventDefault();
     if (e.target.closest?.('#textPane')) {
-      // a mouse wheel notch (large steps): 4 % per notch; a trackpad pinch (many small steps): gently in proportion
+      // a mouse wheel notch (large steps): 7 % per notch; a trackpad pinch (many small steps): gently in proportion
       const dy = e.deltaMode ? e.deltaY * 40 : e.deltaY;
-      const f = Math.abs(dy) >= 40 ? (dy < 0 ? 1.04 : 1 / 1.04) : Math.exp(-dy * 0.005);
+      const f = Math.abs(dy) >= 40 ? (dy < 0 ? 1.07 : 1 / 1.07) : Math.exp(-dy * 0.008);
       setTextZoom((S.tz || 1) * f, { x: e.clientX, y: e.clientY }); tzSave();
     }
   }, { passive: false });
