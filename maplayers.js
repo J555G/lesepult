@@ -199,7 +199,7 @@ function layerProps() {
   const c = M.cfg, tf = tFilter(), sf = snapFilter(), shown = [...(M.shown?.keys() || [])].filter(x => typeof x === 'number');
   const vis = v => v ? 'visible' : 'none';
   return {
-    'a-water': { vis: vis(c.coast && sf), filter: sf || false },
+    'a-water': { vis: 'none', filter: sf || false },          // the coastline of the period: shelved for now (the data covers only a few places)
     'a-areas': { vis: vis(c.regArea), filter: ['all', ['in', ['get', 'k'], ['literal', c.peoples ? ['region', 'people'] : ['region']]], tf], paint: { 'fill-opacity': tOpacity(0.12) } },
     'a-areas-edge': { vis: vis(c.regArea), filter: ['all', ['in', ['get', 'k'], ['literal', c.peoples ? ['region', 'people'] : ['region']]], tf], paint: { 'line-opacity': tOpacity(0.16) } },
     'a-emp': { vis: vis(c.empires && sf), filter: sf || false },
@@ -509,11 +509,11 @@ function layersHTML() {
   return grp('lplaces', 'Places', on('peoples', c.pfOn === false), tgl('peoples', 'Peoples among the places of the text')
       + `<div class="navh">All places <small>(shown while “Places from” is switched off)</small></div><div class="macts" style="margin:.1rem 0 .3rem"><button type="button" data-mcatall="1">All</button><button type="button" data-mcatall="0">None</button></div><div class="mcats">`
       + SITE_CATS.map(([k, lb, , c1, c2]) => `<button type="button" class="mtg${c.cats?.[k] ? ' on' : ''}" data-mcat="${k}"><span class="ck"></span><i class="dot" style="--c:${dark ? c2 : c1}"></i>${lb}</button>`).join('') + '</div>')
-    + grp('lland', 'Landscape', on(!!(anc && c.coast), 'rivers', 'lakes'), segc('basemap', [['std', 'Standard'], ['hd', 'Detailed'], ['ne2', 'Natural Earth II']], 'Base map')
+    + grp('lland', 'Landscape', on('rivers', 'lakes'), segc('basemap', [['std', 'Standard'], ['hd', 'Detailed'], ['ne2', 'Natural Earth II']], 'Base map')
       + `<p class="hint small">${({ std: 'Natural Earth, simplified (light).', hd: 'Coasts and lakes as exact as OpenStreetMap, from zoom 5.', ne2: 'The painted landscape of Natural Earth II: the whole world; sharper where a region is downloaded (Instruments → Map → Natural Earth II – regions).' })[c.basemap || 'hd']}</p>`
       + ((c.basemap || 'hd') === 'hd' && !M.pkFiles?.has('landscape/landscape.pmtiles') ? '<p class="hint small">Needs the download <b>Landscape – detailed</b>.</p><button type="button" data-mapdl="1">Open Instruments → Map</button>'
         : c.basemap === 'ne2' && !M.pkFiles?.has('ne2/ne2.pmtiles') ? '<p class="hint small">Needs the download <b>Natural Earth II</b>.</p><button type="button" data-mapdl="1">Open Instruments → Map</button>' : '')
-      + (anc ? segc('coast', [[false, 'Today'], [true, 'Of the period']], 'Coastline') : '') + tgl('rivers', 'Rivers', c.rivers !== false) + tgl('lakes', 'Lakes', c.lakes !== false)
+      + tgl('rivers', 'Rivers', c.rivers !== false) + tgl('lakes', 'Lakes', c.lakes !== false)
       + reliefMenuHTML())
     + grp('lpol', 'Political', on(!!(anc && c.empires), !!(anc && c.provinces !== false), !!(anc && c.regArea), 'borders'), (anc ? tgl('empires', 'Empires and kingdoms at the date') + tgl('provinces', 'Roman provinces at the date', c.provinces !== false) + tgl('regArea', 'Areas of regions and peoples') : need) + tgl('borders', 'Modern borders'))
     + grp('lbuilt', 'Built world', on(...(built || it ? ['roads'] : []), ...(built ? ['urban', 'aqueducts', 'walls', 'canals'] : [])),
