@@ -119,7 +119,15 @@ function layerStyle(st, C) {
   const before = (id, ...ls) => { const k = st.layers.findIndex(l => l.id === id); st.layers.splice(k < 0 ? st.layers.length : k, 0, ...ls); };
   st.sources.sites = { type: 'geojson', data: sitesData() };
   // Landscape – detailed (PMTiles): from zoom 5 the exact coasts, lakes and rivers replace those of the base map
-  const hd = M.cfg?.basemap !== 'std' && pmUrl('landscape/landscape.pmtiles');   // the base map chosen (Layers → Landscape)
+  const bm = M.cfg?.basemap || 'hd', hd = bm === 'hd' && pmUrl('landscape/landscape.pmtiles');   // the base map chosen (Layers → Landscape)
+  // Natural Earth II: the painted landscape (relief, deserts, green lowlands) over land and sea; its sea colour for the waters of the period
+  const ne2 = bm === 'ne2' && pmUrl('ne2/ne2.pmtiles');
+  if (ne2) {
+    st.sources.ne2 = { type: 'raster', url: ne2, tileSize: 256 };
+    const k = st.layers.findIndex(l => l.id === 'land');
+    st.layers.splice(k + 1, 0, { id: 'ne2', type: 'raster', source: 'ne2', paint: { 'raster-resampling': 'linear', 'raster-fade-duration': 0, ...(dark ? { 'raster-brightness-max': 0.62, 'raster-saturation': -0.3 } : {}) } });
+    C = Object.assign({}, C, { sea: dark ? '#2b4558' : '#70a9d0' });
+  }
   if (hd) {
     const Z = 5, cut = id => { const l = st.layers.find(x => x.id === id); if (l) l.maxzoom = Z; };
     ['lakes', 'rivers', 'borders'].forEach(cut);                 // (the land stays: outside the area of the package)
@@ -153,6 +161,17 @@ function layerStyle(st, C) {
       { id: 'a-urban', type: 'fill', source: 'a_urban', minzoom: 8, paint: { 'fill-color': dark ? '#5a5144' : '#d9cbb0', 'fill-opacity': 0.8 } },
       { id: 'a-urban-line', type: 'line', source: 'a_urban', minzoom: 8, paint: { 'line-color': dark ? '#8a7c66' : '#a8936c', 'line-width': 1 } });
   }
+  // Roman roads of Itiner-e (replacing those of the Barrington Atlas): certain solid, conjectured dashed, hypothetical dotted
+  const it = pmUrl('itinere/roads_full.pmtiles') || pmUrl('itinere/roads.pmtiles');
+  if (it) {
+    st.sources.itin = { type: 'vector', url: it };
+    const col = dark ? '#c39a6a' : '#8a5a32', w = ['interpolate', ['linear'], ['zoom'], 3, ['case', ['==', ['get', 'm'], 1], 0.7, 0.35], 8, ['case', ['==', ['get', 'm'], 1], 2, 1], 13, ['case', ['==', ['get', 'm'], 1], 4, 2.2]];
+    const k = st.layers.findIndex(l => l.id === 'pl-region');
+    st.layers.splice(k < 0 ? st.layers.length : k, 0,
+      { id: 'it-roads', type: 'line', source: 'itin', 'source-layer': 'roads', filter: ['==', ['get', 'c'], 2], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': col, 'line-width': w } },
+      { id: 'it-roads-c', type: 'line', source: 'itin', 'source-layer': 'roads', filter: ['==', ['get', 'c'], 1], layout: { 'line-join': 'round' }, paint: { 'line-color': col, 'line-width': w, 'line-dasharray': [3, 1.5] } },
+      { id: 'it-roads-h', type: 'line', source: 'itin', 'source-layer': 'roads', filter: ['==', ['get', 'c'], 0], layout: { 'line-cap': 'round' }, paint: { 'line-color': col, 'line-width': w, 'line-dasharray': [0.1, 2] } });
+  }
   // your own places
   st.sources.own = { type: 'geojson', data: ownFC() };
   before('pl-region', { id: 'own', type: 'circle', source: 'own', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 3.5, 10, 6.5], 'circle-color': ['coalesce', ['get', 'c'], C.acc], 'circle-stroke-color': C.bg, 'circle-stroke-width': 1.5 } });
@@ -163,6 +182,7 @@ function layerStyle(st, C) {
     'circle-color': tColor(['match', ['get', 'c'], ...SITE_CATS.flatMap((c, i) => [i, c[dark ? 4 : 3]]), C.fg]),
     'circle-stroke-color': C.bg, 'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 3, 0.4, 8, 1],
     'circle-opacity': 0.85, 'circle-stroke-opacity': 0.85 } });
+  reliefStyle(st, C);                                               // relief, contour lines, sea depth (maprelief.js)
   applyLayersTo(st.layers);
   return st;
 }
@@ -180,17 +200,20 @@ function layerProps() {
     'a-aqueducts': { vis: vis(c.aqueducts), filter: tf, paint: { 'line-opacity': tOpacity(0.85) } },
     'a-walls': { vis: vis(c.walls), filter: tf, paint: { 'line-opacity': tOpacity(0.9) } },
     'a-canals': { vis: vis(c.canals), filter: tf, paint: { 'line-opacity': tOpacity(0.85) } },
-    'a-roads': { vis: vis(c.roads), filter: ['all', ['==', ['get', 'c'], 1], tf], paint: { 'line-opacity': tOpacity(0.85) } },
-    'a-roads-a': { vis: vis(c.roads), filter: ['all', ['!=', ['get', 'c'], 1], tf], paint: { 'line-opacity': tOpacity(0.7) } },
+    'a-roads': { vis: vis(c.roads && !M.map?.getLayer?.('it-roads') && !M.pkFiles?.has('itinere/roads.pmtiles') && !M.pkFiles?.has('itinere/roads_full.pmtiles')), filter: ['all', ['==', ['get', 'c'], 1], tf], paint: { 'line-opacity': tOpacity(0.85) } },
+    'a-roads-a': { vis: vis(c.roads && !M.map?.getLayer?.('it-roads') && !M.pkFiles?.has('itinere/roads.pmtiles') && !M.pkFiles?.has('itinere/roads_full.pmtiles')), filter: ['all', ['!=', ['get', 'c'], 1], tf], paint: { 'line-opacity': tOpacity(0.7) } },
+    // Itiner-e: mostly undated – undated roads are always shown, dated ones follow the period filter
+    ...Object.fromEntries([['it-roads', 2, 0.9], ['it-roads-c', 1, 0.8], ['it-roads-h', 0, 0.6]].map(([id, cc, o]) => [id, { vis: vis(c.roads), filter: dTimeF() ? ['all', ['==', ['get', 'c'], cc], dTimeF()] : ['==', ['get', 'c'], cc], paint: { 'line-opacity': dOpacity(o) } }])),
     rivers: { vis: vis(c.rivers !== false) }, lakes: { vis: vis(c.lakes !== false) },
-    'hd-rivers': { vis: vis(c.rivers !== false) }, 'hd-lakes': { vis: vis(c.lakes !== false) }, 'hd-borders': { vis: vis(!!c.borders) }, borders: { vis: vis(!!c.borders) },
+    'hd-rivers': { vis: vis(c.rivers !== false) }, 'hd-lakes': { vis: vis(c.lakes !== false) },
+    ...(c.basemap === 'ne2' ? { lakes: { vis: 'none' }, rivers: { vis: vis(c.rivers === true) } } : {}),   // Natural Earth II has its own waters 'hd-borders': { vis: vis(!!c.borders) }, borders: { vis: vis(!!c.borders) },
     'a-urban': { vis: vis(c.urban) }, 'a-urban-line': { vis: vis(c.urban) },
     // "Places from" switched off: every place of the kinds ticked
     sites: { vis: vis(c.pfOn === false), filter: ['all', ['in', ['get', 'c'], ['literal', siteCats()]], ['>=', ['get', 'w'], dotMinW(M.map?.getZoom() ?? 6)], tf, ['!', ['in', ['get', 'id'], ['literal', shown]]]],
       // zoomed out, the less significant places are fainter (fading in as one zooms in)
       paint: { 'circle-opacity': ['interpolate', ['linear'], ['zoom'], 3, tOpacity(['min', 0.9, ['+', 0.15, ['*', 0.085, ['get', 'w']]]]), 7, tOpacity(['min', 0.9, ['+', 0.55, ['*', 0.05, ['get', 'w']]]]), 9, tOpacity(0.9)],
         'circle-stroke-opacity': ['interpolate', ['linear'], ['zoom'], 3, tOpacity(['min', 0.9, ['+', 0.1, ['*', 0.085, ['get', 'w']]]]), 7, tOpacity(0.7), 9, tOpacity(0.9)] } },
-    ...drawLayerProps(),                                           // your places and drawings (mapdraw.js)
+    ...drawLayerProps(), ...reliefLayerProps(),                                           // your places and drawings (mapdraw.js)
   };
 }
 function applyLayersTo(layers) {
@@ -474,12 +497,14 @@ function layersHTML() {
   return grp('lplaces', 'Places', on('peoples', c.pfOn === false), tgl('peoples', 'Peoples among the places of the text')
       + `<div class="navh">All places <small>(shown while “Places from” is switched off)</small></div><div class="macts" style="margin:.1rem 0 .3rem"><button type="button" data-mcatall="1">All</button><button type="button" data-mcatall="0">None</button></div><div class="mcats">`
       + SITE_CATS.map(([k, lb, , c1, c2]) => `<button type="button" class="mtg${c.cats?.[k] ? ' on' : ''}" data-mcat="${k}"><span class="ck"></span><i class="dot" style="--c:${dark ? c2 : c1}"></i>${lb}</button>`).join('') + '</div>')
-    + grp('lland', 'Landscape', on(!!(anc && c.coast), 'rivers', 'lakes'), segc('basemap', [['std', 'Standard'], ['hd', 'Detailed']], 'Base map')
-      + (M.pkFiles?.has('landscape/landscape.pmtiles') ? '<p class="hint small">Standard: Natural Earth, simplified (light). Detailed: coasts and lakes as exact as OpenStreetMap, from zoom 5.</p>' : '<p class="hint small">Detailed needs the download <b>Landscape – detailed</b>.</p><button type="button" data-mapdl="1">Open Instruments → Maps</button>')
+    + grp('lland', 'Landscape', on(!!(anc && c.coast), 'rivers', 'lakes'), segc('basemap', [['std', 'Standard'], ['hd', 'Detailed'], ['ne2', 'Natural Earth II']], 'Base map')
+      + `<p class="hint small">${({ std: 'Natural Earth, simplified (light).', hd: 'Coasts and lakes as exact as OpenStreetMap, from zoom 5.', ne2: 'The painted landscape of Natural Earth II (sharp up to zoom 7).' })[c.basemap || 'hd']}</p>`
+      + ((c.basemap || 'hd') === 'hd' && !M.pkFiles?.has('landscape/landscape.pmtiles') ? '<p class="hint small">Needs the download <b>Landscape – detailed</b>.</p><button type="button" data-mapdl="1">Open Instruments → Maps</button>'
+        : c.basemap === 'ne2' && !M.pkFiles?.has('ne2/ne2.pmtiles') ? '<p class="hint small">Needs the download <b>Natural Earth II</b>.</p><button type="button" data-mapdl="1">Open Instruments → Maps</button>' : '')
       + (anc ? segc('coast', [[false, 'Today'], [true, 'Of the period']], 'Coastline') : '') + tgl('rivers', 'Rivers', c.rivers !== false) + tgl('lakes', 'Lakes', c.lakes !== false)
-      + '<p class="hint small">Relief and contour lines follow (stage 4).</p>')
+      + reliefMenuHTML())
     + grp('lpol', 'Political', on(!!(anc && c.empires), !!(anc && c.provinces !== false), !!(anc && c.regArea), 'borders'), (anc ? tgl('empires', 'Empires and kingdoms at the date') + tgl('provinces', 'Roman provinces at the date', c.provinces !== false) + tgl('regArea', 'Areas of regions and peoples') : need) + tgl('borders', 'Modern borders'))
-    + grp('lbuilt', 'Built world', anc ? on('roads', 'urban', 'aqueducts', 'walls', 'canals') : 0, anc ? tgl('roads', 'Roads (Barrington Atlas)') + tgl('aqueducts', 'Aqueducts') + tgl('walls', 'Frontier walls (Hadrian’s Wall, limes …)') + tgl('canals', 'Canals') + tgl('urban', 'City outlines') : need)
+    + grp('lbuilt', 'Built world', anc ? on('roads', 'urban', 'aqueducts', 'walls', 'canals') : 0, anc || M.pkFiles?.has('itinere/roads.pmtiles') ? tgl('roads', M.pkFiles?.has('itinere/roads.pmtiles') || M.pkFiles?.has('itinere/roads_full.pmtiles') ? 'Roman roads (Itiner-e)' : 'Roads (Barrington Atlas)') + tgl('aqueducts', 'Aqueducts') + tgl('walls', 'Frontier walls (Hadrian’s Wall, limes …)') + tgl('canals', 'Canals') + tgl('urban', 'City outlines') : need)
     + grp('lnames', 'Names on the map', on(c.nmPlaces !== false, c.nmRegions !== false, c.nmMountains !== false, c.nmIslands !== false), tgl('nmPlaces', 'Places', c.nmPlaces !== false) + tgl('nmRegions', 'Regions and peoples', c.nmRegions !== false) + tgl('nmMountains', 'Mountains', c.nmMountains !== false) + tgl('nmIslands', 'Islands and seas', c.nmIslands !== false))
     + grp('lown', 'Your own', c.own !== false ? [...(M.dsets?.keys() || [])].filter(k => !(c.dOff || []).includes(k)).length : 0, ownLayersHTML());
 }
@@ -545,12 +570,12 @@ async function layerClick1(b) {
     M.cfg[d.mcfg] = v; b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); await saveMapCfg();
     if (d.mcfg === 'persons') { M.workCache = null; await placesForText(); return refreshMapData(), true; }
     if (d.mcfg === 'names' || d.mcfg === 'dLen') return drawLabels(), true;
-    if (d.mcfg === 'basemap') { if (M.map) { M.map.setStyle(mapStyle(M.colors)); M.map.once('styledata', () => setTimeout(refreshMapData, 50)); } return true; }
+    if (d.mcfg === 'basemap') { if (M.map) { M.map.setStyle(mapStyle(M.colors)); M.map.once('styledata', () => setTimeout(refreshMapData, 50)); } refreshLayersPop(); return true; }
     if (d.mcfg === 'regions' && v !== 'off') await loadAncientLabels();
     renderTime(); applyLayers(); return true;
   }
   if (d.mlay) {
-    const k = d.mlay; M.cfg[k] = !(M.cfg[k] ?? ['rivers', 'lakes', 'provinces', 'own', 'nmPlaces', 'nmRegions', 'nmMountains', 'nmIslands'].includes(k)); b.classList.toggle('on', M.cfg[k]); await saveMapCfg();
+    const k = d.mlay; M.cfg[k] = !(M.cfg[k] ?? ['rivers', 'lakes', 'provinces', 'own', 'nmPlaces', 'nmRegions', 'nmMountains', 'nmIslands', 'relShade', 'relBathy'].includes(k)); b.classList.toggle('on', M.cfg[k]); await saveMapCfg();
     if (k === 'borders') M.map?.setLayoutProperty('borders', 'visibility', M.cfg.borders ? 'visible' : 'none');
     if (k === 'peoples' || k === 'mark') { markPlaces(); await refreshMapData(); }
     if (k === 'time') { timeFor(S.text); renderTime(); }
@@ -628,4 +653,19 @@ async function countDevice(btn) {
   await loadDevCounts(); recomputeSig();
   if (btn) { btn.disabled = false; btn.textContent = 'Count the places in all texts on this device'; }
   toast(`Places counted in ${ids.length} text${ids.length === 1 ? '' : 's'}.`);
+}
+
+// a tap on a road of Itiner-e: its name, kind, certainty, itineraries, builder and dates
+function roadTap(pt) {
+  const ls = ['it-roads', 'it-roads-c', 'it-roads-h'].filter(id => M.map?.getLayer(id) && M.map.getLayoutProperty(id, 'visibility') !== 'none');
+  if (!ls.length) return false;
+  const r = matchMedia('(pointer: coarse)').matches ? 10 : 5;
+  const f = M.map.queryRenderedFeatures([[pt.x - r, pt.y - r], [pt.x + r, pt.y + r]], { layers: ls })[0]; if (!f) return false;
+  const p = f.properties, card = $('#mapCard');
+  M.sel = null; M.dSel = null;
+  card.innerHTML = `<div class="mch"><b>${esc(p.n || 'Roman road')}</b><button type="button" class="mx" data-mclose="1" aria-label="Close">✕</button></div>
+    <div class="mcs">${p.m ? 'Main road' : 'Secondary road'} · ${['course hypothetical', 'course conjectured', 'course certain'][p.c ?? 1]}${p.y0 != null || p.y1 != null ? ' · ' + esc(p.y1 != null ? fmtR([p.y0 ?? p.y1, p.y1]) : 'from ' + fmtY(p.y0)) : ''}</div>
+    ${p.it ? `<div class="dnote">Named in: ${esc(p.it)}</div>` : ''}${p.k ? `<div class="dnote">Built under: ${esc(p.k)}</div>` : ''}
+    <p class="hint small">Itiner-e (CC BY 4.0)</p>`;
+  card.hidden = false; return true;
 }

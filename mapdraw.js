@@ -259,6 +259,7 @@ async function showDrawCard(id) {
     ${x.links?.length ? `<div class="navh">Passages</div><div class="mpass">${x.links.map((l, j) => `<button type="button" class="mps" data-dlink="${j}"><b>${esc(l.label)}</b><span>${esc(l.sub || l.kind)}</span></button>`).join('')}</div>` : ''}
     <div class="macts"><button type="button" data-dedit="${esc(id)}">Edit …</button><button type="button" data-dmove="${esc(id)}">Move points</button><button type="button" class="danger" data-ddel="${esc(id)}">Delete</button></div>`;
   card.hidden = false; card.scrollTop = 0;
+  if (M.relDem && ['line', 'arrow', 'free', 'area'].includes(k)) profileOf(x.co, k === 'area').then(pr => { if (pr && M.dSel === id && !card.hidden) card.querySelector('.dmeas')?.insertAdjacentHTML('afterend', profileSVG(pr)); });   // the height profile (relief)
 }
 async function dEditDialog(id) {
   const x = dGet(id); if (!x) return;

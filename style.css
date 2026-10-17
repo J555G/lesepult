@@ -1125,3 +1125,8 @@ dialog .sver{margin:1rem 0 0;font:11.5px var(--ui);color:var(--mut);text-align:c
 .mdchip button{font-size:12.5px;padding:.15rem .55rem;border-radius:12px}
 .mdchip .mx{border:0;background:none;color:var(--mut)}
 @media (max-width:420px){.mdt button{min-width:28px}.mdrow [data-ddone]{padding:0 .5rem}.mdsb{padding:0 .25rem}}
+/* relief: numbers of contour lines, height profile of a drawn line */
+.mlbl.cl{font:600 10px/1 var(--ui);color:color-mix(in srgb,var(--fg) 55%,#8a6a40);transform-origin:center;padding:0}
+.dprof{margin:.1rem 0 .4rem}.dprof svg{display:block;width:100%;height:64px}
+.dprof .pf{fill:color-mix(in srgb,var(--acc) 18%,transparent)}.dprof .pl{fill:none;stroke:var(--acc);stroke-width:1.5;vector-effect:non-scaling-stroke}
+.dprof small{color:var(--mut);font-size:11.5px}

@@ -14,7 +14,7 @@ window.addEventListener('error', e => {
 // the map scripts must have run; if one is missing (not loaded, or stopped by an error), it is loaded once more from the website
 async function ensureMapScripts() {
   if (document.readyState === 'loading') await new Promise(r => document.addEventListener('DOMContentLoaded', r, { once: true }));
-  const need = [['maplayers.js', () => typeof layerStyle === 'function'], ['mapsaved.js', () => typeof savePop === 'function'], ['mapdraw.js', () => typeof drawFC === 'function']];
+  const need = [['maplayers.js', () => typeof layerStyle === 'function'], ['mapsaved.js', () => typeof savePop === 'function'], ['mapdraw.js', () => typeof drawFC === 'function'], ['maprelief.js', () => typeof reliefStyle === 'function']];
   for (const [f, ok] of need) {
     if (ok()) continue;
     await new Promise(res => { const s = document.createElement('script'); s.src = f + '?r=' + Date.now(); s.onload = s.onerror = res; document.head.append(s); });
@@ -60,34 +60,47 @@ async function mapHas(id) { return !!(await mapInstalled())[id]; }
 async function downloadMapPkg(p, onp) {
   const c = await caches.open(MAPCACHE); let done = 0;
   for (const f of p.files) {
-    const url = new URL(MAPS + f, location.href).href, from = p.url ? new URL(f, p.url).href : url;
-    const r = await fetch(from, { cache: 'reload' }); if (!r.ok) throw new Error(f + ': ' + r.status);
-    const b = await r.blob(); await c.put(url, new Response(b, { headers: { 'Content-Type': f.endsWith('.js') ? 'text/javascript' : f.endsWith('.css') ? 'text/css' : f.endsWith('.json') ? 'application/json' : 'application/octet-stream' } }));
-    done += b.size; onp?.(Math.min(1, done / p.bytes));
+    const url = new URL(MAPS + f, location.href).href, from = g => p.url ? new URL(g, p.url).href : new URL(MAPS + g, location.href).href;
+    // a large file comes in parts (f.0, f.1 …), joined here into one
+    const names = p.parts?.[f] ? Array.from({ length: p.parts[f] }, (_, k) => `${f}.${k}`) : [f], pieces = [];
+    for (const g of names) {
+      const r = await fetch(from(g), { cache: 'reload' }); if (!r.ok) throw new Error(g + ': ' + r.status);
+      const b = await r.blob(); pieces.push(b); done += b.size; onp?.(Math.min(1, done / p.bytes));
+    }
+    const b = pieces.length === 1 ? pieces[0] : new Blob(pieces);
+    await c.put(url, new Response(b, { headers: { 'Content-Type': f.endsWith('.js') ? 'text/javascript' : f.endsWith('.css') ? 'text/css' : f.endsWith('.json') ? 'application/json' : 'application/octet-stream' } }));
   }
   const inst = await mapInstalled(); inst[p.id] = p.v; await setting('mapPk', inst);
+  // levels of detail of the same package (group): the one installed replaces the others
+  if (p.group) for (const q of M.man?.packages || []) if (q.id !== p.id && q.group === p.group && inst[q.id]) await deleteMapPkg(q);
   if (p.id === 'places') { M.P = null; M.sitesFC = null; await placesForText(); }
   if ((p.id === 'ancient' || /\.pmtiles$/.test(p.files[0])) && M.map) { M.map.remove(); M.map = null; M.ancLab = null; }
   for (const f of p.files) M.pmb?.delete(new URL(MAPS + f, location.href).href);
 }
 async function deleteMapPkg(p) {
-  const c = await caches.open(MAPCACHE);
-  for (const f of p.files) await c.delete(new URL(MAPS + f, location.href).href);
-  const inst = await mapInstalled(); delete inst[p.id]; await setting('mapPk', inst);
+  const c = await caches.open(MAPCACHE), inst = await mapInstalled();
+  // files another installed package also uses (e.g. the contour lines of both relief levels) stay
+  const keep = new Set((M.man?.packages || []).filter(q => q.id !== p.id && inst[q.id]).flatMap(q => q.files));
+  for (const f of p.files) if (!keep.has(f)) await c.delete(new URL(MAPS + f, location.href).href);
+  delete inst[p.id]; await setting('mapPk', inst);
   if (p.id === 'places') { M.P = null; M.hits = new Map(); markPlaces(); }
   if ((p.id === 'base' || p.id === 'ancient' || /\.pmtiles$/.test(p.files[0])) && M.map) { M.map.remove(); M.map = null; M.ancLab = null; }
-  for (const f of p.files) M.pmb?.delete(new URL(MAPS + f, location.href).href);
+  for (const f of p.files) if (!keep.has(f)) M.pmb?.delete(new URL(MAPS + f, location.href).href);
   if (p.id === 'places') M.sitesFC = null;
 }
 // the Maps section of the Instruments dialog
 async function mapSectionHTML() {
   const man = await mapManifest(), inst = await mapInstalled();
   if (!man) return '';
-  const row = p => `<div class="item"><span class="t"><b>${esc(p.name)}</b><br><small>${esc(p.desc)} · ${(p.bytes / 1e6).toFixed(1)} MB</small></span>`
+  const row = p => `<div class="item"><span class="t"><b>${esc(p.name)}</b><br><small>${esc(p.desc)} · ${(p.bytes / 1e6).toFixed(1)} MB${p.group ? ' · replaces the other level of detail' : ''}</small></span>`
     + (inst[p.id] ? (inst[p.id] !== p.v ? `<button type="button" class="dlbtn" data-mapget="${p.id}">Update</button>` : '<button type="button" class="dlbtn" disabled>Installed</button>') + `<button type="button" class="danger" data-mapdel="${p.id}">Delete</button>`
       : `<button type="button" class="dlbtn" data-mapget="${p.id}">Download</button>`) + '</div>';
   M.man = man;
-  return `<section class="dsec mapsec"><p class="hint small">Optional downloads for the map (the map button in the top bar). ${info('More layers can be added later as further packages.')}</p><div class="list plain">${man.packages.map(row).join('')}</div></section>`;
+  // in groups: what the map needs, the ancient world, landscape and relief (levels of detail next to each other)
+  const kind = p => ['base', 'places'].includes(p.id) ? 0 : ['ancient', 'itinere', 'itinere-full'].includes(p.id) ? 1 : 2;
+  const heads = ['Needed for the map', 'The ancient world', 'Landscape and relief'];
+  return `<section class="dsec mapsec"><p class="hint small">Optional downloads for the map (the map button in the top bar). Where a package comes in two levels of detail, one of them is enough – the larger one is for zooming in close. ${info('More layers can be added later as further packages.')}</p>`
+    + heads.map((h, k) => { const ps = man.packages.filter(p => kind(p) === k); return ps.length ? `<div class="navh">${h}</div><div class="list plain">${ps.map(row).join('')}</div>` : ''; }).join('') + '</section>';
 }
 document.addEventListener('click', async ev => {
   const g = ev.target.closest?.('[data-mapget]'), d = ev.target.closest?.('[data-mapdel]');
@@ -482,7 +495,9 @@ async function showMap1() {
   // which files of "Ancient world" are on the device (an older download lacks the newer layers; they are left out, not fetched)
   M.ancFiles = new Set();
   if (M.anc) { const c = await caches.open(MAPCACHE); for (const n of ['water', 'empires', 'provinces', 'areas', 'roads', 'urban', 'aqueducts', 'walls', 'canals']) if (await c.match(new URL(MAPS + 'ancient/' + n + '.json', location.href).href)) M.ancFiles.add(n); }
-  M.pkFiles = new Set(); { const c = await caches.open(MAPCACHE); for (const f of ['landscape/landscape.pmtiles']) if (await c.match(new URL(MAPS + f, location.href).href)) M.pkFiles.add(f); }
+  // the PMTiles files of the installed packages (landscape, relief …)
+  M.pkFiles = new Set(); { const c = await caches.open(MAPCACHE), inst = await mapInstalled(), man = M.man || await mapManifest();
+    for (const p of man?.packages || []) if (inst[p.id]) for (const f of p.files) if (f.endsWith('.pmtiles') && await c.match(new URL(MAPS + f, location.href).href)) M.pkFiles.add(f); }
   M.step = 'names of regions'; if (M.anc) await loadAncientLabels();
   M.step = 'gazetteer'; await loadPlaceIndex();
   M.step = 'drawings'; await loadDrawings(); await dScopeUpdate();
@@ -495,6 +510,7 @@ async function showMap1() {
       <div class="mtime" id="mapTime" hidden>${timeBarHTML()}</div><div class="mdraw" id="mapDraw" hidden></div>
       <div class="mcard" id="mapCard" hidden></div><div class="mpop" id="mapPop" hidden></div>`;
     M.step = 'map engine'; try { await loadMapLib(); } catch (e) { box.innerHTML = `<div class="mapmsg"><p>${esc(e.message)}</p></div>`; return; }
+    M.step = 'relief'; await reliefInit();
     M.colors = mapColors();
     const v = (await setting('mpos|last')) || { c: [24, 38], z: 4 };
     M.step = 'map'; try {
@@ -506,7 +522,7 @@ async function showMap1() {
     M.map.touchZoomRotate.disableRotation();
     // the credits of the map are in ☰ → Acknowledgements (and on exported maps)
     M.map.on('move', () => { if (!M.lblRaf) M.lblRaf = requestAnimationFrame(() => { M.lblRaf = 0; drawLabels(); }); });
-    M.map.on('idle', () => { if (M.cfg.pfOn === false) drawLabels(); });
+    M.map.on('idle', () => { if (M.cfg.pfOn === false || relOn('relContours')) drawLabels(); });
     M.map.on('zoom', () => { const t = dotMinW(M.map.getZoom()); if (t !== M.dotW) { M.dotW = t; applyLayers(); } });   // zoomed out: fewer, more significant places     // the names of all places need the dots drawn first
     M.map.on('moveend', () => { const c = M.map.getCenter(), z = M.map.getZoom(), v = { c: [+c.lng.toFixed(4), +c.lat.toFixed(4)], z: +z.toFixed(2) }; setting('mpos|last', v); if (M.posKey) setting('mpos|' + M.posKey, v); });
     M.map.on('mouseenter', 'sites', () => { M.map.getCanvas().style.cursor = 'pointer'; });
@@ -516,7 +532,10 @@ async function showMap1() {
       if (drawClick(e)) return;                                   // drawing (mapdraw.js)
       if ($('#mapChoose') && !$('#mapChoose').hidden) { $('#mapChoose').hidden = true; return; }
       const id = tapPlace(e.point); if (id === 'choose') return; if (id != null) return selectPlace(id, { from: 'map' });
-      const did = tapDrawing(e.point); if (did) showDrawCard(did); else closeCard(); });
+      const did = tapDrawing(e.point); if (did) return showDrawCard(did);
+      if (roadTap(e.point)) return;                                // a Roman road (Itiner-e): what is known of it
+      if (contourTap(e.point)) return;                             // a contour line: its height
+      closeCard(); });
     M.map.on('movestart', () => { const c = $('#mapChoose'); if (c) c.hidden = true; });
     M.map.on('mouseenter', 'pl', () => { M.map.getCanvas().style.cursor = 'pointer'; });
     M.map.on('mouseleave', 'pl', () => { M.map.getCanvas().style.cursor = ''; });
@@ -622,7 +641,7 @@ function drawLabels() {
     placed.push(r); M.lblHit.push([r, o.x.p.id]);
     h += `<span class="mlbl${reg ? ' reg' : ''}${o.x.unsure && o.x.unsure === o.x.n ? ' unsure' : ''}${isWater(o.x.p) ? ' wat' : ''}${o.x.p.id === sel ? ' sel' : ''}${o.x.extra ? ' extra' : ''}" data-pid="${esc(String(o.x.p.id))}" style="left:${Math.round(x)}px;top:${Math.round(y)}px${reg ? '' : `;font-size:${fs}px`}">${esc(txt)}</span>`;
   }
-  box.innerHTML = h + drawLabelsOwn(placed, W, H) + moreLabels(placed, W, H);
+  box.innerHTML = h + drawLabelsOwn(placed, W, H) + moreLabels(placed, W, H) + contourLabels(placed, W, H);
 }
 
 // ---------------------------------------------------------------- choosing a place: from the text, the entry or the map
@@ -667,6 +686,7 @@ async function showCard(p) {
   card.hidden = false;
   card.scrollTop = 0;
   if (M.cfg.pfOn && ['sel', 'author'].includes(M.cfg.scope)) cardMulti(p);
+  heightAt(p.lon, p.lat).then(h => { const s = card.querySelector('.mcs'); if (h != null && s && M.sel?.p === p) s.insertAdjacentText('beforeend', ` · ${Math.round(h).toLocaleString('en')} m`); });   // its height (relief)
 }
 const UNSURE = { later: 'Known only from after the text’s time – not on the map', person: 'Possibly a person, not a place', ambiguous: 'Several places have this name', form: 'Recognised only from the form of the word' };
 // all passages of the work that name this place

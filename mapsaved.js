@@ -180,7 +180,7 @@ async function mapGoAny(id, i) {
 }
 
 // ---------------------------------------------------------------- saved maps
-const MAP_KEYS = ['pfOn', 'sel', 'provinces', 'regArea', 'aqueducts', 'walls', 'canals', 'own', 'nmPlaces', 'nmRegions', 'nmMountains', 'nmIslands', 'rivers', 'lakes', 'dOff', 'dLen', 'basemap', 'tMin', 'tMax', 'tView', 'tDef', 'sites', 'cats', 'coast', 'empires', 'regions', 'roads', 'urban', 'borders', 'peoples', 'names', 'time', 'tol', 'gone', 'undated', 'twoCol', 'rangeCols'];
+const MAP_KEYS = ['pfOn', 'sel', 'provinces', 'regArea', 'aqueducts', 'walls', 'canals', 'own', 'nmPlaces', 'nmRegions', 'nmMountains', 'nmIslands', 'rivers', 'lakes', 'dOff', 'dLen', 'basemap', 'relShade', 'relColor', 'relContours', 'relBathy', 'tMin', 'tMax', 'tView', 'tDef', 'sites', 'cats', 'coast', 'empires', 'regions', 'roads', 'urban', 'borders', 'peoples', 'names', 'time', 'tol', 'gone', 'undated', 'twoCol', 'rangeCols'];
 function mapState() {
   const c = M.map.getCenter();
   return { scope: M.cfg.scope, textId: S.text?.id ?? null, ref: curRef()?.s ?? null,
@@ -312,7 +312,10 @@ async function mapCanvas() {
   ctx.fillStyle = fg; ctx.textBaseline = 'top'; ctx.textAlign = 'left';
   ctx.font = '600 14px "Gentium Book Plus", serif'; ctx.fillText(mapTitle(), 10, H + 7, W / dpr - 20);
   ctx.globalAlpha = 0.65; ctx.font = '10px Inter, system-ui, sans-serif';
-  ctx.fillText('Places: Pleiades (CC BY) · Map: Natural Earth' + (M.anc ? ' · Ancient world: Ancient World Mapping Center (ODbL)' : '') + ' · made with Pult', 10, H + 27, W / dpr - 20);
+  const has = id => !!M.map.getLayer(id) && M.map.getLayoutProperty(id, 'visibility') !== 'none';
+  const cred = ['Places: Pleiades (CC BY)', has('ne2') ? 'Map: Natural Earth II' : 'Map: Natural Earth', has('hd-sea') && 'Coasts: © OpenStreetMap contributors (ODbL)',
+    M.anc && 'Ancient world: Ancient World Mapping Center (ODbL)', has('it-roads') && 'Roads: Itiner-e (CC BY 4.0)', (has('rel-shade') || has('rel-contour')) && 'Relief: Copernicus DEM GLO-90', 'made with Pult'].filter(Boolean);
+  ctx.fillText(cred.join(' · '), 10, H + 27, W / dpr - 20);
   ctx.restore();
   return cv;
 }
