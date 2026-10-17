@@ -240,7 +240,11 @@ document.addEventListener('click', async ev => {
     ok.disabled = true; ok.textContent = 'Deleting …';
     const name = S.installed[id]?.name || id;
     await deleteDict(id); await loadDicts(); bucketCache.clear(); if (S.view) renderView();
-    row?.remove(); toast(name + ' deleted – it is listed under “Available” the next time Instruments is opened');
+    // the row stays where it is and becomes an available one (Download), as long as the website offers it
+    const av = S.instAvailRow?.(id);
+    if (row && av) row.outerHTML = av; else row?.remove();
+    S.instAfterDel?.();
+    toast(name + ' deleted');
   }
 });
 document.addEventListener('click', ev => { const b = ev.target.closest?.('#dlg [data-pkmore]'); if (!b) return; const m = b.closest('.pkrow').querySelector('.pkmore'); m.hidden = !m.hidden; b.classList.toggle('on', !m.hidden); });
@@ -260,6 +264,9 @@ async function dictsDialog() {
     return S.installed[id].version !== p.version ? `<button type="button" class="dlbtn" data-get="${id}" title="${mbs(p.bytes)}">Update</button>` : '';
   };
   const delD = id => delBtn('dict', id, S.installed[id]?.name);
+  // after a delete: the row of a package becomes an available one in place
+  S.instAvailRow = id => { const p = remote[id]; if (!p) return '';
+    return pkRow({ grip: p.kind === 'dictionary' ? spacer : '<span class="trsp"></span>', name: esc(p.name), desc: `${esc(p.title || '')}${p.title ? ' · ' : ''}${mbs(p.bytes)}${p.priv ? ' · private repository' : ''}`, right: getBtn(p.id), cls: 'avail' }); };
   const spacer = '<span class="grip ph" aria-hidden="true">⠿</span><span class="swsp"></span>';      // (names in line with the installed ones)
   const srcOf = p => p.src || (['ls', 'georges', 'collatinus', 'morph-la', 'whitaker', 'morph-la-ww'].includes(p.id) ? 'la' : 'grc');
   const avail = (lang, kinds) => Object.values(remote).filter(p => !S.installed[p.id] && kinds(p) && srcOf(p) === lang)
@@ -299,6 +306,18 @@ async function dictsDialog() {
   const rows = [{ k: 'dict', title: 'Dictionaries', sub: Object.entries(LANGS).map(([l, n]) => `${n} ${nD(l)}`).join(' · ') },
     { k: 'tools', title: 'Analysis', sub: Object.entries(LANGS).map(([l, n]) => `${n}: ${esc(usedName(l))}`).join(' · ') },
     ...(mapBody ? [{ k: 'maps', title: 'Map', sub: await mapSummary() }] : [])];
+  // after a delete: the summaries on the overview and the choice of analysis follow the new state
+  S.instAfterDel = () => {
+    const f = $('#dlgForm'); if (!f) return;
+    const sd = f.querySelector('[data-pgsum="dict"]'), st = f.querySelector('[data-pgsum="tools"]');
+    if (sd) sd.innerHTML = rows[0].sub = Object.entries(LANGS).map(([l, n]) => `${n} ${nD(l)}`).join(' · ');
+    if (st) st.innerHTML = Object.entries(LANGS).map(([l, n]) => `${n}: ${esc(usedName(l))}`).join(' · ');
+    for (const lang of Object.keys(LANGS)) {
+      const tools = langTools(lang), used = tools.find(x => !S.dictPrefs.off.includes(x.id));
+      f.querySelectorAll(`input[data-uselang="${lang}"]`).forEach(i => { i.checked = i.value === (used?.id || ''); });
+      if (!tools.length) f.querySelector(`input[data-uselang="${lang}"][value=""]`)?.closest('.pkrow')?.remove();
+    }
+  };
   const r = await dialog(pagedHTML('inst', 'Instruments', rows, { dict: dictBody, tools: toolBody, ...(mapBody ? { maps: mapBody } : {}) },
     (man ? '' : '<p class="hint small">The website could not be reached (offline?) – downloads are not available right now. Everything installed works offline.</p>')
     + `<div class="ifoot"><button type="button" data-v="pult">Storage and clean-up …</button><label class="btn" for="fileDict">Import packages …</label></div>`), []);
