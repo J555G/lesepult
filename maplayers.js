@@ -527,8 +527,6 @@ function settingsHTML() {
     + line('Words that may name a person', seg('persons', [['unsure', 'Uncertain'], ['hide', 'Not places']]))
     + line('Names on the map', seg('names', [['text', 'As in text'], ['english', 'English'], ['modern', 'Modern']]))
     + `<div class="navh">Period</div>`
-    + sw('time', 'Period filter (time slider)')
-    + `<div class="mwd"><span>Date of the open work: <b>${S.text ? (M.year != null ? esc(fmtY(M.year)) : 'no date') : '–'}</b></span>${S.text ? '<button type="button" data-mwdate="1">Change …</button>' : ''}</div>`
     + line('Tolerance (years)', seg('tol', [[0, '0'], [10, '±10'], [25, '±25'], [50, '±50'], [100, '±100']]))
     + `<div class="mtab">`
     + trow('gone', 'No longer existed', ['fade', 'hide']) + trow('later', 'Known only from later sources', ['show', 'fade', 'hide']) + trow('undated', 'Undated', ['show', 'fade', 'hide']) + '</div>'

@@ -63,7 +63,7 @@ async function mapInstalled() {
 }
 // switched off in Instruments → Map (kept on the device, not used) · the whole map switched off (no button, no place recognition)
 async function mapOff() { const o = (await setting('mapOff')) || {}; delete o.base; return o; }
-async function mapsEnabled() { return (await setting('mapsOn')) !== false; }
+async function mapsEnabled() { return true; }      // (the map can no longer be switched off as a whole)
 async function mapHas(id) { return !!(await mapInstalled())[id] && !(await mapOff())[id]; }
 async function downloadMapPkg(p, onp) {
   const c = await caches.open(MAPCACHE); let done = 0;
@@ -132,10 +132,10 @@ async function mapSectionHTML() {
   const group = ([h, keys]) => `<div class="navh2">${h}</div><div class="list plain">` + keys.map(k => k === 'relief-*'
     ? (regions.length ? `<details class="subfold" data-if="map-reg"${regFold ? ' open' : ''}><summary>Relief – regions <small>${regions.filter(r => units.get(r).some(p => inst[p.id])).length} of ${regions.length} installed</small></summary>${regions.map(row).join('')}</details>` : '')
     : row(k)).join('') + '</div>';
-  return `<section class="dsec mapsec"><label class="srow1 mapon">${SW('data-mapson="1"', on)}<span><b>Enable map</b><small class="hint">Off: no map button in the top bar and no place names recognised in the texts. Downloads stay on this device.</small></span></label>`
-    + `<div class="mapgroups"${on ? '' : ' hidden'}>${MAP_GROUPS.map(group).join('')}<p class="hint small">Only <b>Base map</b> is needed; everything else adds to it. Where there are two levels of detail, one is enough – the detailed one is for zooming in close.</p></div></section>`;
+  return `<section class="dsec mapsec">`
+    + `<div class="mapgroups">${MAP_GROUPS.map(group).join('')}<p class="hint small">Only <b>Base map</b> is needed; everything else adds to it. Where there are two levels of detail, one is enough – the detailed one is for zooming in close.</p></div></section>`;
 }
-async function mapSummary() { const n = Object.keys(await mapInstalled()).length; return (await mapsEnabled()) ? `on · ${n} package${n === 1 ? '' : 's'}` : 'switched off'; }
+async function mapSummary() { const n = Object.keys(await mapInstalled()).length; return `${n} package${n === 1 ? '' : 's'} installed`; }
 async function redrawMapSection() {
   const sec = $('#dlg section.mapsec'); if (!sec) return;
   const y = $('#dlg').scrollTop; sec.outerHTML = await mapSectionHTML(); $('#dlg').scrollTop = y;
@@ -151,7 +151,6 @@ async function mapPkChanged(id) {
 async function applyMapsOn() { const b = $('#tabMap'); if (b) b.hidden = !(await mapsEnabled()); }
 document.addEventListener('change', async ev => {
   const t = ev.target;
-  if (t.dataset?.mapson) { await setting('mapsOn', t.checked); t.closest('section').querySelector('.mapgroups').hidden = !t.checked; await mapPkChanged(null); const sm = $('#dlg details[data-if="maps"] > summary small'); if (sm) sm.textContent = await mapSummary(); return; }
   if (t.dataset?.mapsw) { const id = t.dataset.mapsw, o = await mapOff(); if (t.checked) delete o[id]; else o[id] = true; await setting('mapOff', o); await mapPkChanged(id); await redrawMapSection(); }
 });
 document.addEventListener('click', async ev => {

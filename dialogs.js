@@ -111,6 +111,7 @@ async function importDialog(t = null, fromLib = false) {
     title: d.title.trim() || (t?.title) || 'Text ' + new Date().toLocaleDateString('en-GB'), author: d.author.trim(), date: d.date.trim(), year: parseTextYear(d.date),
     edition: d.edition.trim(), notes: d.notes.trim(), lang: d.lang || detectLang(text), text: d.text });
   const id = await put('texts', rec);
+  if (t) await del('settings', 'wyear|imp:' + t.id);
   await openText(t ? t.id : id);
   toast(t ? 'Saved' : 'Text imported – it is in the Library under “On this device”');
 }
@@ -316,7 +317,7 @@ async function settingsDialog(focus) {
   const dlgP = dialog(`${dlgHead('Settings')}
     ${sec('read', 'Reading', `text ${Math.round((S.tz || 1) * 100)} % · glosses, grammar line, colourisation`, reading)}
     <div class="srow1 sapp"><b>Appearance</b>${seg('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']])}</div>
-    ${hasMap ? sec('map', 'Map', `period filter ${M.cfg.time ? 'on' : 'off'} · MapLibre ${M.engineSet || '5'}`, `<div class="mapset">${settingsHTML()}</div>`) : ''}
+    ${hasMap ? sec('map', 'Map', 'places in texts · period · significance · engine', `<div class="mapset">${settingsHTML()}</div>`) : ''}
     <p class="sver">Pult · version ${ver} · published ${PULT_DATE}</p>`, []);
   syncGramRows($('#dlgForm'));
   if (focus) {                                                   // the part asked for, at the top of the dialog

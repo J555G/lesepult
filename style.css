@@ -1269,3 +1269,4 @@ dialog details.subfold.shead>summary{font:600 14px var(--ui);color:var(--fg);pad
 }
 #textTitle.short .tbf{display:none}#textTitle.short .tbs{display:inline}
 dialog .xsw{padding:.2rem 0}
+#menu button:disabled{color:var(--mut);opacity:.5;background:none;cursor:default}

@@ -415,6 +415,7 @@ function titleBar() {
     ? `<span class="tw"><span class="ta">${esc(w.author)} › </span>${esc(w.title)}</span><span class="tl2">${multi ? `<span class="tb"><span class="sep">› </span><span class="tbf">${esc(w.books[t.bi])}</span><span class="tbs">${esc(stripCommon(w.books)[t.bi])}</span></span>` : ''}<span class="ts" id="titleSec"></span></span>`
     : `<span class="tw">${esc(t.title)}</span><span class="tl2"><span class="ts" id="titleSec"></span></span>`);
   S.secShown = null; updateSecTitle(); secRoom();
+  const ex = $('#menu [data-m="export"]'); if (ex) ex.disabled = !t;      // nothing to export without a text
   tt.title = t ? (w ? `${w.author} › ${w.title} › ${w.books[t.bi]}` : t.title) + ' – tap to choose another text or book' : 'Choose a text';
   markIcon();
 }
