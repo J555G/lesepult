@@ -200,6 +200,13 @@ addEventListener('popstate', () => {
 document.addEventListener('DOMContentLoaded', () => {
   setting('menuPage').then(v => { if (v) S.menuPage = Object.assign(v, S.menuPage || {}); }).catch(() => { });
 });
+// Android (Chrome 120 and later): the back gesture does not go through the history while a dialog is open – it "cancels"
+// the dialog. On a section page that cancel goes back to the overview instead (also Esc on a computer).
+document.addEventListener('DOMContentLoaded', () => {
+  $('#dlg').addEventListener('cancel', ev => {
+    if ($('#dlgForm .dlghead[data-menu]') && !$('#dlgForm .dlgback').hidden) { ev.preventDefault(); showPage(''); }
+  });
+});
 // a page asked for when opening (holding Grammar → Settings → Reading …)
 function openAt(menu, k) { (S.menuPage ??= {})[menu] = k; }
 // a row: switch · name and description · the buttons on the right (Download / Update, Delete; ⋯ for anything more).
