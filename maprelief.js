@@ -33,12 +33,16 @@ async function reliefInit() {
   M.relDem = dem;
 }
 const inArch = (h, z, x, y) => tileLon(x + 1, z) > h.minLon && tileLon(x, z) < h.maxLon && tileLat(y, z) > h.minLat && tileLat(y + 1, z) < h.maxLat;
+// a region's tile only when the tile lies wholly inside the region: at its edge a region tile is flat (0 m) beyond the border,
+// which showed as a strip without relief (e.g. at 47° N, the north edge of Italy) – there the overview (enlarged) is used
+const inside = (h, z, x, y) => tileLon(x, z) >= h.minLon - 1e-9 && tileLon(x + 1, z) <= h.maxLon + 1e-9 && tileLat(y + 1, z) >= h.minLat - 1e-9 && tileLat(y, z) <= h.maxLat + 1e-9;
 function demBlob(z, x, y) {
   const c = M.rel.cache, k = `${z}/${x}/${y}`;
   if (c.has(k)) return c.get(k);
   const p = (async () => {
+    const last = M.rel.arch[M.rel.arch.length - 1];
     for (const a of M.rel.arch) {
-      if (z < a.h.minZoom || !inArch(a.h, z, x, y)) continue;
+      if (z < a.h.minZoom || !(a === last ? inArch : inside)(a.h, z, x, y)) continue;
       if (z <= a.h.maxZoom) { const r = await a.pm.getZxy(z, x, y); if (r?.data) return new Blob([r.data], { type: 'image/webp' }); continue; }
       const dz = z - a.h.maxZoom, px = x >> dz, py = y >> dz, r = await a.pm.getZxy(a.h.maxZoom, px, py);   // deeper: a part of the deepest tile, enlarged
       if (r?.data) return enlarge(r.data, dz, x - (px << dz), y - (py << dz));
