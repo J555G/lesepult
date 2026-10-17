@@ -664,6 +664,7 @@ async function showMap1() {
       <div class="mctl"><button type="button" class="mico" id="mapLayersBtn" title="Layers" aria-label="Layers">${LAYERS_ICON}</button><button type="button" class="mico" id="mapTimeBtn" title="Period filter" aria-label="Period filter">${CLOCK_ICON}</button><button type="button" class="mico" id="mapDrawBtn" title="Draw on the map" aria-label="Draw on the map">${PEN_ICON}</button><button type="button" class="mico" id="mapSaveBtn" title="Saved maps and export" aria-label="Saved maps and export">${SAVE_ICON}</button></div>
       <div class="mhandles" id="mapHandles"></div>
       <div class="mtime" id="mapTime" hidden>${timeBarHTML()}</div><div class="mdraw" id="mapDraw" hidden></div>
+      <div class="minfo" id="mapInfo" hidden><span class="mscale" id="mapScale"><i></i><b></b></span><span class="mzoom" id="mapZoom"></span></div>
       <div class="mcard" id="mapCard" hidden></div><div class="mpop" id="mapPop" hidden></div>`;
     M.step = 'map engine'; try { await loadMapLib(); } catch (e) { box.innerHTML = `<div class="mapmsg"><p>${esc(e.message)}</p></div>`; return; }
     M.step = 'relief'; await reliefInit();
@@ -677,7 +678,7 @@ async function showMap1() {
     M.map.getCanvas().addEventListener('webglcontextlost', () => { if (!M.failing) mapFailed('The graphics memory of the device was needed elsewhere.'); });
     M.map.touchZoomRotate.disableRotation();
     // the credits of the map are in ☰ → Acknowledgements (and on exported maps)
-    M.map.on('move', () => { if (!M.lblRaf) M.lblRaf = requestAnimationFrame(() => { M.lblRaf = 0; drawLabels(); }); });
+    M.map.on('move', () => { if (!M.lblRaf) M.lblRaf = requestAnimationFrame(() => { M.lblRaf = 0; drawLabels(); mapInfo(); }); });
     M.map.on('idle', () => { if (M.cfg.pfOn === false || relOn('relContours')) drawLabels(); });
     M.map.on('zoom', () => { const t = dotMinW(M.map.getZoom()); if (t !== M.dotW) { M.dotW = t; applyLayers(); } });   // zoomed out: fewer, more significant places     // the names of all places need the dots drawn first
     M.map.on('moveend', () => { const c = M.map.getCenter(), z = M.map.getZoom(), v = { c: [+c.lng.toFixed(4), +c.lat.toFixed(4)], z: +z.toFixed(2) }; setting('mpos|last', v); if (M.posKey) setting('mpos|' + M.posKey, v); });
@@ -697,7 +698,7 @@ async function showMap1() {
     M.map.on('mouseleave', 'pl', () => { M.map.getCanvas().style.cursor = ''; });
     M.step = 'loading the map'; const ok = await Promise.race([new Promise(r => M.map.once('load', () => r(true))), new Promise(r => setTimeout(() => r(false), 20000))]);
     if (!ok) return mapFailed('The map did not finish loading.' + (M.lastErr ? ' Last error: ' + M.lastErr : ''));
-    wireMapUI(); wireTime(); wireDraw();
+    wireMapUI(); wireTime(); wireDraw(); mapInfo();
   } else M.map.resize();
   M.step = 'places'; renderTime();
   await refreshMapData();
@@ -1003,9 +1004,25 @@ async function mapWordTapped(i) {
   card.hidden = false;
   card.querySelector('[data-mmark]').onclick = () => { const c = $('#mapChange'); c.hidden = false; M.sel.h = { cands: [] }; M.sel.p = { id: null, lat: M.map.getCenter().lat, lon: M.map.getCenter().lng }; c.innerHTML = changeHTML(); };
 }
+// Settings → Map → Display: a reference distance (a scale bar) and the zoom level, bottom left on the map
+function mapInfo() {
+  const box = $('#mapInfo'); if (!box || !M.map) return;
+  const sc = !!M.cfg?.scale, zm = !!M.cfg?.zoomShow; box.hidden = !sc && !zm;
+  if (box.hidden) return;
+  const z = M.map.getZoom(), lat = M.map.getCenter().lat;
+  $('#mapZoom').hidden = !zm; $('#mapZoom').textContent = 'Zoom ' + z.toFixed(1);
+  $('#mapScale').hidden = !sc;
+  if (sc) {
+    const mpp = 40075016.686 * Math.cos(lat * Math.PI / 180) / (512 * 2 ** z), max = mpp * 110;      // metres per pixel; at most 110 px
+    const p = 10 ** Math.floor(Math.log10(max)), d = [5, 2, 1].map(k => k * p).find(v => v <= max) || p;
+    $('#mapScale i').style.width = (d / mpp).toFixed(1) + 'px';
+    $('#mapScale b').textContent = d >= 1000 ? (d / 1000).toLocaleString('en') + ' km' : d + ' m';
+  }
+}
 document.addEventListener('change', async ev => {
   const k = ev.target.dataset?.mapset; if (!k) return;
   await mapCfg(); M.cfg[k] = ev.target.checked; await saveMapCfg();
+  if (k === 'scale' || k === 'zoomShow') mapInfo();
   if (k === 'mark') { markPlaces(); if (M.map) await refreshMapData(); }
   if (k === 'time') { timeFor(S.text); renderTime(); applyLayers(); }
 });

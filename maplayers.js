@@ -526,7 +526,10 @@ function settingsHTML() {
   // the three kinds of dated places as a small table: Shown | Faded | Hidden
   const trow = (k, lbl, opts) => `<div class="mtrow"><span>${lbl}</span>${[['show', 'Shown'], ['fade', 'Faded'], ['hide', 'Hidden']].map(([v, l]) => opts.includes(v) ? `<button type="button" data-mcfg="${k}" data-mv="${v}" class="${M.cfg[k] === v ? 'on' : ''}" aria-label="${l}">${l}</button>` : '<i></i>').join('')}</div>`;
   const yrs = (attr, vals, reset) => `<div class="mtlim">${vals.map((v, i) => `<input type="text" data-${attr}="${i}" value="${esc(fmtY(v))}" autocomplete="off" class="nofocus" aria-label="${i ? 'To' : 'From'}">${i ? '' : '<span>–</span>'}`).join('')}<button type="button" class="mtreset" data-${reset}="1" title="Standard" aria-label="Standard">↺</button></div>`;
-  return `<div class="navh">Places in texts</div>`
+  return `<div class="navh">Display</div>`
+    + sw('scale', 'Reference distance', 'a scale bar, bottom left on the map')
+    + sw('zoomShow', 'Zoom level', 'shown beside it')
+    + `<div class="navh">Places in texts</div>`
     + sw('jump', 'Move the map to a place chosen in the text')
     + line('Words that may name a person', seg('persons', [['unsure', 'Uncertain'], ['hide', 'Not places']]))
     + line('Names on the map', seg('names', [['text', 'As in text'], ['english', 'English'], ['modern', 'Modern']]))
