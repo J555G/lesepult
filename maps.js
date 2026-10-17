@@ -139,7 +139,7 @@ async function mapSummary() { const n = Object.keys(await mapInstalled()).length
 async function redrawMapSection() {
   const sec = $('#dlg section.mapsec'); if (!sec) return;
   const y = $('#dlg').scrollTop; sec.outerHTML = await mapSectionHTML(); $('#dlg').scrollTop = y;
-  const sm = $('#dlg details[data-if="maps"] > summary small'); if (sm) sm.textContent = await mapSummary();
+  const sm = $('#dlg [data-pgsum="maps"]'); if (sm) sm.textContent = await mapSummary();
 }
 // after a package was switched on or off, or the whole map: the map is built again with what is in use
 async function mapPkChanged(id) {
@@ -948,7 +948,7 @@ function wireMapUI() {
       };
       return;
     }
-    if (d.mapdl) { const f = (await setting('instFold')) || {}; f.maps = true; await setting('instFold', f); return dictsDialog(); }
+    if (d.mapdl) { openAt('inst', 'maps'); return dictsDialog(); }
   });
   box.addEventListener('input', ev => {
     if (ev.target.id !== 'mapSearch') return;

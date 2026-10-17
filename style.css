@@ -1297,3 +1297,16 @@ dialog .pkrow .grip.ph{visibility:hidden;cursor:default}
 dialog .pkrow.avail .t b{font-weight:500}
 dialog .trsp{flex:none;width:1.35rem}
 dialog .pkr .dlbtn{min-width:4.6rem}
+/* two-level menus: the overview's rows, the back button in the title bar */
+dialog .pglist{display:flex;flex-direction:column;margin:.1rem 0 .4rem}
+dialog .pgrow{display:flex;align-items:center;gap:.6rem;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:.75rem .1rem;color:var(--fg)}
+dialog .pgrow .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:.1rem}
+dialog .pgrow .t b{font-size:16px;font-weight:600}
+dialog .pgrow .t small{color:var(--mut);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+dialog .pgrow i{font-style:normal;font-size:22px;color:var(--mut);line-height:1}
+@media (hover:hover){dialog .pgrow:hover{background:var(--bar)}}
+dialog .dlghead .dlgback{background:none;border:0;padding:.2rem .4rem .2rem 0;color:var(--acc);font:500 14px var(--ui);white-space:nowrap;flex:none}
+dialog .dlghead .dlgback[hidden]{display:none}
+dialog .dlghead .dlgback:not([hidden])+h3{text-align:center;padding-right:2.4rem}
+dialog .dpage[hidden]{display:none}
+dialog .dpage>.dsec{padding-top:.3rem}

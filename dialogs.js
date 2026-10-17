@@ -12,6 +12,9 @@ function dialog(inner, buttons = [['ok', 'OK']], defaultAction = null) {
       : v === 'link' ? `<a class="btn" href="${extra.href}" download="${extra.name}">${l}</a>`
       : `<button type="button" data-v="${v}">${l}</button>`).join('') + '</div>';
     { const h = f.querySelector('.dlghead'); if (h) h.appendChild(f.querySelector('.dlgx')); }   // the ✕ in the sticky title
+    // a two-level menu: one history entry while it is open, so that the Android back gesture goes back a level
+    // (an entry left over from a menu closed with ✕ is used again)
+    if (f.querySelector('.dlghead[data-menu]') && !S.menuEntry) { history.pushState({ pultMenu: 1 }, ''); S.menuEntry = true; }
     let action = 'cancel';
     const finish = a => { action = a; d.close(); };
     f.querySelectorAll('button[data-v]').forEach(b => b.addEventListener('click', () => finish(b.dataset.v)));
@@ -163,6 +166,42 @@ async function fetchManifest() {
 // ---- shared parts of the two big dialogs (Instruments, Settings): a switch, a sticky title, a package row
 const SW = (attrs, on, dis) => `<label class="tsw"><input type="checkbox" ${attrs}${on ? ' checked' : ''}${dis ? ' disabled' : ''}><i></i></label>`;
 const dlgHead = t => `<div class="dlghead"><h3>${t}</h3></div>`;
+// ---- two-level menus (Instruments, Settings): an overview with one row per section; a section opens as a page of its
+// own, with "‹ Instruments" in the title bar to go back. The page last open is shown again when the menu is reopened.
+// The Android back gesture goes back one level (a history entry while a section page is open).
+function pagedHTML(menu, title, rows, pages, overviewEnd = '') {
+  const cur = S.menuPage?.[menu] && pages[S.menuPage[menu]] != null ? S.menuPage[menu] : '';
+  const row = r => `<button type="button" class="pgrow" data-pg-open="${r.k}"><span class="t"><b>${r.title}</b><small data-pgsum="${r.k}">${r.sub}</small></span><i aria-hidden="true">›</i></button>`;
+  return `<div class="dlghead" data-menu="${menu}"><button type="button" class="dlgback" data-pg-back="1"${cur ? '' : ' hidden'}>‹ ${title}</button><h3 data-root="${title}" data-titles='${esc(JSON.stringify(Object.fromEntries(rows.map(r => [r.k, r.title]))))}'>${cur ? rows.find(r => r.k === cur)?.title : title}</h3></div>`
+    + `<div class="dpage" data-pg=""${cur ? ' hidden' : ''}><div class="pglist">${rows.map(row).join('')}</div>${overviewEnd}</div>`
+    + Object.entries(pages).map(([k, html]) => `<div class="dpage" data-pg="${k}"${k === cur ? '' : ' hidden'}><section class="dsec">${html}</section></div>`).join('');
+}
+function showPage(k, { fromPop = false } = {}) {
+  const f = $('#dlgForm'), head = f?.querySelector('.dlghead[data-menu]'); if (!head) return;
+  const menu = head.dataset.menu, h3 = head.querySelector('h3'), titles = JSON.parse(h3.dataset.titles || '{}'), d = $('#dlg');
+  const was = (S.menuPage ??= {})[menu] || '';
+  if (!was) S.menuRootY = d.scrollTop;
+  f.querySelectorAll('.dpage').forEach(p => { p.hidden = p.dataset.pg !== k; });
+  head.querySelector('.dlgback').hidden = !k;
+  h3.textContent = k ? titles[k] : h3.dataset.root;
+  S.menuPage[menu] = k; setting('menuPage', S.menuPage);
+  d.scrollTop = k ? 0 : (S.menuRootY || 0);
+}
+document.addEventListener('click', ev => {
+  const o = ev.target.closest?.('#dlg [data-pg-open]'); if (o) return showPage(o.dataset.pgOpen);
+  if (ev.target.closest?.('#dlg [data-pg-back]')) showPage('');
+});
+addEventListener('popstate', () => {
+  S.menuEntry = false;
+  if (!$('#dlg').open || !$('#dlgForm .dlghead[data-menu]')) return;
+  if (!$('#dlgForm .dlgback').hidden) { showPage(''); history.pushState({ pultMenu: 1 }, ''); S.menuEntry = true; }   // section → overview
+  else $('#dlg').close();                                                                                       // overview → closed
+});
+document.addEventListener('DOMContentLoaded', () => {
+  setting('menuPage').then(v => { if (v) S.menuPage = Object.assign(v, S.menuPage || {}); }).catch(() => { });
+});
+// a page asked for when opening (holding Grammar → Settings → Reading …)
+function openAt(menu, k) { (S.menuPage ??= {})[menu] = k; }
 // a row: switch · name and description · the buttons on the right (Download / Update, Delete; ⋯ for anything more).
 // The question "Delete …?" appears beneath, in the row itself.
 function pkRow({ sw = '', grip = '', name, desc = '', right = '', del = '', more = '', cls = '', id = '' }) {
@@ -245,12 +284,12 @@ async function dictsDialog() {
     + `<p class="hint small">The language of each word follows from its alphabet.</p>`;
   // 3. the map
   const mapBody = typeof mapSectionHTML === 'function' ? await mapSectionHTML() : '';
-  const r = await dialog(`${dlgHead('Instruments')}
-    ${sec('dict', 'Dictionaries', Object.entries(LANGS).map(([l, n]) => `${n} ${nD(l)}`).join(' · '), dictBody)}
-    ${sec('tools', 'Analysis', Object.entries(LANGS).map(([l, n]) => `${n}: ${esc(usedName(l))}`).join(' · '), toolBody)}
-    ${mapBody ? sec('maps', 'Map', await mapSummary(), mapBody) : ''}
-    ${man ? '' : '<p class="hint small">The website could not be reached (offline?) – downloads are not available right now. Everything installed works offline.</p>'}
-    <div class="ifoot"><button type="button" data-v="pult">Storage and clean-up …</button><label class="btn" for="fileDict">Import packages …</label></div>`, []);
+  const rows = [{ k: 'dict', title: 'Dictionaries', sub: Object.entries(LANGS).map(([l, n]) => `${n} ${nD(l)}`).join(' · ') },
+    { k: 'tools', title: 'Analysis', sub: Object.entries(LANGS).map(([l, n]) => `${n}: ${esc(usedName(l))}`).join(' · ') },
+    ...(mapBody ? [{ k: 'maps', title: 'Map', sub: await mapSummary() }] : [])];
+  const r = await dialog(pagedHTML('inst', 'Instruments', rows, { dict: dictBody, tools: toolBody, ...(mapBody ? { maps: mapBody } : {}) },
+    (man ? '' : '<p class="hint small">The website could not be reached (offline?) – downloads are not available right now. Everything installed works offline.</p>')
+    + `<div class="ifoot"><button type="button" data-v="pult">Storage and clean-up …</button><label class="btn" for="fileDict">Import packages …</label></div>`), []);
   if (r.action === 'pult') return pultDialog();
   if (r.action === 'priv') {
     const q = await dialog(`<h3>Private repository</h3><p class="hint small">Dictionaries that may not be published can be downloaded from a private GitHub repository. ${info('<b>Repository:</b> owner and name of the private repository. <b>Token:</b> a GitHub fine-grained personal access token with read access to its contents. Both are kept on this device only.')}</p>
@@ -341,14 +380,15 @@ async function settingsDialog(focus) {
     + `<details class="subfold shead scolours"${focus === 'colours' ? ' open' : ''}><summary>Colourisation</summary><div class="list plain">${posRows}</div><div class="row" style="justify-content:flex-start"><button type="button" data-posreset="1">Reset colours</button></div></details>`
     + `<div class="navh">Latin</div><label class="srow1${coll ? '' : ' dis'}">${SW('data-set="latQuant"', S.latQuant && coll, !coll)}<span>Mark vowel lengths (ā, ĕ …)${coll ? '' : '<small class="hint">needs Collatinus (Instruments → Analysis)</small>'}</span></label>`
     + (hasMap ? `<div class="navh">Places</div><label class="srow1">${SW('data-mapset="mark"', M.cfg.mark !== false)}<span>Mark place names in the text<small class="hint">a dotted line beneath names found on the map</small></span></label>` : '');
-  const dlgP = dialog(`${dlgHead('Settings')}
-    ${sec('read', 'Reading', `text ${Math.round((S.tz || 1) * 100)} % · glosses, grammar line, colourisation`, reading)}
-    <div class="srow1 sapp"><b>Appearance</b>${seg('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']])}</div>
-    ${hasMap ? sec('map', 'Map', 'places in texts · period · significance · engine', `<div class="mapset">${settingsHTML()}</div>`) : ''}
-    <p class="sver">Pult · version ${ver} · published ${PULT_DATE}</p>`, []);
+  if (want) openAt('set', want);
+  const rows = [{ k: 'read', title: 'Reading', sub: `text ${Math.round((S.tz || 1) * 100)} % · glosses, grammar line, colourisation` },
+    ...(hasMap ? [{ k: 'map', title: 'Map', sub: 'places in texts · period · significance · engine' }] : [])];
+  const dlgP = dialog(pagedHTML('set', 'Settings', rows, { read: reading, ...(hasMap ? { map: `<div class="mapset">${settingsHTML()}</div>` } : {}) },
+      `<div class="srow1 sapp"><b>Appearance</b>${seg('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']])}</div>`)
+    + `<p class="sver">Pult · version ${ver} · published ${PULT_DATE}</p>`, []);
   syncGramRows($('#dlgForm'));
   if (focus) {                                                   // the part asked for, at the top of the dialog
-    const el = $('#dlgForm').querySelector(focus === 'map' ? 'details[data-if="set-map"]' : focus === 'colours' ? 'details.scolours' : 'details.sgram');
+    const el = focus === 'map' ? null : $('#dlgForm').querySelector(focus === 'colours' ? 'details.scolours' : 'details.sgram');
     const go = () => { if (!el || !$('#dlg').open) return; const d = $('#dlg'); d.scrollTop += el.getBoundingClientRect().top - d.getBoundingClientRect().top - 52; };
     requestAnimationFrame(go); setTimeout(go, 160); setTimeout(go, 620);   // (after the dialog's own scroll restore)
   }
@@ -427,7 +467,7 @@ async function runDownloads() {
   if (S.view) renderView(); resetTokens(); resolveTokens();
   // refresh the open Dictionaries dialog so the new entries get their Delete button and size
   const d = $('#dlg');
-  if (d.open && $('#dlg h3')?.textContent === 'Instruments') { d.close(); dictsDialog(); }
+  if (d.open && $('#dlgForm .dlghead[data-menu="inst"]')) { d.close(); dictsDialog(); }
 }
 // ids: download exactly these packages; without ids: everything that is new or changed (first start)
 async function syncPackages(ids = null) {
