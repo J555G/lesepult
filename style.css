@@ -1292,3 +1292,8 @@ dialog .xsw{padding:.2rem 0}
 #top #btnRead svg{display:block}
 dialog .pkmore .dask{flex:1 1 100%;font-size:13px}
 dialog .pkmore .dask b{font-weight:600}
+dialog .pkr .pkdel{font-size:12px;padding:.25rem .5rem}
+dialog .pkrow .grip.ph{visibility:hidden;cursor:default}
+dialog .pkrow.avail .t b{font-weight:500}
+dialog .trsp{flex:none;width:1.35rem}
+dialog .pkr .dlbtn{min-width:4.6rem}

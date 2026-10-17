@@ -163,23 +163,26 @@ async function fetchManifest() {
 // ---- shared parts of the two big dialogs (Instruments, Settings): a switch, a sticky title, a package row
 const SW = (attrs, on, dis) => `<label class="tsw"><input type="checkbox" ${attrs}${on ? ' checked' : ''}${dis ? ' disabled' : ''}><i></i></label>`;
 const dlgHead = t => `<div class="dlghead"><h3>${t}</h3></div>`;
-// a row: switch · name and description · the button on the right (Download / Update / ⋯ with Delete beneath)
-function pkRow({ sw = '', grip = '', name, desc = '', right = '', more = '', cls = '', id = '' }) {
-  return `<div class="item pkrow${cls ? ' ' + cls : ''}"${id ? ` data-id="${esc(id)}"` : ''}>${grip}${sw}<span class="t"><b>${name}</b>${desc ? `<small>${desc}</small>` : ''}</span><span class="pkr">${right}${more ? '<button type="button" class="pkm" data-pkmore="1" aria-label="More" title="More">⋯</button>' : ''}</span>${more ? `<div class="pkmore" hidden>${more}</div>` : ''}</div>`;
+// a row: switch · name and description · the buttons on the right (Download / Update, Delete; ⋯ for anything more).
+// The question "Delete …?" appears beneath, in the row itself.
+function pkRow({ sw = '', grip = '', name, desc = '', right = '', del = '', more = '', cls = '', id = '' }) {
+  return `<div class="item pkrow${cls ? ' ' + cls : ''}"${id ? ` data-id="${esc(id)}"` : ''}>${grip}${sw}<span class="t"><b>${name}</b>${desc ? `<small>${desc}</small>` : ''}</span><span class="pkr">${right}${del}${more ? '<button type="button" class="pkm" data-pkmore="1" aria-label="More" title="More">⋯</button>' : ''}</span>${more || del ? `<div class="pkmore" hidden>${more}</div>` : ''}</div>`;
 }
+const delBtn = (kind, id, name) => `<button type="button" class="danger pkdel" data-delask="${kind}:${esc(id)}" data-name="${esc(name || id)}">Delete</button>`;
 const mbs = n => n >= 1e6 ? (n / 1e6).toFixed(n < 1e7 ? 1 : 0) + ' MB' : Math.round(n / 1e3) + ' kB';
 document.addEventListener('click', ev => { const t = ev.target.closest?.('#dlg .pkrow .t small'); if (t) t.classList.toggle('full'); });
 // Delete (in ⋯ of a package row): asked in the row itself, the dialog stays where it is
 document.addEventListener('click', async ev => {
   const ask = ev.target.closest?.('#dlg [data-delask]'), no = ev.target.closest?.('#dlg [data-delno]'), ok = ev.target.closest?.('#dlg [data-dictdel]');
   if (ask) {
-    const m = ask.closest('.pkmore'), [kind, id] = ask.dataset.delask.split(/:(.*)/s);
-    m._was = m.innerHTML;
+    const m = ask.closest('.pkrow').querySelector('.pkmore'), [kind, id] = ask.dataset.delask.split(/:(.*)/s);
+    if (!m.hidden && m.querySelector('.dask')) return;
+    m._was = m.innerHTML; m._hid = m.hidden; m.hidden = false;
     m.innerHTML = `<span class="dask">Delete <b>${esc(ask.dataset.name || id)}</b> from this device?</span><button type="button" data-delno="1">Cancel</button>`
       + `<button type="button" class="danger" ${kind === 'map' ? `data-mapdel="${esc(id)}"` : `data-dictdel="${esc(id)}"`}>Delete</button>`;
     return;
   }
-  if (no) { const m = no.closest('.pkmore'); m.innerHTML = m._was || ''; return; }
+  if (no) { const m = no.closest('.pkmore'); m.innerHTML = m._was || ''; m.hidden = !!m._hid; return; }
   if (ok) {
     const id = ok.dataset.dictdel, row = ok.closest('.pkrow');
     if (DL.has(id)) return toast('Wait until the download has finished.');
@@ -205,36 +208,40 @@ async function dictsDialog() {
     if (!S.installed[id]) return `<button type="button" class="dlbtn" data-get="${id}" title="${mbs(p.bytes)}">Download</button>`;
     return S.installed[id].version !== p.version ? `<button type="button" class="dlbtn" data-get="${id}" title="${mbs(p.bytes)}">Update</button>` : '';
   };
-  const delMore = (id, what) => `<button type="button" class="danger" data-delask="dict:${id}" data-name="${esc(S.installed[id]?.name || id)}">Delete</button><small class="hint">${what}</small>`;
+  const delD = id => delBtn('dict', id, S.installed[id]?.name);
+  const spacer = '<span class="grip ph" aria-hidden="true">⠿</span><span class="swsp"></span>';      // (names in line with the installed ones)
   const srcOf = p => p.src || (['ls', 'georges', 'collatinus', 'morph-la', 'whitaker', 'morph-la-ww'].includes(p.id) ? 'la' : 'grc');
   const avail = (lang, kinds) => Object.values(remote).filter(p => !S.installed[p.id] && kinds(p) && srcOf(p) === lang)
-    .map(p => pkRow({ name: esc(p.name), desc: `${esc(p.title || '')}${p.title ? ' · ' : ''}${mbs(p.bytes)}${p.priv ? ' · private repository' : ''}`, right: getBtn(p.id), cls: 'avail' })).join('');
+    .map(p => pkRow({ grip: kinds.spacer || '', name: esc(p.name), desc: `${esc(p.title || '')}${p.title ? ' · ' : ''}${mbs(p.bytes)}${p.priv ? ' · private repository' : ''}`, right: getBtn(p.id), cls: 'avail' })).join('');
   // 1. dictionaries, by language: ⠿ to reorder, the switch to use, ▸/▾ folded or open when a word is looked up
   const dictRows = lang => S.dicts.filter(d => d.src === lang).map(d => pkRow({ id: d.id, cls: 'dictrow',
     grip: '<span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span>',
     sw: SW(`data-dict-on="${d.id}" aria-label="Use ${esc(d.name)}"`, !S.dictPrefs.off.includes(d.id)),
     name: esc(d.name), desc: `${esc(d.title || '')}${d.size ? ' · ' + mbs(d.size) : ''}`,
     right: `<button type="button" class="chev${S.dictPrefs.open.includes(d.id) ? ' on' : ''}" data-dict-fold="${d.id}" title="${S.dictPrefs.open.includes(d.id) ? 'Open when a word is looked up' : 'Folded when a word is looked up'}" aria-label="Open or folded when a word is looked up">${S.dictPrefs.open.includes(d.id) ? '▾' : '▸'}</button>${getBtn(d.id)}`,
-    more: delMore(d.id, 'You can download or import it again later; to hide it, switch it off.') })).join('');
+    del: delD(d.id) })).join('');
   const privState = privCfgNow.token ? (S.privErr ? '<span class="bad">' + esc(S.privErr) + '</span>' : '<span class="ok">connected</span>') : 'not connected';
   const nD = lang => S.dicts.filter(d => d.src === lang).length;
-  const dictBody = Object.entries(LANGS).map(([lang, name]) => { const ins = dictRows(lang), av = avail(lang, p => p.kind === 'dictionary');
-      return `<div class="navh2">${name}</div><div class="list plain dictlist">${ins || '<p class="hint small">None installed.</p>'}</div>${av ? `<div class="navh3">Available</div><div class="list plain">${av}</div>` : ''}`; }).join('')
-    + `<p class="hint small">⠿ drag to reorder · ▸/▾ folded or open when a word is looked up · ⋯ delete</p>`
+  // installed and available dictionaries of a language in one list (available ones last, with Download)
+  const isDict = Object.assign(p => p.kind === 'dictionary', { spacer });
+  const dictBody = Object.entries(LANGS).map(([lang, name]) => { const ins = dictRows(lang), av = avail(lang, isDict);
+      return `<div class="navh2">${name}</div><div class="list plain dictlist">${ins + av || '<p class="hint small">None available.</p>'}</div>`; }).join('')
+    + `<p class="hint small">⠿ drag to reorder · ▸/▾ folded or open when a word is looked up</p>`
     + `<div class="srow1"><span>Private repository: ${privState}</span><button type="button" data-v="priv">Set up …</button></div>`
     + `<div class="srow1">${SW('id="optSrcCol"', S.srcColors)}<span>Colour marks of the Eulexis editors in Pape and LSJ ${info(`<span class="legend">${Object.entries(FONT_MEANING).map(([c, t]) => `<span class="fc" data-c="${c}">■</span> ${esc(t)}`).join('<br>')}</span>`)}</span></div>`;
   // 2. analysis, by language: which instrument is used (one per language), add-ons, what can be downloaded
   const useRow = (lang, d, sub) => pkRow({ id: d.id, sw: `<label class="trad"><input type="radio" name="use-${lang}" data-uselang="${lang}" value="${d.id}"${!S.dictPrefs.off.includes(d.id) && langTools(lang).find(x => !S.dictPrefs.off.includes(x.id)) === d ? ' checked' : ''}><i></i></label>`,
-    name: esc(d.name), desc: sub, right: getBtn(d.id), more: delMore(d.id, 'You can download it again later.') });
+    name: esc(d.name), desc: sub, right: getBtn(d.id), del: delD(d.id) });
   const tLang = { grc: [], la: [] };
   for (const d of langTools('grc')) tLang.grc.push(useRow('grc', d, `lemma and form of every word${d.count ? ' · ' + d.count.toLocaleString('en') + ' forms' : ''}${d.size ? ' · ' + mbs(d.size) : ''}`));
   for (const d of langTools('la')) tLang.la.push(useRow('la', d, `lemma and form of every word${d.count ? ' · ' + d.count.toLocaleString('en') + ' lemmata' : ''}${d.size ? ' · ' + mbs(d.size) : ''}`));
   const none = lang => `<div class="item pkrow"><label class="trad"><input type="radio" name="use-${lang}" data-uselang="${lang}" value=""${langTools(lang).some(x => !S.dictPrefs.off.includes(x.id)) ? '' : ' checked'}><i></i></label><span class="t"><b>None</b><small>no analysis</small></span></div>`;
-  const addons = { grc: S.hintsInst ? pkRow({ id: S.hintsInst.id, sw: SW(`data-dict-on="${S.hintsInst.id}"`, !S.dictPrefs.off.includes(S.hintsInst.id)), name: esc(S.hintsInst.name), desc: 'preferred lemma for ambiguous forms; word classes for the colours', right: getBtn(S.hintsInst.id), more: delMore(S.hintsInst.id, '') }) : '', la: '' };
+  const addons = { grc: S.hintsInst ? pkRow({ id: S.hintsInst.id, sw: SW(`data-dict-on="${S.hintsInst.id}"`, !S.dictPrefs.off.includes(S.hintsInst.id)), name: esc(S.hintsInst.name), desc: 'preferred lemma for ambiguous forms; word classes for the colours', right: getBtn(S.hintsInst.id), del: delD(S.hintsInst.id) }) : '', la: '' };
   const usedName = lang => langTools(lang).find(x => !S.dictPrefs.off.includes(x.id))?.name || 'none';
-  const toolBody = Object.entries(LANGS).map(([lang, name]) => { const av = avail(lang, p => p.kind !== 'dictionary');
-      return `<div class="navh2">${name}</div><div class="list plain">${tLang[lang].join('')}${tLang[lang].length ? none(lang) : '<p class="hint small">None installed.</p>'}</div>`
-        + (addons[lang] ? `<div class="navh3">Add-ons</div><div class="list plain">${addons[lang]}</div>` : '') + (av ? `<div class="navh3">Available</div><div class="list plain">${av}</div>` : ''); }).join('')
+  const isTool = Object.assign(p => p.kind !== 'dictionary', { spacer: '<span class="trsp"></span>' });
+  const toolBody = Object.entries(LANGS).map(([lang, name]) => { const av = avail(lang, isTool);
+      return `<div class="navh2">${name}</div><div class="list plain">${tLang[lang].join('')}${tLang[lang].length ? none(lang) : ''}${av}${tLang[lang].length || av ? '' : '<p class="hint small">None available.</p>'}</div>`
+        + (addons[lang] ? `<div class="navh3">Add-ons</div><div class="list plain">${addons[lang]}</div>` : ''); }).join('')
     + `<p class="hint small">The language of each word follows from its alphabet.</p>`;
   // 3. the map
   const mapBody = typeof mapSectionHTML === 'function' ? await mapSectionHTML() : '';
