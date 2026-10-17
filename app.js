@@ -1535,7 +1535,8 @@ async function setLangTool(lang, id) {
   resetTokens(); renderText(); resolveTokens(); if (S.view) renderView();
 }
 const PULT_DATE = '16 Oct 2026';     // the date this version was published (with the version number in sw.js)
-async function settingsDialog() {
+// focus: 'colours' | 'grammar' | 'map' – opened by holding that button: its section unfolded and in view
+async function settingsDialog(focus) {
   await loadDicts();
   const dark = document.documentElement.dataset.theme === 'dark';
   const toolSel = lang => { const ts = langTools(lang), cur = ts.find(d => !S.dictPrefs.off.includes(d.id));
@@ -1549,15 +1550,16 @@ async function settingsDialog() {
   const posRows = POS.map(([id, label]) => `<div class="item posrow"><label class="t"><input type="checkbox" data-poson="${id}"${S.posCfg[id]?.on !== false ? ' checked' : ''}> ${label}</label><input type="color" data-posc="${id}" value="${S.posCfg[id]?.c}"></div>`).join('');
   // the sections folded (open ones remembered, with the folds of ☰ → Instruments)
   const fold = (await setting('instFold')) || {};
-  const sec = (k, title) => `<details class="ifold" data-if="set-${k}"${fold['set-' + k] ? ' open' : ''}><summary><b>${title}</b></summary><section class="dsec">`;
+  const want = { colours: 'app', grammar: 'app', map: 'map' }[focus];
+  const sec = (k, title) => `<details class="ifold" data-if="set-${k}"${(want ? want === k : fold['set-' + k]) ? ' open' : ''}><summary><b>${title}</b></summary><section class="dsec">`;
   const dlgP = dialog(`<h3>Settings</h3>
     ${sec('app', 'Appearance')}
       ${row('Theme', sw('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']]))}
       ${row('Text size', `<div class="tzrow"><button type="button" data-tz="-1" aria-label="Smaller">A−</button><span id="tzVal">${Math.round((S.tz || 1) * 100)} %</span><button type="button" data-tz="1" aria-label="Larger">A+</button><button type="button" data-tz="0">100 %</button></div>`, 'Or pinch the text with two fingers (ctrl + mouse wheel on a computer).')}
       ${row('Top bar', withInfo(cb('gramBtn', S.gramBtn, 'Grammar button'), 'Shows the grammatical information beneath each word; hold it to choose for which word classes.'))}
-      <details class="scol"${S.colOpen ? ' open' : ''}><summary>Word-class colours ${info('Used by the “Colours” button in the top bar (hold that button to open this list directly). Word classes follow the reading chosen for each word.')}</summary>
+      <details class="scol scolours"${(focus ? focus === 'colours' : S.colOpen) ? ' open' : ''}><summary>Word-class colours ${info('Used by the “Colours” button in the top bar (hold that button to open this list directly). Word classes follow the reading chosen for each word.')}</summary>
         <div class="list plain">${posRows}</div><div class="row" style="justify-content:flex-start"><button type="button" data-posreset="1">Reset colours</button></div></details>
-      <details class="scol sgram"${S.gramOpen ? ' open' : ''}><summary>Grammar line ${info('Which words show their grammatical form beneath them when the grammar line is on (hold the “Grammar” button to open this list directly).')}</summary>
+      <details class="scol sgram"${(focus ? focus === 'grammar' : S.gramOpen) ? ' open' : ''}><summary>Grammar line ${info('Which words show their grammatical form beneath them when the grammar line is on (hold the “Grammar” button to open this list directly).')}</summary>
         <div class="gramcfg">${gramRowsHTML()}</div></details></section></details>
     ${typeof settingsHTML === 'function' ? sec('map', 'Map') + `<div class="mapset">${(await mapCfg(), settingsHTML())}</div></section></details>` : ''}
     ${sec('gloss', 'Glosses')}
@@ -1566,6 +1568,11 @@ async function settingsDialog() {
     <p class="sver">Pult · version ${ver} · published ${PULT_DATE}</p>`,
     [['cancel', 'Close']]);
   syncGramRows($('#dlgForm'));
+  if (focus) {                                                   // the part asked for, at the top of the dialog
+    const el = $('#dlgForm').querySelector(focus === 'map' ? 'details[data-if="set-map"]' : focus === 'colours' ? 'details.scolours' : 'details.sgram');
+    const go = () => { if (!el || !$('#dlg').open) return; const d = $('#dlg'); d.scrollTop += el.getBoundingClientRect().top - d.getBoundingClientRect().top - 8; };
+    requestAnimationFrame(go); setTimeout(go, 160); setTimeout(go, 620);   // (after the dialog's own scroll restore)
+  }
   await dlgP;
 }
 // hold a top-bar button: its list opens when the finger is lifted (so nothing beneath it gets selected)
@@ -2222,7 +2229,7 @@ function wire() {
   $('#search').addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.value.trim()) { showWord(ev.target.value.trim()); ev.target.blur(); } });
   $('#btnGlossToggle').onclick = () => setGlossVisible(document.body.classList.contains('nogloss'), true);
   $('#btnGram').onclick = () => { if (S.gramHeld) { S.gramHeld = false; return; } setGram(!S.gram, true); };
-  holdButton($('#btnGram'), v => S.gramHeld = v, gramDialog);
+  holdButton($('#btnGram'), v => S.gramHeld = v, () => settingsDialog('grammar'));   // hold: Settings → Grammar line
   document.addEventListener('click', ev => {          // joined switches in Settings
     const b = ev.target.closest('[data-setk]'); if (!b) return;
     const k = b.dataset.setk, v = b.dataset.setv;
@@ -2235,7 +2242,7 @@ function wire() {
     bp.addEventListener('pointerdown', () => { S.posHeld = false; clearTimeout(t); t = setTimeout(() => { S.posHeld = true; bp.classList.add('held'); }, 550); });
     bp.addEventListener('pointerup', () => {           // opened only when the finger is lifted: nothing beneath it gets selected
       clearTimeout(t); if (!S.posHeld) return; bp.classList.remove('held');
-      setTimeout(() => { window.getSelection()?.removeAllRanges(); posDialog(); setTimeout(() => window.getSelection()?.removeAllRanges(), 60); }, 30);
+      setTimeout(() => { window.getSelection()?.removeAllRanges(); settingsDialog('colours'); setTimeout(() => window.getSelection()?.removeAllRanges(), 60); }, 30);   // hold: Settings → Word-class colours
     });
     for (const e of ['pointercancel', 'pointerleave']) bp.addEventListener(e, () => { clearTimeout(t); bp.classList.remove('held'); });
     bp.addEventListener('contextmenu', e => e.preventDefault()); }
