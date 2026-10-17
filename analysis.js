@@ -36,19 +36,22 @@ function posOf(lemma, anas) {
 // ---- grammar line per word class (hold the Grammar button, or Settings → Appearance); three groups switch several at once
 const GRAM_GROUPS = [['Inflected words', ['noun', 'proper', 'adj', 'article', 'pron', 'num']],
   ['Verb forms', ['verb', 'part', 'inf']], ['Indeclinable and other', ['adv', 'prep', 'conj', 'ptcl', 'other']]];
-const defaultGramCfg = () => Object.fromEntries(POS.filter(([id]) => id !== 'punct').map(([id]) => [id, true]));
+// shown by default: the inflected words except numerals, all verb forms, adverbs and prepositions
+const GRAM_DEF = new Set(['noun', 'proper', 'adj', 'article', 'pron', 'verb', 'part', 'inf', 'adv', 'prep']);
+const defaultGramCfg = () => Object.fromEntries(POS.filter(([id]) => id !== 'punct').map(([id]) => [id, GRAM_DEF.has(id)]));
+const allGramCfg = () => Object.fromEntries(POS.filter(([id]) => id !== 'punct').map(([id]) => [id, true]));
 function applyGramCfg() {
   const st = $('#gramStyle') || document.head.appendChild(Object.assign(document.createElement('style'), { id: 'gramStyle' }));
   st.textContent = Object.entries(S.gramCfg || {}).filter(([, on]) => !on).map(([id]) => `body.gram .w.p-${id}>.gm{visibility:hidden!important;max-width:0!important;padding:0!important;overflow:hidden;white-space:nowrap}`).join('\n');
 }
-// the word classes as buttons that switch on and off; the group headings switch the whole group.
+// the word classes as buttons that switch on and off, under the names of their groups.
 // Colourisation: the same, with each class's colour beside its button (Punctuation marks in the last group)
 const posLab = id => (POS.find(x => x[0] === id) || [])[1] || id;
 const COL_GROUPS = GRAM_GROUPS.map(([g, ids], i) => [g, i === GRAM_GROUPS.length - 1 ? [...ids, 'punct'] : ids]);
 const posOnOf = id => S.posCfg[id]?.on !== false;
 function chipGroupsHTML(kind) {
   const col = kind === 'pos', groups = col ? COL_GROUPS : GRAM_GROUPS, on = col ? posOnOf : id => !!S.gramCfg[id];
-  return `<div class="chipcfg">` + groups.map(([g, ids], gi) => `<div class="cgrp"><button type="button" class="ghead" data-${kind}grp="${gi}" title="Switch the whole group on or off">${g}</button><div class="chips">`
+  return `<div class="chipcfg">` + groups.map(([g, ids], gi) => `<div class="cgrp"><div class="ghead">${g}</div><div class="chips">`
     + ids.map(id => col
       ? `<span class="cwrap"><button type="button" class="chip cchip" data-poson="${id}" aria-pressed="${on(id)}" style="--c:${S.posCfg[id]?.c}" title="Tap: on or off · hold: choose the colour">${posLab(id)}</button></span>`
       : `<button type="button" class="chip gchip" data-gramon="${id}" aria-pressed="${on(id)}">${posLab(id)}</button>`).join('')
@@ -66,7 +69,7 @@ async function gramDialog() {
     <div class="gramcfg">${gramRowsHTML()}</div>`, [['gramall', 'Show for all'], ['cancel', 'Close']]);
   syncGramRows($('#dlgForm'));
   const r = await p;
-  if (r.action === 'gramall') { S.gramCfg = defaultGramCfg(); await setting('gramCfg', S.gramCfg); applyGramCfg(); }
+  if (r.action === 'gramall') { S.gramCfg = allGramCfg(); await setting('gramCfg', S.gramCfg); applyGramCfg(); }
   if (!S.gram) setGram(true, true);
 }
 function applyPosColors() {

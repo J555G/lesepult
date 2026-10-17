@@ -201,22 +201,23 @@ function wire() {
   }
   document.addEventListener('click', async ev => {
     if (ev.target.closest('[data-info]')) { const b = ev.target.closest('[data-info]'), t = b.nextElementSibling; t.hidden = !t.hidden; b.setAttribute('aria-expanded', !t.hidden); ev.preventDefault(); return; }
+    if (ev.target.closest('[data-gramreset]')) { S.gramCfg = defaultGramCfg(); syncGramRows(); await setting('gramCfg', S.gramCfg); applyGramCfg(); return; }
     if (ev.target.closest('[data-posreset]')) { S.posCfg = defaultPosCfg(); await setting('posCfg', S.posCfg); applyPosColors();
       syncPosRows(); }
   });
   document.addEventListener('toggle', ev => { if (ev.target.matches?.('details.sgram')) S.gramOpen = ev.target.open; else if (ev.target.matches?.('details.scol')) S.colOpen = ev.target.open; }, true);
   document.addEventListener('toggle', async ev => { if (!ev.target.matches?.('details.ifold, details.subfold')) return; const f = (await setting('instFold')) || {}; f[ev.target.dataset.if] = ev.target.open; setting('instFold', f); }, true);
-  // the word-class buttons of the grammar line and the colourisation; a group heading: all on, or all off when all are on
+  // the word-class buttons of the grammar line and the colourisation: on or off
   document.addEventListener('click', async ev => {
-    const b = ev.target.closest?.('#dlg [data-gramon], #dlg [data-gramgrp], #dlg [data-poson], #dlg [data-posgrp]'); if (!b) return;
+    const b = ev.target.closest?.('#dlg [data-gramon], #dlg [data-poson]'); if (!b) return;
     const d = b.dataset;
     if (b._skip) { b._skip = false; return; }                // the end of a hold: the colour picker, not on/off
-    if (d.gramon || d.gramgrp != null) {
-      const ids = d.gramon ? [d.gramon] : GRAM_GROUPS[+d.gramgrp][1], v = !ids.every(x => S.gramCfg[x]);
+    if (d.gramon) {
+      const ids = [d.gramon], v = !ids.every(x => S.gramCfg[x]);
       for (const x of ids) S.gramCfg[x] = v;
       syncGramRows(); await setting('gramCfg', S.gramCfg); applyGramCfg();
     } else {
-      const ids = d.poson ? [d.poson] : COL_GROUPS[+d.posgrp][1], v = !ids.every(posOnOf);
+      const ids = [d.poson], v = !ids.every(posOnOf);
       for (const x of ids) S.posCfg[x] = Object.assign({}, S.posCfg[x], { on: v });
       syncPosRows(); await setting('posCfg', S.posCfg); applyPosColors();
     }

@@ -407,12 +407,16 @@ async function settingsDialog(focus) {
   const coll = S.installed?.collatinus && !S.dictPrefs.off.includes('collatinus');
   const hasMap = typeof settingsHTML === 'function';
   if (hasMap) await mapCfg();
-  const reading = line('Text size', `<div class="tzrow">${tzBtn(-7, 'tz1', 'Smaller by 7 %')}${tzBtn(-1, 'tz2', 'Smaller by 1 %')}<span id="tzVal">${Math.round((S.tz || 1) * 100)} %</span>${tzBtn(1, 'tz4', 'Larger by 1 %')}${tzBtn(7, 'tz5', 'Larger by 7 %')}${tzBtn(0, 'tz3', 'Back to 100 %', '<svg class="tzrst" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.2 8a4.8 4.8 0 1 0 1.5-3.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M3.4 1.9v3.2h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>')}</div>`, 'pinch the text · ctrl + mouse wheel')
-    + `<details class="subfold shead sglo"><summary>Glosses</summary><div class="gramcfg">${line('Should a word’s particular gloss replace its lemma’s default gloss?', seg('glossMode', S.glossMode === 'both' ? 'both' : 'replace', [['replace', 'Replace'], ['both', 'Show both']]))}</div></details>`
-    + `<details class="subfold shead sgram"${focus === 'grammar' ? ' open' : ''}><summary>Grammar Line</summary><div class="gramcfg">${gramRowsHTML()}</div></details>`
-    + `<details class="subfold shead scolours"${focus === 'colours' ? ' open' : ''}><summary>Colourisation</summary><div class="gramcfg">${chipGroupsHTML('pos')}<div class="crow"><button type="button" class="creset" data-posreset="1" aria-label="Reset colours" title="Reset colours"><span class="rr">R</span><span class="rg">e</span><span class="ry">s</span><span class="rb">e</span><span class="rr">t</span><svg class="tzrst" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.2 8a4.8 4.8 0 1 0 1.5-3.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M3.4 1.9v3.2h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><small class="hint">hold a word to choose its colour</small></div></div></details>`
-    + `<div class="navh">Latin</div><label class="srow1${coll ? '' : ' dis'}">${SW('data-set="latQuant"', S.latQuant && coll, !coll)}<span>Mark vowel lengths (ā, ĕ …)${coll ? '' : '<small class="hint">needs Collatinus (Instruments → Analysis)</small>'}</span></label>`
-    + (hasMap ? `<div class="navh">Places</div><label class="srow1">${SW('data-mapset="mark"', M.cfg.mark !== false)}<span>Mark place names in the text<small class="hint">a dotted line beneath names found on the map</small></span></label>` : '');
+  // the sections of Reading: a heading each (a reset button at its right), a thin line between them; switches at the right
+  const rsec = (cls, title, body, btn = '') => `<section class="rsec ${cls}"><div class="rhd"><span>${title}</span>${btn}</div>${body}</section>`;
+  const swRow = (sw, label, hint = '', dis = false) => `<label class="srow1 swr${dis ? ' dis' : ''}"><span>${label}${hint ? `<small class="hint">${hint}</small>` : ''}</span>${sw}</label>`;
+  const RST = '<svg class="tzrst" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.2 8a4.8 4.8 0 1 0 1.5-3.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M3.4 1.9v3.2h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const reading = rsec('stz', 'Text size', `<small class="hint rhint">pinch the text · ctrl + mouse wheel</small><div class="tzrow">${tzBtn(-7, 'tz1', 'Smaller by 7 %')}${tzBtn(-1, 'tz2', 'Smaller by 1 %')}<span id="tzVal">${Math.round((S.tz || 1) * 100)} %</span>${tzBtn(1, 'tz4', 'Larger by 1 %')}${tzBtn(7, 'tz5', 'Larger by 7 %')}${tzBtn(0, 'tz3', 'Back to 100 %', RST)}</div>`)
+    + rsec('sglo', 'Glosses', line('Should a word’s particular gloss replace its lemma’s default gloss?', seg('glossMode', S.glossMode === 'both' ? 'both' : 'replace', [['replace', 'Replace'], ['both', 'Show both']])))
+    + rsec('sgram', 'Grammar Line', gramRowsHTML(), `<button type="button" class="greset" data-gramreset="1" aria-label="Reset the grammar line" title="Reset the grammar line">Reset${RST}</button>`)
+    + rsec('scolours', 'Colourisation', chipGroupsHTML('pos') + '<small class="hint rhint">hold a word to choose its colour</small>', `<button type="button" class="creset" data-posreset="1" aria-label="Reset colours" title="Reset colours"><span class="rr">R</span><span class="rg">e</span><span class="ry">s</span><span class="rb">e</span><span class="rr">t</span>${RST}</button>`)
+    + rsec('slat', 'Latin', swRow(SW('data-set="latQuant"', S.latQuant && coll, !coll), 'Mark vowel lengths (ā, ĕ …)', coll ? '' : 'needs Collatinus (Instruments → Analysis)', !coll))
+    + (hasMap ? rsec('splaces', 'Places', swRow(SW('data-mapset="mark"', M.cfg.mark !== false), 'Mark place names in the text', 'a dotted line beneath names found on the map')) : '');
   if (want) openAt('set', want);
   const rows = [{ k: 'read', title: 'Reading', sub: `text ${Math.round((S.tz || 1) * 100)} % · glosses, grammar line, colourisation` },
     ...(hasMap ? [{ k: 'map', title: 'Map', sub: 'places in texts · period · significance · engine' }] : [])];
@@ -421,7 +425,7 @@ async function settingsDialog(focus) {
     + `<p class="sver">Pult · version ${ver} · published ${PULT_DATE}</p>`, []);
   syncGramRows($('#dlgForm'));
   if (focus) {                                                   // the part asked for, at the top of the dialog
-    const el = focus === 'map' ? null : $('#dlgForm').querySelector(focus === 'colours' ? 'details.scolours' : 'details.sgram');
+    const el = focus === 'map' ? null : $('#dlgForm').querySelector(focus === 'colours' ? '.rsec.scolours' : '.rsec.sgram');
     const go = () => { if (!el || !$('#dlg').open) return; const d = $('#dlg'); d.scrollTop += el.getBoundingClientRect().top - d.getBoundingClientRect().top - 52; };
     requestAnimationFrame(go); setTimeout(go, 160); setTimeout(go, 620);   // (after the dialog's own scroll restore)
   }

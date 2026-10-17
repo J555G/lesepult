@@ -516,7 +516,7 @@ function layersHTML() {
 // the map settings (hold the map button, or ☰ → Settings → More map settings): how the map behaves
 // the map settings (☰ → Settings → Map): sub-headings instead of folds, switches like the rest of the dialog
 function settingsHTML() {
-  const sw = (k, l, hint = '') => `<label class="srow1">${SW(`data-mapset="${k}"`, !!M.cfg[k])}<span>${l}${hint ? `<small class="hint">${hint}</small>` : ''}</span></label>`;
+  const sw = (k, l, hint = '') => `<label class="srow1 swr"><span>${l}${hint ? `<small class="hint">${hint}</small>` : ''}</span>${SW(`data-mapset="${k}"`, !!M.cfg[k])}</label>`;
   const line = (lbl, html) => `<div class="mline"><span>${lbl}</span>${html}</div>`;
   const seg = (k, opts) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button type="button" data-mcfg="${k}" data-mv="${v}" class="${String(M.cfg[k]) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   // the three kinds of dated places as a small table: Shown | Faded | Hidden
