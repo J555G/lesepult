@@ -313,14 +313,14 @@ async function settingsDialog(focus) {
   const reading = line('Text size', `<div class="tzrow"><button type="button" data-tz="-1" aria-label="Smaller">A−</button><span id="tzVal">${Math.round((S.tz || 1) * 100)} %</span><button type="button" data-tz="1" aria-label="Larger">A+</button><button type="button" data-tz="0">100 %</button></div>`, 'or pinch the text')
     + line('Own gloss', seg('glossMode', S.glossMode === 'both' ? 'both' : 'replace', [['replace', 'Replaces default'], ['both', 'Show both']]), 'a word’s own gloss and its lemma’s default gloss')
     + line('Long texts', seg('textMode', textMode(), [['window', 'Least memory'], ['skip', 'Faster'], ['all', 'Draw all']]), 'books over 2,500 words: drawn only near the screen · all drawn, laid out near the screen · all drawn and laid out')
-    + `<div class="navh hcol">Word-class colours</div><label class="srow1">${SW('data-set="posOn"', S.posOn)}<span>Colour the words by word class<small class="hint">also the “Colours” button in the top bar; hold it to come here</small></span></label>
+    + `<div class="navh hcol">Word-class colours <small>(switched on and off with the “Colours” button)</small></div>
        <details class="subfold scolours"${focus === 'colours' ? ' open' : ''}><summary>Colours</summary><div class="list plain">${posRows}</div><div class="row" style="justify-content:flex-start"><button type="button" data-posreset="1">Reset colours</button></div></details>`
-    + `<div class="navh hgram">Grammar line</div><label class="srow1">${SW('data-set="showGram"', S.gram)}<span>Grammatical form beneath each word<small class="hint">also the “Grammar” button; hold it to come here</small></span></label>
+    + `<div class="navh hgram">Grammar line <small>(switched on and off with the “Grammar” button)</small></div>
        <details class="subfold sgram"${focus === 'grammar' ? ' open' : ''}><summary>For which words</summary><div class="gramcfg">${gramRowsHTML()}</div></details>`
     + `<div class="navh">Latin</div><label class="srow1${coll ? '' : ' dis'}">${SW('data-set="latQuant"', S.latQuant && coll, !coll)}<span>Mark vowel lengths (ā, ĕ …)${coll ? '' : '<small class="hint">needs Collatinus (Instruments → Analysis)</small>'}</span></label>`
     + (hasMap ? `<div class="navh">Places</div><label class="srow1">${SW('data-mapset="mark"', M.cfg.mark !== false)}<span>Mark place names in the text<small class="hint">a dotted line beneath names found on the map</small></span></label>` : '');
   const dlgP = dialog(`${dlgHead('Settings')}
-    ${sec('read', 'Reading', `text ${Math.round((S.tz || 1) * 100)} % · colours ${S.posOn ? 'on' : 'off'} · grammar line ${S.gram ? 'on' : 'off'}`, reading)}
+    ${sec('read', 'Reading', `text ${Math.round((S.tz || 1) * 100)} % · glosses, colours, grammar line`, reading)}
     <div class="srow1 sapp"><b>Appearance</b>${seg('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']])}</div>
     ${hasMap ? sec('map', 'Map', `period filter ${M.cfg.time ? 'on' : 'off'} · MapLibre ${M.engineSet || '5'}`, `<div class="mapset">${settingsHTML()}</div>`) : ''}
     <p class="sver">Pult · version ${ver} · published ${PULT_DATE}</p>`, []);
