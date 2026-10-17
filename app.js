@@ -586,11 +586,11 @@ function textAnchor() {
   const pane = $('#textPane'), top = pane.getBoundingClientRect().top, h = pane.clientHeight;
   let el = S.cur ? document.querySelector(`#textBody .w[data-i="${S.cur[0]}"]`) : null;
   if (el) { const r = el.getBoundingClientRect(); if (r.bottom < top || r.top > top + h) el = null; }
-  if (!el) for (const w of S.wordEls || []) { if (w.getBoundingClientRect().bottom > top) { el = w; break; } }
+  if (!el) for (const w of drawnWords()) { if (w && w.getBoundingClientRect().bottom > top) { el = w; break; } }
   return { i: el?.dataset.i, off: el ? el.getBoundingClientRect().top - top : 0, y: pane.scrollTop };
 }
 function applyTextAnchor(a) {
-  const pane = $('#textPane'), el = a.i != null ? document.querySelector(`#textBody .w[data-i="${a.i}"]`) : null;
+  const pane = $('#textPane'), el = a.i != null ? (ensureWord(+a.i) || document.querySelector(`#textBody .w[data-i="${a.i}"]`)) : null;
   const want = el ? pane.scrollTop + el.getBoundingClientRect().top - pane.getBoundingClientRect().top - a.off : a.y;
   if (Math.abs(pane.scrollTop - want) > 2) pane.scrollTop = want;
 }
@@ -601,18 +601,21 @@ function guardText(ms = 1000) {      // keep the position for a moment, unless t
   requestAnimationFrame(fix); setTimeout(fix, 120); setTimeout(fix, 400); setTimeout(fix, ms - 50);
   return g;
 }
-function renderText() {
-  const body = $('#textBody');
-  const same = S.text && S.renderedText === S.text.id && S.wordEls?.length;   // the same text drawn again: keep the position
-  const anchor = same ? textAnchor() : null;
-  if (!S.text) { body.innerHTML = '<p class="hint">No text yet. Open the menu ☰ (top left) → Library to download Greek texts, or → Import text to paste or load your own.</p>'; return; }
-  const gl = {}; for (const g of S.glosses) (gl[g.s] ??= []).push(g);
-  const covered = S.covered = new Set(); for (const g of S.glosses) for (let i = g.s; i <= g.e; i++) covered.add(i);
-  let html = '<div class="para">';
-  const toks = S.tokens;
-  for (let n = 0; n < toks.length; n++) {
+// ---- drawing the text. Long texts (Settings → Reading → Long texts):
+//   'window' – only the parts near the screen are drawn, the rest is empty space of the right height (least memory)
+//   'skip'   – everything is drawn, but the browser skips the layout of parts off screen (content-visibility)
+//   'all'    – everything is drawn and laid out
+const LONG_TEXT = 2500;            // words: shorter texts are always drawn whole
+const CHUNK_W = 200;               // words per part (parts begin at a section, so a part can be a little longer)
+const textMode = () => S.textMode || 'window';
+// the HTML of the tokens n0 … n1-1 (a part begins at a section break, or at the start of the text)
+function textHTML(n0, n1, gl, covered) {
+  const toks = S.tokens; let html = '';
+  let open = false;
+  for (let n = n0; n < n1; n++) {
     const tk = toks[n];
-    if (tk.t === 'b') { html += `</div><div class="blk k-${tk.k}">`; continue; }
+    if (tk.t === 'b') { html += `${open ? '</div>' : ''}<div class="blk k-${tk.k}">`; open = true; continue; }
+    if (!open) { html += '<div class="para">'; open = true; }
     if (tk.t === 'r') {        // reference in the margin; verse lines are numbered every 5th line
       if (!tk.l || (/^\d+$/.test(tk.s) && +tk.s % 5 === 0)) html += `<span class="rf${tk.l ? ' ln' : ''}">${esc(tk.s)}</span>`;
       continue;
@@ -633,11 +636,43 @@ function renderText() {
     if (S.marker === tk.i) html += '<span class="mkr" title="Marker"></span>';
     html += `<span class="w${covered.has(tk.i) ? ' glossed' : ''}${tk.pos ? ' p-' + tk.pos : ''}" data-i="${tk.i}"><span class="g">${esc(S.latQuant && tk.q ? tk.q : tk.s)}${pu ? `<span class="pu">${esc(pu)}</span>` : ''}</span><span class="gm${tk.amb && !tk.anaSet ? ' amb' : ''}">${esc(tk.gram || '')}</span><span class="gl"${glW(gs)}>${gs}</span></span>`;
   }
+  return html + (open ? '</div>' : '');
+}
+function glossMaps() {
+  const gl = {}; for (const g of S.glosses) (gl[g.s] ??= []).push(g);
+  const covered = S.covered = new Set(); for (const g of S.glosses) for (let i = g.s; i <= g.e; i++) covered.add(i);
+  return [gl, covered];
+}
+// the parts of a long text: they begin at section breaks, about CHUNK_W words each
+function textChunks() {
+  const toks = S.tokens, out = []; let c = null, nw = 0;
+  for (let n = 0; n < toks.length; n++) {
+    const tk = toks[n];
+    if (!c || (tk.t === 'b' && c.words >= CHUNK_W)) { if (c) c.n1 = n; c = { n0: n, n1: toks.length, w0: null, w1: null, words: 0, h: null }; out.push(c); }
+    if (tk.t === 'w') { if (c.w0 == null) c.w0 = tk.i; c.w1 = tk.i; c.words++; nw++; }
+  }
+  // a text without section breaks, or with one very long section: not split (drawn whole)
+  return out.length > 1 && Math.max(...out.map(x => x.words)) < CHUNK_W * 15 ? out : null;
+}
+function renderText() {
+  const body = $('#textBody');
+  const same = S.text && S.renderedText === S.text.id && S.wordEls?.length;   // the same text drawn again: keep the position
+  const anchor = same ? textAnchor() : null;
+  if (S.TW) { S.TW.io?.disconnect(); S.TW = null; }
+  if (!S.text) { body.innerHTML = '<p class="hint">No text yet. Open the menu ☰ (top left) → Library to download Greek texts, or → Import text to paste or load your own.</p>'; return; }
+  const [gl, covered] = glossMaps();
+  const nWords = S.tokens.reduce((n, t) => n + (t.t === 'w'), 0), mode = textMode();
+  const chunks = mode === 'window' && nWords > LONG_TEXT ? textChunks() : null;
   const w = S.text.work, bi = S.text.bi;
   const bn = w && w.books.length > 1 ? `<div class="booknav">${bi > 0 ? `<button type="button" data-step="-1">◂ ${esc(w.books[bi - 1])}</button>` : '<span></span>'}${bi < w.books.length - 1 ? `<button type="button" data-step="1">${esc(w.books[bi + 1])} ▸</button>` : ''}</div>` : '';
-  body.innerHTML = html + '</div>' + bn;
+  body.classList.toggle('cv', mode === 'skip' && nWords > LONG_TEXT);
+  body.classList.toggle('tw', !!chunks); $('#textPane').style.overflowAnchor = chunks ? 'none' : '';   // (the browser's own scroll anchoring would move the text twice)
+  if (chunks) textWindowStart(chunks, gl, covered, bn, same);
+  else {
+    body.innerHTML = textHTML(0, S.tokens.length, gl, covered) + bn;
+    S.wordEls = body.querySelectorAll('.w');
+  }
   body.classList.toggle('lib', !!S.text.blocks);
-  S.wordEls = body.querySelectorAll('.w');
   if (typeof markPlaces === 'function') markPlaces();
   S.renderedText = S.text.id;
   if (anchor) { applyTextAnchor(anchor); const g = S.tGuard = { a: anchor, until: Date.now() + 1000 };
@@ -646,6 +681,84 @@ function renderText() {
   else S.tGuard = null;
   markTarget();
   fillGlossBox();
+}
+// ---- 'window': the parts near the screen are drawn (three screens ahead and behind), the others are empty boxes
+// of their measured (or estimated) height. A part drawn or emptied above the screen moves the text by the
+// difference, so what is on screen stays where it is.
+function textWindowStart(chunks, gl, covered, bn, same) {
+  const body = $('#textBody'), pane = $('#textPane');
+  // the same text again (a gloss saved …): the measured heights are kept
+  const old = same && S.TWold?.id === S.text.id && S.TWold.chunks.length === chunks.length ? S.TWold.chunks : null;
+  if (old) chunks.forEach((c, k) => { c.h = old[k].h; c.hk = old[k].hk; });
+  const TW = S.TW = { chunks, gl, covered, ppw: S.TWold?.ppw || 7 * (S.tz || 1), id: S.text.id };
+  S.TWold = TW;
+  body.innerHTML = chunks.map((c, k) => `<div class="tchunk" data-c="${k}" style="height:${Math.round(chEst(c))}px"></div>`).join('') + bn;
+  chunks.forEach((c, k) => { c.el = body.children[k]; c.on = false; });
+  S.wordEls = new Array((chunks[chunks.length - 1].w1 ?? 0) + 1);
+  TW.io = new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) chDraw(chunks[+e.target.dataset.c]); }, { root: pane, rootMargin: '300% 0px' });
+  for (const c of chunks) TW.io.observe(c.el);
+  if (!pane._tw) { pane._tw = true; pane.addEventListener('scroll', () => { clearTimeout(pane._twt); pane._twt = setTimeout(chSweep, 400); }, { passive: true }); }
+}
+const chKey = () => `${Math.round((S.tz || 1) * 100)}|${$('#textBody').clientWidth}|${document.body.className}`;
+function chEst(c) { const TW = S.TW; return c.h != null && c.hk === chKey() ? c.h : Math.max(20, c.words * (TW?.ppw || 7)); }
+function chDraw(c) {
+  const TW = S.TW; if (!TW || c.on) return;
+  const pane = $('#textPane'), el = c.el, above = el.getBoundingClientRect().bottom <= pane.getBoundingClientRect().top + 1;
+  const h0 = el.offsetHeight;
+  el.innerHTML = textHTML(c.n0, c.n1, TW.gl, TW.covered); el.style.height = ''; c.on = true;
+  for (const w of el.querySelectorAll('.w')) S.wordEls[+w.dataset.i] = w;
+  const h1 = el.offsetHeight; c.h = h1; c.hk = chKey();
+  if (above && h1 !== h0) pane.scrollTop += h1 - h0;
+  // the average height per word, for the parts not yet drawn
+  const m = TW.chunks.filter(x => x.h != null && x.hk === c.hk); TW.ppw = m.reduce((a, x) => a + x.h, 0) / Math.max(1, m.reduce((a, x) => a + x.words, 0));
+  chDecorate(c);
+}
+function chErase(c) {
+  if (!c.on) return;
+  const h = c.el.offsetHeight; c.h = h; c.hk = chKey();
+  for (let i = c.w0; i <= c.w1; i++) S.wordEls[i] = undefined;
+  c.el.style.height = h + 'px'; c.el.innerHTML = ''; c.on = false;
+}
+// what lies on the words of a part that was just drawn: the selected word, places, the export range
+function chDecorate(c) {
+  if (S.cur && !S.curHidden) { const [a, b] = S.cur; for (let i = Math.max(a, c.w0); i <= Math.min(b, c.w1); i++) S.wordEls[i]?.classList.add(b > a ? 'rng' : 'cur'); }
+  if (S.exPick?.a != null) { const p = S.exPick, b = p.b ?? p.a; for (let i = Math.max(Math.min(p.a, b), c.w0); i <= Math.min(Math.max(p.a, b), c.w1); i++) S.wordEls[i]?.classList.add('xsel'); }
+  if (typeof M !== 'undefined' && M.hits?.size && M.cfg?.mark !== false) for (let i = c.w0; i <= c.w1; i++) { const h = M.hits.get(i); if (h && (!isPeople(h.p) || M.cfg?.peoples)) { const e = S.wordEls[i]; e?.classList.add('plc'); if (h.unsure) e?.classList.add('plcq'); } }
+}
+// parts more than six screens away are emptied again
+function chSweep() {
+  const TW = S.TW; if (!TW) return;
+  const r = $('#textPane').getBoundingClientRect(), far = r.height * 6;
+  for (const c of TW.chunks) if (c.on) { const b = c.el.getBoundingClientRect(); if (b.bottom < r.top - far || b.top > r.bottom + far) chErase(c); }
+}
+// the part that holds word i, drawn (for jumps: to a passage, a search hit, the marker)
+function ensureWord(i) {
+  const TW = S.TW; if (!TW || i == null) return S.wordEls?.[i] || null;
+  const c = TW.chunks.find(x => x.w0 != null && i >= x.w0 && i <= x.w1); if (c) chDraw(c);
+  return S.wordEls[i] || null;
+}
+// after a change of text size, width, glosses or grammar line: the empty parts get new heights (screen kept still)
+function chReestimate() {
+  const TW = S.TW; if (!TW) return;
+  const pane = $('#textPane'), top = pane.getBoundingClientRect().top, k = chKey();
+  const m = TW.chunks.filter(x => x.on); if (m.length) { for (const x of m) { x.h = x.el.offsetHeight; x.hk = k; } TW.ppw = m.reduce((a, x) => a + x.h, 0) / Math.max(1, m.reduce((a, x) => a + x.words, 0)); }
+  let d = 0;
+  const todo = TW.chunks.filter(c => !c.on).map(c => [c, c.el.offsetHeight, Math.round(chEst(c)), c.el.getBoundingClientRect().bottom <= top + 1]);   // (all measured before any changes)
+  for (const [c, h0, h1, above] of todo) if (h0 !== h1) { c.el.style.height = h1 + 'px'; if (above) d += h1 - h0; }
+  if (d) pane.scrollTop += d;
+}
+{ let t = 0; const later = () => { clearTimeout(t); t = setTimeout(chReestimate, 250); };
+  document.addEventListener('DOMContentLoaded', () => {
+    new ResizeObserver(later).observe($('#textPane'));
+    new MutationObserver(later).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  }); window.chLater = later; }
+// the elements of the words now drawn, in reading order
+const drawnWords = () => S.TW ? $('#textBody').querySelectorAll('.w') : (S.wordEls || []);
+// a copy of the whole text for exports (in 'window' mode only parts of it are on the page)
+function textRoot() {
+  if (!S.TW) return $('#textBody');
+  const d = document.createElement('div'); d.innerHTML = textHTML(0, S.tokens.length, S.TW.gl, S.TW.covered);
+  return d;
 }
 // long glosses get wider in proportion to their length (about three lines), never wider than the text column
 function glW(html) {
@@ -679,7 +792,8 @@ async function openText(id, scroll = true) {
   S.glosses = t ? await req2p(tx('glosses').objectStore('glosses').index('textId').getAll(t.id)) : [];
   S.tokCh = await loadTokCh(t);
   renderText();
-  if (scroll) { S.tGuard = null; const y = t ? await setting('pos|' + t.id) : 0; $('#textPane').scrollTop = y || 0; }
+  if (scroll) { S.tGuard = null; const y = t ? await setting('pos|' + t.id) : 0, pw = S.TW && t ? await setting('pw|' + t.id) : null;
+    if (pw) { const a = { i: pw.i, off: pw.off }; applyTextAnchor(a); setTimeout(() => applyTextAnchor(a), 60); } else $('#textPane').scrollTop = y || 0; }
   if (t) await setting('currentText', t.id);
   if (!$('#listBody').hidden) renderList();
   resolveTokens();
@@ -1567,12 +1681,13 @@ async function settingsDialog(focus) {
   if (hasMap) await mapCfg();
   const reading = line('Text size', `<div class="tzrow"><button type="button" data-tz="-1" aria-label="Smaller">A−</button><span id="tzVal">${Math.round((S.tz || 1) * 100)} %</span><button type="button" data-tz="1" aria-label="Larger">A+</button><button type="button" data-tz="0">100 %</button></div>`, 'or pinch the text')
     + line('Own gloss', seg('glossMode', S.glossMode === 'both' ? 'both' : 'replace', [['replace', 'Replaces default'], ['both', 'Show both']]), 'a word’s own gloss and its lemma’s default gloss')
+    + line('Long texts', seg('textMode', textMode(), [['window', 'Least memory'], ['skip', 'Faster'], ['all', 'Draw all']]), 'books over 2,500 words: drawn only near the screen · all drawn, laid out near the screen · all drawn and laid out')
     + `<div class="navh hcol">Word-class colours</div><label class="srow1">${SW('data-set="posOn"', S.posOn)}<span>Colour the words by word class<small class="hint">also the “Colours” button in the top bar; hold it to come here</small></span></label>
        <details class="subfold scolours"${focus === 'colours' ? ' open' : ''}><summary>Colours</summary><div class="list plain">${posRows}</div><div class="row" style="justify-content:flex-start"><button type="button" data-posreset="1">Reset colours</button></div></details>`
     + `<div class="navh hgram">Grammar line</div><label class="srow1">${SW('data-set="showGram"', S.gram)}<span>Grammatical form beneath each word<small class="hint">also the “Grammar” button; hold it to come here</small></span></label>
        <details class="subfold sgram"${focus === 'grammar' ? ' open' : ''}><summary>For which words</summary><div class="gramcfg">${gramRowsHTML()}</div></details>`
     + `<div class="navh">Latin</div><label class="srow1${coll ? '' : ' dis'}">${SW('data-set="latQuant"', S.latQuant && coll, !coll)}<span>Mark vowel lengths (ā, ĕ …)${coll ? '' : '<small class="hint">needs Collatinus (Instruments → Analysis)</small>'}</span></label>`
-    + (hasMap ? `<div class="navh">Places</div><label class="srow1">${SW('data-mapset="mark"', !!M.cfg.mark)}<span>Mark place names in the text<small class="hint">a dotted line beneath names found on the map</small></span></label>` : '');
+    + (hasMap ? `<div class="navh">Places</div><label class="srow1">${SW('data-mapset="mark"', M.cfg.mark !== false)}<span>Mark place names in the text<small class="hint">a dotted line beneath names found on the map</small></span></label>` : '');
   const dlgP = dialog(`${dlgHead('Settings')}
     ${sec('read', 'Reading', `text ${Math.round((S.tz || 1) * 100)} % · colours ${S.posOn ? 'on' : 'off'} · grammar line ${S.gram ? 'on' : 'off'}`, reading)}
     <div class="srow1 sapp"><b>Appearance</b>${seg('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']])}</div>
@@ -1788,7 +1903,7 @@ function exportModel(rng = null) {
   const posC = el => { const c = [...el.classList].find(x => x.startsWith('p-')); const id = c?.slice(2); return id && S.posCfg[id]?.on !== false ? S.posCfg[id].c : null; };
   const punctC = S.posCfg.punct?.on !== false ? S.posCfg.punct?.c : null;
   const blocks = [];
-  for (const b of $('#textBody').children) {
+  for (const b of textRoot().children) {
     if (!b.matches('.para,.blk')) continue;
     const kind = b.classList.contains('blk') ? ([...b.classList].find(c => c.startsWith('k-')) || 'k-p').slice(2) : 'p';
     const items = [];
@@ -1830,7 +1945,7 @@ function exportRefs() {
   let kind = verse ? 'Line' : 'Section';
   if (!list.length) {
     kind = 'Paragraph'; let n = 0;
-    for (const b of $('#textBody').children) { const w = b.matches?.('.para,.blk') && b.querySelector('.w'); if (w) list.push({ s: '¶ ' + (++n), i: +w.dataset.i }); }
+    for (const b of textRoot().children) { const w = b.matches?.('.para,.blk') && b.querySelector('.w'); if (w) list.push({ s: '¶ ' + (++n), i: +w.dataset.i }); }
   }
   const last = Math.max(...words.keys());
   list.forEach((r, j) => { r.end = (list[j + 1]?.i ?? last + 1) - 1; r.lab = [...Array(4).keys()].map(k => words.get(r.i + k)).filter(Boolean).join(' '); });
@@ -2187,7 +2302,7 @@ function wire() {
     if (ev.target.closest('textarea.lg')) return;
     const r = ev.target.closest('.lrow'); if (!r) return;
     const pos = +r.dataset.pos; S.cur = [pos, pos]; S.curHidden = false; markTarget();
-    document.querySelector(`.w[data-i="${pos}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    (ensureWord(pos) || document.querySelector(`.w[data-i="${pos}"]`))?.scrollIntoView({ block: 'center', behavior: S.TW ? 'auto' : 'smooth' });
     const tk = S.tokens.find(t => t.t === 'w' && t.i === pos);
     S.hist = []; S.view = null; await showWord(tk.s, { lemma: r.dataset.lemma, ti: pos });
   });
@@ -2246,6 +2361,7 @@ function wire() {
     b.parentElement.querySelectorAll('button').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); });
     if (k === 'theme') setTheme(v, true);
     if (k === 'glossMode') { S.glossMode = v; setting('glossMode', v); renderText(); }
+    if (k === 'textMode') { S.textMode = v; setting('textMode', v); renderText(); }
   });
   $('#btnPos').onclick = async () => { if (S.posHeld) { S.posHeld = false; return; } S.posOn = !S.posOn; await setting('posOn', S.posOn); applyPosColors(); };
   { let t = null; const bp = $('#btnPos');          // hold the Colours button: the list of word-class colours
@@ -2921,7 +3037,7 @@ function refsOf(toks, blocks) {
   return list;
 }
 function topWord() {                // the first word at the top of the text pane
-  const ws = S.wordEls || [], pane = $('#textPane').getBoundingClientRect(); if (!ws.length) return null;
+  const ws = drawnWords(), pane = $('#textPane').getBoundingClientRect(); if (!ws.length) return null;
   let lo = 0, hi = ws.length - 1;
   while (lo < hi) { const m = (lo + hi) >> 1; if (ws[m].getBoundingClientRect().bottom <= pane.top + 60) lo = m + 1; else hi = m; }   // the line a jump puts at the top
   return +ws[lo].dataset.i;
@@ -2962,7 +3078,7 @@ async function partRefs(bi) {       // references of another part of the open wo
   return S.partRefCache[key];
 }
 function scrollToWord(i, flash = true) {
-  const e = S.wordEls?.[i] || document.querySelector(`#textBody .w[data-i="${i}"]`); if (!e) return;
+  const e = ensureWord(i) || document.querySelector(`#textBody .w[data-i="${i}"]`); if (!e) return;
   const pane = $('#textPane'); S.tGuard = null;
   pane.scrollTop += e.getBoundingClientRect().top - pane.getBoundingClientRect().top - 56;
   if (flash) { e.classList.add('flash'); setTimeout(() => e.classList.remove('flash'), 1400); }
@@ -3223,7 +3339,7 @@ function wireReading() {
   document.addEventListener('touchmove', e => { if (sw) e.preventDefault(); }, { passive: false });
 }
 // reading position per text/book (restored when it is opened again)
-function saveReadPos() { if (S.text) { setting('pos|' + S.text.id, Math.round($('#textPane').scrollTop)); touchRecent(); } }
+function saveReadPos() { if (S.text) { setting('pos|' + S.text.id, Math.round($('#textPane').scrollTop)); if (S.TW) { const a = textAnchor(); if (a.i != null) setting('pw|' + S.text.id, { i: +a.i, off: Math.round(a.off) }); } touchRecent(); } }
 // recently read: one entry per work (or imported text) – the part and the section where it was left
 async function touchRecent() {
   const t = S.text; if (!t) return;
@@ -3259,7 +3375,7 @@ async function setMarker(i) {
   renderMarker(); markIcon();
 }
 function goMarker() {
-  const e = document.querySelector(`#textBody .w[data-i="${S.marker}"]`); if (!e) return;
+  const e = ensureWord(S.marker) || document.querySelector(`#textBody .w[data-i="${S.marker}"]`); if (!e) return;
   const pane = $('#textPane');
   pane.scrollTop += e.getBoundingClientRect().top - pane.getBoundingClientRect().top - 56;
   e.classList.add('flash'); setTimeout(() => e.classList.remove('flash'), 1200);
@@ -3291,9 +3407,11 @@ function setTextZoom(z, at) {
   const b = $('#textBody'), pane = $('#textPane'); S.tz = z; if (!b) return;
   let el = null, top0 = 0;
   if (at && pane) { el = document.elementFromPoint(at.x, at.y)?.closest('#textBody .w, #textBody .blk'); if (el) top0 = el.getBoundingClientRect().top; }
+  const anc = !at && pane && S.text ? textAnchor() : null;      // (buttons in Settings: the line at the top stays)
   b.style.setProperty('--tz', z);
   if (el) pane.scrollTop += el.getBoundingClientRect().top - top0;
-  setGlossMax?.();
+  else if (anc) applyTextAnchor(anc);
+  setGlossMax?.(); window.chLater?.();
   const v = document.getElementById('tzVal'); if (v) v.textContent = Math.round(z * 100) + ' %';
 }
 let tzSaveT = 0;
@@ -3351,6 +3469,7 @@ const tzSave = () => { clearTimeout(tzSaveT); tzSaveT = setTimeout(() => setting
   setTheme((await setting('theme')) || 'dark');
   S.glossMode = (await setting('glossMode')) || 'replace';
   S.latQuant = !!(await setting('latQuant'));
+  S.textMode = (await setting('textMode')) || 'window';
   for (const r of await getAll('settings', IDBKeyRange.bound('lg|', 'lg|\uffff'))) S.lemmaGloss[r.k.slice(3)] = r.v;
   await loadDicts();
   setGlossVisible((await setting('showGloss')) !== false);

@@ -1226,3 +1226,8 @@ dialog .mpk .seg.lvl button{flex:1 1 50%!important;white-space:nowrap}
 ::-webkit-scrollbar-thumb:hover{background-color:color-mix(in srgb,var(--mut) 70%,transparent)}
 ::-webkit-scrollbar-button{display:none}
 }
+/* long texts: 'faster' – parts off screen are not laid out until they come near */
+#textBody.cv>.para,#textBody.cv>.blk{content-visibility:auto;contain-intrinsic-size:auto 320px}
+#textBody .tchunk{display:flow-root}
+#textBody .tchunk>:first-child{margin-top:0}
+#textBody .tchunk>.blk.k-s:first-child,#textBody .tchunk>.blk.k-h:first-child{margin-top:.9em}
