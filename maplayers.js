@@ -13,10 +13,12 @@ const RANGE_COL = ['#c0503a', '#2f78b5', '#4a9a3a', '#9a55b5', '#c9922b'];
 const rangeCol = k => (M.cfg?.rangeCols?.[k]) || RANGE_COL[k % RANGE_COL.length];
 
 // ---------------------------------------------------------------- the period filter
-// M.T = {work, ranges: [[a, b], …]} – a range with a === b is a single date; the map shows what existed then (± tolerance)
+// M.T = {work, ranges: [[a, b], …]} – a range with a === b is a single date; the map shows what existed then (± tolerance).
+// The dates are those chosen on the time line only – the same whichever text is open (kept with the map settings).
 function timeFor(t) {
   const wk = t ? workKeyOf(t) : null;
-  if (!M.T || M.T.work !== wk) M.T = { work: wk, ranges: M.year != null ? [[snapY(M.year), snapY(M.year)]] : [] };
+  if (!M.T) M.T = { work: wk, ranges: Array.isArray(M.cfg?.ranges) ? JSON.parse(JSON.stringify(M.cfg.ranges)) : [] };
+  M.T.work = wk;
   return M.T;
 }
 function snapY(y) { const [lo, hi] = TLIM(), st = tStep(); return Math.max(lo, Math.min(hi, Math.round(y / st) * st)); }
@@ -24,8 +26,8 @@ function tRanges() {
   if (!M.cfg?.time || !M.T?.ranges?.length) return null;
   const tol = M.cfg.tol ?? 25; return M.T.ranges.map(([a, b]) => [a - tol, b + tol]);
 }
-// the dates of things that belong to one date (empires, coastlines): the ranges without tolerance, or the work's date
-function snapRanges() { return M.cfg?.time && M.T?.ranges?.length ? M.T.ranges : M.year != null ? [[M.year, M.year]] : null; }
+// the dates of things that belong to one date (empires, coastlines): the dates of the time line, without tolerance
+function snapRanges() { return M.cfg?.time && M.T?.ranges?.length ? M.T.ranges : null; }      // (the time line's dates only)
 const Y0 = ['coalesce', ['get', 'y0'], -99999], Y1 = ['coalesce', ['get', 'y1'], 99999];
 const UND = ['all', ['!', ['has', 'y0']], ['!', ['has', 'y1']]];
 const tIn = r => ['all', ['<=', Y0, r[1]], ['>=', Y1, r[0]]];
@@ -376,6 +378,7 @@ function renderTime() {
 let timeRaf = 0;
 function timeChanged(final) {
   renderTime();
+  if (final && M.cfg && M.T) { M.cfg.ranges = JSON.parse(JSON.stringify(M.T.ranges)); saveMapCfg(); }
   if (!timeRaf) timeRaf = requestAnimationFrame(() => { timeRaf = 0; applyLayers(); });
 }
 // merging: a range whose ends meet becomes a date; ranges that touch become one
@@ -455,7 +458,8 @@ function wireTime() {
     if (pinch) { if (ptrs.size < 2) pinch = null; drag = null; return; }
     if (!drag) return;
     const d = drag; drag = null;
-    if (d.pan) { if (!d.moved && !M.T.ranges.length) { M.T.ranges = [[d.y, d.y]]; timeChanged(true); } return; }   // a tap on the empty line: a date (when none is set)
+    // a tap on the empty line: the date (no date yet, or the one date there was moves to the tap)
+    if (d.pan) { const R = M.T.ranges; if (!d.moved && (!R.length || (R.length === 1 && R[0][0] === R[0][1]))) { M.T.ranges = [[d.y, d.y]]; timeChanged(true); } return; }
     normRanges(); timeChanged(true);
   };
   tr.addEventListener('pointerup', up); tr.addEventListener('pointercancel', up);
@@ -483,7 +487,7 @@ async function workDateDialog() {
     let y = +m[1]; if (/\b(bc|bce|v\.?\s*chr)/i.test(s) && y > 0) y = -y;
     await setting(key, y);
   } else return;
-  M.T = null; M.workCache = null; await placesForText(); timeFor(S.text); timeChanged(true); refreshMapData();
+  M.workCache = null; await placesForText(); timeFor(S.text); timeChanged(true); refreshMapData();
 }
 
 // ---------------------------------------------------------------- the layer menu (folded sections, remembered)
