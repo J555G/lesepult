@@ -300,9 +300,11 @@ function wireDictScroll() {
   }, { passive: true });
 }
 async function showWord(word, opts = {}) {
-  // every lookup goes into the history (taps in the text too); the same word again is not added twice
+  // a word from the text starts a new history (no pill until the next step inside the dictionary);
+  // lookups from the dictionary itself and the search field go into the history – the same word again not twice
   const same = S.view && S.view.form === word && (S.view.ti ?? null) === (opts.ti ?? null);
-  if (S.view && !opts.replace && !same) { S.hist.push(S.view); if (S.hist.length > 200) S.hist.shift(); }
+  if (opts.ti != null) S.hist = [];
+  else if (S.view && !opts.replace && !same) { S.hist.push(S.view); if (S.hist.length > 200) S.hist.shift(); }
   S.fwd = [];
   S.view = { form: word, lemma: opts.lemma || null, openDict: opts.openDict || null, ti: opts.ti ?? null, tid: opts.ti != null ? S.text?.id : null, ref: opts.ti != null ? refAt(opts.ti) : null };
   navButtons();
