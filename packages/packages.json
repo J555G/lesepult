@@ -34,8 +34,8 @@
    "title": "",
    "source": "Eulexis analyses (Diogenes/Perseus), GPL v3",
    "license": "GPL-3.0",
-   "bytes": 10339302,
-   "version": "9fc1300f95ba"
+   "bytes": 10291776,
+   "version": "41863e09f164"
   },
   {
    "id": "morphhints",
@@ -46,8 +46,8 @@
    "title": "",
    "source": "derived from UD Ancient Greek treebanks (PROIEL, Perseus), CC BY-NC-SA",
    "license": "CC-BY-NC-SA",
-   "bytes": 149120,
-   "version": "6f57e4d76172"
+   "bytes": 149122,
+   "version": "a510f4ce859d"
   },
   {
    "id": "ls",
