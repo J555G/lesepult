@@ -214,12 +214,12 @@
   {
    "id": "ne2",
    "name": "Natural Earth II",
-   "desc": "The painted landscape as a base map: shaded relief, deserts, green lowlands, rivers (Tom Patterson, Natural Earth, public domain) – sharp up to medium zoom",
+   "desc": "The painted landscape as a base map: shaded relief, deserts, green lowlands, rivers (Tom Patterson, Natural Earth, public domain) – the whole world when zoomed out, sharp up to medium zoom in the map area",
    "files": [
     "ne2/ne2.pmtiles"
    ],
-   "bytes": 5681075,
-   "v": "98ffc1fa974c",
+   "bytes": 7207896,
+   "v": "59131839d7b1",
    "url": "https://j555g.github.io/lesepult-maps/"
   },
   {
