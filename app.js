@@ -118,7 +118,7 @@ function wire() {
     const filled = () => sb.classList.toggle('filled', !!sb.value);
     sb.addEventListener('input', filled); sb.addEventListener('change', filled); filled();
     new ResizeObserver(fit).observe(sb); document.fonts?.ready.then(fit); }
-  $('#search').addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.value.trim()) { showWord(ev.target.value.trim()); ev.target.blur(); } });
+  wireSearch(); wireSearchSettings();
   $('#btnGlossToggle').onclick = () => setGlossVisible(document.body.classList.contains('nogloss'), true);
   $('#btnGram').onclick = () => { if (S.gramHeld) { S.gramHeld = false; return; } setGram(!S.gram, true); };
   holdButton($('#btnGram'), v => S.gramHeld = v, () => settingsDialog('grammar'));   // hold: Settings → Grammar line
@@ -426,6 +426,7 @@ function splitIcon() {   // an open book: the fold sits where the split is, the 
   S.posCfg = Object.assign(defaultPosCfg(), (await setting('posCfg')) || {});
   S.posOn = !!(await setting('posOn')); applyPosColors();
   S.gramCfg = Object.assign(defaultGramCfg(), (await setting('gramCfg')) || {}); applyGramCfg();
+  await loadSearchCfg(); srchLangBtn();
   const cur = await setting('currentText');
   if (cur != null) await openText(cur);
   if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! <button id="btnFirstSync">Download the free dictionaries</button> (Greek: Pape, LSJ and morphology; Latin: Lewis &amp; Short, Georges and Collatinus – about 60 MB). More dictionaries: ☰ → Instruments → Dictionaries. Then get a text via ☰ → Library, or import your own via ☰ → Library → Import text …</p>';

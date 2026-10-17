@@ -238,7 +238,8 @@ async function importPackage(file, progress, version = null) {
     for (const it of items.slice(i, i + 300)) os.put(it);
     await done(t); progress(Math.min(1, (i + 300) / items.length));
   }
-  { const keep = new Set(Object.keys(p.buckets)); const t = ddb.transaction('b', 'readwrite'); const os = t.objectStore('b');
+  if (p.hw != null) { const t = ddb.transaction('b', 'readwrite'); t.objectStore('b').put({ b: '#hw', s: p.hw }); await done(t); }   // the headword list (search)
+  { const keep = new Set(Object.keys(p.buckets)); if (p.hw != null) keep.add('#hw'); const t = ddb.transaction('b', 'readwrite'); const os = t.objectStore('b');
     for (const k of await req2p(os.getAllKeys())) if (!keep.has(k)) os.delete(k);
     await done(t); }
   bucketCache.clear();

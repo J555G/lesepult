@@ -419,11 +419,12 @@ async function settingsDialog(focus) {
     + (hasMap ? rsec('splaces', 'Places', swRow(SW('data-mapset="mark"', M.cfg.mark !== false), 'Mark place names in the text', 'a dotted line beneath names found on the map')) : '');
   if (want) openAt('set', want);
   const rows = [{ k: 'read', title: 'Reading', sub: `text ${Math.round((S.tz || 1) * 100)} % · glosses, grammar line, colourisation` },
+    { k: 'search', title: 'Search', sub: 'suggestions · Greek in Latin letters · typo tolerance · index of all texts' },
     ...(hasMap ? [{ k: 'map', title: 'Map', sub: 'places in texts · period · significance · engine' }] : [])];
-  const dlgP = dialog(pagedHTML('set', 'Settings', rows, { read: reading, ...(hasMap ? { map: `<div class="mapset">${settingsHTML()}</div>` } : {}) },
+  const dlgP = dialog(pagedHTML('set', 'Settings', rows, { read: reading, search: searchSettingsHTML(), ...(hasMap ? { map: `<div class="mapset">${settingsHTML()}</div>` } : {}) },
       `<div class="srow1 sapp"><b>Appearance</b>${seg('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']])}</div>`)
     + `<p class="sver">Pult · version ${ver} · published ${PULT_DATE}</p>`, []);
-  syncGramRows($('#dlgForm'));
+  syncGramRows($('#dlgForm')); scIdxInfo();
   if (focus) {                                                   // the part asked for, at the top of the dialog
     const el = focus === 'map' ? null : $('#dlgForm').querySelector(focus === 'colours' ? '.rsec.scolours' : '.rsec.sgram');
     const go = () => { if (!el || !$('#dlg').open) return; const d = $('#dlg'); d.scrollTop += el.getBoundingClientRect().top - d.getBoundingClientRect().top - 52; };

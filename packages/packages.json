@@ -10,8 +10,8 @@
    "title": "Handwörterbuch der griechischen Sprache (3. Aufl. 1914)",
    "source": "Eulexis (Roelli / Chaeréphon / Woitrain), GPL v3",
    "license": "GPL-3.0",
-   "bytes": 9653599,
-   "version": "3d4b3cf81156"
+   "bytes": 10021787,
+   "version": "6b3bcb2962a4"
   },
   {
    "id": "lsj",
@@ -22,8 +22,8 @@
    "title": "A Greek–English Lexicon (9th ed.)",
    "source": "Eulexis (Roelli / Chaeréphon), GPL v3",
    "license": "GPL-3.0",
-   "bytes": 13708858,
-   "version": "8e6445177771"
+   "bytes": 14171283,
+   "version": "07b2c1569d19"
   },
   {
    "id": "morph",
@@ -58,8 +58,8 @@
    "title": "A Latin Dictionary (1879)",
    "source": "Perseus Digital Library (PerseusDL/lexica), CC BY-SA 4.0",
    "license": "CC-BY-SA-4.0",
-   "bytes": 13399588,
-   "version": "9ee70758d8eb"
+   "bytes": 13549079,
+   "version": "99f777628679"
   },
   {
    "id": "georges",
@@ -70,8 +70,8 @@
    "title": "Ausführliches lateinisch-deutsches Handwörterbuch (8. Aufl. 1913)",
    "source": "K. E. Georges (public domain); TEI by Th. Clérice (PonteIneptique/K-E-Georges-1913-TEI)",
    "license": "public domain",
-   "bytes": 9142389,
-   "version": "2ac705c25496"
+   "bytes": 9300081,
+   "version": "fa4937e56b51"
   },
   {
    "id": "collatinus",
@@ -82,8 +82,8 @@
    "title": "short meanings (EN · DE · FR)",
    "source": "Collatinus lexicon (Y. Ouvrard, Ph. Verkerk), GPL v3",
    "license": "GPL-3.0",
-   "bytes": 1257457,
-   "version": "bc63588f28bf"
+   "bytes": 1325669,
+   "version": "47ef921cdd84"
   },
   {
    "id": "morph-la",
@@ -106,8 +106,8 @@
    "title": "Words – short English meanings",
    "source": "Whitaker's Words (W. Whitaker), free for any use",
    "license": "free (see LICENCE)",
-   "bytes": 1553549,
-   "version": "9afcc64863f2"
+   "bytes": 1659381,
+   "version": "2db57cc37baf"
   },
   {
    "id": "morph-la-ww",

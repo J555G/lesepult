@@ -303,7 +303,7 @@ async function showWord(word, opts = {}) {
   // a word from the text starts a new history (no pill until the next step inside the dictionary);
   // lookups from the dictionary itself and the search field go into the history – the same word again not twice
   const same = S.view && S.view.form === word && (S.view.ti ?? null) === (opts.ti ?? null);
-  if (opts.ti != null) S.hist = [];
+  if ((opts.ti != null && !opts.keep) || opts.fresh) S.hist = [];
   else if (S.view && !opts.replace && !same) { S.hist.push(S.view); if (S.hist.length > 200) S.hist.shift(); }
   S.fwd = [];
   S.view = { form: word, lemma: opts.lemma || null, openDict: opts.openDict || null, ti: opts.ti ?? null, tid: opts.ti != null ? S.text?.id : null, ref: opts.ti != null ? refAt(opts.ti) : null };
@@ -314,7 +314,7 @@ async function showWord(word, opts = {}) {
 }
 // ---- back and forward between entries: a slim bar at the top of the dictionary pane ("‹ λόγος" … "φημί ›");
 // holding it opens the whole history as a scrollable list
-const viewName = v => v ? (v.lemma || v.pick || v.form || '') : '';
+const viewName = v => v ? (v.search != null ? '“' + v.search + '”' : v.lemma || v.pick || v.form || '') : '';
 function refAt(i) { const R = S.refs || []; let r = null; for (const x of R) { if (x.i > i) break; r = x; } return r?.s || null; }
 function navButtons() {
   const bar = $('#dictNav'); if (!bar) return;
@@ -392,6 +392,7 @@ async function renderView() {
   const keep = S.lastRendered === v ? $('#dictPane').scrollTop : null;     // the same entry drawn again: stay where it is
   S.dictRendering = true;
   if (S.tsel) { S.tsel = null; paintTsel(); }
+  if (v.search != null) { S.lastRendered = v; await renderSearch(v, body); requestAnimationFrame(alignNav); if (keep != null) $('#dictPane').scrollTop = keep; else $('#dictPane').scrollTop = 0; return; }
   if (!S.dicts.length) { body.innerHTML = '<p class="hint">No dictionaries installed yet. Open the menu ☰ → Instruments → Dictionaries and import the packages (*.gdpkg.gz).</p>'; S.dictRendering = false; return; }
   const lang = langOf(v.form);
   const A = await analyses(v.form);
