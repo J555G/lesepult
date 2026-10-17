@@ -1272,9 +1272,10 @@ dialog .xsw{padding:.2rem 0}
 #menu button:disabled{color:var(--mut);opacity:.5;background:none;cursor:default}
 /* back and forward in the dictionary pane: a small pill in the top-right corner; the entry flows around it (only its
    first line is shortened) and it floats over the entry when scrolled. Hold it for the history (anchored beneath it). */
-#dictNav{position:sticky;top:6px;float:right;z-index:4;display:flex;margin:6px 6px 2px 8px;border:1px solid var(--line);border-radius:999px;background:color-mix(in srgb,var(--bg) 86%,transparent);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#dictNav{position:sticky;top:6px;float:right;z-index:4;display:flex;margin:0 6px 2px 8px;border:1px solid var(--line);border-radius:999px;background:color-mix(in srgb,var(--bg) 86%,transparent);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 #dictNav[hidden]{display:none}
-#dictNav .dnb{background:none;border:0;height:30px;min-width:36px;padding:0 .4rem;color:var(--fg);font-size:19px;line-height:1;border-radius:999px}
+#dictNav .dnb{background:none;border:0;height:28px;width:36px;min-width:0;padding:0;color:var(--fg);display:inline-flex;align-items:center;justify-content:center;line-height:0;border-radius:999px}
+#dictNav .dnb svg{display:block}
 #dictNav .dnb+.dnb{border-left:1px solid var(--line);border-radius:0 999px 999px 0}
 #dictNav .dnb:first-child{border-radius:999px 0 0 999px}
 #dictNav .dnb:disabled{color:var(--mut);opacity:.35;pointer-events:none}
@@ -1287,3 +1288,5 @@ dialog .xsw{padding:.2rem 0}
 #dictHist button i{margin-left:auto;font:12px var(--ui);color:var(--mut);font-style:normal}
 #dictHist button.on{background:color-mix(in srgb,var(--acc) 22%,transparent)}
 #dictHist button:hover{background:var(--bar)}
+#top #btnRead{display:inline-flex;align-items:center;justify-content:center;line-height:0}
+#top #btnRead svg{display:block}

@@ -317,7 +317,8 @@ function refAt(i) { const R = S.refs || []; let r = null; for (const x of R) { i
 function navButtons() {
   const bar = $('#dictNav'); if (!bar) return;
   const back = S.hist.at(-1), fwd = S.fwd?.at(-1), show = S.tab !== 'list' && S.tab !== 'map' && (back || fwd);
-  bar.hidden = !show; if (!show) { $('#dictHist').hidden = true; return; }
+  const was = bar.hidden; bar.hidden = !show; if (!show) { $('#dictHist').hidden = true; return; }
+  if (was) requestAnimationFrame(alignNav);
   const [b, f] = bar.querySelectorAll('.dnb');
   b.disabled = !back; f.disabled = !fwd;
   b.title = back ? `Back to ${viewName(back)} · hold for the history` : 'Hold for the history';
@@ -334,12 +335,31 @@ function histList() {
   const box = $('#dictHist'), L = [...S.hist, S.view, ...[...(S.fwd || [])].reverse()], cur = S.hist.length;
   box.innerHTML = L.map((v, k) => [v, k]).reverse().map(([v, k]) => `<button type="button" data-hk="${k}" class="${k === cur ? 'on' : ''}"><b>${esc(viewName(v))}</b>${v.form && viewName(v) !== v.form ? `<small>${esc(v.form)}</small>` : ''}<i>${v.ref ? esc(v.ref) : v.ti == null ? 'look-up' : ''}</i></button>`).join('');
   box.style.maxWidth = Math.min(352, Math.max(200, $('#dictPane').clientWidth - 16)) + 'px';      // never wider than the pane
+  box.style.maxHeight = '';
   box.hidden = false;
+  // never below the pane's bottom edge (on a phone the dictionary is the lower half of the screen)
+  const room = $('#dictPane').getBoundingClientRect().bottom - box.getBoundingClientRect().top - 10;
+  box.style.maxHeight = Math.max(120, Math.min(box.offsetHeight, room)) + 'px';
   const on = box.querySelector('.on'); if (on) box.scrollTop = on.offsetTop - box.clientHeight / 2 + on.offsetHeight / 2;
+}
+// the pill sits on the line of the headword and its chips (vertically centred on the headword), so it takes no room
+function alignNav() {
+  const bar = $('#dictNav'), form = $('#dictBody .vtop .form'), pane = $('#dictPane');
+  if (!bar || bar.hidden) return;
+  if (!form) { bar.style.marginTop = ''; return; }
+  bar.style.marginTop = '0px'; bar.style.position = 'static';            // (measured without its sticking)
+  const fr = form.getBoundingClientRect(), nr = bar.getBoundingClientRect();
+  const lh = parseFloat(getComputedStyle(form).lineHeight) || fr.height;        // the first line of the headword
+  const h1 = fr.height < lh * 1.6 ? fr.height : lh;                              // one line: its whole box
+  const off = Math.max(0, Math.round(fr.top + h1 / 2 - nr.height / 2 - nr.top));
+  bar.style.marginTop = off + 'px'; bar.style.position = '';
 }
 (function wireDictNav() {
   document.addEventListener('DOMContentLoaded', () => {
     const bar = $('#dictNav'); if (!bar) return;
+    let ar = 0; const later = () => { cancelAnimationFrame(ar); ar = requestAnimationFrame(alignNav); };
+    new MutationObserver(later).observe($('#dictBody'), { childList: true });
+    new ResizeObserver(later).observe($('#dictPane'));
     let t = 0, held = false;
     // (a disabled arrow does not get pointer events: the pill listens for both)
     bar.addEventListener('pointerdown', e => { if (e.target.closest('#dictHist')) return; held = false; clearTimeout(t); t = setTimeout(() => { held = true; histList(); }, 500); });
