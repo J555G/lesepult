@@ -557,8 +557,9 @@ dialog .dsec>.sh{margin-top:.2rem}
 }
 dialog .srow select{font:inherit;font-size:13.5px;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:.3rem 1.7rem .3rem .55rem;-webkit-appearance:none;appearance:none;
   background-image:linear-gradient(45deg,transparent 50%,var(--mut) 50%),linear-gradient(135deg,var(--mut) 50%,transparent 50%);background-position:right .8rem center,right .5rem center;background-size:.3rem .3rem;background-repeat:no-repeat}
-/* the title never overflows: the book name shortens with an ellipsis; text toggles a bit narrower on small screens */
-#textTitle .tb{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+/* the title never overflows: the work's title shortens with an ellipsis, the book and the section are always shown whole */
+#textTitle .tb{flex:none}
+#textTitle>.tw{flex:0 1 auto;min-width:1.5em}
 @media (max-width:900px){#top #btnGlossToggle,#top #btnGram{padding:0 .4rem}#top #btnGlossToggle .w1,#top #btnGram .w1{font-size:12.5px}}
 /* search box too narrow for its placeholder: a magnifying glass instead (only while empty) */
 #top #search{-webkit-appearance:none;appearance:none}
@@ -1266,3 +1267,4 @@ dialog details.subfold.shead>summary{font:600 14px var(--ui);color:var(--fg);pad
   #divider::before{left:-2px;right:-2px}
   @media (orientation:portrait){ #divider::before{left:33.33%;right:auto;top:-2px;bottom:-2px} }
 }
+#textTitle.short .tbf{display:none}#textTitle.short .tbs{display:inline}

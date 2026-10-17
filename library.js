@@ -432,6 +432,9 @@ function secRoom() {
   const sep = el.querySelector('.sep'), sepW = sep ? sep.getBoundingClientRect().width : c.measureText('› ').width;
   let w = 0; for (const r of new Set(R.map(r => r.s))) w = Math.max(w, c.measureText(r).width);
   el.style.minWidth = Math.ceil(w + sepW + 1) + 'px';
+  // little room left for the work's title: the book by its short name ("Book 5" -> "5")
+  const tt = $('#textTitle'), tw = tt.querySelector(':scope>.tw'); tt.classList.remove('short');
+  if (tw && tt.querySelector('.tbs') && tw.getBoundingClientRect().width < 90) tt.classList.add('short');
 }
 { let t = 0; addEventListener('resize', () => { clearTimeout(t); t = setTimeout(secRoom, 200); }); }
 function stripCommon(labels) {     // "Book 1", "Book 2" … -> "1", "2" …
