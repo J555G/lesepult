@@ -751,6 +751,7 @@ async function saveCorrection(v, quiet) {
 }
 function wireMapUI() {
   const box = $('#mapBody');
+  if (box._wired) return; box._wired = true;            // once: the map is rebuilt inside the same pane (packages changed, theme …)
   box.addEventListener('click', async ev => {
     const b = ev.target.closest('button,.mlbl'); if (!b) return;
     const d = b.dataset;
