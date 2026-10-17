@@ -171,17 +171,33 @@ function wire() {
     await setting('posCfg', S.posCfg); applyPosColors();
   });
   document.addEventListener('input', ev => { const c = ev.target.dataset?.posc; if (c) { S.posCfg[c] = Object.assign({}, S.posCfg[c], { c: ev.target.value }); applyPosColors(); syncPosRows(); } });
-  // Colourisation: hold a word (or right-click it) to choose its colour – the picker opens when the finger is lifted
+  // Colourisation: hold a word (or right-click it) – a row of colours opens beneath its group; "Other …" is the device's own picker
   { let t = null, x0 = 0, y0 = 0, chip = null;
-    const pick = b => { const i = b.parentElement.querySelector('input.cpick'); if (!i) return; try { i.showPicker(); } catch (_) { i.click(); } };
+    const PAL = ['#1f5fa8', '#2e7fd0', '#6a3fb0', '#8e44ad', '#2f8a4a', '#4b6b2a', '#0f8a8a', '#c0262d', '#e03c6a', '#b8476f', '#d9762b', '#b05a1f', '#9a7b00', '#7a6a2e', '#555599', '#8a8a8a', '#666666', '#b4b4b4'];
+    const close = () => document.querySelectorAll('#dlg .cpanel').forEach(x => x.remove());
+    const open = b => {
+      close(); const id = b.dataset.poson, cur = (S.posCfg[id]?.c || '').toLowerCase();
+      const pal = PAL.includes(cur) ? PAL : [cur, ...PAL];
+      b.closest('.cgrp').insertAdjacentHTML('beforeend', `<div class="cpanel" data-for="${id}"><span class="cpt">${posLab(id)}</span><div class="cpal">${pal.map(c => `<button type="button" class="cpsw${c === cur ? ' on' : ''}" data-pcol="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}<label class="cother">Other …<input type="color" data-posc="${id}" value="${cur}"></label></div><button type="button" class="cpx" aria-label="Close">✕</button></div>`);
+      b.closest('.cgrp').querySelector('.cpanel').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    };
     const stop = () => { clearTimeout(t); t = null; chip?.classList.remove('held'); };
-    document.addEventListener('pointerdown', e => { const b = e.target.closest?.('#dlg button.cchip'); if (!b || e.button > 0) return;
-      chip = b; b._held = false; x0 = e.clientX; y0 = e.clientY; clearTimeout(t); t = setTimeout(() => { b._held = true; b.classList.add('held'); }, 500); });
-    document.addEventListener('pointermove', e => { if (t && Math.hypot(e.clientX - x0, e.clientY - y0) > 10) { stop(); if (chip) chip._held = false; } });
-    document.addEventListener('pointerup', e => { const b = chip; stop(); chip = null; if (b?._held) { b._held = false; b._skip = true; pick(b); } });
-    document.addEventListener('pointercancel', () => { stop(); if (chip) chip._held = false; });
+    document.addEventListener('pointerdown', e => {
+      if (!e.target.closest?.('#dlg .cpanel, #dlg button.cchip')) close();
+      const b = e.target.closest?.('#dlg button.cchip'); if (!b) return; b._skip = false; if (e.button > 0) return;
+      chip = b; x0 = e.clientX; y0 = e.clientY; clearTimeout(t);
+      t = setTimeout(() => { t = null; b._skip = true; b.classList.add('held'); setTimeout(() => b.classList.remove('held'), 250); open(b); }, 500);
+    });
+    document.addEventListener('pointermove', e => { if (t && Math.hypot(e.clientX - x0, e.clientY - y0) > 12) stop(); });
+    document.addEventListener('pointerup', stop); document.addEventListener('pointercancel', stop);
     document.addEventListener('contextmenu', e => { const b = e.target.closest?.('#dlg button.cchip'); if (!b) return; e.preventDefault();
-      if (e.pointerType === 'mouse' || (!e.pointerType && !chip?._held && !t)) { b._skip = true; stop(); pick(b); setTimeout(() => { b._skip = false; }, 400); } });
+      if (!b._skip) { stop(); b._skip = true; open(b); } });
+    document.addEventListener('click', async e => {
+      if (e.target.closest?.('#dlg .cpx')) return close();
+      const sw = e.target.closest?.('#dlg [data-pcol]'); if (!sw) return;
+      const id = sw.closest('.cpanel').dataset.for; S.posCfg[id] = Object.assign({}, S.posCfg[id], { c: sw.dataset.pcol });
+      applyPosColors(); syncPosRows(); close(); await setting('posCfg', S.posCfg);
+    });
   }
   document.addEventListener('click', async ev => {
     if (ev.target.closest('[data-info]')) { const b = ev.target.closest('[data-info]'), t = b.nextElementSibling; t.hidden = !t.hidden; b.setAttribute('aria-expanded', !t.hidden); ev.preventDefault(); return; }

@@ -50,7 +50,7 @@ function chipGroupsHTML(kind) {
   const col = kind === 'pos', groups = col ? COL_GROUPS : GRAM_GROUPS, on = col ? posOnOf : id => !!S.gramCfg[id];
   return `<div class="chipcfg">` + groups.map(([g, ids], gi) => `<div class="cgrp"><button type="button" class="ghead" data-${kind}grp="${gi}" title="Switch the whole group on or off">${g}</button><div class="chips">`
     + ids.map(id => col
-      ? `<span class="cwrap"><button type="button" class="chip cchip" data-poson="${id}" aria-pressed="${on(id)}" style="--c:${S.posCfg[id]?.c}" title="Tap: on or off · hold: choose the colour">${posLab(id)}</button><input type="color" class="cpick" data-posc="${id}" value="${S.posCfg[id]?.c}" tabindex="-1" aria-label="Colour of ${posLab(id)}"></span>`
+      ? `<span class="cwrap"><button type="button" class="chip cchip" data-poson="${id}" aria-pressed="${on(id)}" style="--c:${S.posCfg[id]?.c}" title="Tap: on or off · hold: choose the colour">${posLab(id)}</button></span>`
       : `<button type="button" class="chip gchip" data-gramon="${id}" aria-pressed="${on(id)}">${posLab(id)}</button>`).join('')
     + `</div></div>`).join('') + `</div>`;
 }

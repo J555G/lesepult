@@ -1354,3 +1354,13 @@ dialog button.creset{position:relative;font:400 16px/1.2 var(--greek);padding:.2
 dialog .creset .rr{color:#c62828}dialog .creset .rg{color:#2e8b3e}dialog .creset .ry{color:#c9a000}dialog .creset .rb{color:#1f5fc8}
 :root[data-theme=dark] dialog .creset .rr{color:#ef5350}:root[data-theme=dark] dialog .creset .rg{color:#5cc06a}:root[data-theme=dark] dialog .creset .ry{color:#f2cc3a}:root[data-theme=dark] dialog .creset .rb{color:#5b9cf0}
 dialog .creset .tzrst{position:absolute;right:.32rem;top:.28rem;width:.75rem;height:.75rem;color:var(--mut)}
+
+/* the colours of one word class, opened by holding its word */
+dialog .cpanel{position:relative;margin-top:.5rem;padding:.55rem 2.2rem .6rem .65rem;border:1px solid var(--line);border-radius:9px;background:var(--bg)}
+dialog .cpanel .cpt{display:block;font:400 15px var(--greek);color:var(--mut);margin-bottom:.4rem}
+dialog .cpal{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
+dialog button.cpsw{width:1.9rem;height:1.9rem;min-width:0;padding:0;border-radius:50%;border:2px solid transparent;box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
+dialog button.cpsw.on{border-color:var(--fg)}
+dialog .cother{position:relative;display:inline-flex;align-items:center;font-size:13px;color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:.3rem .6rem;cursor:pointer;background:var(--card)}
+dialog .cother input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0}
+dialog .cpanel .cpx{position:absolute;right:.3rem;top:.3rem;border:0;background:none;color:var(--mut);padding:.2rem .45rem;min-width:0}
