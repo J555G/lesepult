@@ -101,8 +101,8 @@
    "files": [
     "relief/greece10.pmtiles"
    ],
-   "bytes": 20461410,
-   "v": "166363bf7235",
+   "bytes": 20459951,
+   "v": "f1549cf6053f",
    "group": "relief-greece",
    "parts": {
     "relief/greece10.pmtiles": 2
@@ -116,8 +116,8 @@
    "files": [
     "relief/greece11.pmtiles"
    ],
-   "bytes": 61423624,
-   "v": "9cc5d4c42ff5",
+   "bytes": 61420339,
+   "v": "7212a28bac31",
    "group": "relief-greece",
    "parts": {
     "relief/greece11.pmtiles": 4
@@ -131,8 +131,8 @@
    "files": [
     "relief/italy10.pmtiles"
    ],
-   "bytes": 36977992,
-   "v": "a4b48429e6f4",
+   "bytes": 36975156,
+   "v": "7261a8e3aad4",
    "group": "relief-italy",
    "parts": {
     "relief/italy10.pmtiles": 3
@@ -146,8 +146,8 @@
    "files": [
     "relief/italy11.pmtiles"
    ],
-   "bytes": 110705897,
-   "v": "d1dae2b001e7",
+   "bytes": 110706105,
+   "v": "e6b64d521354",
    "group": "relief-italy",
    "parts": {
     "relief/italy11.pmtiles": 7
@@ -161,11 +161,26 @@
    "files": [
     "relief/asiaminor10.pmtiles"
    ],
-   "bytes": 56045619,
-   "v": "966ba83bc4e5",
+   "bytes": 56043087,
+   "v": "72b258669075",
    "group": "relief-asiaminor",
    "parts": {
     "relief/asiaminor10.pmtiles": 4
+   },
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "relief-asiaminor11",
+   "name": "Relief – Asia Minor (detailed)",
+   "desc": "For zooming in close: the terrain exact to about 60 m (needs the overview)",
+   "files": [
+    "relief/asiaminor11.pmtiles"
+   ],
+   "bytes": 169139390,
+   "v": "bb74b100fbbb",
+   "group": "relief-asiaminor",
+   "parts": {
+    "relief/asiaminor11.pmtiles": 11
    },
    "url": "https://j555g.github.io/lesepult-maps/"
   },
@@ -176,11 +191,26 @@
    "files": [
     "relief/levant10.pmtiles"
    ],
-   "bytes": 55434869,
-   "v": "f258b0208a30",
+   "bytes": 55432042,
+   "v": "369538993cf5",
    "group": "relief-levant",
    "parts": {
     "relief/levant10.pmtiles": 4
+   },
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "relief-levant11",
+   "name": "Relief – Levant, Cyprus and Egypt (detailed)",
+   "desc": "For zooming in close: the terrain exact to about 60 m (needs the overview)",
+   "files": [
+    "relief/levant11.pmtiles"
+   ],
+   "bytes": 173842913,
+   "v": "8b871adc01cc",
+   "group": "relief-levant",
+   "parts": {
+    "relief/levant11.pmtiles": 11
    },
    "url": "https://j555g.github.io/lesepult-maps/"
   },
