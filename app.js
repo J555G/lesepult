@@ -171,7 +171,7 @@ function wire() {
     await setting('posCfg', S.posCfg); applyPosColors();
   });
   document.addEventListener('input', ev => { const c = ev.target.dataset?.posc; if (c) { S.posCfg[c] = Object.assign({}, S.posCfg[c], { c: ev.target.value }); applyPosColors(); syncPosRows(); } });
-  // Colourisation: hold a word (or right-click it) to choose its colour – the picker opens when the finger is lifted
+  // Colourization: hold a word (or right-click it) to choose its colour – the picker opens when the finger is lifted
   { let t = null, x0 = 0, y0 = 0, chip = null;
     const pick = b => { const i = b.parentElement.querySelector('input.cpick'); if (!i) return; try { i.showPicker(); } catch (_) { i.click(); } };
     const stop = () => { clearTimeout(t); t = null; chip?.classList.remove('held'); };
@@ -190,7 +190,7 @@ function wire() {
   });
   document.addEventListener('toggle', ev => { if (ev.target.matches?.('details.sgram')) S.gramOpen = ev.target.open; else if (ev.target.matches?.('details.scol')) S.colOpen = ev.target.open; }, true);
   document.addEventListener('toggle', async ev => { if (!ev.target.matches?.('details.ifold, details.subfold')) return; const f = (await setting('instFold')) || {}; f[ev.target.dataset.if] = ev.target.open; setting('instFold', f); }, true);
-  // the word-class buttons of the grammar line and the colourisation; a group heading: all on, or all off when all are on
+  // the word-class buttons of the grammar line and the colourization; a group heading: all on, or all off when all are on
   document.addEventListener('click', async ev => {
     const b = ev.target.closest?.('#dlg [data-gramon], #dlg [data-gramgrp], #dlg [data-poson], #dlg [data-posgrp]'); if (!b) return;
     const d = b.dataset;
