@@ -169,6 +169,26 @@ function pkRow({ sw = '', grip = '', name, desc = '', right = '', more = '', cls
 }
 const mbs = n => n >= 1e6 ? (n / 1e6).toFixed(n < 1e7 ? 1 : 0) + ' MB' : Math.round(n / 1e3) + ' kB';
 document.addEventListener('click', ev => { const t = ev.target.closest?.('#dlg .pkrow .t small'); if (t) t.classList.toggle('full'); });
+// Delete (in ⋯ of a package row): asked in the row itself, the dialog stays where it is
+document.addEventListener('click', async ev => {
+  const ask = ev.target.closest?.('#dlg [data-delask]'), no = ev.target.closest?.('#dlg [data-delno]'), ok = ev.target.closest?.('#dlg [data-dictdel]');
+  if (ask) {
+    const m = ask.closest('.pkmore'), [kind, id] = ask.dataset.delask.split(/:(.*)/s);
+    m._was = m.innerHTML;
+    m.innerHTML = `<span class="dask">Delete <b>${esc(ask.dataset.name || id)}</b> from this device?</span><button type="button" data-delno="1">Cancel</button>`
+      + `<button type="button" class="danger" ${kind === 'map' ? `data-mapdel="${esc(id)}"` : `data-dictdel="${esc(id)}"`}>Delete</button>`;
+    return;
+  }
+  if (no) { const m = no.closest('.pkmore'); m.innerHTML = m._was || ''; return; }
+  if (ok) {
+    const id = ok.dataset.dictdel, row = ok.closest('.pkrow');
+    if (DL.has(id)) return toast('Wait until the download has finished.');
+    ok.disabled = true; ok.textContent = 'Deleting …';
+    const name = S.installed[id]?.name || id;
+    await deleteDict(id); await loadDicts(); bucketCache.clear(); if (S.view) renderView();
+    row?.remove(); toast(name + ' deleted – it is listed under “Available” the next time Instruments is opened');
+  }
+});
 document.addEventListener('click', ev => { const b = ev.target.closest?.('#dlg [data-pkmore]'); if (!b) return; const m = b.closest('.pkrow').querySelector('.pkmore'); m.hidden = !m.hidden; b.classList.toggle('on', !m.hidden); });
 
 async function dictsDialog() {
@@ -185,7 +205,7 @@ async function dictsDialog() {
     if (!S.installed[id]) return `<button type="button" class="dlbtn" data-get="${id}" title="${mbs(p.bytes)}">Download</button>`;
     return S.installed[id].version !== p.version ? `<button type="button" class="dlbtn" data-get="${id}" title="${mbs(p.bytes)}">Update</button>` : '';
   };
-  const delMore = (id, what) => `<button type="button" class="danger" data-v="del:${id}">Delete from this device</button><small class="hint">${what}</small>`;
+  const delMore = (id, what) => `<button type="button" class="danger" data-delask="dict:${id}" data-name="${esc(S.installed[id]?.name || id)}">Delete</button><small class="hint">${what}</small>`;
   const srcOf = p => p.src || (['ls', 'georges', 'collatinus', 'morph-la', 'whitaker', 'morph-la-ww'].includes(p.id) ? 'la' : 'grc');
   const avail = (lang, kinds) => Object.values(remote).filter(p => !S.installed[p.id] && kinds(p) && srcOf(p) === lang)
     .map(p => pkRow({ name: esc(p.name), desc: `${esc(p.title || '')}${p.title ? ' · ' : ''}${mbs(p.bytes)}${p.priv ? ' · private repository' : ''}`, right: getBtn(p.id), cls: 'avail' })).join('');

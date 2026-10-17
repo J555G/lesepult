@@ -1290,3 +1290,5 @@ dialog .xsw{padding:.2rem 0}
 #dictHist button:hover{background:var(--bar)}
 #top #btnRead{display:inline-flex;align-items:center;justify-content:center;line-height:0}
 #top #btnRead svg{display:block}
+dialog .pkmore .dask{flex:1 1 100%;font-size:13px}
+dialog .pkmore .dask b{font-weight:600}
