@@ -96,9 +96,11 @@ function placeScore(p) {
 }
 const RANK_TOP = [30, 80, 200, 400, 800, 1600, 3200, 6400, 12800];   // places with rank 9, ≥ 8, ≥ 7 …
 function rankPlaces() {
-  if (!M.P) return;
+  if (!M.P?.full) return;                       // (reading only: the ranks stored with the place index)
   const P = M.P.P, sc = P.map(placeScore), ord = P.map((_, i) => i).sort((a, b) => sc[b] - sc[a]);
   ord.forEach((i, k) => { let w = 9; for (const n of RANK_TOP) { if (k < n) break; w--; } P[i].w = sc[i] > 0 ? w : 0; });
+  // keep the ranks with the place index, for reading without the map
+  if (M.P.ranks) { const r = Int8Array.from(P, p => p.w || 0); M.P.ranks = r; clearTimeout(M.rankT); M.rankT = setTimeout(() => plDB().then(db => db.transaction('meta', 'readwrite').objectStore('meta').put(r, 'ranks')).catch(() => { }), 1500); }
 }
 function recomputeSig() {
   if (!M.P) return;

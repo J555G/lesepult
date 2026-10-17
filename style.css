@@ -1231,3 +1231,4 @@ dialog .mpk .seg.lvl button{flex:1 1 50%!important;white-space:nowrap}
 #textBody .tchunk{display:flow-root}
 #textBody .tchunk>:first-child{margin-top:0}
 #textBody .tchunk>.blk.k-s:first-child,#textBody .tchunk>.blk.k-h:first-child{margin-top:.9em}
+dialog .pkbr{flex-basis:100%;height:0}

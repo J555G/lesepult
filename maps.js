@@ -86,7 +86,7 @@ async function downloadMapPkg(p, onp) {
   const inst = await mapInstalled(); inst[p.id] = p.v; await setting('mapPk', inst);
   // levels of detail of the same package (group): the one installed replaces the others
   if (p.group) for (const q of M.man?.packages || []) if (q.id !== p.id && q.group === p.group && inst[q.id]) await deleteMapPkg(q);
-  if (p.id === 'places') { M.P = null; M.sitesFC = null; await placesForText(); }
+  if (p.id === 'places') { M.P = null; M.sitesFC = null; await buildPlaceIndex().catch(() => { }); await placesForText(); }
   if ((/^ancient/.test(p.id) || /\.pmtiles$/.test(p.files[0])) && M.map) { M.map.remove(); M.map = null; M.ancLab = null; }
   for (const f of p.files) M.pmb?.delete(new URL(MAPS + f, location.href).href);
 }
@@ -96,7 +96,7 @@ async function deleteMapPkg(p) {
   const keep = new Set((M.man?.packages || []).filter(q => q.id !== p.id && inst[q.id]).flatMap(q => q.files));
   for (const f of p.files) if (!keep.has(f)) await c.delete(new URL(MAPS + f, location.href).href);
   delete inst[p.id]; await setting('mapPk', inst);
-  if (p.id === 'places') { M.P = null; M.hits = new Map(); markPlaces(); }
+  if (p.id === 'places') { await dropPlaceIndex(); M.hits = new Map(); markPlaces(); }
   if ((p.id === 'base' || /^ancient/.test(p.id) || /\.pmtiles$/.test(p.files[0])) && M.map) { M.map.remove(); M.map = null; M.ancLab = null; }
   for (const f of p.files) if (!keep.has(f)) M.pmb?.delete(new URL(MAPS + f, location.href).href);
   if (p.id === 'places') M.sitesFC = null;
@@ -110,6 +110,7 @@ async function mapSectionHTML() {
   const man = await mapManifest(); if (!man) return '';
   M.man = man;
   const inst = await mapInstalled(), off = await mapOff(), on = await mapsEnabled();
+  const pinfo = inst.places ? await placeIndexInfo() : null;
   const units = new Map();                                     // one row per package or per group of levels
   for (const p of man.packages) { const k = p.group || p.id; if (!units.has(k)) units.set(k, []); units.get(k).push(p); }
   const row = k => {
@@ -124,7 +125,7 @@ async function mapSectionHTML() {
     return `<div class="mpk${cur ? '' : ' avail'}" data-mk="${esc(k)}">` + pkRow({
       sw: cur && k !== 'base' ? SW(`data-mapsw="${cur.id}" aria-label="Use ${esc(name)}"`, !off[cur.id]) : '<span class="swsp"></span>',
       name: esc(name), desc: esc(p0.desc) + (ps.length > 1 ? '' : ' · ' + mbs(p0.bytes)) + (cur && off[cur.id] ? ' · <i>switched off</i>' : ''),
-      right, more: cur ? `<button type="button" class="danger" data-mapdel="${cur.id}">Delete from this device</button><small class="hint">${k === 'base' ? 'Without it the map cannot be shown.' : 'To keep it but not use it, switch it off.'}</small>` : '' }) + lv + '</div>';
+      right, more: cur ? (k === 'places' ? `<button type="button" data-pidx="1">Rebuild place index</button><small class="hint" id="pidxInfo">${pinfo?.built ? 'built ' + new Date(pinfo.built).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ` · ${pinfo.n.toLocaleString('en')} places` : 'not built yet – it is built when first needed'}</small><span class="pkbr"></span>` : '') + `<button type="button" class="danger" data-mapdel="${cur.id}">Delete from this device</button><small class="hint">${k === 'base' ? 'Without it the map cannot be shown.' : 'To keep it but not use it, switch it off.'}</small>` : '' }) + lv + '</div>';
   };
   const regions = [...units.keys()].filter(k => /^relief-/.test(k));
   const regFold = (await setting('instFold'))?.['map-reg'];
@@ -152,6 +153,18 @@ document.addEventListener('change', async ev => {
   const t = ev.target;
   if (t.dataset?.mapson) { await setting('mapsOn', t.checked); t.closest('section').querySelector('.mapgroups').hidden = !t.checked; await mapPkChanged(null); const sm = $('#dlg details[data-if="maps"] > summary small'); if (sm) sm.textContent = await mapSummary(); return; }
   if (t.dataset?.mapsw) { const id = t.dataset.mapsw, o = await mapOff(); if (t.checked) delete o[id]; else o[id] = true; await setting('mapOff', o); await mapPkChanged(id); await redrawMapSection(); }
+});
+document.addEventListener('click', async ev => {
+  const b = ev.target.closest?.('#dlg [data-pidx]'); if (!b || b.disabled) return;
+  b.disabled = true; b.classList.add('dlbtn', 'busy');
+  try {
+    const n = await buildPlaceIndex(f => { b.style.setProperty('--p', Math.round(f * 100) + '%'); b.textContent = `Building … ${Math.round(f * 100)} %`; });
+    const keepMap = !!M.map; M.sitesFC = null;
+    if (keepMap) await loadPlaceIndex(true);
+    await placesForText(); if (S.tab === 'map') refreshMapData();
+    toast(`Place index rebuilt: ${n.toLocaleString('en')} places`);
+  } catch (e) { toast('Could not rebuild the place index: ' + e.message, 4000); }
+  redrawMapSection();
 });
 document.addEventListener('click', async ev => {
   const g = ev.target.closest?.('[data-mapget]'), d = ev.target.closest?.('[data-mapdel]');
@@ -195,18 +208,45 @@ function stemKey(s) {
 }
 
 // ---------------------------------------------------------------- the gazetteer
-async function loadPlaceIndex() {
-  if (M.P) return M.P;
-  if (!(await mapHas('places'))) return null;
-  let d;
-  try { const r = await fetch(MAPS + 'places/places.json'); if (!r.ok) return null; d = await r.json(); } catch (_) { return null; }
-  const textT = new Set(d.textTypes), ex = new Map(), st = new Map(), byId = new Map();
+// The place index is built once from the Pleiades download (after downloading or updating it, or with "Rebuild place
+// index" in Instruments → Map) and kept in its own database on the device: the places, the names leading to them,
+// the ranks. Reading a text loads only the names that occur in it and their places; the whole gazetteer is loaded
+// only when the map is opened (it shows every place).
+const PL_DB = 'pult-places';
+let plDBp = null;
+function plDB() {
+  return plDBp ??= new Promise((res, rej) => {
+    const r = indexedDB.open(PL_DB, 1);
+    r.onupgradeneeded = () => { const d = r.result; d.createObjectStore('p'); d.createObjectStore('k'); d.createObjectStore('id'); d.createObjectStore('meta'); };
+    r.onsuccess = () => res(r.result); r.onerror = () => { plDBp = null; rej(r.error); };
+  });
+}
+// (kept in bundles: a few hundred large records are written much faster than 100,000 small ones)
+const PB = 512, KB = 1024, IB = 512;
+const plHash = k => { let h = 0; for (let n = 0; n < k.length; n++) h = (h * 31 + k.charCodeAt(n)) | 0; return (h >>> 0) % KB; };
+const plGet = async (st, k) => req2p((await plDB()).transaction(st).objectStore(st).get(k));
+async function plGetMany(st, keys) {
+  if (!keys.length) return [];
+  const os = (await plDB()).transaction(st).objectStore(st);
+  return Promise.all(keys.map(k => req2p(os.get(k))));
+}
+// a bundle of names (a few recent ones kept)
+async function plKey(k) {
+  const b = plHash(k), c = M.kb ??= new Map();
+  if (!c.has(b)) { c.set(b, plGet('k', b).then(r => r || {})); if (c.size > 1100) c.delete(c.keys().next().value); }
+  return (await c.get(b))[k] || null;
+}
+async function placeIndexInfo() { try { return await plGet('meta', 'info'); } catch (_) { return null; } }
+// build the index from places.json (onp: progress 0…1)
+async function buildPlaceIndex(onp) {
+  const r = await fetch(MAPS + 'places/places.json'); if (!r.ok) throw new Error('Ancient places: ' + r.status);
+  const d = await r.json(); onp?.(0.1);
+  const textT = new Set(d.textTypes), ex = new Map(), st = new Map();
   const mainT = new Set(MAIN_TYPES.map(t => d.types.indexOf(t)).filter(i => i >= 0));
   const okWord = w => w.length >= 3 && !/^[IVXLCDM]+\.?$/.test(w);
   const add = (m, k, i) => { if (!k) return; let a = m.get(k); if (!a) m.set(k, a = []); if (!a.includes(i)) a.push(i); };
-  const P = d.places.map(([id, t, lat, lon, ty, rough, y0, y1, names, w, pop, mc]) => ({ id, t, lat, lon, ty, rough, y0, y1, names, conn: w || 0, pop: pop || 0, mc: mc || 0, text: ty.some(x => textT.has(x)) }));
+  const P = d.places.map(([id, t, lat, lon, ty, rough, y0, y1, names, w, pop, mc], i) => ({ i, id, t, lat, lon, ty, rough, y0, y1, names, conn: w || 0, pop: pop || 0, mc: mc || 0, text: ty.some(x => textT.has(x)) }));
   P.forEach((p, i) => {
-    byId.set(p.id, p);
     // the title tells the period where the attestations do not ("Hellas (Late Roman province)")
     const from = /late roman/i.test(p.t) ? 284 : /byzantine/i.test(p.t) ? 500 : /roman imperial|roman province|\(roman\)/i.test(p.t) ? -30 : null;
     if (from != null) { p.y0 = Math.max(p.y0 ?? from, from); p.late = true; }
@@ -221,10 +261,63 @@ async function loadPlaceIndex() {
     }
   });
   const T = d.types, ti = Object.fromEntries(T.map((t, i) => [t, i]));
-  M.P = { P, ex, st, byId, T, ti, src: d.src, hasConn: P.some(p => p.conn > 0) };
-  await mapCfg(); await loadDevCounts(); rankPlaces();                                    // significance 0–9 (maplayers.js; weights in the map settings)
-  for (const r of await getAll('settings', IDBKeyRange.bound('pown|', 'pown|￿'))) M.own.set(r.v.id, r.v);
+  // the ranks (significance) with the present weights
+  const keep = M.P; M.P = { P, T, ti, full: true }; await mapCfg(); await loadDevCounts(); rankPlaces(); M.P = keep;
+  onp?.(0.2);
+  const db = await plDB();
+  await req2p((() => { const tx = db.transaction(['p', 'k', 'id', 'meta'], 'readwrite'); for (const s of ['p', 'k', 'id', 'meta']) tx.objectStore(s).clear(); return tx.objectStore('meta').count(); })());
+  const put = async (store, entries) => {
+    for (let n = 0; n < entries.length; n += 4000) {
+      await new Promise((res, rej) => { const tx = db.transaction(store, 'readwrite'), os = tx.objectStore(store); for (const [k, v] of entries.slice(n, n + 4000)) os.put(v, k); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+    }
+  };
+  const pb = []; for (const p of P) (pb[p.i / PB | 0] ??= []).push(p);
+  await put('p', pb.map((a, b) => [b, a])); onp?.(0.6);
+  const ib = []; for (const p of P) (ib[(typeof p.id === 'number' ? p.id : plHash(String(p.id))) % IB] ??= {})[p.id] = p.i;
+  await put('id', ib.map((o, b) => [b, o]).filter(x => x[1]));
+  const kb = []; for (const [pre, m] of [['e:', ex], ['s:', st]]) for (const [k, v] of m) (kb[plHash(pre + k)] ??= {})[pre + k] = v;
+  await put('k', kb.map((o, b) => [b, o]).filter(x => x[1])); onp?.(0.95);
+  const v = (await mapInstalled()).places || '';
+  await put('meta', [['info', { v, built: Date.now(), n: P.length, T, src: d.src, hasConn: P.some(p => p.conn > 0) }], ['ranks', Int8Array.from(P, p => p.w || 0)]]);
+  M.P = null; M.kc = null; M.kb = null; onp?.(1);
+  return P.length;
+}
+async function dropPlaceIndex() { M.P = null; M.kc = null; M.kb = null; try { const db = await plDB(); const tx = db.transaction(['p', 'k', 'id', 'meta'], 'readwrite'); for (const s of ['p', 'k', 'id', 'meta']) tx.objectStore(s).clear(); } catch (_) { } }
+// full: every place (for the map); otherwise only what is looked up (reading)
+async function loadPlaceIndex(full = false) {
+  if (M.P && (M.P.full || !full)) return M.P;
+  if (!(await mapHas('places'))) return null;
+  if (M.Pp) { await M.Pp; if (M.P && (M.P.full || !full)) return M.P; }
+  M.Pp = (async () => {
+    let info = await placeIndexInfo();
+    const v = (await mapInstalled()).places || '';
+    if (!info || info.v !== v) { try { await buildPlaceIndex(); } catch (_) { return null; } info = await placeIndexInfo(); }   // (first use, or after an update)
+    const ti = Object.fromEntries(info.T.map((t, i) => [t, i]));
+    const ranks = await plGet('meta', 'ranks');
+    if (full) {
+      const P = (await req2p((await plDB()).transaction('p').objectStore('p').getAll())).flat();
+      if (M.P?.P) M.P.P.forEach((p, i) => { if (p) P[i] = p; });             // places already in use stay the same objects
+      M.P = { P, byId: new Map(P.map(p => [p.id, p])), T: info.T, ti, src: info.src, hasConn: info.hasConn, full: true, ranks };
+      await mapCfg(); await loadDevCounts(); rankPlaces();
+    } else M.P = { P: [], byId: new Map(), T: info.T, ti, src: info.src, hasConn: info.hasConn, full: false, ranks };
+    for (const r of await getAll('settings', IDBKeyRange.bound('pown|', 'pown|￿'))) M.own.set(r.v.id, r.v);
+  })();
+  try { await M.Pp; } finally { M.Pp = null; }
   return M.P;
+}
+// places by number, read from the device when not yet loaded
+async function placesLoad(idx) {
+  const ix = M.P; if (!ix) return;
+  const need = [...new Set(idx)].filter(i => i != null && !ix.P[i]); if (!need.length) return;
+  const bs = [...new Set(need.map(i => i / PB | 0))], want = new Set(need);
+  for (const a of await plGetMany('p', bs)) for (const p of a || []) if (want.has(p.i)) { p.w = ix.ranks?.[p.i] ?? p.w; ix.P[p.i] = p; ix.byId.set(p.id, p); }   // (the rest of the bundle is let go)
+}
+async function placesLoadIds(ids) {
+  const ix = M.P; if (!ix) return;
+  const need = [...new Set(ids)].filter(id => id != null && !(typeof id === 'string' && id.startsWith('o')) && !ix.byId.has(id)); if (!need.length) return;
+  const bk = id => (typeof id === 'number' ? id : plHash(String(id))) % IB;
+  const bs = [...new Set(need.map(bk))], got = new Map((await plGetMany('id', bs)).map((o, k) => [bs[k], o || {}]));
+  await placesLoad(need.map(id => got.get(bk(id))[id]).filter(i => i != null));
 }
 const placeById = id => typeof id === 'string' && id.startsWith('o') ? M.own.get(id) : M.P?.byId.get(id);
 const hasType = (p, t) => p?.ty && M.P && p.ty.includes(M.P.ti[t]);
@@ -241,11 +334,15 @@ function typeLabel(p) {
 
 // ---------------------------------------------------------------- places in a text
 // exact name first; the stem (ending and spelling ignored) only for words without an analysis, and only for main places
-function placeCands(name, exactOnly) {
+async function placeCands(name, exactOnly) {
   const ix = M.P; if (!ix || !name) return [];
-  let c = ix.ex.get(exKey(name));
-  if (!c?.length && !exactOnly) c = (ix.st.get(stemKey(name)) || []).filter(i => ix.P[i].main);
-  return c ? c.slice(0, 40) : [];
+  const kc = M.kc ??= new Map();
+  const look = async k => { if (!kc.has(k)) kc.set(k, await plKey(k)); return kc.get(k); };
+  let c = await look('e:' + exKey(name));
+  if (!c?.length && !exactOnly) { c = await look('s:' + stemKey(name)); if (c) { await placesLoad(c.slice(0, 80)); c = c.filter(i => ix.P[i]?.main); } }
+  c = c ? c.slice(0, 40) : [];
+  await placesLoad(c);
+  return c;
 }
 // words around a name that say what it is: "Calycadni fluminis", "urbs …", "ποταμός", "ὄρος" …; or that it is a person
 const CUES = {
@@ -268,6 +365,11 @@ async function findPlaceHits(toks, lemmaOf) {
     if (tk.t === 'p') { if (/[.!?;·:]/.test(tk.s)) start = true; continue; }
     if (tk.t === 'w') { words.push({ tk, s0: start }); start = false; }
   }
+  // the bundles of names this text may need, read at once
+  { const c = M.kb ??= new Map(), bs = new Set();
+    for (const { tk } of words) if (tk.s[0] !== tk.s[0].toLowerCase()) for (const n of new Set([tk.s, tk.ctx?.l, tk.lemma].filter(Boolean))) { bs.add(plHash('e:' + exKey(n))); bs.add(plHash('s:' + stemKey(n))); }
+    const need = [...bs].filter(b => !c.has(b));
+    if (need.length) { const rs = plGetMany('k', need); need.forEach((b, k) => c.set(b, rs.then(a => a[k] || {}))); } }
   const keyAt = async k => { const w = words[k]; if (!w) return ''; const l = w.tk.ctx?.l || w.tk.lemma || (lemmaOf && w.tk.s[0] === w.tk.s[0].toLowerCase() ? await lemmaOf(w.tk) : null); return exKey(l || w.tk.s); };
   const out = [];
   for (let n = 0; n < words.length; n++) {
@@ -282,12 +384,13 @@ async function findPlaceHits(toks, lemmaOf) {
     if (/^[IVXLCDM]+$/.test(tk.s)) continue;                    // Roman numerals
     if (!l && s0 && (FUNC_WORDS.has(latkey(tk.s)) || tk.s.length <= 3)) continue;   // "Hic", "Quae" at the beginning of a sentence (no analysis)
     const name = l || tk.s;
-    const c = placeCands(name, !!l || s0);
+    const c = await placeCands(name, !!l || s0);
     if (!c.length) continue;
     let cue = null, person = false;
     for (const d of [-3, -2, -1, 1, 2, 3]) { const k = await keyAt(n + d); if (!k) continue; if (!cue && CUE.has(k)) cue = CUE.get(k); if (Math.abs(d) <= 2 && PERSON_CUES.has(k)) person = true; if (Math.abs(d) === 1 && TITLE_CUES.has(k) && k !== exKey(name)) person = true; }
-    out.push({ i: tk.i, name, c, cue, person, stem: !l && !placeCands(name, true).length });
+    out.push({ i: tk.i, name, c, cue, person, stem: !l && !(await placeCands(name, true)).length });
   }
+  M.kb = null;                                                     // (the bundles of names are let go; what was looked up stays)
   return out;
 }
 // what the dictionaries say a proper name is: a person or a place (only a hint – the reader decides)
@@ -320,6 +423,7 @@ async function choosePlaces(hits, textId, workKey, year) {
   const occ = new Map((await getAll('settings', IDBKeyRange.bound(`pl|${textId}|`, `pl|${textId}|￿`))).map(r => [+r.k.split('|')[2], r.v]));
   const wk = new Map((await getAll('settings', IDBKeyRange.bound(`plw|${workKey}|`, `plw|${workKey}|￿`))).map(r => [r.k.slice(`plw|${workKey}|`.length), r.v]));
   const gl = new Map((await getAll('settings', IDBKeyRange.bound('plg|', 'plg|￿'))).map(r => [r.k.slice(4), r.v]));
+  await placesLoadIds([...occ.values(), ...wk.values(), ...gl.values()].map(v => v?.p));     // the corrected places (read from the device)
   // 1. time: places first attested after the text's date are left out (unless nothing else is left)
   // (Pleiades dates by broad periods and not always completely: only clearly later places are left out)
   // natural features and regions are as old as the texts; the dates in the gazetteer are those of its sources
@@ -551,7 +655,7 @@ async function showMap1() {
   M.anc = M.ancFiles.size > 0;
   M.pkFiles = new Set([...M.files].filter(f => f.endsWith('.pmtiles')));
   M.step = 'names of regions'; M.ancLab = null; if (M.ancFiles.has('labels')) await loadAncientLabels();
-  M.step = 'gazetteer'; await loadPlaceIndex();
+  M.step = 'gazetteer'; await loadPlaceIndex(true);
   M.step = 'drawings'; await loadDrawings(); await dScopeUpdate();
   timeFor(S.text);
   if (!M.map) {
@@ -771,6 +875,7 @@ function changeHTML() {
 function searchPlaces(q) {
   const k = stemKey(q), e = exKey(q), out = [];
   if (!k && !e) return out;
+  if (!M.P?.full) { loadPlaceIndex(true).then(() => $('#mapSearch')?.dispatchEvent(new Event('input', { bubbles: true }))); return out; }   // (the whole gazetteer first)
   for (const p of M.P.P) {
     if (out.length > 30) break;
     if (exKey(p.t).startsWith(e) || p.names.some(n => exKey(n[0]).startsWith(e)) || (k && stemKey(p.t.split('/')[0]) === k)) out.push(p);
