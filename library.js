@@ -724,6 +724,7 @@ function wireReading() {
   document.addEventListener('pointerdown', e => {
     if (!document.body.classList.contains('reading')) return;
     const h = innerHeight;
+    if (e.target.closest?.('#tScroll')) return;                  // (the scroll handle)
     if (e.clientX > innerWidth - 40 && e.clientY > h / 3 && e.clientY < 2 * h / 3) { sw = { x: e.clientX, id: e.pointerId }; $('#readEdge').classList.add('pull'); }
   }, true);
   document.addEventListener('pointermove', e => {

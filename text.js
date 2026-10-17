@@ -448,3 +448,40 @@ const tzSave = () => { clearTimeout(tzSaveT); tzSaveT = setTimeout(() => setting
     const d = +b.dataset.tz; setTextZoom(d ? (S.tz || 1) * (d > 0 ? 1.1 : 1 / 1.1) : 1); tzSave();
   });
 })();
+// ---- touch screens: a scroll handle for the text pane with a wide grip (the browser's own indicator is hard to catch).
+// It appears while the text scrolls and fades after a moment; drag it to move quickly through the text.
+(function wireTextScrollHandle() {
+  if (!matchMedia('(pointer: coarse)').matches) return;
+  document.documentElement.classList.add('tsh');
+  const h = Object.assign(document.createElement('div'), { id: 'tScroll' }); h.innerHTML = '<i></i>';
+  let fade = 0, drag = null;
+  const place = () => {
+    const pane = $('#textPane'); if (!pane) return;
+    const r = pane.getBoundingClientRect(), max = pane.scrollHeight - pane.clientHeight;
+    if (max < pane.clientHeight * 0.5 || r.width < 40 || getComputedStyle(pane).visibility === 'hidden') { h.classList.remove('show'); return; }
+    const th = Math.max(44, Math.min(r.height * 0.25, r.height * pane.clientHeight / pane.scrollHeight)), track = r.height - th - 8;
+    h.style.height = th + 'px';
+    h.style.left = (r.right - 34) + 'px';
+    h.style.top = (r.top + 4 + track * (pane.scrollTop / max)) + 'px';
+    h._track = track; h._th = th;
+  };
+  const show = () => { place(); h.classList.add('show'); clearTimeout(fade); if (!drag) fade = setTimeout(() => h.classList.remove('show'), 1400); };
+  document.addEventListener('DOMContentLoaded', () => {
+    document.body.append(h);
+    $('#textPane').addEventListener('scroll', () => { if (!drag) show(); else place(); }, { passive: true });
+  });
+  h.addEventListener('pointerdown', e => {
+    if (!h.classList.contains('show')) return;
+    e.preventDefault(); e.stopPropagation(); h.setPointerCapture(e.pointerId);
+    drag = { y: e.clientY - h.getBoundingClientRect().top }; h.classList.add('drag'); clearTimeout(fade); S.tGuard = null;
+  });
+  h.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const pane = $('#textPane'), r = pane.getBoundingClientRect(), max = pane.scrollHeight - pane.clientHeight;
+    const f = Math.max(0, Math.min(1, (e.clientY - drag.y - r.top - 4) / h._track));
+    pane.scrollTop = f * max;
+  });
+  const end = () => { if (!drag) return; drag = null; h.classList.remove('drag'); show(); updateSecTitle?.(); saveReadPos(); };
+  h.addEventListener('pointerup', end); h.addEventListener('pointercancel', end);
+  h.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+})();
