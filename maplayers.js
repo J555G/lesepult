@@ -392,16 +392,18 @@ function setView(a, b) {
   M.cfg.tView = [Math.round(a), Math.round(a + span)];
   renderTime(); clearTimeout(M.tvT); M.tvT = setTimeout(saveMapCfg, 400);
 }
+// the whole bar (and a margin around it) takes the touches: two fingers anywhere on it zoom the line, one finger works the line
 function wireTime() {
-  const tr = $('#mapTrack'); if (!tr || tr._w) return; tr._w = true;
+  const tr = $('#mapTrack'), bar = $('#mapTime'); if (!tr || tr._w) return; tr._w = true;
   const yRaw = x => { const r = tr.getBoundingClientRect(), [a, b] = tView(); return a + (x - r.left) / r.width * (b - a); };
   const yAt = x => snapY(yRaw(x));
   const xAt = y => { const r = tr.getBoundingClientRect(); return r.left + tPct(y) / 100 * r.width; };
   const ptrs = new Map();
   let drag = null, lp = null, pinch = null;
-  tr.addEventListener('pointerdown', ev => {
+  bar.addEventListener('pointerdown', ev => {
+    if (ev.target.closest('button,input,a')) return;                // (the buttons of the bar keep their taps)
     ev.preventDefault();
-    ptrs.set(ev.pointerId, ev.clientX); tr.setPointerCapture(ev.pointerId);
+    ptrs.set(ev.pointerId, ev.clientX); bar.setPointerCapture(ev.pointerId);
     if (ptrs.size === 2) {                                         // two fingers: zoom the scale (what was moved is put back)
       clearTimeout(lp); if (drag?.r0 && drag.k != null && M.T.ranges[drag.k]) { M.T.ranges[drag.k] = [...drag.r0]; timeChanged(); }
       drag = null;
@@ -410,7 +412,7 @@ function wireTime() {
       return;
     }
     if (ptrs.size > 2) return;
-    const R = M.T.ranges, y = yAt(ev.clientX), reach = ev.pointerType === 'mouse' ? 10 : 22;
+    const R = M.T.ranges, y = yAt(ev.clientX), reach = ev.pointerType === 'mouse' ? 14 : 30;
     // the nearest end, if the finger is on it; otherwise inside a period: the period (moved by dragging, split by holding)
     // (the reach of an end is at most a third of its period, so that the inside of a short period can still be held)
     let best = null; R.forEach(([a, b], k) => { const rc = a === b ? reach : Math.min(reach, (xAt(b) - xAt(a)) / 3); for (const [e, v] of [[0, a], [1, b]]) { const d = Math.abs(xAt(v) - ev.clientX); if (d <= rc && (!best || d < best.d)) best = { k, e, d }; } });
@@ -429,7 +431,7 @@ function wireTime() {
       navigator.vibrate?.(15); drag = null; timeChanged();
     }, 550);
   });
-  tr.addEventListener('pointermove', ev => {
+  bar.addEventListener('pointermove', ev => {
     if (!ptrs.has(ev.pointerId)) return;
     ptrs.set(ev.pointerId, ev.clientX);
     if (pinch && ptrs.size >= 2) {
@@ -446,8 +448,15 @@ function wireTime() {
     const y = yAt(Math.max(tb.left, Math.min(tb.right, ev.clientX))), r = M.T.ranges[drag.k]; if (!r) return;
     const [lo, hi] = TLIM();
     if (drag.e === 'm') { const d = y - drag.y0, w = drag.r0[1] - drag.r0[0], a = Math.max(lo, Math.min(hi - w, drag.r0[0] + d)); r[0] = a; r[1] = a + w; }
-    else if (r[0] === r[1]) { r[0] = r[1] = y; }
-    else { r[drag.e] = y; if (r[0] > r[1]) { r.reverse(); drag.e = 1 - drag.e; } }
+    else {
+      // an end that comes close to another end (of its own period or of the next) snaps onto it: they join when let go
+      const near = ev.pointerType === 'mouse' ? 10 : 16, x = xAt(y);
+      let yy = y, bd = near + 1;
+      M.T.ranges.forEach(([a, b], k) => [[0, a], [1, b]].forEach(([e, v]) => { if (k === drag.k && (e === drag.e || r[0] === r[1])) return; const d = Math.abs(xAt(v) - x); if (d <= near && d < bd) { bd = d; yy = v; } }));
+      if (yy !== y && !drag.snap) navigator.vibrate?.(8); drag.snap = yy !== y;
+      if (r[0] === r[1]) { r[0] = r[1] = yy; }
+      else { r[drag.e] = yy; if (r[0] > r[1]) { r.reverse(); drag.e = 1 - drag.e; } }
+    }
     timeChanged();
   });
   const up = ev => {
@@ -458,16 +467,16 @@ function wireTime() {
     if (d.pan) { if (!d.moved && !M.T.ranges.length) { M.T.ranges = [[d.y, d.y]]; timeChanged(true); } return; }   // a tap on the empty line: a date (when none is set)
     normRanges(); timeChanged(true);
   };
-  tr.addEventListener('pointerup', up); tr.addEventListener('pointercancel', up);
+  bar.addEventListener('pointerup', up); bar.addEventListener('pointercancel', up);
   // mouse: the wheel zooms around the pointer (sideways: moves); a double click shows the whole range
-  tr.addEventListener('wheel', ev => {
+  bar.addEventListener('wheel', ev => {
     ev.preventDefault();
     const r = tr.getBoundingClientRect(), [a, b] = tView(), span = b - a;
     if (Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) { const d = ev.deltaX / r.width * span; setView(a + d, b + d); return; }
     const y = yRaw(ev.clientX), f = (ev.clientX - r.left) / r.width, ns = span * Math.exp(ev.deltaY * 0.0015);
     setView(y - f * ns, y - f * ns + ns);
   }, { passive: false });
-  tr.addEventListener('dblclick', () => { const [lo, hi] = TLIM(); setView(lo, hi); });
+  bar.addEventListener('dblclick', ev => { if (ev.target.closest('button,input')) return; const [lo, hi] = TLIM(); setView(lo, hi); });
   new ResizeObserver(() => { if (M.cfg?.time) renderTime(); }).observe(tr);
 }
 // the date of the work: the author's date, or what the reader set (for this work, remembered)

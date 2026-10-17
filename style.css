@@ -919,6 +919,8 @@ body.gram #textBody .w>.gm:empty{padding-right:0}
 /* the time slider */
 .mtime{position:absolute;left:8px;right:56px;bottom:22px;z-index:3;background:color-mix(in srgb,var(--card) 94%,transparent);border:1px solid var(--line);border-radius:10px;padding:.35rem .6rem .25rem;font:13px var(--ui);user-select:none;-webkit-user-select:none}
 .mtime[hidden]{display:none}
+.mtime{touch-action:none}
+.mtime::after{content:"";position:absolute;inset:-16px -6px;z-index:-1}   /* a margin around the bar that takes touches too */
 .mtl{display:flex;align-items:center;gap:.5rem;min-height:24px}
 .mtv{font-weight:600;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .mtv small,.mtw small{font-weight:400;color:var(--mut)}
