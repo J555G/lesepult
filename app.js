@@ -105,7 +105,7 @@ function wire() {
   $('#tabList').onclick = async () => {
     if (!$('#listBody').hidden) return;
     showTab('list'); await renderList();
-    const y = S.listScroll?.id === S.text?.id ? S.listScroll.y : 0;
+    const y = S.listScroll && S.listScroll.id === S.text?.id ? S.listScroll.y : 0;   // (no text open: undefined === undefined)
     $('#dictPane').scrollTop = y; requestAnimationFrame(() => { $('#dictPane').scrollTop = y; releaseTabSw(); });
   };
   // when "Look up a word…" does not fit into the search box, a magnifying glass stands in for it
