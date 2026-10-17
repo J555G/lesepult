@@ -535,6 +535,84 @@
    "url": "https://j555g.github.io/lesepult-maps/"
   },
   {
+   "id": "ne2-arctic5",
+   "name": "Natural Earth II – Arctic (Basic)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/arctic5.pmtiles"
+   ],
+   "bytes": 1009725,
+   "v": "9f61189b1d18",
+   "group": "ne2-arctic",
+   "lvl": "Basic",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-arctic6",
+   "name": "Natural Earth II – Arctic (Medium)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/arctic6.pmtiles"
+   ],
+   "bytes": 3101878,
+   "v": "120d6e333a06",
+   "group": "ne2-arctic",
+   "lvl": "Medium",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-arctic7",
+   "name": "Natural Earth II – Arctic (Detailed)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/arctic7.pmtiles"
+   ],
+   "bytes": 7934735,
+   "v": "acd53daff0f4",
+   "group": "ne2-arctic",
+   "lvl": "Detailed",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-antarctica5",
+   "name": "Natural Earth II – Antarctica (Basic)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/antarctica5.pmtiles"
+   ],
+   "bytes": 797446,
+   "v": "100c512fb1b5",
+   "group": "ne2-antarctica",
+   "lvl": "Basic",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-antarctica6",
+   "name": "Natural Earth II – Antarctica (Medium)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/antarctica6.pmtiles"
+   ],
+   "bytes": 2690656,
+   "v": "dafbe1d3afec",
+   "group": "ne2-antarctica",
+   "lvl": "Medium",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2-antarctica7",
+   "name": "Natural Earth II – Antarctica (Detailed)",
+   "desc": "Sharp up to zoom 5 (Basic), 6 (Medium) or 7 (Detailed); needs Natural Earth II",
+   "files": [
+    "ne2/antarctica7.pmtiles"
+   ],
+   "bytes": 7630323,
+   "v": "63c7e7ee8f01",
+   "group": "ne2-antarctica",
+   "lvl": "Detailed",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
    "id": "landscape",
    "name": "Landscape – detailed",
    "desc": "Coasts and lakes as exact as OpenStreetMap (edited by the Ancient World Mapping Center, ODbL), rivers and modern borders without simplification – for zooming in close (the base map is simplified)",
