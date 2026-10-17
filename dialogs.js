@@ -275,12 +275,13 @@ async function dictsDialog() {
   const avail = (lang, kinds) => Object.values(remote).filter(p => !S.installed[p.id] && kinds(p) && srcOf(p) === lang)
     .map(p => pkRow({ grip: kinds.spacer || '', name: esc(p.name), desc: `${esc(p.title || '')}${p.title ? ' · ' : ''}${mbs(p.bytes)}${p.priv ? ' · private repository' : ''}`, right: getBtn(p.id), cls: 'avail' })).join('');
   // 1. dictionaries, by language: ⠿ to reorder, the switch to use, ▸/▾ folded or open when a word is looked up
-  const dictRows = lang => S.dicts.filter(d => d.src === lang).map(d => pkRow({ id: d.id, cls: 'dictrow',
+  const dictRows = lang => S.dicts.filter(d => d.src === lang).map(dictRow).join('');
+  function dictRow(d) { return pkRow({ id: d.id, cls: 'dictrow',
     grip: '<span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span>',
     sw: SW(`data-dict-on="${d.id}" aria-label="Use ${esc(d.name)}"`, !S.dictPrefs.off.includes(d.id)),
     name: esc(d.name), desc: `${esc(d.title || '')}${d.size ? ' · ' + mbs(d.size) : ''}`,
     right: `<button type="button" class="chev${S.dictPrefs.open.includes(d.id) ? ' on' : ''}" data-dict-fold="${d.id}" title="${S.dictPrefs.open.includes(d.id) ? 'Open when a word is looked up' : 'Folded when a word is looked up'}" aria-label="Open or folded when a word is looked up">${S.dictPrefs.open.includes(d.id) ? '▾' : '▸'}</button>${getBtn(d.id)}`,
-    del: delD(d.id) })).join('');
+    del: delD(d.id) }); }
   const privState = privCfgNow.token ? (S.privErr ? '<span class="bad">' + esc(S.privErr) + '</span>' : '<span class="ok">connected</span>') : 'not connected';
   const nD = lang => S.dicts.filter(d => d.src === lang).length;
   // installed and available dictionaries of a language in one list (available ones last, with Download)
@@ -294,9 +295,18 @@ async function dictsDialog() {
   const useRow = (lang, d, sub) => pkRow({ id: d.id, sw: `<label class="trad"><input type="radio" name="use-${lang}" data-uselang="${lang}" value="${d.id}"${!S.dictPrefs.off.includes(d.id) && langTools(lang).find(x => !S.dictPrefs.off.includes(x.id)) === d ? ' checked' : ''}><i></i></label>`,
     name: esc(d.name), desc: sub, right: getBtn(d.id), del: delD(d.id) });
   const tLang = { grc: [], la: [] };
-  for (const d of langTools('grc')) tLang.grc.push(useRow('grc', d, `lemma and form of every word${d.count ? ' · ' + d.count.toLocaleString('en') + ' forms' : ''}${d.size ? ' · ' + mbs(d.size) : ''}`));
-  for (const d of langTools('la')) tLang.la.push(useRow('la', d, `lemma and form of every word${d.count ? ' · ' + d.count.toLocaleString('en') + ' lemmata' : ''}${d.size ? ' · ' + mbs(d.size) : ''}`));
+  const toolRow = (lang, d) => useRow(lang, d, `lemma and form of every word${d.count ? ' · ' + d.count.toLocaleString('en') + (lang === 'la' ? ' lemmata' : ' forms') : ''}${d.size ? ' · ' + mbs(d.size) : ''}`);
+  for (const d of langTools('grc')) tLang.grc.push(toolRow('grc', d));
+  for (const d of langTools('la')) tLang.la.push(toolRow('la', d));
   const none = lang => `<div class="item pkrow"><label class="trad"><input type="radio" name="use-${lang}" data-uselang="${lang}" value=""${langTools(lang).some(x => !S.dictPrefs.off.includes(x.id)) ? '' : ' checked'}><i></i></label><span class="t"><b>None</b><small>no analysis</small></span></div>`;
+  const hintsRow = () => pkRow({ id: S.hintsInst.id, sw: SW(`data-dict-on="${S.hintsInst.id}"`, !S.dictPrefs.off.includes(S.hintsInst.id)), name: esc(S.hintsInst.name), desc: 'preferred lemma for ambiguous forms; word classes for the colours', right: getBtn(S.hintsInst.id), del: delD(S.hintsInst.id) });
+  // after a download: the package's row becomes an installed one in place (the menu stays open)
+  S.instRow = id => { const d = S.installed[id]; if (!d) return '';
+    if (d.kind === 'dictionary') return dictRow(d);
+    if (d.kind === 'morph') return toolRow('grc', d);
+    if (d.kind === 'latmorph') return toolRow('la', d);
+    if (d.kind === 'morphhints') return hintsRow();
+    return ''; };
   const addons = { grc: S.hintsInst ? pkRow({ id: S.hintsInst.id, sw: SW(`data-dict-on="${S.hintsInst.id}"`, !S.dictPrefs.off.includes(S.hintsInst.id)), name: esc(S.hintsInst.name), desc: 'preferred lemma for ambiguous forms; word classes for the colours', right: getBtn(S.hintsInst.id), del: delD(S.hintsInst.id) }) : '', la: '' };
   const usedName = lang => langTools(lang).find(x => !S.dictPrefs.off.includes(x.id))?.name || 'none';
   const isTool = Object.assign(p => p.kind !== 'dictionary', { spacer: '<span class="trsp"></span>' });
@@ -319,6 +329,11 @@ async function dictsDialog() {
       const tools = langTools(lang), used = tools.find(x => !S.dictPrefs.off.includes(x.id));
       f.querySelectorAll(`input[data-uselang="${lang}"]`).forEach(i => { i.checked = i.value === (used?.id || ''); });
       if (!tools.length) f.querySelector(`input[data-uselang="${lang}"][value=""]`)?.closest('.pkrow')?.remove();
+      else if (!f.querySelector(`input[data-uselang="${lang}"][value=""]`)) {        // the first analysis of a language: "None" beneath it
+        const last = [...f.querySelectorAll(`input[data-uselang="${lang}"]`)].pop()?.closest('.pkrow');
+        last?.insertAdjacentHTML('afterend', none(lang));
+        const ch = f.querySelector(`input[data-uselang="${lang}"][value="${used?.id || ''}"]`); if (ch) ch.checked = true;
+      }
     }
   };
   const r = await dialog(pagedHTML('inst', 'Instruments', rows, { dict: dictBody, tools: toolBody, ...(mapBody ? { maps: mapBody } : {}) },
@@ -500,15 +515,19 @@ async function runDownloads() {
       DL.delete(id); paintDL(id, 'Up to date');
       document.querySelectorAll(`#dlg [data-dl="${id}"]`).forEach(b => { b.classList.remove('busy'); b.style.removeProperty('--p'); });
       toast(`${p.name} installed`);
+      await loadDicts(); bucketCache.clear();
+      // the open Instruments menu: the row becomes an installed one where it is, the summaries follow (no redraw of the menu)
+      if ($('#dlg').open && $('#dlgForm .dlghead[data-menu="inst"]') && S.instRow) {
+        const html = S.instRow(id);
+        document.querySelectorAll(`#dlg [data-dl="${id}"]`).forEach(b => { const row = b.closest('.pkrow'); if (row && html) row.outerHTML = html; });
+        S.instAfterDel?.();
+      }
     } catch (e) { DL.delete(id); toast(`${p?.name || id}: download failed (${e.message})`, 4000); paintDL(id, 'Failed'); }
     await loadDicts(); bucketCache.clear();
   }
   dlRunning = false;
   if (!dicts) return;
   if (S.view) renderView(); resetTokens(); resolveTokens();
-  // refresh the open Dictionaries dialog so the new entries get their Delete button and size
-  const d = $('#dlg');
-  if (d.open && $('#dlgForm .dlghead[data-menu="inst"]')) { d.close(); dictsDialog(); }
 }
 // ids: download exactly these packages; without ids: everything that is new or changed (first start)
 async function syncPackages(ids = null) {
