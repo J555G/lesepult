@@ -1467,7 +1467,7 @@ async function dictsDialog() {
   const addons = { grc: S.hintsInst ? pkRow({ id: S.hintsInst.id, sw: SW(`data-dict-on="${S.hintsInst.id}"`, !S.dictPrefs.off.includes(S.hintsInst.id)), name: esc(S.hintsInst.name), desc: 'preferred lemma for ambiguous forms; word classes for the colours', right: getBtn(S.hintsInst.id), more: delMore(S.hintsInst.id, '') }) : '', la: '' };
   const usedName = lang => langTools(lang).find(x => !S.dictPrefs.off.includes(x.id))?.name || 'none';
   const toolBody = Object.entries(LANGS).map(([lang, name]) => { const av = avail(lang, p => p.kind !== 'dictionary');
-      return `<div class="navh2">${name}</div><div class="navh3">Use</div><div class="list plain">${tLang[lang].join('')}${tLang[lang].length ? none(lang) : '<p class="hint small">None installed.</p>'}</div>`
+      return `<div class="navh2">${name}</div><div class="list plain">${tLang[lang].join('')}${tLang[lang].length ? none(lang) : '<p class="hint small">None installed.</p>'}</div>`
         + (addons[lang] ? `<div class="navh3">Add-ons</div><div class="list plain">${addons[lang]}</div>` : '') + (av ? `<div class="navh3">Available</div><div class="list plain">${av}</div>` : ''); }).join('')
     + `<p class="hint small">The language of each word follows from its alphabet.</p>`;
   // 3. the map

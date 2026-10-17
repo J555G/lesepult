@@ -1152,7 +1152,7 @@ label.trad input:checked+i{border-color:var(--acc);box-shadow:inset 0 0 0 .22rem
 label.tsw input:focus-visible+i,label.trad input:focus-visible+i{outline:2px solid var(--acc);outline-offset:2px}
 dialog .navh2{font:600 14px var(--ui);margin:.8rem 0 .2rem}
 dialog .dsec>.navh2:first-child{margin-top:.2rem}
-dialog .navh3{font:600 12px var(--ui);color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin:.55rem 0 .1rem}
+dialog .navh3{font:500 13px var(--ui);color:var(--mut);margin:.6rem 0 .05rem}
 dialog .pkrow{flex-wrap:wrap;gap:.55rem}
 dialog .pkrow .t{min-width:0}
 dialog .pkrow .t b{font-weight:600}

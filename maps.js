@@ -62,7 +62,7 @@ async function mapInstalled() {
   return inst;
 }
 // switched off in Instruments → Map (kept on the device, not used) · the whole map switched off (no button, no place recognition)
-async function mapOff() { return (await setting('mapOff')) || {}; }
+async function mapOff() { const o = (await setting('mapOff')) || {}; delete o.base; return o; }
 async function mapsEnabled() { return (await setting('mapsOn')) !== false; }
 async function mapHas(id) { return !!(await mapInstalled())[id] && !(await mapOff())[id]; }
 async function downloadMapPkg(p, onp) {
@@ -122,7 +122,7 @@ async function mapSectionHTML() {
       : !cur ? (ps.length > 1 ? '' : `<button type="button" class="dlbtn" data-mapget="${p0.id}">Download</button>`)
       : inst[cur.id] !== cur.v ? `<button type="button" class="dlbtn" data-mapget="${cur.id}">Update</button>` : '';
     return `<div class="mpk${cur ? '' : ' avail'}" data-mk="${esc(k)}">` + pkRow({
-      sw: cur ? SW(`data-mapsw="${cur.id}" aria-label="Use ${esc(name)}"`, !off[cur.id]) : '<span class="swsp"></span>',
+      sw: cur && k !== 'base' ? SW(`data-mapsw="${cur.id}" aria-label="Use ${esc(name)}"`, !off[cur.id]) : '<span class="swsp"></span>',
       name: esc(name), desc: esc(p0.desc) + (ps.length > 1 ? '' : ' · ' + mbs(p0.bytes)) + (cur && off[cur.id] ? ' · <i>switched off</i>' : ''),
       right, more: cur ? `<button type="button" class="danger" data-mapdel="${cur.id}">Delete from this device</button><small class="hint">${k === 'base' ? 'Without it the map cannot be shown.' : 'To keep it but not use it, switch it off.'}</small>` : '' }) + lv + '</div>';
   };
@@ -538,7 +538,7 @@ async function showMap1() {
   const box = $('#mapBody');
   M.step = 'packages';
   if (!(await mapHas('base'))) {                                     // the only package the map cannot do without
-    box.innerHTML = `<div class="mapmsg"><p>${EUROPE_ICON}</p><p>The map needs the download <b>Base map</b>${(await mapInstalled()).base ? ' (switched off)' : ''}.</p><button type="button" data-mapdl="1">Open Instruments → Map</button></div>`;
+    box.innerHTML = `<div class="mapmsg"><p>${EUROPE_ICON}</p><p>The map needs the download <b>Base map</b>.</p><button type="button" data-mapdl="1">Open Instruments → Map</button></div>`;
     return;
   }
   M.step = 'settings'; await mapCfg();
