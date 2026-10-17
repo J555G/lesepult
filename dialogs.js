@@ -397,7 +397,6 @@ async function settingsDialog(focus) {
   const seg = (k, cur, opts) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button type="button" class="${cur === v ? 'on' : ''}" data-setk="${k}" data-setv="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div>`;
   const line = (label, ctl, hint = '') => `<div class="mline"><span>${label}${hint ? `<small class="hint">${hint}</small>` : ''}</span>${ctl}</div>`;
   let ver = '–'; try { const ks = (await caches.keys()).filter(k => k.startsWith('lesepult-v')).map(k => +k.split('-v')[1]); if (ks.length) ver = Math.max(...ks); } catch (_) { }
-  const posRows = POS.map(([id, label]) => `<div class="item posrow"><label class="t"><input type="checkbox" data-poson="${id}"${S.posCfg[id]?.on !== false ? ' checked' : ''}> ${label}</label><input type="color" data-posc="${id}" value="${S.posCfg[id]?.c}"></div>`).join('');
   const fold = (await setting('instFold')) || {};
   const want = { colours: 'read', grammar: 'read', map: 'map' }[focus];
   const sec = (k, title, sub, body) => `<details class="ifold" data-if="set-${k}"${(want ? want === k : fold['set-' + k]) ? ' open' : ''}><summary><b>${title}</b><small>${sub}</small></summary><section class="dsec">${body}</section></details>`;
@@ -406,9 +405,9 @@ async function settingsDialog(focus) {
   const hasMap = typeof settingsHTML === 'function';
   if (hasMap) await mapCfg();
   const reading = line('Text size', `<div class="tzrow"><button type="button" data-tz="-7" aria-label="Smaller by 7 %">A−−</button><button type="button" data-tz="-1" aria-label="Smaller by 1 %">A−</button><span id="tzVal">${Math.round((S.tz || 1) * 100)} %</span><button type="button" data-tz="1" aria-label="Larger by 1 %">A+</button><button type="button" data-tz="7" aria-label="Larger by 7 %">A++</button><button type="button" data-tz="0">100 %</button></div>`, 'or pinch the text · on a computer: ctrl + mouse wheel')
-    + line('Own gloss', seg('glossMode', S.glossMode === 'both' ? 'both' : 'replace', [['replace', 'Replaces default'], ['both', 'Show both']]), 'a word’s own gloss and its lemma’s default gloss')
+    + `<details class="subfold shead sglo"><summary>Glosses</summary><div class="gramcfg">${line('Should a word’s particular gloss replace its lemma’s default gloss?', seg('glossMode', S.glossMode === 'both' ? 'both' : 'replace', [['replace', 'Replace'], ['both', 'Show both']]))}</div></details>`
     + `<details class="subfold shead sgram"${focus === 'grammar' ? ' open' : ''}><summary>Grammar Line</summary><div class="gramcfg">${gramRowsHTML()}</div></details>`
-    + `<details class="subfold shead scolours"${focus === 'colours' ? ' open' : ''}><summary>Colourisation</summary><div class="list plain">${posRows}</div><div class="row" style="justify-content:flex-start"><button type="button" data-posreset="1">Reset colours</button></div></details>`
+    + `<details class="subfold shead scolours"${focus === 'colours' ? ' open' : ''}><summary>Colourisation</summary><div class="gramcfg">${chipGroupsHTML('pos')}<div class="row" style="justify-content:flex-start"><button type="button" data-posreset="1">Reset colours</button></div></div></details>`
     + `<div class="navh">Latin</div><label class="srow1${coll ? '' : ' dis'}">${SW('data-set="latQuant"', S.latQuant && coll, !coll)}<span>Mark vowel lengths (ā, ĕ …)${coll ? '' : '<small class="hint">needs Collatinus (Instruments → Analysis)</small>'}</span></label>`
     + (hasMap ? `<div class="navh">Places</div><label class="srow1">${SW('data-mapset="mark"', M.cfg.mark !== false)}<span>Mark place names in the text<small class="hint">a dotted line beneath names found on the map</small></span></label>` : '');
   if (want) openAt('set', want);

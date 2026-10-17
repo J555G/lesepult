@@ -1317,3 +1317,17 @@ dialog .dlghead button.crumb{cursor:pointer;text-decoration:underline;text-decor
 @media (hover:hover){dialog .dlghead button.crumb:hover{text-decoration-color:currentColor}}
 dialog .dlghead .csep{color:var(--mut);font-weight:400}
 dialog .dlghead .ccur{min-width:0;overflow:hidden;text-overflow:ellipsis}
+
+/* word classes as buttons (Grammar line, Colourisation): filled when on; the group heading switches the group */
+dialog .chipcfg{display:flex;flex-direction:column;gap:.55rem;padding:.15rem 0 .4rem}
+dialog .cgrp .ghead{font:600 12.5px var(--ui);color:var(--mut);background:none;border:0;padding:.1rem 0;margin:0 0 .3rem;cursor:pointer;min-height:0}
+@media (hover:hover){dialog .cgrp .ghead:hover{color:var(--fg)}}
+dialog .chips{display:flex;flex-wrap:wrap;gap:.4rem .4rem}
+dialog button.chip{border:1px solid var(--line);background:var(--bg);color:var(--mut);border-radius:999px;padding:.32rem .8rem;font-size:13px;line-height:1.25;min-height:0;transition:background .12s,color .12s,border-color .12s}
+dialog button.chip[aria-pressed="true"]{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+dialog .cchip{display:inline-flex;align-items:center;gap:.3rem;margin-right:.35rem}
+dialog input.cswatch{-webkit-appearance:none;appearance:none;width:1.55rem;height:1.55rem;padding:0;border:1px solid var(--line);border-radius:6px;background:none;cursor:pointer;flex:none}
+dialog input.cswatch::-webkit-color-swatch-wrapper{padding:2px}
+dialog input.cswatch::-webkit-color-swatch{border:0;border-radius:4px}
+dialog input.cswatch::-moz-color-swatch{border:0;border-radius:4px}
+dialog details.sglo .mline>span:first-child{font-size:14px}

@@ -166,22 +166,31 @@ function wire() {
     if (id === 'morph' || id === 'morphhints') { resetTokens(); renderText(); resolveTokens(); }
   });
   document.addEventListener('change', async ev => {
-    const t = ev.target, on = t.dataset?.poson, c = t.dataset?.posc; if (!on && !c) return;
-    const id = on || c; S.posCfg[id] = Object.assign({}, S.posCfg[id], on ? { on: t.checked } : { c: t.value });
+    const t = ev.target, c = t.dataset?.posc; if (!c) return;
+    S.posCfg[c] = Object.assign({}, S.posCfg[c], { c: t.value });
     await setting('posCfg', S.posCfg); applyPosColors();
   });
   document.addEventListener('input', ev => { const c = ev.target.dataset?.posc; if (c) { S.posCfg[c] = Object.assign({}, S.posCfg[c], { c: ev.target.value }); applyPosColors(); } });
   document.addEventListener('click', async ev => {
     if (ev.target.closest('[data-info]')) { const b = ev.target.closest('[data-info]'), t = b.nextElementSibling; t.hidden = !t.hidden; b.setAttribute('aria-expanded', !t.hidden); ev.preventDefault(); return; }
     if (ev.target.closest('[data-posreset]')) { S.posCfg = defaultPosCfg(); await setting('posCfg', S.posCfg); applyPosColors();
-      for (const [id] of POS) { const cb = document.querySelector(`[data-poson="${id}"]`), ci = document.querySelector(`[data-posc="${id}"]`); if (cb) cb.checked = true; if (ci) ci.value = S.posCfg[id].c; } }
+      syncPosRows(); }
   });
   document.addEventListener('toggle', ev => { if (ev.target.matches?.('details.sgram')) S.gramOpen = ev.target.open; else if (ev.target.matches?.('details.scol')) S.colOpen = ev.target.open; }, true);
   document.addEventListener('toggle', async ev => { if (!ev.target.matches?.('details.ifold, details.subfold')) return; const f = (await setting('instFold')) || {}; f[ev.target.dataset.if] = ev.target.open; setting('instFold', f); }, true);
-  document.addEventListener('change', async ev => {
-    const t = ev.target, id = t.dataset?.gramon, g = t.dataset?.gramgrp; if (!id && g == null) return;
-    if (id) S.gramCfg[id] = t.checked; else for (const x of GRAM_GROUPS[+g][1]) S.gramCfg[x] = t.checked;
-    syncGramRows(); await setting('gramCfg', S.gramCfg); applyGramCfg();
+  // the word-class buttons of the grammar line and the colourisation; a group heading: all on, or all off when all are on
+  document.addEventListener('click', async ev => {
+    const b = ev.target.closest?.('#dlg [data-gramon], #dlg [data-gramgrp], #dlg [data-poson], #dlg [data-posgrp]'); if (!b) return;
+    const d = b.dataset;
+    if (d.gramon || d.gramgrp != null) {
+      const ids = d.gramon ? [d.gramon] : GRAM_GROUPS[+d.gramgrp][1], v = !ids.every(x => S.gramCfg[x]);
+      for (const x of ids) S.gramCfg[x] = v;
+      syncGramRows(); await setting('gramCfg', S.gramCfg); applyGramCfg();
+    } else {
+      const ids = d.poson ? [d.poson] : COL_GROUPS[+d.posgrp][1], v = !ids.every(posOnOf);
+      for (const x of ids) S.posCfg[x] = Object.assign({}, S.posCfg[x], { on: v });
+      syncPosRows(); await setting('posCfg', S.posCfg); applyPosColors();
+    }
   });
   document.addEventListener('change', ev => { const sl = ev.target.closest?.('select[data-langtool]'); if (sl) setLangTool(sl.dataset.langtool, sl.value); });
   document.addEventListener('change', ev => { const r = ev.target; if (r.dataset?.uselang && r.checked) setLangTool(r.dataset.uselang, r.value); });

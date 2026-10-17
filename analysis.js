@@ -41,18 +41,24 @@ function applyGramCfg() {
   const st = $('#gramStyle') || document.head.appendChild(Object.assign(document.createElement('style'), { id: 'gramStyle' }));
   st.textContent = Object.entries(S.gramCfg || {}).filter(([, on]) => !on).map(([id]) => `body.gram .w.p-${id}>.gm{visibility:hidden!important;max-width:0!important;padding:0!important;overflow:hidden;white-space:nowrap}`).join('\n');
 }
-function gramRowsHTML() {
-  const lab = Object.fromEntries(POS.map(([id, l]) => [id, l]));
-  return GRAM_GROUPS.map(([g, ids], gi) => {
-    const n = ids.filter(id => S.gramCfg[id]).length;
-    return `<div class="ggrp"><label class="gg"><input type="checkbox" data-gramgrp="${gi}"${n === ids.length ? ' checked' : ''}${n && n < ids.length ? ' data-mixed="1"' : ''}> <b>${g}</b></label>
-      <div class="gitems">${ids.map(id => `<label class="sopt"><input type="checkbox" data-gramon="${id}"${S.gramCfg[id] ? ' checked' : ''}> ${lab[id]}</label>`).join('')}</div></div>`;
-  }).join('');
+// the word classes as buttons that switch on and off; the group headings switch the whole group.
+// Colourisation: the same, with each class's colour beside its button (Punctuation marks in the last group)
+const posLab = id => (POS.find(x => x[0] === id) || [])[1] || id;
+const COL_GROUPS = GRAM_GROUPS.map(([g, ids], i) => [g, i === GRAM_GROUPS.length - 1 ? [...ids, 'punct'] : ids]);
+const posOnOf = id => S.posCfg[id]?.on !== false;
+function chipGroupsHTML(kind) {
+  const col = kind === 'pos', groups = col ? COL_GROUPS : GRAM_GROUPS, on = col ? posOnOf : id => !!S.gramCfg[id];
+  return `<div class="chipcfg">` + groups.map(([g, ids], gi) => `<div class="cgrp"><button type="button" class="ghead" data-${kind}grp="${gi}" title="Switch the whole group on or off">${g}</button><div class="chips">`
+    + ids.map(id => { const b = `<button type="button" class="chip" data-${kind === 'pos' ? 'poson' : 'gramon'}="${id}" aria-pressed="${on(id)}">${posLab(id)}</button>`;
+      return col ? `<span class="cchip">${b}<input type="color" class="cswatch" data-posc="${id}" value="${S.posCfg[id]?.c}" aria-label="Colour of ${posLab(id)}"></span>` : b; }).join('')
+    + `</div></div>`).join('') + `</div>`;
 }
-function syncGramRows(root = document) {          // group boxes: ticked when all, a dash when some of their classes are on
-  GRAM_GROUPS.forEach(([, ids], gi) => root.querySelectorAll(`[data-gramgrp="${gi}"]`).forEach(cb => {
-    const n = ids.filter(id => S.gramCfg[id]).length; cb.checked = n === ids.length; cb.indeterminate = n > 0 && n < ids.length; }));
-  for (const id of Object.keys(S.gramCfg)) root.querySelectorAll(`[data-gramon="${id}"]`).forEach(cb => { cb.checked = !!S.gramCfg[id]; });
+function gramRowsHTML() { return chipGroupsHTML('gram'); }
+function syncGramRows(root = document) {
+  for (const id of Object.keys(S.gramCfg)) root.querySelectorAll(`[data-gramon="${id}"]`).forEach(b => b.setAttribute('aria-pressed', !!S.gramCfg[id]));
+}
+function syncPosRows(root = document) {
+  for (const [id] of POS) { root.querySelectorAll(`[data-poson="${id}"]`).forEach(b => b.setAttribute('aria-pressed', posOnOf(id))); root.querySelectorAll(`input[data-posc="${id}"]`).forEach(i => { i.value = S.posCfg[id]?.c; }); }
 }
 async function gramDialog() {
   const p = dialog(`<h3>Grammar line</h3><p class="hint small">Which words show their grammatical form beneath them. A group switches all its word classes at once.</p>
