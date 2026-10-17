@@ -42,7 +42,7 @@ function applyGramCfg() {
   st.textContent = Object.entries(S.gramCfg || {}).filter(([, on]) => !on).map(([id]) => `body.gram .w.p-${id}>.gm{visibility:hidden!important;max-width:0!important;padding:0!important;overflow:hidden;white-space:nowrap}`).join('\n');
 }
 // the word classes as buttons that switch on and off; the group headings switch the whole group.
-// Colourization: the same, with each class's colour beside its button (Punctuation marks in the last group)
+// Colourisation: the same, with each class's colour beside its button (Punctuation marks in the last group)
 const posLab = id => (POS.find(x => x[0] === id) || [])[1] || id;
 const COL_GROUPS = GRAM_GROUPS.map(([g, ids], i) => [g, i === GRAM_GROUPS.length - 1 ? [...ids, 'punct'] : ids]);
 const posOnOf = id => S.posCfg[id]?.on !== false;
