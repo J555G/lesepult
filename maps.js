@@ -64,8 +64,13 @@ async function downloadMapPkg(p, onp) {
     // a large file comes in parts (f.0, f.1 …), joined here into one
     const names = p.parts?.[f] ? Array.from({ length: p.parts[f] }, (_, k) => `${f}.${k}`) : [f], pieces = [];
     for (const g of names) {
-      const r = await fetch(from(g), { cache: 'reload' }); if (!r.ok) throw new Error(g + ': ' + r.status);
-      const b = await r.blob(); pieces.push(b); done += b.size; onp?.(Math.min(1, done / p.bytes));
+      // (up to three tries: right after an update a file can briefly fail on the way)
+      let b = null;
+      for (let k = 0; k < 3 && !b; k++) {
+        try { const r = await fetch(from(g), { cache: 'reload' }); if (!r.ok) throw new Error(g + ': ' + r.status); b = await r.blob(); }
+        catch (e) { if (k === 2) throw e; await new Promise(res => setTimeout(res, 1500 * (k + 1))); }
+      }
+      pieces.push(b); done += b.size; onp?.(Math.min(1, done / p.bytes));
     }
     const b = pieces.length === 1 ? pieces[0] : new Blob(pieces);
     await c.put(url, new Response(b, { headers: { 'Content-Type': f.endsWith('.js') ? 'text/javascript' : f.endsWith('.css') ? 'text/css' : f.endsWith('.json') ? 'application/json' : 'application/octet-stream' } }));
