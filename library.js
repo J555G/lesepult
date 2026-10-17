@@ -417,10 +417,23 @@ function titleBar() {
   tt.innerHTML = (!t ? '<span class="tw">no text</span>' : w
     ? `<span class="tw"><span class="ta">${esc(w.author)} › </span>${esc(w.title)}</span><span class="tl2">${multi ? `<span class="tb"><span class="sep">› </span><span class="tbf">${esc(w.books[t.bi])}</span><span class="tbs">${esc(stripCommon(w.books)[t.bi])}</span></span>` : ''}<span class="ts" id="titleSec"></span></span>`
     : `<span class="tw">${esc(t.title)}</span><span class="tl2"><span class="ts" id="titleSec"></span></span>`);
-  S.secShown = null; updateSecTitle();
+  S.secShown = null; updateSecTitle(); secRoom();
   tt.title = t ? (w ? `${w.author} › ${w.title} › ${w.books[t.bi]}` : t.title) + ' – tap to choose another text or book' : 'Choose a text';
   markIcon();
 }
+// the section number gets the room of the widest reference of the book, so that the buttons beside the title
+// do not move while scrolling (the width changes only with another book or text)
+function secRoom() {
+  const el = $('#titleSec'); if (!el) return;
+  el.style.minWidth = '';
+  const R = S.refs || []; if (!R.length) return;
+  const cs = getComputedStyle(el), c = (secRoom.cv ??= document.createElement('canvas').getContext('2d'));
+  c.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  const sep = el.querySelector('.sep'), sepW = sep ? sep.getBoundingClientRect().width : c.measureText('› ').width;
+  let w = 0; for (const r of new Set(R.map(r => r.s))) w = Math.max(w, c.measureText(r).width);
+  el.style.minWidth = Math.ceil(w + sepW + 1) + 'px';
+}
+{ let t = 0; addEventListener('resize', () => { clearTimeout(t); t = setTimeout(secRoom, 200); }); }
 function stripCommon(labels) {     // "Book 1", "Book 2" … -> "1", "2" …
   if (labels.length < 2) return labels;
   let p = labels[0];
