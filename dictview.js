@@ -374,6 +374,14 @@ function alignNav() {
     });
     document.addEventListener('pointerdown', e => { if (!e.target.closest('#dictNav')) $('#dictHist').hidden = true; });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#dictHist').hidden) { $('#dictHist').hidden = true; e.preventDefault(); } });
+    // touch: scrolling the history list never scrolls the dictionary pane behind it (also at the list's ends,
+    // and where the browser ignores overscroll-behavior)
+    const hb = $('#dictHist'); let y0 = 0;
+    hb.addEventListener('touchstart', e => { y0 = e.touches[0].clientY; }, { passive: true });
+    hb.addEventListener('touchmove', e => {
+      const dy = e.touches[0].clientY - y0, top = hb.scrollTop <= 0, end = hb.scrollTop + hb.clientHeight >= hb.scrollHeight - 1;
+      if ((dy > 0 && top) || (dy < 0 && end)) e.preventDefault();
+    }, { passive: false });
   });
 })();
 async function renderView() {
