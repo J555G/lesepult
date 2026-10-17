@@ -26,10 +26,13 @@ async function reliefInit() {
   }
   if (!arch.length) { M.rel = null; return; }
   arch.sort((a, b) => b.h.maxZoom - a.h.maxZoom);                   // the most detailed first
-  M.rel = { key, arch, maxz: Math.max(...arch.map(a => a.h.maxZoom)), cache: new Map() };
+  // srcMax: for the shading the elevation tiles are made here up to zoom 14 (enlarged from the deepest package tile, with its
+  // neighbours), so that the map engine never enlarges them itself – its own enlargement shades the tile edges as seams
+  M.rel = { key, arch, maxz: Math.max(...arch.map(a => a.h.maxZoom)), srcMax: Math.max(14, ...arch.map(a => a.h.maxZoom)), cache: new Map(), dec: new Map() };
   const dem = new mlcontour.DemSource({ url: 'pultdem://{z}/{x}/{y}', encoding: 'terrarium', maxzoom: M.rel.maxz, worker: false, cacheSize: 200, timeoutMs: 30000 });
   dem.manager.getTile = async url => { const [z, x, y] = url.match(/(\d+)\/(\d+)\/(\d+)$/).slice(1).map(Number); return { data: await demBlob(z, x, y) }; };
   dem.setupMaplibre(maplibregl);
+  if (!M.shadeProto) { maplibregl.addProtocol('pultshade', async req => { const [z, x, y] = req.url.match(/(\d+)\/(\d+)\/(\d+)$/).slice(1).map(Number); return { data: await shadeTile(z, x, y) }; }); M.shadeProto = true; }
   M.relDem = dem;
 }
 const inArch = (h, z, x, y) => tileLon(x + 1, z) > h.minLon && tileLon(x, z) < h.maxLon && tileLat(y, z) > h.minLat && tileLat(y + 1, z) < h.maxLat;
@@ -40,8 +43,8 @@ function demBlob(z, x, y) {
     for (const a of M.rel.arch) {
       if (z < a.h.minZoom || !inArch(a.h, z, x, y)) continue;
       if (z <= a.h.maxZoom) { const r = await a.pm.getZxy(z, x, y); if (r?.data) return new Blob([r.data], { type: 'image/webp' }); continue; }
-      const dz = z - a.h.maxZoom, px = x >> dz, py = y >> dz, r = await a.pm.getZxy(a.h.maxZoom, px, py);   // deeper: a part of the deepest tile, enlarged
-      if (r?.data) return enlarge(r.data, dz, x - (px << dz), y - (py << dz));
+      const dz = z - a.h.maxZoom, px = x >> dz, py = y >> dz, P = await decoded(a, a.h.maxZoom, px, py);   // deeper: a part of the deepest tile, enlarged
+      if (P) return enlarge(a, a.h.maxZoom, px, py, P, dz, x - (px << dz), y - (py << dz));
     }
     return flatTile();                                               // sea, or outside every package
   })();
@@ -59,18 +62,53 @@ async function decodeDem(data) {
 }
 function encodeDem(h, n) {
   const cv = relCanvas(n), ctx = cv.getContext('2d'), im = ctx.createImageData(n, n), d = im.data;
-  for (let i = 0; i < n * n; i++) { const v = Math.max(0, Math.min(65535, Math.round(h[i]) + 32768)); d[i * 4] = v >> 8; d[i * 4 + 1] = v & 255; d[i * 4 + 2] = 0; d[i * 4 + 3] = 255; }
+  // (with the fraction of a metre in the third channel: enlarged gentle slopes would otherwise shade as terraces)
+  for (let i = 0; i < n * n; i++) { const v = Math.max(0, Math.min(65535.996, h[i] + 32768)), w = Math.floor(v); d[i * 4] = w >> 8; d[i * 4 + 1] = w & 255; d[i * 4 + 2] = Math.floor((v - w) * 256); d[i * 4 + 3] = 255; }
   ctx.putImageData(im, 0, 0); return canvasBlob(cv);
 }
-// a quarter (eighth …) of a tile, enlarged to a whole tile (heights interpolated between the pixel centres)
-async function enlarge(data, dz, ox, oy) {
-  const { n, h } = await decodeDem(data), s = n / 2 ** dz, out = new Float32Array(n * n);
-  const at = (x, y) => h[Math.max(0, Math.min(n - 1, y)) * n + Math.max(0, Math.min(n - 1, x))];
-  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
-    const fx = ox * s + (i + 0.5) * s / n - 0.5, fy = oy * s + (j + 0.5) * s / n - 0.5, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
-    out[j * n + i] = (at(x0, y0) * (1 - tx) + at(x0 + 1, y0) * tx) * (1 - ty) + (at(x0, y0 + 1) * (1 - tx) + at(x0 + 1, y0 + 1) * tx) * ty;
+// the heights of a package tile, decoded once (a few kept): the enlargements of its parts and its neighbours use them
+async function decoded(a, z, x, y) {
+  const D = M.rel.dec, k = `${a.f}|${z}/${x}/${y}`;
+  if (D.has(k)) return D.get(k);
+  const p = (async () => { const r = await a.pm.getZxy(z, x, y); return r?.data ? decodeDem(r.data) : null; })();
+  D.set(k, p); if (D.size > 48) D.delete(D.keys().next().value);
+  return p;
+}
+// a quarter (eighth …) of a tile, enlarged to a whole tile (heights interpolated between the pixel centres).
+// At the tile's edges the neighbouring tiles give the heights beyond it – otherwise the edge would be flat and shaded as a line.
+async function enlarge(a, pz, px, py, P, dz, ox, oy) {
+  const { n, h } = P, s = n / 2 ** dz, out = new Float32Array(n * n);
+  const L = ox === 0, R = ox === 2 ** dz - 1, T = oy === 0, B = oy === 2 ** dz - 1, nb = {};
+  const N = 2 ** pz, get = (dx, dy) => decoded(a, pz, (px + dx + N) % N, py + dy);
+  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]])
+    if ((dx < 0 ? L : dx > 0 ? R : true) && (dy < 0 ? T : dy > 0 ? B : true) && py + dy >= 0 && py + dy < N) nb[dx + ',' + dy] = await get(dx, dy);
+  const at = (x, y) => {
+    const dx = x < 0 ? -1 : x >= n ? 1 : 0, dy = y < 0 ? -1 : y >= n ? 1 : 0;
+    const t = dx || dy ? nb[dx + ',' + dy] : P;
+    if (!t) return h[Math.max(0, Math.min(n - 1, y)) * n + Math.max(0, Math.min(n - 1, x))];
+    return t.h[(y - dy * n) * n + (x - dx * n)];
+  };
+  // cubic B-spline: smooth slopes and their changes – straight-line interpolation would shade as facets, and other curves as a fine grid
+  const cw = t => { const u = 1 - t, t2 = t * t, t3 = t2 * t; return [u * u * u / 6, (3 * t3 - 6 * t2 + 4) / 6, (-3 * t3 + 3 * t2 + 3 * t + 1) / 6, t3 / 6]; };
+  for (let j = 0; j < n; j++) {
+    const fy = oy * s + (j + 0.5) * s / n - 0.5, y0 = Math.floor(fy), wy = cw(fy - y0);
+    for (let i = 0; i < n; i++) {
+      const fx = ox * s + (i + 0.5) * s / n - 0.5, x0 = Math.floor(fx), wx = cw(fx - x0);
+      let v = 0;
+      for (let b = 0; b < 4; b++) { const yy = y0 - 1 + b; v += wy[b] * (wx[0] * at(x0 - 1, yy) + wx[1] * at(x0, yy) + wx[2] * at(x0 + 1, yy) + wx[3] * at(x0 + 2, yy)); }
+      out[j * n + i] = v;
+    }
   }
   return encodeDem(out, n);
+}
+// the tiles for the shading: up to the deepest package zoom as they are; deeper, the heights are raised by 2^0.3 per zoom step,
+// which gives the slopes the engine computes when it enlarges a tile itself (its shader weakens each zoom step by 2^0.3) – the
+// same for every tile of a zoom, so no seams; else the shading would fade and show bands. Mapbox encoding.
+async function shadeTile(z, x, y) {
+  const f = 2 ** (0.3 * Math.max(0, z - M.rel.maxz)), { n, h } = await decodeDem(await (await demBlob(z, x, y)).arrayBuffer());
+  const cv = relCanvas(n), ctx = cv.getContext('2d'), im = ctx.createImageData(n, n), d = im.data;
+  for (let i = 0; i < n * n; i++) { const v = Math.max(0, Math.min(16777215, Math.round((h[i] * f + 10000) * 10))); d[i * 4] = v >> 16; d[i * 4 + 1] = (v >> 8) & 255; d[i * 4 + 2] = v & 255; d[i * 4 + 3] = 255; }
+  ctx.putImageData(im, 0, 0); return (await canvasBlob(cv)).arrayBuffer();
 }
 let flatP = null;
 const flatTile = () => flatP ??= encodeDem(new Float32Array(256 * 256), 256);
@@ -124,13 +162,14 @@ function reliefStyle(st, C) {
   }
   if (!M.relDem) return;
   st.sources.reldem = { type: 'raster-dem', tiles: [M.relDem.sharedDemProtocolUrl], encoding: 'terrarium', tileSize: 256, maxzoom: M.rel.maxz };
+  st.sources.relshade = { type: 'raster-dem', tiles: ['pultshade://{z}/{x}/{y}'], encoding: 'mapbox', tileSize: 256, maxzoom: M.rel.srcMax };
   const below = ['a-water', 'a-areas', 'a-emp', 'lakes'].map(at).find(k => k >= 0) ?? at('lakes');
   const ls = [];
   if (engineMajor() >= 5) {                                          // colours by height (MapLibre 5)
     ls.push({ id: 'rel-color', type: 'color-relief', source: 'reldem', paint: { 'color-relief-opacity': dark ? 0.35 : 0.5,
       'color-relief-color': ['interpolate', ['linear'], ['elevation'], 0, 'rgba(0,0,0,0)', 1, dark ? '#3c5232' : '#a8c690', 200, dark ? '#4a5a34' : '#cfd9a0', 500, dark ? '#6a6036' : '#e6dca6', 1000, dark ? '#7a5a36' : '#d9b98a', 2000, dark ? '#7a4a3a' : '#c09a7e', 3500, dark ? '#8a8a8a' : '#e8e4e0', 5500, '#ffffff'] } });
   }
-  ls.push({ id: 'rel-shade', type: 'hillshade', source: 'reldem', paint: { 'hillshade-exaggeration': ['interpolate', ['linear'], ['zoom'], 3, 0.55, 8, 0.4, 12, 0.3],
+  ls.push({ id: 'rel-shade', type: 'hillshade', source: 'relshade', paint: { 'hillshade-exaggeration': ['interpolate', ['linear'], ['zoom'], 3, 0.55, 8, 0.4, 12, 0.3],
     'hillshade-shadow-color': dark ? '#000000' : '#5b4a33', 'hillshade-highlight-color': dark ? '#7b7466' : '#fffdf6', 'hillshade-accent-color': dark ? '#000000' : '#6b5b44' } });
   put(below, ...ls);
   // contour lines (maplibre-contour): every so many metres, the larger steps stronger and numbered
