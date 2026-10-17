@@ -1258,3 +1258,4 @@ dialog .pkbr{flex-basis:100%;height:0}
 html.tsh #textPane{scrollbar-width:none}
 html.tsh #textPane::-webkit-scrollbar{display:none}
 body.reading #tScroll{z-index:30}
+#textTitle .ts{text-align:left}   /* (buttons centre their text: the arrow would move with the number's width) */
