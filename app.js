@@ -3311,7 +3311,7 @@ const tzSave = () => { clearTimeout(tzSaveT); tzSaveT = setTimeout(() => setting
     if (e.touches.length < 2) return;
     if (!e.target.closest?.('.maplibregl-canvas-container, .mtt')) e.preventDefault();   // never the page zoom (the map and the time slider pinch themselves)
     if (!pinch) return;
-    next = { z: pinch.z0 * dist(e.touches) / pinch.d0, at: mid(e.touches) }; if (!raf) raf = requestAnimationFrame(run);
+    next = { z: pinch.z0 * Math.pow(dist(e.touches) / pinch.d0, 0.75), at: mid(e.touches) };   // (a little gentler than the fingers) if (!raf) raf = requestAnimationFrame(run);
   }, { passive: false });
   document.addEventListener('touchend', e => { if (pinch && e.touches.length < 2) { pinch = null; tzSave(); toast(`Text ${Math.round(S.tz * 100)} %`, 1200); } });
   // Safari (iPad, iPhone, Mac trackpad): its own pinch events – no page zoom anywhere; on the text: the text size
@@ -3324,7 +3324,12 @@ const tzSave = () => { clearTimeout(tzSaveT); tzSaveT = setTimeout(() => setting
     if (!e.ctrlKey) return;
     if (e.target.closest?.('.maplibregl-canvas-container, .mtt')) return;
     e.preventDefault();
-    if (e.target.closest?.('#textPane')) { setTextZoom((S.tz || 1) * Math.exp(-e.deltaY * 0.01), { x: e.clientX, y: e.clientY }); tzSave(); }
+    if (e.target.closest?.('#textPane')) {
+      // a mouse wheel notch (large steps): 4 % per notch; a trackpad pinch (many small steps): gently in proportion
+      const dy = e.deltaMode ? e.deltaY * 40 : e.deltaY;
+      const f = Math.abs(dy) >= 40 ? (dy < 0 ? 1.04 : 1 / 1.04) : Math.exp(-dy * 0.005);
+      setTextZoom((S.tz || 1) * f, { x: e.clientX, y: e.clientY }); tzSave();
+    }
   }, { passive: false });
   document.addEventListener('click', e => {
     const b = e.target.closest?.('[data-tz]'); if (!b) return;

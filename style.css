@@ -1217,3 +1217,10 @@ dialog .pkrow .t small.full{-webkit-line-clamp:unset;display:block}
 dialog .pkmore small{font-size:12px}
 dialog .mpk .seg.lvl{display:flex!important;max-width:24rem}
 dialog .mpk .seg.lvl button{flex:1 1 50%!important;white-space:nowrap}
+/* scroll bars in the colours of Pult: thin, no arrows, a quiet thumb on a clear track */
+*{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--mut) 60%,transparent) transparent}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--mut) 60%,transparent);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background-color:color-mix(in srgb,var(--mut) 70%,transparent)}
+::-webkit-scrollbar-button{display:none}
