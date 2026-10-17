@@ -16,7 +16,8 @@
     "base/lib/pmtiles.js"
    ],
    "bytes": 5599967,
-   "v": "45214f4384b5"
+   "v": "45214f4384b5",
+   "url": "https://j555g.github.io/lesepult-maps/"
   },
   {
    "id": "ancient",
@@ -35,7 +36,8 @@
     "ancient/canals.json"
    ],
    "bytes": 4251842,
-   "v": "4ceccda5cff3"
+   "v": "4ceccda5cff3",
+   "url": "https://j555g.github.io/lesepult-maps/"
   },
   {
    "id": "places",
@@ -45,7 +47,149 @@
     "places/places.json"
    ],
    "bytes": 3736829,
-   "v": "cf3cace5e45f"
+   "v": "cf3cace5e45f",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "relief7",
+   "name": "Relief – overview",
+   "desc": "Mountains and valleys of the whole map area, shaded; contour lines, heights, profiles of drawn lines; the depth of the seas (Copernicus DEM GLO-90, Natural Earth) – exact to about 1,000 m",
+   "files": [
+    "relief/overview7.pmtiles",
+    "relief/bathy.pmtiles",
+    "relief/lib/maplibre-contour.js"
+   ],
+   "bytes": 39366636,
+   "v": "f5cc2cc1b402",
+   "group": "relief",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "relief8",
+   "name": "Relief – overview (detailed)",
+   "desc": "Mountains and valleys of the whole map area, shaded; contour lines, heights, profiles of drawn lines; the depth of the seas (Copernicus DEM GLO-90, Natural Earth) – exact to about 500 m",
+   "files": [
+    "relief/overview8.pmtiles",
+    "relief/bathy.pmtiles",
+    "relief/lib/maplibre-contour.js"
+   ],
+   "bytes": 130856520,
+   "v": "55be59bf84d0",
+   "group": "relief",
+   "parts": {
+    "relief/overview8.pmtiles": 2
+   },
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "relief-greece10",
+   "name": "Relief – Greece and the Aegean",
+   "desc": "For zooming in close: the terrain exact to about 100 m (needs the overview)",
+   "files": [
+    "relief/greece10.pmtiles"
+   ],
+   "bytes": 20461410,
+   "v": "166363bf7235",
+   "group": "relief-greece",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "relief-greece11",
+   "name": "Relief – Greece and the Aegean (detailed)",
+   "desc": "For zooming in close: the terrain exact to about 60 m (needs the overview)",
+   "files": [
+    "relief/greece11.pmtiles"
+   ],
+   "bytes": 61423624,
+   "v": "9cc5d4c42ff5",
+   "group": "relief-greece",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "relief-italy10",
+   "name": "Relief – Italy and the islands",
+   "desc": "For zooming in close: the terrain exact to about 100 m (needs the overview)",
+   "files": [
+    "relief/italy10.pmtiles"
+   ],
+   "bytes": 36977992,
+   "v": "a4b48429e6f4",
+   "group": "relief-italy",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "relief-italy11",
+   "name": "Relief – Italy and the islands (detailed)",
+   "desc": "For zooming in close: the terrain exact to about 60 m (needs the overview)",
+   "files": [
+    "relief/italy11.pmtiles"
+   ],
+   "bytes": 110705897,
+   "v": "d1dae2b001e7",
+   "group": "relief-italy",
+   "parts": {
+    "relief/italy11.pmtiles": 2
+   },
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "relief-asiaminor10",
+   "name": "Relief – Asia Minor",
+   "desc": "For zooming in close: the terrain exact to about 100 m (needs the overview)",
+   "files": [
+    "relief/asiaminor10.pmtiles"
+   ],
+   "bytes": 56045619,
+   "v": "966ba83bc4e5",
+   "group": "relief-asiaminor",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "relief-levant10",
+   "name": "Relief – Levant, Cyprus and Egypt",
+   "desc": "For zooming in close: the terrain exact to about 100 m (needs the overview)",
+   "files": [
+    "relief/levant10.pmtiles"
+   ],
+   "bytes": 55434869,
+   "v": "f258b0208a30",
+   "group": "relief-levant",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "itinere",
+   "name": "Roman roads (Itiner-e)",
+   "desc": "About 300,000 km of roads of the Roman Empire – main and secondary, certain, conjectured or hypothetical, with the itineraries that name them (Itiner-e, CC BY 4.0); replaces the roads of “Ancient world”",
+   "files": [
+    "itinere/roads.pmtiles"
+   ],
+   "bytes": 6668591,
+   "v": "a9e45a43db45",
+   "group": "itinere",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "itinere-full",
+   "name": "Roman roads (Itiner-e, full detail)",
+   "desc": "The same roads with every bend, for zooming in close",
+   "files": [
+    "itinere/roads_full.pmtiles"
+   ],
+   "bytes": 38725338,
+   "v": "e5068fa79d44",
+   "group": "itinere",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ne2",
+   "name": "Natural Earth II",
+   "desc": "The painted landscape as a base map: shaded relief, deserts, green lowlands, rivers (Tom Patterson, Natural Earth, public domain) – sharp up to medium zoom",
+   "files": [
+    "ne2/ne2.pmtiles"
+   ],
+   "bytes": 5681075,
+   "v": "98ffc1fa974c",
+   "url": "https://j555g.github.io/lesepult-maps/"
   },
   {
    "id": "landscape",
@@ -55,7 +199,8 @@
     "landscape/landscape.pmtiles"
    ],
    "bytes": 25459965,
-   "v": "93212c0c6b6b"
+   "v": "93212c0c6b6b",
+   "url": "https://j555g.github.io/lesepult-maps/"
   }
  ]
 }
