@@ -102,7 +102,7 @@ function renderText() {
   const same = S.text && S.renderedText === S.text.id && S.wordEls?.length;   // the same text drawn again: keep the position
   const anchor = same ? textAnchor() : null;
   if (S.TW) { S.TW.io?.disconnect(); S.TW = null; }
-  if (!S.text) { body.innerHTML = '<p class="hint">No text yet. Open the menu ☰ (top left) → Library to download Greek texts, or → Import text to paste or load your own.</p>'; return; }
+  if (!S.text) { body.innerHTML = '<p class="hint">No text yet. Open the menu ☰ (top left) → Library to download texts, or to import your own (Import text …).</p>'; return; }
   const [gl, covered] = glossMaps();
   const nWords = S.tokens.reduce((n, t) => n + (t.t === 'w'), 0);
   const chunks = nWords > LONG_TEXT ? textChunks() : null;

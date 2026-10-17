@@ -37,7 +37,7 @@ function dialog(inner, buttons = [['ok', 'OK']], defaultAction = null) {
 // a control with its ⓘ on the same line (the explanation opens below both)
 const withInfo = (ctl, t) => `<span class="cinl">${ctl}${info(t)}</span>`;
 const info = t => `<button type="button" class="info" data-info aria-label="Explanation" aria-expanded="false">ⓘ</button><span class="infot" hidden>${t}</span>`;
-// ☰ → Import text: paste a text or load a file (.txt, .odt, .docx), with its details; imported texts are listed in the Library
+// ☰ → Library → Import text …: paste a text or load a file (.txt, .odt, .docx), with its details; imported texts are listed in the Library
 const LANG_OPTS = [['', 'Detect'], ['grc', 'Greek'], ['la', 'Latin']];
 function detectLang(t) { const g = (t.match(/[Ͱ-Ͽἀ-῿]/g) || []).length, l = (t.match(/[A-Za-z]/g) || []).length; return g >= l ? 'grc' : 'la'; }
 // "c. 380 BC" -> -380, "4th c. BC" -> -350, "2nd century AD" -> 150, "1453" -> 1453
@@ -89,7 +89,7 @@ async function readTextFile(f) {
   if (ext === 'odt') return xmlParas(await zipEntry(await f.arrayBuffer(), 'content.xml'), true);
   return (await f.text()).replace(/\r\n?/g, '\n');
 }
-async function importDialog(t = null) {
+async function importDialog(t = null, fromLib = false) {
   const v = t || {};
   const r = await dialog(`<h3>${t ? 'Edit imported text' : 'Import text'}</h3>
     <div class="impf">
@@ -104,7 +104,7 @@ async function importDialog(t = null) {
     <textarea name="text" class="nofocus" placeholder="Paste the text here, or load a file …">${esc(v.text || '')}</textarea>
     ${t ? '<p class="hint small">Changing the text itself can move glosses that belong to single words.</p>' : ''}`,
     [['cancel', 'Cancel'], ['ok', t ? 'Save' : 'Import']]);
-  if (r.action !== 'ok') return;
+  if (r.action !== 'ok') return fromLib ? libraryDialog() : undefined;
   const d = r.data, text = (d.text || '').trim();
   if (!text) return toast('No text to import.');
   const rec = Object.assign(t ? { id: t.id, created: t.created } : { created: Date.now() }, {
@@ -112,7 +112,7 @@ async function importDialog(t = null) {
     edition: d.edition.trim(), notes: d.notes.trim(), lang: d.lang || detectLang(text), text: d.text });
   const id = await put('texts', rec);
   await openText(t ? t.id : id);
-  toast(t ? 'Saved' : 'Text imported – it is listed in the Library under “Imported”');
+  toast(t ? 'Saved' : 'Text imported – it is in the Library under “On this device”');
 }
 async function textsDialog() { return importDialog(); }
 async function saveText(title, text, choices) {
@@ -217,16 +217,13 @@ async function dictsDialog() {
     + `<p class="hint small">The language of each word follows from its alphabet.</p>`;
   // 3. the map
   const mapBody = typeof mapSectionHTML === 'function' ? await mapSectionHTML() : '';
-  let est = '', pers = '';
-  try { const e = await navigator.storage?.estimate?.(); if (e) est = `Pult uses ${(e.usage / 1e6).toFixed(0)} MB on this device`; } catch (_) { }
-  try { pers = (await navigator.storage?.persisted?.()) ? ' · protected: downloads stay until you delete them' : ' · <b>not yet protected</b> – start Pult from its Home Screen icon'; } catch (_) { }
   const r = await dialog(`${dlgHead('Instruments')}
     ${sec('dict', 'Dictionaries', Object.entries(LANGS).map(([l, n]) => `${n} ${nD(l)}`).join(' · '), dictBody)}
     ${sec('tools', 'Analysis', Object.entries(LANGS).map(([l, n]) => `${n}: ${esc(usedName(l))}`).join(' · '), toolBody)}
     ${mapBody ? sec('maps', 'Map', await mapSummary(), mapBody) : ''}
     ${man ? '' : '<p class="hint small">The website could not be reached (offline?) – downloads are not available right now. Everything installed works offline.</p>'}
-    <div class="ifoot"><span>${est}${pers}.</span><button type="button" data-v="clean">Clean up storage</button><label class="btn" for="fileDict">Import packages …</label></div>`, []);
-  if (r.action === 'clean') { await cleanStorage(); return dictsDialog(); }
+    <div class="ifoot"><button type="button" data-v="pult">Storage and clean-up …</button><label class="btn" for="fileDict">Import packages …</label></div>`, []);
+  if (r.action === 'pult') return pultDialog();
   if (r.action === 'priv') {
     const q = await dialog(`<h3>Private repository</h3><p class="hint small">Dictionaries that may not be published can be downloaded from a private GitHub repository. ${info('<b>Repository:</b> owner and name of the private repository. <b>Token:</b> a GitHub fine-grained personal access token with read access to its contents. Both are kept on this device only.')}</p>
       <div class="privf"><label>GitHub repository<input type="text" name="privRepo" value="${esc(privCfgNow.repo)}" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="owner/repository"></label>
@@ -473,17 +470,17 @@ async function pultDialog() {
     ['Library texts on this device', `${n(works.length)}${wsize ? ` · ≈ ${mb(wsize)}` : ''}`],
     ['Glosses', `${n(data.glosses.length)}${glossTexts ? ` in ${n(glossTexts)} text${glossTexts === 1 ? '' : 's'}` : ''}`],
     ['Default glosses', n(Object.keys(data.lemmaGlosses || {}).length)],
-    ['Chosen readings of words', n(Object.keys(data.readings).length)],
-    ['Lemma choices for forms', n(data.choices.length)],
+    ['Readings chosen for single words', n(Object.keys(data.readings).length)],
+    ['Lemmata chosen for forms (everywhere)', n(data.choices.length)],
     ['Highlights in dictionaries', n(Object.keys(data.highlights).length)],
     ['Markers', n(Object.keys(data.markers).length)],
     ['Favourites', n(Object.keys(data.favourites).length)],
     ['Instruments (dictionaries, analysis, maps)', `${n(dicts.length)}${dsize ? ` · ≈ ${mb(dsize)}` : ''}`],
     ['Storage', [use, prot].filter(Boolean).join(' · ') || '–']];
-  const r = await dialog(`<h3>This Pult</h3>
+  const r = await dialog(`${dlgHead('This Pult')}
     <p class="hint small">Everything is stored only on this device. ${info('A backup contains your imported texts, glosses, default glosses, chosen readings, lemma choices, highlights, markers, favourites, colours and display settings. Library texts and dictionaries are not included – they can be downloaded again.')}</p>
     <div class="list plain pultlist">${rows.map(([k, v]) => `<div class="item"><span class="t">${k}</span><span class="pv">${v}</span></div>`).join('')}</div>`,
-    [['link', 'Export backup', { href, name }], ['file', 'Import backup …', 'fileBackup'], ['clean', 'Clean up storage'], ['cancel', 'Close']]);
+    [['link', 'Export backup', { href, name }], ['file', 'Import backup …', 'fileBackup'], ['clean', 'Clean up storage']]);
   setTimeout(() => URL.revokeObjectURL(href), 60000);
   if (r.action === 'clean') { await cleanStorage(); return pultDialog(); }
 }
@@ -543,7 +540,7 @@ const ACKS = [
     ['A. Bailly, Dictionnaire grec-français, éd. 2020 Hugo Chávez (G. Gréco et al.)', 'https://creativecommons.org/licenses/by-nc-nd/4.0/', 'Greek–French dictionary', 'CC BY-NC-ND 4.0 – private use only']]],
   ['Maps', [
     ['Pleiades – gazetteer of ancient places (ISAW, New York University, and contributors)', 'https://pleiades.stoa.org', 'ancient places, their names, positions and dates', 'CC BY 3.0'],
-    ['Ancient World Mapping Center (University of North Carolina) – geodata after the Barrington Atlas', 'https://github.com/AWMC/geodata', 'coastlines of the periods, empires and Roman provinces, names of regions and peoples, roads, aqueducts, frontier walls, canals, city outlines (map package “Ancient world”)', 'ODbL 1.0'],
+    ['Ancient World Mapping Center (University of North Carolina) – geodata after the Barrington Atlas', 'https://github.com/AWMC/geodata', 'coastlines of the periods, empires and Roman provinces, names of regions and peoples, roads, aqueducts, frontier walls, canals, city outlines (map packages “Ancient landscape and states” and “Ancient structures”)', 'ODbL 1.0'],
     ['OpenStreetMap contributors – coasts and lakes, as edited by the Ancient World Mapping Center', 'https://www.openstreetmap.org/copyright', 'the exact coasts and lakes of the map package “Landscape – detailed”', 'ODbL 1.0'],
     ['Copernicus DEM GLO-90 – © DLR e.V. 2010–2014 and © Airbus Defence and Space GmbH 2014–2018, provided under COPERNICUS by the European Union and ESA; all rights reserved', 'https://spacedata.copernicus.eu/collections/copernicus-digital-elevation-model', 'the elevation of the relief packages (shading, colours by height, contour lines, heights and profiles)', 'Copernicus DEM licence (free use with attribution)'],
     ['Natural Earth II with Shaded Relief, Water and Drainages (Tom Patterson); Natural Earth bathymetry', 'https://www.naturalearthdata.com/', 'the painted base map “Natural Earth II” and the depths of the seas', 'public domain'],
@@ -553,14 +550,13 @@ const ACKS = [
     ['Natural Earth', 'https://www.naturalearthdata.com', 'land, lakes, rivers and modern borders of the base map', 'public domain'],
     ['MapLibre GL JS', 'https://maplibre.org', 'the map engine', 'BSD 3-Clause'],
   ]],
-  ['Font', [
+  ['Fonts', [
     ['Gentium Book Plus (SIL International)', 'https://software.sil.org/gentium/', 'type for Greek and Latin', 'SIL Open Font License 1.1'],
     ['Roboto Condensed (Google)', 'https://fonts.google.com/specimen/Roboto+Condensed', 'type of the grammar line', 'SIL Open Font License 1.1']]],
 ];
 async function acksDialog() {
   const a = (t, u) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(t)}</a>`;
-  await dialog(`<h3>Acknowledgements</h3>
-    <p class="hint small">This app is built on the work of these projects and editions. The packages it downloads are reformatted conversions of their data, shared under the same licences.</p>
-    ${ACKS.map(([h, items]) => `<section class="dsec ack"><h4>${esc(h)}</h4><ul>${items.map(([t, u, what, lic]) => `<li>${a(t, u)}<br><small>${esc(what)} · <i>${esc(lic)}</i></small></li>`).join('')}</ul></section>`).join('')}`,
-    [['cancel', 'Close']]);
+  await dialog(`${dlgHead('Acknowledgements')}
+    <p class="hint small">Pult is built on the work of these projects and editions. The packages it downloads are reformatted conversions of their data, shared under the same licences.</p>
+    ${ACKS.map(([h, items]) => `<section class="dsec ack"><h4>${esc(h)}</h4><ul>${items.map(([t, u, what, lic]) => `<li>${a(t, u)}<br><small>${esc(what)} · <i>${esc(lic)}</i></small></li>`).join('')}</ul></section>`).join('')}`, []);
 }

@@ -259,7 +259,7 @@ async function exportDialog() {
   const O = S.exportOpts ??= { fmt: 'pdf', gloss: !document.body.classList.contains('nogloss'), gram: !!S.gram, colour: !!S.posOn, range: 'all', from: null, to: null };
   const R = exportRefs(), sel = S.exRange && S.exRange.text === S.text.id ? S.exRange : null;
   if (O.range === 'sel' && !sel) O.range = 'all';
-  const cb = (n, on, label) => `<label class="sopt"><input type="checkbox" name="${n}"${on ? ' checked' : ''}> ${label}</label>`;
+  const cb = (n, on, label) => `<label class="srow1 xsw">${SW(`name="${n}"`, on)}<span>${label}</span></label>`;
   const seg = (name, cur, opts) => `<div class="seg segr">${opts.map(([v, l]) => `<label><input type="radio" name="${name}" value="${v}"${v === cur ? ' checked' : ''}>${l}</label>`).join('')}</div>`;
   const opt = (r, j, cur) => `<option value="${j}"${j === cur ? ' selected' : ''}>${esc(r.s)}${r.lab ? ' – ' + esc(r.lab) : ''}</option>`;
   const fi = Math.min(O.from ?? 0, R.list.length - 1), ti = Math.min(O.to ?? R.list.length - 1, R.list.length - 1);
@@ -272,7 +272,7 @@ async function exportDialog() {
         <label>to ${R.kind.toLowerCase()} <select name="to">${R.list.map((x, j) => opt(x, j, ti)).join('')}</select></label>` : '<small class="sh">This text has no reference points.</small>'}</div>
       <div class="xr xr-sel">${sel ? `<small class="sh">${(sel.b - sel.a + 1).toLocaleString('en')} words: ${esc(exportSelLabel(R.words, sel))}</small>` : '<small class="sh">No passage marked yet.</small>'}
         <button type="button" data-v="pick">${sel ? 'Mark again in the text …' : 'Mark in the text …'}</button></div></div></div>
-    <div class="srow"><span class="sl">Include</span><div class="sc">${cb('gloss', O.gloss, 'Glosses')}${cb('gram', O.gram, 'Grammatical information')}${cb('colour', O.colour, 'Word-class colours')}</div></div>`,
+    <div class="srow"><span class="sl">Include</span><div class="sc">${cb('gloss', O.gloss, 'Glosses')}${cb('gram', O.gram, 'Grammar line')}${cb('colour', O.colour, 'Colourisation')}</div></div>`,
     [['cancel', 'Cancel'], ['ok', 'Export']]);
   if (r.action === 'cancel') return;
   Object.assign(O, { fmt: r.data.fmt || 'pdf', gloss: r.data.gloss === 'on', gram: r.data.gram === 'on', colour: r.data.colour === 'on', range: r.data.range || 'all',

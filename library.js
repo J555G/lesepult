@@ -273,22 +273,19 @@ async function libraryDialog() {
   S.impWorks = (await getAll('texts')).map(impWork);
   S.libInst = Object.fromEntries(inst.map(w => [w.id, w]));
   const tot = inst.reduce((a, w) => a + (w.size || 0), 0);
-  // only when something is downloaded and the device may still clear it: a note that can be dismissed
-  let note = '';
-  try { if (inst.length && !(await navigator.storage?.persisted?.()) && !(await setting('persistNoteOff'))) note = '<div class="libnote" id="libNote"><span>Downloads are not yet protected: start the app from its Home Screen icon, so that the device does not clear them.</span><button type="button" data-notex="1" aria-label="Dismiss">×</button></div>'; } catch (_) { }
-  dialog(`<h3>Library</h3>
+  dialog(`${dlgHead('Library')}
     <div class="libtabs" id="libTabs" role="tablist">${libTabsHTML()}</div>
     <div class="libtop"><input type="search" id="libSearch" placeholder="Search authors and works (English, Latin or Greek)…" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(S.libQ)}">
       <button type="button" id="libFilterBtn" title="Filters" aria-label="Filters" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5.5h12M6 18.5h12"/><rect x="3" y="4" width="3.2" height="16" rx="1.6"/><rect x="17.8" y="4" width="3.2" height="16" rx="1.6"/><path d="M9 9.2h6M9 12h4.6M9 14.8h3" stroke-width="1.3"/></g></svg></button></div>
     <div id="libActive" class="libactive" hidden></div>
     <div id="libCtl" class="libctl" hidden>${libControlsHTML()}</div>
     <div class="libbar"><span class="libcount" id="libCount"></span><span class="libsort" id="libSort">${sortBarHTML()}</span></div>
-    ${note}
     <div class="list lib" id="libList"></div>
     ${!cat ? '<p class="hint">The catalogue could not be loaded (offline?). Downloaded works are listed below.</p>' : S.catOnline ? '' : '<p class="hint">Offline – showing the last known catalogue; downloads need a connection.</p>'}
     <small class="libfoot">${inst.length} on this device${tot ? ` · ≈ ${mb(tot)}` : ''}${S.impWorks.length ? ` · ${S.impWorks.length} imported` : ''} ${info(`${cat ? `${cat.authors.length} authors and ${Object.keys(S.catWork).length.toLocaleString('en')} works are available. ` : ''}Texts: Perseus Digital Library and Open Greek and Latin (☰ → Acknowledgements). Dates follow the TLG canon: author dates by century; a work is dated by its author.`)}</small>`,
-    [['cancel', 'Close']]).then(() => { document.body.classList.remove('libsheet'); $('#dlg').classList.remove('libdlg'); S.libScroll = $('#libList')?.scrollTop || 0; });
-  // the library takes the whole height: the list gets all the room, the short summary shares the line with "Close"
+    [['import', 'Import text …']]).then(r => { document.body.classList.remove('libsheet'); $('#dlg').classList.remove('libdlg'); S.libScroll = $('#libList')?.scrollTop || 0;
+      if (r.action === 'import') importDialog(null, true); });
+  // the library takes the whole height: the list gets all the room, the short summary shares the line with "Import text …"
   $('#dlg').classList.add('libdlg');
   const ft = $('#dlgForm .libfoot'), row = $('#dlgForm > .row'); if (ft && row) row.prepend(ft);
   filterIcon();
@@ -594,7 +591,7 @@ async function navHTML(keepOpen = null) {
     return recRow(k, x.title, x.author || '', r ? where(r) : '', true); }).join('')}</div></details>`;
   html += `<details class="alltexts" data-k="alltexts"${isOpen('alltexts', false) ? ' open' : ''}><summary>All texts on this device <small>${works.length + texts.length}</small></summary><div class="list nav">` + authors.map(a => `<details data-k="${a.id}"${isOpen(a.id, false) ? ' open' : ''}><summary><b>${esc(a.name)}</b> <small>${a.works.length}</small></summary>${a.works.sort((x, y) => x.title.localeCompare(y.title)).map(x => `<div class="item"><span class="t">${esc(x.title)} <span class="gk">${x.greek && x.greek !== x.title ? esc(x.greek) : ''}</span> <small>${x.books.length > 1 ? x.books.length + ' parts' : ''}</small></span><button type="button" data-nav="work:${x.id}"${x.id === w?.id ? ' class="on"' : ''}>Open</button></div>`).join('')}</details>`).join('')
     + (texts.length ? `<details data-k="mytexts"${isOpen('mytexts', false) ? ' open' : ''}><summary><b>Imported texts</b> <small>${texts.length}</small></summary>${texts.map(x => `<div class="item"><span class="t">${esc(x.title)}</span><button type="button" data-nav="text:${x.id}"${x.id === t?.id ? ' class="on"' : ''}>Open</button></div>`).join('')}</details>` : '')
-    + (!authors.length && !texts.length ? '<p class="hint">Nothing here yet – get texts from the Library, or import your own (☰ → Import text).</p>' : '') + '</div></details></div>';
+    + (!authors.length && !texts.length ? '<p class="hint">Nothing here yet – get texts from the Library, or import your own (☰ → Library → Import text …).</p>' : '') + '</div></details></div>';
   return html;
 }
 function navExample() {

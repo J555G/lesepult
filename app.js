@@ -391,7 +391,7 @@ function splitIcon() {   // an open book: the fold sits where the split is, the 
   S.gramCfg = Object.assign(defaultGramCfg(), (await setting('gramCfg')) || {}); applyGramCfg();
   const cur = await setting('currentText');
   if (cur != null) await openText(cur);
-  if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! <button id="btnFirstSync">Download the free dictionaries</button> (Greek: Pape, LSJ and morphology; Latin: Lewis &amp; Short, Georges and Collatinus – about 60 MB). More dictionaries: ☰ → Instruments → Dictionaries. Then get a text via ☰ → Library, or import your own via ☰ → Import text.</p>';
+  if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! <button id="btnFirstSync">Download the free dictionaries</button> (Greek: Pape, LSJ and morphology; Latin: Lewis &amp; Short, Georges and Collatinus – about 60 MB). More dictionaries: ☰ → Instruments → Dictionaries. Then get a text via ☰ → Library, or import your own via ☰ → Library → Import text …</p>';
   $('#btnFirstSync')?.addEventListener('click', () => syncPackages());
   navigator.storage?.persist?.().catch(() => { });
 })();

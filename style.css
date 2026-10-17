@@ -1268,3 +1268,4 @@ dialog details.subfold.shead>summary{font:600 14px var(--ui);color:var(--fg);pad
   @media (orientation:portrait){ #divider::before{left:33.33%;right:auto;top:-2px;bottom:-2px} }
 }
 #textTitle.short .tbf{display:none}#textTitle.short .tbs{display:inline}
+dialog .xsw{padding:.2rem 0}
