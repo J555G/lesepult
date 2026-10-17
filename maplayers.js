@@ -6,7 +6,7 @@
 const TMAXR = 5;                                                   // at most five periods
 const fmtY = y => y == null ? '' : y < 0 ? `${-y} BC` : `AD ${Math.max(1, y)}`;
 const fmtR = ([a, b]) => a === b ? fmtY(a) : a < 0 && b < 0 ? `${-a}–${-b} BC` : a >= 0 ? `AD ${Math.max(1, a)}–${b}` : `${fmtY(a)} – ${fmtY(b)}`;
-const LCFG = { time: true, tol: 25, gone: 'fade', undated: 'show', later: 'fade', rivers: true, lakes: true, provinces: true, regArea: false, aqueducts: false, walls: false, canals: false, own: true, dOff: [], dLen: 'off', basemap: 'hd',
+const LCFG = { time: true, tol: 25, gone: 'fade', undated: 'show', later: 'fade', rivers: true, lakes: true, provinces: true, regArea: false, aqueducts: false, walls: false, canals: false, own: true, dOff: [], dLen: 'off', units: 'metric', basemap: 'hd',
   nmPlaces: true, nmRegions: true, nmMountains: true, nmIslands: true, twoCol: false, sites: false, cats: { settl: true }, coast: true, empires: true, regions: 'labels', roads: false, urban: true, fold: { text: true }, layScroll: 0 };
 // the colours of the periods (when several are shown in their own colours); the reader can set them (Map settings → Period)
 const RANGE_COL = ['#c0503a', '#2f78b5', '#4a9a3a', '#9a55b5', '#c9922b'];
@@ -423,8 +423,8 @@ function wireTime() {
       const r = M.T.ranges[drag.k], [lo, hi] = TLIM(), st = tStep(), v = tView();
       // a new period about 90 px wide, easy to hold and split
       const half = Math.max(2 * st, snapY((90 / tr.getBoundingClientRect().width) * (v[1] - v[0]) / 2));
-      if (r[0] === r[1]) { M.T.ranges[drag.k] = [Math.max(lo, snapY(r[0] - half)), Math.min(hi, snapY(r[0] + half))]; toast('A period – pull the two ends apart or together', 2500, true); }
-      else if (drag.e === 'm' && M.T.ranges.length < TMAXR && r[1] - r[0] >= 6 * st) { const m = snapY(drag.y0), g = Math.max(st, snapY((v[1] - v[0]) / 60)); M.T.ranges.splice(drag.k, 1, [r[0], Math.max(r[0], m - g)], [Math.min(r[1], m + g), r[1]]); toast('Two periods – pull them together to join them', 2500, true); }
+      if (r[0] === r[1]) { M.T.ranges[drag.k] = [Math.max(lo, snapY(r[0] - half)), Math.min(hi, snapY(r[0] + half))]; toast('A period – pull the two ends apart or together', 2500, $('#mapTime')); }
+      else if (drag.e === 'm' && M.T.ranges.length < TMAXR && r[1] - r[0] >= 6 * st) { const m = snapY(drag.y0), g = Math.max(st, snapY((v[1] - v[0]) / 60)); M.T.ranges.splice(drag.k, 1, [r[0], Math.max(r[0], m - g)], [Math.min(r[1], m + g), r[1]]); toast('Two periods – pull them together to join them', 2500, $('#mapTime')); }
       else return;
       navigator.vibrate?.(15); drag = null; timeChanged();
     }, 550);
@@ -527,8 +527,10 @@ function settingsHTML() {
   const trow = (k, lbl, opts) => `<div class="mtrow"><span>${lbl}</span>${[['show', 'Shown'], ['fade', 'Faded'], ['hide', 'Hidden']].map(([v, l]) => opts.includes(v) ? `<button type="button" data-mcfg="${k}" data-mv="${v}" class="${M.cfg[k] === v ? 'on' : ''}" aria-label="${l}">${l}</button>` : '<i></i>').join('')}</div>`;
   const yrs = (attr, vals, reset) => `<div class="mtlim">${vals.map((v, i) => `<input type="text" data-${attr}="${i}" value="${esc(fmtY(v))}" autocomplete="off" class="nofocus" aria-label="${i ? 'To' : 'From'}">${i ? '' : '<span>–</span>'}`).join('')}<button type="button" class="mtreset" data-${reset}="1" title="Standard" aria-label="Standard">↺</button></div>`;
   return `<div class="navh">Display</div>`
-    + sw('scale', 'Reference distance', 'a scale bar, bottom left on the map')
-    + sw('zoomShow', 'Zoom level', 'shown beside it')
+    + sw('scale', 'Reference distance', 'a scale bar, top right below the buttons')
+    + sw('zoomShow', 'Zoom level', 'shown below it')
+    + line('Units of distance and height', seg('units', [['metric', 'Metric'], ['imperial', 'Imperial'], ['roman', 'Roman'], ['greek', 'Greek']]))
+    + `<p class="hint small">Metric: km, m · Imperial: miles, feet · Roman: miles (1,479 m), feet (29.6 cm) · Greek: stades (185 m), feet (30.8 cm)</p>`
     + `<div class="navh">Places in texts</div>`
     + sw('jump', 'Move the map to a place chosen in the text')
     + line('Words that may name a person', seg('persons', [['unsure', 'Uncertain'], ['hide', 'Not places']]))
@@ -588,6 +590,7 @@ async function layerClick1(b) {
     M.cfg[d.mcfg] = v; b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); await saveMapCfg();
     if (d.mcfg === 'persons') { M.workCache = null; await placesForText(); return refreshMapData(), true; }
     if (d.mcfg === 'names' || d.mcfg === 'dLen') return drawLabels(), true;
+    if (d.mcfg === 'units') { mapInfo(); if (M.map) { M.map.setStyle(mapStyle(M.colors)); M.map.once('styledata', () => setTimeout(refreshMapData, 50)); } return true; }
     if (d.mcfg === 'basemap') { if (M.map) { M.map.setStyle(mapStyle(M.colors)); M.map.once('styledata', () => setTimeout(refreshMapData, 50)); } refreshLayersPop(); return true; }
     if (d.mcfg === 'regions' && v !== 'off') await loadAncientLabels();
     renderTime(); applyLayers(); return true;

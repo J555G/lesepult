@@ -40,7 +40,14 @@ function stripSecondAccent(f) {  // enclitic accent: αἴτιός -> αἴτι�
   const last = idx[idx.length - 1];
   return (d.slice(0, last) + d.slice(last + 1)).normalize('NFC');
 }
-function toast(msg, ms = 2500, high = false) { const t = $('#toast'); t.textContent = msg; t.classList.toggle('high', !!high); t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, ms); }
+// a short message: at the bottom; high: higher up; an element: just above it (e.g. the time slider of the map)
+function toast(msg, ms = 2500, high = false) {
+  const t = $('#toast'), r = high instanceof Element ? high.getBoundingClientRect() : null, at = r?.height ? r : null;
+  t.textContent = msg; t.classList.toggle('high', !!high && !r);
+  t.style.bottom = at ? `${Math.round(innerHeight - at.top + 8)}px` : ''; t.style.left = at ? `${Math.round((at.left + at.right) / 2)}px` : '';
+  t.style.width = at ? 'max-content' : ''; t.style.maxWidth = at ? `${Math.round(at.width - 16)}px` : '';
+  t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, ms);
+}
 
 // ---------------------------------------------------------------- IndexedDB
 // Storage layout (since v3):

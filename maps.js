@@ -34,7 +34,8 @@ async function mapCfg() {
     await ensureMapScripts();
     M.engineSet = (await setting('mapEngine')) || '5';
     const saved = (await setting('mapCfg')) || {};
-    if (!saved.v2) { delete saved.mark; saved.v2 = true; }                 // place names are no longer marked in the text by default
+    if (!saved.v2) { delete saved.mark; saved.v2 = true; }
+    if (['km', 'mi', 'st'].includes(saved.dLen)) saved.dLen = 'on';      // lengths on the map: now in the units of the settings (v207)                 // place names are no longer marked in the text by default
     if (!saved.v3) {                                                     // "Places from": switch + scale + selection (v123→124)
       saved.v3 = true;
       if (saved.scope === 'multi') { saved.sel = (saved.multi || []).map(k => k.startsWith('imp:') ? { kind: 'book', t: +k.slice(4), label: 'Imported text', sub: 'the whole text' } : { kind: 'work', w: k.slice(2), label: k.slice(2), sub: 'the whole work' }); saved.scope = 'sel'; }
@@ -691,7 +692,6 @@ async function showMap1() {
       const id = tapPlace(e.point); if (id === 'choose') return; if (id != null) return selectPlace(id, { from: 'map' });
       const did = tapDrawing(e.point); if (did) return showDrawCard(did);
       if (roadTap(e.point)) return;                                // a Roman road (Itiner-e): what is known of it
-      if (contourTap(e.point)) return;                             // a contour line: its height
       closeCard(); });
     M.map.on('movestart', () => { const c = $('#mapChoose'); if (c) c.hidden = true; });
     M.map.on('mouseenter', 'pl', () => { M.map.getCanvas().style.cursor = 'pointer'; });
@@ -843,7 +843,7 @@ async function showCard(p) {
   card.hidden = false;
   card.scrollTop = 0;
   if (M.cfg.pfOn && ['sel', 'author'].includes(M.cfg.scope)) cardMulti(p);
-  heightAt(p.lon, p.lat).then(h => { const s = card.querySelector('.mcs'); if (h != null && s && M.sel?.p === p) s.insertAdjacentText('beforeend', ` · ${Math.round(h).toLocaleString('en')} m`); });   // its height (relief)
+  heightAt(p.lon, p.lat).then(h => { const s = card.querySelector('.mcs'); if (h != null && s && M.sel?.p === p) s.insertAdjacentText('beforeend', ` · ${fmtEle(h)}`); });   // its height (relief)
 }
 const UNSURE = { later: 'Known only from after the text’s time – not on the map', person: 'Possibly a person, not a place', ambiguous: 'Several places have this name', form: 'Recognised only from the form of the word' };
 // all passages of the work that name this place
@@ -867,7 +867,7 @@ async function cardWork(p) {
 // change: another place of the same name, a place from the gazetteer, a place of your own, or none
 function changeHTML() {
   const s = M.sel, P = M.P.P, cands = (s.h?.cands || []).map(i => P[i]).filter(p => p.id !== s.p.id);
-  const near = p => { const a = s.h?.auto || s.p; const d = Math.round(Math.hypot(p.lat - a.lat, (p.lon - a.lon) * Math.cos(a.lat * Math.PI / 180)) * 111); return d ? `${d.toLocaleString('en')} km away` : ''; };
+  const near = p => { const a = s.h?.auto || s.p; const d = Math.round(Math.hypot(p.lat - a.lat, (p.lon - a.lon) * Math.cos(a.lat * Math.PI / 180)) * 111000 / unit().big); return d ? `${d.toLocaleString('en')} ${unit().bs} away` : ''; };
   return `<div class="mchg"><div class="navh">Apply to</div><div class="seg" role="group">${[['occ', 'This passage'], ['work', 'This work'], ['all', 'Everywhere']].map(([v, l]) => `<button type="button" data-mscope="${v}" class="${(M.chScope || 'occ') === v ? 'on' : ''}">${l}</button>`).join('')}</div>
     ${cands.length ? `<div class="navh">Other places of this name</div>${cands.slice(0, 12).map(p => `<button type="button" class="mcand" data-mset="${p.id}"><b>${esc(p.t)}</b> <small>${esc(typeLabel(p))} · ${near(p)}</small></button>`).join('')}` : ''}
     <div class="navh">Search the gazetteer</div><div class="navgo"><input type="search" id="mapSearch" class="nofocus" placeholder="Name of a place" autocomplete="off" spellcheck="false"></div><div id="mapSearchRes"></div>
@@ -1004,7 +1004,7 @@ async function mapWordTapped(i) {
   card.hidden = false;
   card.querySelector('[data-mmark]').onclick = () => { const c = $('#mapChange'); c.hidden = false; M.sel.h = { cands: [] }; M.sel.p = { id: null, lat: M.map.getCenter().lat, lon: M.map.getCenter().lng }; c.innerHTML = changeHTML(); };
 }
-// Settings → Map → Display: a reference distance (a scale bar) and the zoom level, bottom left on the map
+// Settings → Map → Display: a reference distance (a scale bar) and the zoom level, top right below the buttons
 function mapInfo() {
   const box = $('#mapInfo'); if (!box || !M.map) return;
   const sc = !!M.cfg?.scale, zm = !!M.cfg?.zoomShow; box.hidden = !sc && !zm;
@@ -1013,12 +1013,22 @@ function mapInfo() {
   $('#mapZoom').hidden = !zm; $('#mapZoom').textContent = 'Zoom ' + z.toFixed(1);
   $('#mapScale').hidden = !sc;
   if (sc) {
-    const mpp = 40075016.686 * Math.cos(lat * Math.PI / 180) / (512 * 2 ** z), max = mpp * 110;      // metres per pixel; at most 110 px
-    const p = 10 ** Math.floor(Math.log10(max)), d = [5, 2, 1].map(k => k * p).find(v => v <= max) || p;
-    $('#mapScale i').style.width = (d / mpp).toFixed(1) + 'px';
-    $('#mapScale b').textContent = d >= 1000 ? (d / 1000).toLocaleString('en') + ' km' : d + ' m';
+    const mpp = 40075016.686 * Math.cos(lat * Math.PI / 180) / (512 * 2 ** z), max = mpp * 110, u = unit();   // metres per pixel; at most 110 px
+    const big = max / u.big >= 1, per = big ? u.big : u.small, m = max / per;                                // in the large unit, else the small one
+    const p = 10 ** Math.floor(Math.log10(m)), d = [5, 2, 1].map(k => k * p).find(v => v <= m) || p;
+    $('#mapScale i').style.width = (d * per / mpp).toFixed(1) + 'px';
+    $('#mapScale b').textContent = d.toLocaleString('en') + ' ' + (big ? u.bs : u.sl);
   }
 }
+// ---------------------------------------------------------------- units (Settings → Map → Display → Units): distances and heights
+const UNITS = {
+  metric:   { big: 1000, bl: 'km', bs: 'km', small: 1, sl: 'm', area: 'km²' },
+  imperial: { big: 1609.344, bl: 'miles', bs: 'mi', small: 0.3048, sl: 'ft', area: 'sq mi' },
+  roman:    { big: 1479, bl: 'Roman miles', bs: 'R. mi', small: 0.2958, sl: 'Roman ft', area: 'sq. Roman miles' },   // mille passus = 5,000 pedes
+  greek:    { big: 185, bl: 'stades', bs: 'stades', small: 0.3083, sl: 'Greek ft', area: 'sq. stades' },              // Attic stadion = 600 podes
+};
+const unit = () => UNITS[M.cfg?.units] || UNITS.metric;
+const fmtEle = m => `${Math.round(m / unit().small).toLocaleString('en')} ${unit().sl}`;
 document.addEventListener('change', async ev => {
   const k = ev.target.dataset?.mapset; if (!k) return;
   await mapCfg(); M.cfg[k] = ev.target.checked; await saveMapCfg();

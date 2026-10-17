@@ -2,7 +2,7 @@
 // The pen button opens a bar with the tools (place, line, arrow, area, freehand, text, select), colour, width, dashes,
 // the set new drawings go to, undo and Done. Drawings belong to named sets (Layers → Your own: each set on or off).
 // A drawing can carry a period (the time slider fades or hides it like places) and passages of texts (it is then shown
-// only while "Places from" covers one of them). Lines show their length (km, Roman miles, stades); GeoJSON in and out.
+// only while "Places from" covers one of them). Lines show their length (in the units of the map settings); GeoJSON in and out.
 // Settings: dset|<id> {id, name, created} · draw|<id> {id, set, kind: line|arrow|area|free|text, co: [[lon, lat], …],
 //   t (name; the text of a text), note, c (colour), lw (1–3), dash, y0, y1, links: [items as in the selection], created}
 // · pown|<id> (your own places: {id, t, lat, lon, own: 1, ty: [], names: []} with the same fields set, c, note, y0, y1, links)
@@ -58,7 +58,6 @@ function dOpacity(base) {
 const dTimeF = () => tRanges() ? ['>', dOpacity(1), 0] : null;
 
 // ---------------------------------------------------------------- measuring
-const KM_MILE = 1.479, KM_STADE = 0.185;            // Roman mile (mille passus); stade of about 185 m
 function havKm(a, b) {
   const R = 6371.0088, rad = Math.PI / 180, dLa = (b[1] - a[1]) * rad, dLo = (b[0] - a[0]) * rad;
   const h = Math.sin(dLa / 2) ** 2 + Math.cos(a[1] * rad) * Math.cos(b[1] * rad) * Math.sin(dLo / 2) ** 2;
@@ -71,15 +70,16 @@ function areaKm2(co) {                                   // on the sphere (as in
   return Math.abs(s * R * R / 2);
 }
 const fmtN = v => v < 10 ? v.toFixed(1) : Math.round(v).toLocaleString('en');
-const fmtKm = km => `${fmtN(km)} km · ${fmtN(km / KM_MILE)} Roman miles · ${fmtN(km / KM_STADE)} stades`;
-const fmtArea = a => `${a < 10 ? a.toFixed(1) : Math.round(a).toLocaleString('en')} km²`;
+// a length in the chosen unit (Settings → Map → Units), then in Roman miles and stades (the ones not chosen)
+const fmtKm = km => { const u = unit(); return [`${fmtN(km * 1000 / u.big)} ${u.bl}`, ...[UNITS.roman, UNITS.greek].filter(x => x !== u).map(x => `${fmtN(km * 1000 / x.big)} ${x.bl}`)].join(' · '); };
+const fmtArea = a => { const u = unit(), v = a * 1e6 / u.big ** 2; return `${v < 10 ? v.toFixed(1) : Math.round(v).toLocaleString('en')} ${u.area}`; };
 function dMeasure(x) {
   const k = dKind(x);
   if (k === 'area') return `Area ${fmtArea(areaKm2(x.co))} · outline ${fmtKm(lenKm(x.co, true))}`;
   if (['line', 'arrow', 'free'].includes(k)) return 'Length ' + fmtKm(lenKm(x.co));
   return '';
 }
-function dLenShort(km) { const u = M.cfg.dLen; return u === 'mi' ? `${fmtN(km / KM_MILE)} R. mi` : u === 'st' ? `${fmtN(km / KM_STADE)} stades` : `${fmtN(km)} km`; }
+function dLenShort(km) { const u = unit(); return `${fmtN(km * 1000 / u.big)} ${u.bs}`; }
 function dDates(x) {
   if (x.y0 == null && x.y1 == null) return '';
   if (x.y1 == null) return 'from ' + fmtY(x.y0);
@@ -335,7 +335,7 @@ function dInfo() {
   let h = '';
   if (cur?.co.length) {
     const km = lenKm(cur.co, cur.kind === 'area');
-    h = `<span>${cur.co.length} point${cur.co.length === 1 ? '' : 's'}${km ? ` · <b>${esc(fmtN(km))} km</b> · ${esc(fmtN(km / KM_MILE))} R. mi · ${esc(fmtN(km / KM_STADE))} stades` : ''}${cur.kind === 'area' && cur.co.length > 2 ? ' · ' + fmtArea(areaKm2(cur.co)) : ''}</span><button type="button" class="acc" data-dfinish="1">Finish</button><button type="button" class="mx" data-dcancel="1" aria-label="Cancel">✕</button>`;
+    h = `<span>${cur.co.length} point${cur.co.length === 1 ? '' : 's'}${km ? ` · <b>${esc(dLenShort(km))}</b>` : ''}${cur.kind === 'area' && cur.co.length > 2 ? ' · ' + fmtArea(areaKm2(cur.co)) : ''}</span><button type="button" class="acc" data-dfinish="1">Finish</button><button type="button" class="mx" data-dcancel="1" aria-label="Cancel">✕</button>`;
   } else if (d.last && dGet(d.last) && d.tool !== 'edit') { const y = dGet(d.last), m = dMeasure(y);
     h = `<span>${esc(D_KIND[dKind(y)])} saved${m ? ' · ' + esc(m.replace(/^Length /, '')) : ''}</span><button type="button" data-dedit="${esc(y.id)}">Edit …</button>`;
   } else if (d.tool === 'edit' && x) h = `<span><b>${esc(x.t || D_KIND[dKind(x)])}</b>${dMeasure(x) ? ' · ' + esc(dMeasure(x).replace(/^Length /, '')) : ''}${dDates(x) ? ' · ' + esc(dDates(x)) : ''}</span><button type="button" data-dedit="${esc(x.id)}">Edit …</button><button type="button" class="danger" data-ddel="${esc(x.id)}">Delete</button>`;
@@ -570,7 +570,7 @@ function ownLayersHTML() {
   return tgl('own', 'Your places and drawings', c.own !== false)
     + `<div class="navh">Sets</div>${[...(M.dsets?.values() || [])].map(s => `<div class="dsetrow"><button type="button" class="mtg${off.includes(s.id) ? '' : ' on'}" data-dsettg="${esc(s.id)}"><span class="ck"></span>${esc(s.name)} <small>${cnt[s.id] || 0}</small></button><button type="button" class="mico2" data-dsetmenu="${esc(s.id)}" title="Rename, export, delete" aria-label="More">⋯</button></div>`).join('')}
     <div class="macts"><button type="button" data-dsetnew="1">+ New set</button><button type="button" data-dimport="1">Import GeoJSON …</button><button type="button" data-dexport="*">Export all</button></div>`
-    + segc('dLen', [['off', 'Off'], ['km', 'km'], ['mi', 'Roman miles'], ['st', 'Stades']], 'Lengths on the map')
+    + segc('dLen', [['off', 'Off'], ['on', 'On']], 'Lengths on the map')
     + `<p class="hint small">Draw with the pen button of the map.</p>`;
 }
 async function dSetMenu(id) {

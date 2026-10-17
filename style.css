@@ -1436,10 +1436,9 @@ dialog .pkmore .dask{flex:none;display:flex;gap:.4rem;font-size:inherit}
 dialog .pkmore .dask button{font-size:12.5px;padding:.3rem .65rem}
 
 /* the map: reference distance and zoom level (Settings → Map → Display) */
-.minfo{position:absolute;left:10px;bottom:10px;z-index:3;display:flex;align-items:flex-end;gap:.6rem;pointer-events:none;font:12px/1.2 var(--ui);color:var(--fg)}
-#mapBody.hastime .minfo{bottom:96px}
+.minfo{position:absolute;right:10px;top:56px;z-index:2;display:flex;flex-direction:column;align-items:flex-end;gap:4px;pointer-events:none;font:12px/1.2 var(--ui);color:var(--fg);--halo:var(--bg);text-shadow:0 0 2px var(--halo),0 0 3px var(--halo),0 0 5px var(--halo)}
 .minfo [hidden]{display:none}
-.minfo .mscale{display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:color-mix(in srgb,var(--card) 80%,transparent);border-radius:5px;padding:2px 6px 4px}
-.minfo .mscale i{display:block;height:5px;border:1.5px solid currentColor;border-top:0;box-sizing:border-box}
+.minfo .mscale{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.minfo .mscale i{display:block;height:5px;border:1.5px solid currentColor;border-top:0;box-sizing:border-box;filter:drop-shadow(0 0 1px var(--halo)) drop-shadow(0 0 2px var(--halo))}
 .minfo .mscale b{font-weight:500}
-.minfo .mzoom{background:color-mix(in srgb,var(--card) 80%,transparent);border-radius:5px;padding:2px 6px;font-variant-numeric:tabular-nums}
+.minfo .mzoom{font-variant-numeric:tabular-nums}

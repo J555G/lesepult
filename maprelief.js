@@ -158,9 +158,9 @@ function profileSVG(pr) {
   let up = 0, down = 0; for (let i = 1; i < hs.length; i++) { const d = hs[i] - hs[i - 1]; if (d > 0) up += d; else down -= d; }
   const X = km => (km / pr.km * W).toFixed(1), Y = h => (H - 4 - (h - lo) / span * (H - 10)).toFixed(1);
   const path = pr.pts.map((p, i) => `${i ? 'L' : 'M'}${X(p.km)} ${Y(p.h ?? 0)}`).join('');
-  const r = n => Math.round(n).toLocaleString('en');
+  const r = n => Math.round(n / unit().small).toLocaleString('en'), u = ' ' + unit().sl;
   return `<div class="dprof"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path d="${path}L${W} ${H}L0 ${H}Z" class="pf"/><path d="${path}" class="pl"/></svg>
-    <small>Height ${r(lo)}–${r(hi)} m · climb ${r(up)} m · descent ${r(down)} m</small></div>`;
+    <small>Height ${r(lo)}–${r(hi)}${u} · climb ${r(up)}${u} · descent ${r(down)}${u}</small></div>`;
 }
 
 // ---------------------------------------------------------------- the layers (called by layerStyle)
@@ -187,9 +187,10 @@ function reliefStyle(st, C) {
   ls.push({ id: 'rel-shade', type: 'hillshade', source: 'reldem', paint: { 'hillshade-exaggeration': ['interpolate', ['linear'], ['zoom'], 3, 0.55, 8, 0.4, 12, 0.3],
     'hillshade-shadow-color': dark ? '#000000' : '#5b4a33', 'hillshade-highlight-color': dark ? '#7b7466' : '#fffdf6', 'hillshade-accent-color': dark ? '#000000' : '#6b5b44' } });
   put(below, ...ls);
-  // contour lines (maplibre-contour): every so many metres, the larger steps stronger and numbered
-  st.sources.contours = { type: 'vector', maxzoom: 15, tiles: [M.relDem.contourProtocolUrl({ multiplier: 1, overzoom: 1, contourLayer: 'contours', elevationKey: 'ele', levelKey: 'level',
-    thresholds: { 5: [500, 1000], 7: [200, 1000], 9: [100, 500], 11: [50, 250], 13: [20, 100] } })] };
+  // contour lines (maplibre-contour): every so many metres (or feet, in the units of the map settings), the larger steps stronger and numbered
+  const ft = unit().small !== 1;
+  st.sources.contours = { type: 'vector', maxzoom: 15, tiles: [M.relDem.contourProtocolUrl({ multiplier: 1 / unit().small, overzoom: 1, contourLayer: 'contours', elevationKey: 'ele', levelKey: 'level',
+    thresholds: ft ? { 5: [2000, 5000], 7: [500, 2500], 9: [250, 1000], 11: [100, 500], 13: [50, 250] } : { 5: [500, 1000], 7: [200, 1000], 9: [100, 500], 11: [50, 250], 13: [20, 100] } })] };
   const k = ['a-prov', 'a-roads', 'own'].map(at).find(i => i >= 0) ?? at('pl-region');
   put(k, { id: 'rel-contour', type: 'line', source: 'contours', 'source-layer': 'contours', minzoom: 5,
     paint: { 'line-color': dark ? '#a08a66' : '#8a6a40', 'line-opacity': ['case', ['==', ['get', 'level'], 1], 0.6, 0.35], 'line-width': ['case', ['==', ['get', 'level'], 1], 1.1, 0.6] } });
@@ -226,11 +227,4 @@ function contourLabels(placed, W, H) {
     }
   }
   return h;
-}
-// a tap on an unnumbered contour line: its height
-function contourTap(pt) {
-  if (!relOn('relContours') || !M.map?.getLayer('rel-contour')) return false;
-  const fs = M.map.queryRenderedFeatures([[pt.x - 6, pt.y - 6], [pt.x + 6, pt.y + 6]], { layers: ['rel-contour'] });
-  if (!fs.length) return false;
-  toast(`Contour line ${Math.round(fs[0].properties.ele).toLocaleString('en')} m`, 1800); return true;
 }
