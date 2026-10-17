@@ -1260,3 +1260,9 @@ body.reading #tScroll{z-index:30}
 #textTitle .ts{text-align:left}   /* (buttons centre their text: the arrow would move with the number's width) */
 dialog details.subfold.shead>summary{font:600 14px var(--ui);color:var(--fg);padding:.55rem 0}
 .tzrow button{min-width:2.4rem;padding-left:.4rem;padding-right:.4rem}
+/* mouse: the divider's grip only a little wider than the line, so that it does not cover the text pane's scroll bar
+   (touch screens keep the wide grip) */
+@media (hover:hover) and (pointer:fine){
+  #divider::before{left:-2px;right:-2px}
+  @media (orientation:portrait){ #divider::before{left:33.33%;right:auto;top:-2px;bottom:-2px} }
+}
