@@ -1266,6 +1266,7 @@ function dialog(inner, buttons = [['ok', 'OK']], defaultAction = null) {
       v === 'file' ? `<label class="btn" for="${extra}">${l}</label>`
       : v === 'link' ? `<a class="btn" href="${extra.href}" download="${extra.name}">${l}</a>`
       : `<button type="button" data-v="${v}">${l}</button>`).join('') + '</div>';
+    { const h = f.querySelector('.dlghead'); if (h) h.appendChild(f.querySelector('.dlgx')); }   // the ✕ in the sticky title
     let action = 'cancel';
     const finish = a => { action = a; d.close(); };
     f.querySelectorAll('button[data-v]').forEach(b => b.addEventListener('click', () => finish(b.dataset.v)));
@@ -1413,74 +1414,87 @@ async function fetchManifest() {
   }
   return man;
 }
+// ---- shared parts of the two big dialogs (Instruments, Settings): a switch, a sticky title, a package row
+const SW = (attrs, on, dis) => `<label class="tsw"><input type="checkbox" ${attrs}${on ? ' checked' : ''}${dis ? ' disabled' : ''}><i></i></label>`;
+const dlgHead = t => `<div class="dlghead"><h3>${t}</h3></div>`;
+// a row: switch · name and description · the button on the right (Download / Update / ⋯ with Delete beneath)
+function pkRow({ sw = '', grip = '', name, desc = '', right = '', more = '', cls = '', id = '' }) {
+  return `<div class="item pkrow${cls ? ' ' + cls : ''}"${id ? ` data-id="${esc(id)}"` : ''}>${grip}${sw}<span class="t"><b>${name}</b>${desc ? `<small>${desc}</small>` : ''}</span><span class="pkr">${right}${more ? '<button type="button" class="pkm" data-pkmore="1" aria-label="More" title="More">⋯</button>' : ''}</span>${more ? `<div class="pkmore" hidden>${more}</div>` : ''}</div>`;
+}
+const mbs = n => n >= 1e6 ? (n / 1e6).toFixed(n < 1e7 ? 1 : 0) + ' MB' : Math.round(n / 1e3) + ' kB';
+document.addEventListener('click', ev => { const t = ev.target.closest?.('#dlg .pkrow .t small'); if (t) t.classList.toggle('full'); });
+document.addEventListener('click', ev => { const b = ev.target.closest?.('#dlg [data-pkmore]'); if (!b) return; const m = b.closest('.pkrow').querySelector('.pkmore'); m.hidden = !m.hidden; b.classList.toggle('on', !m.hidden); });
+
 async function dictsDialog() {
   await loadDicts();
   const man = await fetchManifest();
   const privCfgNow = await privCfg();
   const remote = Object.fromEntries((man?.packages || []).map(p => [p.id, p]));
-  // download / update button for every package that is available on the app's website
-  const repoBtn = id => {
-    const p = remote[id]; if (!p) return '';
-    const mb = (p.bytes / 1e6).toFixed(1) + ' MB';
-    const label = !S.installed[id] ? 'Download' : S.installed[id].version !== p.version ? 'Update' : null;
-    if (DL.has(id)) return dlButtonHTML(id, label || 'Update');
-    if (!label) return `<button type="button" class="dlbtn" disabled title="Same version as on the website">Up to date</button>`;
-    return `<button type="button" class="dlbtn" data-get="${id}" title="${mb}">${label}</button>`;
-  };
-  const delBtn = id => `<button type="button" class="danger" data-v="del:${id}" title="Remove from this device">Delete</button>`;
-  const sizeOf = d => d.size ? ` · ≈ ${(d.size / 1e6).toFixed(0)} MB` : '';
-  const onBox = (id, what) => `<label class="sw" title="Use this ${what}"><input type="checkbox" data-dict-on="${id}"${S.dictPrefs.off.includes(id) ? '' : ' checked'}></label>`;
-  const foldBtn = id => `<button type="button" class="fold" data-dict-fold="${id}" title="Shown unfolded or folded when a word is looked up">${S.dictPrefs.open.includes(id) ? '▾ unfolded' : '▸ folded'}</button>`;
-  const missingRow = p => `<div class="item"><span class="t"><b>${esc(p.name)}</b> ${esc(p.title || '')}<br><small>not on this device · ${(p.bytes / 1e6).toFixed(1)} MB${p.priv ? ' · private repository' : ''}</small></span>${repoBtn(p.id)}</div>`;
-  // 1. dictionaries (drag to reorder, tick to show)
-  const srcOf = p => p.src || (['ls', 'georges', 'collatinus', 'morph-la', 'whitaker', 'morph-la-ww'].includes(p.id) ? 'la' : 'grc');
-  const rowsFor = lang => S.dicts.filter(d => d.src === lang).map(d => `<div class="item dictrow" data-id="${d.id}"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span>${onBox(d.id, 'dictionary')}<span class="t"><b>${esc(d.name)}</b> ${foldBtn(d.id)} ${esc(d.title || '')}<br><small>${d.count.toLocaleString('en')} entries${sizeOf(d)} · ${esc(d.source || '')}</small></span>${repoBtn(d.id)}${delBtn(d.id)}</div>`).join('');
-  const missFor = lang => Object.values(remote).filter(p => !S.installed[p.id] && p.kind === 'dictionary' && srcOf(p) === lang).map(missingRow).join('');
-  // 2. analysis tools (tick to use)
-  const tools = [S.morphInst && [S.morphInst, 'Greek: lemma and form for every word', `${S.morphInst.count.toLocaleString('en')} forms${sizeOf(S.morphInst)}`],
-                 S.hintsInst && [S.hintsInst, 'Greek: preferred lemma for ambiguous forms; word classes for the colours', ''],
-                 ...S.latMorphs.map(d => [d, 'Latin: lemma and form for every word (choose one below)', `${d.count.toLocaleString('en')} lemmata${sizeOf(d)}`])].filter(Boolean)
-    .map(([d, what, sub]) => `<div class="item toolrow"><span class="grip ph" aria-hidden="true">⠿</span>${onBox(d.id, 'instrument')}<span class="t"><b>${esc(d.name)}</b> <small>${esc(what)}</small><br><small>${sub ? sub + ' · ' : ''}${esc(d.source || '')}</small></span>${repoBtn(d.id)}${delBtn(d.id)}</div>`).join('');
-  const missT = Object.values(remote).filter(p => !S.installed[p.id] && p.kind !== 'dictionary').map(missingRow).join('');
-  let est = '', pers = '';
-  try { const e = await navigator.storage?.estimate?.(); if (e) est = `The app uses ${(e.usage / 1e6).toFixed(0)} MB on this device`; } catch (_) { }
-  try { pers = (await navigator.storage?.persisted?.()) ? ' · protected: downloads stay until you delete them' : ' · <b>not yet protected</b> – start the app from its Home Screen icon'; } catch (_) { }
-  const privState = privCfgNow.token ? (S.privErr ? '<span class="bad">' + esc(S.privErr) + '</span>' : '<span class="ok">connected</span>') : 'not connected';
-  // three folded groups (fold state remembered): dictionaries, analysis instruments, maps
   const fold = (await setting('instFold')) || {};
-  const grp = (k, title, sub, body, inner) => `<details class="ifold${inner ? ' sub' : ''}" data-if="${k}"${fold[k] ? ' open' : ''}><summary><b>${title}</b><small>${sub}</small></summary>${body}</details>`;
-  const nD = S.dicts.length, nT = [S.morphInst, S.hintsInst, ...S.latMorphs].filter(Boolean).length;
-  const mapInst = typeof mapInstalled === 'function' ? Object.keys(await mapInstalled()).length : 0;
-  const r = await dialog(`<h3>Instruments</h3>
-    ${grp('dict', 'Dictionaries', `${nD} installed`, Object.entries(LANGS).map(([lang, name]) => { const rs = rowsFor(lang), ms = missFor(lang);
-      const n = S.dicts.filter(d => d.src === lang).length;
-      return grp('dict-' + lang, `${name}`, `${n} installed`, `<section class="dsec"><p class="hint small">Drag ⠿ to change the order · untick to hide · ▸/▾ folded or unfolded when a word is looked up.</p>
-      <div class="list plain dictlist">${rs || ms ? rs + ms : `<p class="hint">No ${name} dictionaries installed.</p>`}</div></section>`, true); }).join('') + grp('priv', 'Private dictionaries', privState, `
-    <section class="dsec">
-      <p class="hint small">Dictionaries that may not be published can be downloaded from a private GitHub repository. ${info('<b>Repository:</b> owner and name of the private repository. <b>Token:</b> a GitHub fine-grained personal access token with access to that repository only and the permission “Contents: Read-only”; it is stored only on this device.<br><b>Format:</b> the repository contains dictionary packages (<code>*.gdpkg.gz</code>, format <code>greekdict-pkg-2</code>, as made by the toolkit’s <code>python gd.py packages</code>) and a <code>packages.json</code> next to them that lists them (id, file, name, kind, bytes, version) – the same layout as the app’s public <code>packages</code> folder.')}</p>
-      <div class="privf"><label>GitHub repository<input type="text" name="privRepo" value="${esc(privCfgNow.repo)}" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="owner/repository"></label>
-      <label>Access token<input type="password" name="privToken" value="${esc(privCfgNow.token)}" autocomplete="off" placeholder="github_pat_…"></label></div>
-      <div class="row" style="justify-content:flex-start;margin-top:.4rem"><button type="button" data-v="privsave">Save and connect</button>${privCfgNow.token ? '<button type="button" class="danger" data-v="privforget">Forget token</button>' : ''}</div></section>`, true) + grp('marks', 'Editors’ colour marks', 'Pape, LSJ', `
-    <section class="dsec">
-      <label class="opt"><input type="checkbox" id="optSrcCol"${S.srcColors ? ' checked' : ''}> Show the colour marks of the Eulexis editors in Pape and LSJ</label>
-      <p class="legend">${Object.entries(FONT_MEANING).map(([c, t]) => `<span class="fc" data-c="${c}">■</span> ${esc(t)}`).join('<br>')}</p></section>`, true))}
-    ${grp('tools', 'Analysis instruments', `${nT} installed`, `<section class="dsec">${info('Untick an instrument to switch it off. The language of each word follows from its alphabet.')}
-      <div class="list plain">${tools || missT ? tools + missT : '<p class="hint">No analysis instruments installed.</p>'}</div>
-      <div class="srow"><span class="sl">Greek analysis</span><div class="sc">${langToolSel('grc')}</div></div>
-      <div class="srow"><span class="sl">Latin analysis</span><div class="sc">${langToolSel('la')}</div></div>
-      <div class="srow"><span class="sl">Vowel lengths</span><div class="sc">${withInfo(`<label class="sopt"><input type="checkbox" data-set="latQuant"${S.latQuant ? ' checked' : ''}> Mark them in Latin texts (ā long, ă short)</label>`, 'From Collatinus (also needed with Whitaker’s Words). Where a form has several readings, only the lengths they share are marked.')}</div></div></section>`)}
-    ${typeof mapSectionHTML === 'function' ? grp('maps', 'Maps', `${mapInst} installed`, await mapSectionHTML()) : ''}
-    ${man ? '' : '<p class="hint">The website could not be reached (offline?) – download buttons are not available right now. Everything already installed works offline.</p>'}
-    <section class="dsec istore"><h4>Storage</h4><p class="hint small">${est}${pers}.</p>
-      <div class="row" style="justify-content:flex-start"><button type="button" data-v="clean">Clean up storage</button></div></section>`,
-    [['file', 'Import packages …', 'fileDict'], ['cancel', 'Close']]);
+  const sec = (k, title, sub, body) => `<details class="ifold" data-if="${k}"${fold[k] ? ' open' : ''}><summary><b>${title}</b><small>${sub}</small></summary><section class="dsec">${body}</section></details>`;
+  // the button on the right: Update when the website has a newer version, Download when not installed
+  const getBtn = id => {
+    const p = remote[id]; if (!p) return '';
+    if (DL.has(id)) return dlButtonHTML(id, S.installed[id] ? 'Update' : 'Download');
+    if (!S.installed[id]) return `<button type="button" class="dlbtn" data-get="${id}" title="${mbs(p.bytes)}">Download</button>`;
+    return S.installed[id].version !== p.version ? `<button type="button" class="dlbtn" data-get="${id}" title="${mbs(p.bytes)}">Update</button>` : '';
+  };
+  const delMore = (id, what) => `<button type="button" class="danger" data-v="del:${id}">Delete from this device</button><small class="hint">${what}</small>`;
+  const srcOf = p => p.src || (['ls', 'georges', 'collatinus', 'morph-la', 'whitaker', 'morph-la-ww'].includes(p.id) ? 'la' : 'grc');
+  const avail = (lang, kinds) => Object.values(remote).filter(p => !S.installed[p.id] && kinds(p) && srcOf(p) === lang)
+    .map(p => pkRow({ name: esc(p.name), desc: `${esc(p.title || '')}${p.title ? ' · ' : ''}${mbs(p.bytes)}${p.priv ? ' · private repository' : ''}`, right: getBtn(p.id), cls: 'avail' })).join('');
+  // 1. dictionaries, by language: ⠿ to reorder, the switch to use, ▸/▾ folded or open when a word is looked up
+  const dictRows = lang => S.dicts.filter(d => d.src === lang).map(d => pkRow({ id: d.id, cls: 'dictrow',
+    grip: '<span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span>',
+    sw: SW(`data-dict-on="${d.id}" aria-label="Use ${esc(d.name)}"`, !S.dictPrefs.off.includes(d.id)),
+    name: esc(d.name), desc: `${esc(d.title || '')}${d.size ? ' · ' + mbs(d.size) : ''}`,
+    right: `<button type="button" class="chev${S.dictPrefs.open.includes(d.id) ? ' on' : ''}" data-dict-fold="${d.id}" title="${S.dictPrefs.open.includes(d.id) ? 'Open when a word is looked up' : 'Folded when a word is looked up'}" aria-label="Open or folded when a word is looked up">${S.dictPrefs.open.includes(d.id) ? '▾' : '▸'}</button>${getBtn(d.id)}`,
+    more: delMore(d.id, 'You can download or import it again later; to hide it, switch it off.') })).join('');
+  const privState = privCfgNow.token ? (S.privErr ? '<span class="bad">' + esc(S.privErr) + '</span>' : '<span class="ok">connected</span>') : 'not connected';
+  const nD = lang => S.dicts.filter(d => d.src === lang).length;
+  const dictBody = Object.entries(LANGS).map(([lang, name]) => { const ins = dictRows(lang), av = avail(lang, p => p.kind === 'dictionary');
+      return `<div class="navh2">${name}</div><div class="list plain dictlist">${ins || '<p class="hint small">None installed.</p>'}</div>${av ? `<div class="navh3">Available</div><div class="list plain">${av}</div>` : ''}`; }).join('')
+    + `<p class="hint small">⠿ drag to reorder · ▸/▾ folded or open when a word is looked up · ⋯ delete</p>`
+    + `<div class="srow1"><span>Private repository: ${privState}</span><button type="button" data-v="priv">Set up …</button></div>`
+    + `<div class="srow1">${SW('id="optSrcCol"', S.srcColors)}<span>Colour marks of the Eulexis editors in Pape and LSJ ${info(`<span class="legend">${Object.entries(FONT_MEANING).map(([c, t]) => `<span class="fc" data-c="${c}">■</span> ${esc(t)}`).join('<br>')}</span>`)}</span></div>`;
+  // 2. analysis, by language: which instrument is used (one per language), add-ons, what can be downloaded
+  const useRow = (lang, d, sub) => pkRow({ id: d.id, sw: `<label class="trad"><input type="radio" name="use-${lang}" data-uselang="${lang}" value="${d.id}"${!S.dictPrefs.off.includes(d.id) && langTools(lang).find(x => !S.dictPrefs.off.includes(x.id)) === d ? ' checked' : ''}><i></i></label>`,
+    name: esc(d.name), desc: sub, right: getBtn(d.id), more: delMore(d.id, 'You can download it again later.') });
+  const tLang = { grc: [], la: [] };
+  for (const d of langTools('grc')) tLang.grc.push(useRow('grc', d, `lemma and form of every word${d.count ? ' · ' + d.count.toLocaleString('en') + ' forms' : ''}${d.size ? ' · ' + mbs(d.size) : ''}`));
+  for (const d of langTools('la')) tLang.la.push(useRow('la', d, `lemma and form of every word${d.count ? ' · ' + d.count.toLocaleString('en') + ' lemmata' : ''}${d.size ? ' · ' + mbs(d.size) : ''}`));
+  const none = lang => `<div class="item pkrow"><label class="trad"><input type="radio" name="use-${lang}" data-uselang="${lang}" value=""${langTools(lang).some(x => !S.dictPrefs.off.includes(x.id)) ? '' : ' checked'}><i></i></label><span class="t"><b>None</b><small>no analysis</small></span></div>`;
+  const addons = { grc: S.hintsInst ? pkRow({ id: S.hintsInst.id, sw: SW(`data-dict-on="${S.hintsInst.id}"`, !S.dictPrefs.off.includes(S.hintsInst.id)), name: esc(S.hintsInst.name), desc: 'preferred lemma for ambiguous forms; word classes for the colours', right: getBtn(S.hintsInst.id), more: delMore(S.hintsInst.id, '') }) : '', la: '' };
+  const usedName = lang => langTools(lang).find(x => !S.dictPrefs.off.includes(x.id))?.name || 'none';
+  const toolBody = Object.entries(LANGS).map(([lang, name]) => { const av = avail(lang, p => p.kind !== 'dictionary');
+      return `<div class="navh2">${name}</div><div class="navh3">Use</div><div class="list plain">${tLang[lang].join('')}${tLang[lang].length ? none(lang) : '<p class="hint small">None installed.</p>'}</div>`
+        + (addons[lang] ? `<div class="navh3">Add-ons</div><div class="list plain">${addons[lang]}</div>` : '') + (av ? `<div class="navh3">Available</div><div class="list plain">${av}</div>` : ''); }).join('')
+    + `<p class="hint small">The language of each word follows from its alphabet.</p>`;
+  // 3. the map
+  const mapBody = typeof mapSectionHTML === 'function' ? await mapSectionHTML() : '';
+  let est = '', pers = '';
+  try { const e = await navigator.storage?.estimate?.(); if (e) est = `Pult uses ${(e.usage / 1e6).toFixed(0)} MB on this device`; } catch (_) { }
+  try { pers = (await navigator.storage?.persisted?.()) ? ' · protected: downloads stay until you delete them' : ' · <b>not yet protected</b> – start Pult from its Home Screen icon'; } catch (_) { }
+  const r = await dialog(`${dlgHead('Instruments')}
+    ${sec('dict', 'Dictionaries', Object.entries(LANGS).map(([l, n]) => `${n} ${nD(l)}`).join(' · '), dictBody)}
+    ${sec('tools', 'Analysis', Object.entries(LANGS).map(([l, n]) => `${n}: ${esc(usedName(l))}`).join(' · '), toolBody)}
+    ${mapBody ? sec('maps', 'Map', await mapSummary(), mapBody) : ''}
+    ${man ? '' : '<p class="hint small">The website could not be reached (offline?) – downloads are not available right now. Everything installed works offline.</p>'}
+    <div class="ifoot"><span>${est}${pers}.</span><button type="button" data-v="clean">Clean up storage</button><label class="btn" for="fileDict">Import packages …</label></div>`, []);
   if (r.action === 'clean') { await cleanStorage(); return dictsDialog(); }
-  if (r.action === 'privsave') { await setting('privRepo', { repo: (r.data.privRepo || '').trim().replace(/^https:\/\/github\.com\//, '').replace(/\/$/, ''), token: (r.data.privToken || '').trim() }); return dictsDialog(); }
-  if (r.action === 'privforget') { await setting('privRepo', { repo: privCfgNow.repo, token: '' }); return dictsDialog(); }
+  if (r.action === 'priv') {
+    const q = await dialog(`<h3>Private repository</h3><p class="hint small">Dictionaries that may not be published can be downloaded from a private GitHub repository. ${info('<b>Repository:</b> owner and name of the private repository. <b>Token:</b> a GitHub fine-grained personal access token with read access to its contents. Both are kept on this device only.')}</p>
+      <div class="privf"><label>GitHub repository<input type="text" name="privRepo" value="${esc(privCfgNow.repo)}" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="owner/repository"></label>
+      <label>Access token<input type="password" name="privToken" value="${esc(privCfgNow.token)}" autocomplete="off" placeholder="github_pat_…"></label></div>`,
+      [...(privCfgNow.token ? [['forget', 'Forget token']] : []), ['cancel', 'Cancel'], ['ok', 'Save and connect']], 'ok');
+    if (q.action === 'ok') await setting('privRepo', { repo: (q.data.privRepo || '').trim().replace(/^https:\/\/github\.com\//, '').replace(/\/$/, ''), token: (q.data.privToken || '').trim() });
+    if (q.action === 'forget') await setting('privRepo', { repo: privCfgNow.repo, token: '' });
+    return dictsDialog();
+  }
   if (r.action.startsWith('del:')) {
     const id = r.action.slice(4), d = S.installed[id];
     if (DL.has(id)) { toast('Wait until the download has finished.'); return dictsDialog(); }
-    const c = await dialog(`<h3>Delete ${esc(d?.name || id)}?</h3><p>The dictionary is deleted from this device and its space is freed. You can download or import it again later. To just hide it, untick it instead.</p>`, [['cancel', 'Cancel'], ['ok', 'Delete']]);
+    const c = await dialog(`<h3>Delete ${esc(d?.name || id)}?</h3><p>It is deleted from this device and its space is freed. You can download or import it again later. To just stop using it, switch it off instead.</p>`, [['cancel', 'Cancel'], ['ok', 'Delete']], 'ok');
     if (c.action === 'ok') { await deleteDict(id); await loadDicts(); if (S.view) renderView(); }
     return dictsDialog();
   }
@@ -1534,43 +1548,40 @@ async function setLangTool(lang, id) {
   await loadDicts(); bucketCache.clear(); S.latEngine = null; S.colEngine = undefined;
   resetTokens(); renderText(); resolveTokens(); if (S.view) renderView();
 }
-const PULT_DATE = '16 Oct 2026';     // the date this version was published (with the version number in sw.js)
+const PULT_DATE = '17 Oct 2026';     // the date this version was published (with the version number in sw.js)
 // focus: 'colours' | 'grammar' | 'map' – opened by holding that button: its section unfolded and in view
 async function settingsDialog(focus) {
   await loadDicts();
   const dark = document.documentElement.dataset.theme === 'dark';
-  const toolSel = lang => { const ts = langTools(lang), cur = ts.find(d => !S.dictPrefs.off.includes(d.id));
-    return ts.length ? `<select data-langtool="${lang}">${ts.map(d => `<option value="${d.id}"${d === cur ? ' selected' : ''}>${esc(d.name)}</option>`).join('')}<option value=""${cur ? '' : ' selected'}>None (no analysis)</option></select>`
-      : '<small class="hint">not installed – ☰ → Instruments</small>'; };
   // a joined switch for either/or settings: Light | Dark
-  const sw = (k, cur, opts) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button type="button" class="${cur === v ? 'on' : ''}" data-setk="${k}" data-setv="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div>`;
-  const row = (label, ctl, hint = '') => `<div class="srow"><span class="sl">${label}</span><div class="sc">${ctl}${hint ? `<small class="sh">${hint}</small>` : ''}</div></div>`;
-  const cb = (k, on, label) => `<label class="sopt"><input type="checkbox" data-set="${k}"${on ? ' checked' : ''}> ${label}</label>`;
+  const seg = (k, cur, opts) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button type="button" class="${cur === v ? 'on' : ''}" data-setk="${k}" data-setv="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div>`;
+  const line = (label, ctl, hint = '') => `<div class="mline"><span>${label}${hint ? `<small class="hint">${hint}</small>` : ''}</span>${ctl}</div>`;
   let ver = '–'; try { const ks = (await caches.keys()).filter(k => k.startsWith('lesepult-v')).map(k => +k.split('-v')[1]); if (ks.length) ver = Math.max(...ks); } catch (_) { }
   const posRows = POS.map(([id, label]) => `<div class="item posrow"><label class="t"><input type="checkbox" data-poson="${id}"${S.posCfg[id]?.on !== false ? ' checked' : ''}> ${label}</label><input type="color" data-posc="${id}" value="${S.posCfg[id]?.c}"></div>`).join('');
-  // the sections folded (open ones remembered, with the folds of ☰ → Instruments)
   const fold = (await setting('instFold')) || {};
-  const want = { colours: 'app', grammar: 'app', map: 'map' }[focus];
-  const sec = (k, title) => `<details class="ifold" data-if="set-${k}"${(want ? want === k : fold['set-' + k]) ? ' open' : ''}><summary><b>${title}</b></summary><section class="dsec">`;
-  const dlgP = dialog(`<h3>Settings</h3>
-    ${sec('app', 'Appearance')}
-      ${row('Theme', sw('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']]))}
-      ${row('Text size', `<div class="tzrow"><button type="button" data-tz="-1" aria-label="Smaller">A−</button><span id="tzVal">${Math.round((S.tz || 1) * 100)} %</span><button type="button" data-tz="1" aria-label="Larger">A+</button><button type="button" data-tz="0">100 %</button></div>`, 'Or pinch the text with two fingers (ctrl + mouse wheel on a computer).')}
-      ${row('Top bar', withInfo(cb('gramBtn', S.gramBtn, 'Grammar button'), 'Shows the grammatical information beneath each word; hold it to choose for which word classes.'))}
-      <details class="scol scolours"${(focus ? focus === 'colours' : S.colOpen) ? ' open' : ''}><summary>Word-class colours ${info('Used by the “Colours” button in the top bar (hold that button to open this list directly). Word classes follow the reading chosen for each word.')}</summary>
-        <div class="list plain">${posRows}</div><div class="row" style="justify-content:flex-start"><button type="button" data-posreset="1">Reset colours</button></div></details>
-      <details class="scol sgram"${(focus ? focus === 'grammar' : S.gramOpen) ? ' open' : ''}><summary>Grammar line ${info('Which words show their grammatical form beneath them when the grammar line is on (hold the “Grammar” button to open this list directly).')}</summary>
-        <div class="gramcfg">${gramRowsHTML()}</div></details></section></details>
-    ${typeof settingsHTML === 'function' ? sec('map', 'Map') + `<div class="mapset">${(await mapCfg(), settingsHTML())}</div></section></details>` : ''}
-    ${sec('gloss', 'Glosses')}
-      ${row('Own gloss', withInfo(sw('glossMode', S.glossMode === 'both' ? 'both' : 'replace', [['replace', 'Replaces default'], ['both', 'Show both']]), 'A word can have its own gloss; its lemma can have a default gloss that applies everywhere.'))}</section>
-    </details>
-    <p class="sver">Pult · version ${ver} · published ${PULT_DATE}</p>`,
-    [['cancel', 'Close']]);
+  const want = { colours: 'read', grammar: 'read', map: 'map' }[focus];
+  const sec = (k, title, sub, body) => `<details class="ifold" data-if="set-${k}"${(want ? want === k : fold['set-' + k]) ? ' open' : ''}><summary><b>${title}</b><small>${sub}</small></summary><section class="dsec">${body}</section></details>`;
+  // vowel lengths come from Collatinus
+  const coll = S.installed?.collatinus && !S.dictPrefs.off.includes('collatinus');
+  const hasMap = typeof settingsHTML === 'function';
+  if (hasMap) await mapCfg();
+  const reading = line('Text size', `<div class="tzrow"><button type="button" data-tz="-1" aria-label="Smaller">A−</button><span id="tzVal">${Math.round((S.tz || 1) * 100)} %</span><button type="button" data-tz="1" aria-label="Larger">A+</button><button type="button" data-tz="0">100 %</button></div>`, 'or pinch the text')
+    + line('Own gloss', seg('glossMode', S.glossMode === 'both' ? 'both' : 'replace', [['replace', 'Replaces default'], ['both', 'Show both']]), 'a word’s own gloss and its lemma’s default gloss')
+    + `<div class="navh hcol">Word-class colours</div><label class="srow1">${SW('data-set="posOn"', S.posOn)}<span>Colour the words by word class<small class="hint">also the “Colours” button in the top bar; hold it to come here</small></span></label>
+       <details class="subfold scolours"${focus === 'colours' ? ' open' : ''}><summary>Colours</summary><div class="list plain">${posRows}</div><div class="row" style="justify-content:flex-start"><button type="button" data-posreset="1">Reset colours</button></div></details>`
+    + `<div class="navh hgram">Grammar line</div><label class="srow1">${SW('data-set="showGram"', S.gram)}<span>Grammatical form beneath each word<small class="hint">also the “Grammar” button; hold it to come here</small></span></label>
+       <details class="subfold sgram"${focus === 'grammar' ? ' open' : ''}><summary>For which words</summary><div class="gramcfg">${gramRowsHTML()}</div></details>`
+    + `<div class="navh">Latin</div><label class="srow1${coll ? '' : ' dis'}">${SW('data-set="latQuant"', S.latQuant && coll, !coll)}<span>Mark vowel lengths (ā, ĕ …)${coll ? '' : '<small class="hint">needs Collatinus (Instruments → Analysis)</small>'}</span></label>`
+    + (hasMap ? `<div class="navh">Places</div><label class="srow1">${SW('data-mapset="mark"', !!M.cfg.mark)}<span>Mark place names in the text<small class="hint">a dotted line beneath names found on the map</small></span></label>` : '');
+  const dlgP = dialog(`${dlgHead('Settings')}
+    ${sec('read', 'Reading', `text ${Math.round((S.tz || 1) * 100)} % · colours ${S.posOn ? 'on' : 'off'} · grammar line ${S.gram ? 'on' : 'off'}`, reading)}
+    <div class="srow1 sapp"><b>Appearance</b>${seg('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']])}</div>
+    ${hasMap ? sec('map', 'Map', `period filter ${M.cfg.time ? 'on' : 'off'} · MapLibre ${M.engineSet || '5'}`, `<div class="mapset">${settingsHTML()}</div>`) : ''}
+    <p class="sver">Pult · version ${ver} · published ${PULT_DATE}</p>`, []);
   syncGramRows($('#dlgForm'));
   if (focus) {                                                   // the part asked for, at the top of the dialog
-    const el = $('#dlgForm').querySelector(focus === 'map' ? 'details[data-if="set-map"]' : focus === 'colours' ? 'details.scolours' : 'details.sgram');
-    const go = () => { if (!el || !$('#dlg').open) return; const d = $('#dlg'); d.scrollTop += el.getBoundingClientRect().top - d.getBoundingClientRect().top - 8; };
+    const el = $('#dlgForm').querySelector(focus === 'map' ? 'details[data-if="set-map"]' : focus === 'colours' ? '.navh.hcol' : '.navh.hgram');
+    const go = () => { if (!el || !$('#dlg').open) return; const d = $('#dlg'); d.scrollTop += el.getBoundingClientRect().top - d.getBoundingClientRect().top - 52; };
     requestAnimationFrame(go); setTimeout(go, 160); setTimeout(go, 620);   // (after the dialog's own scroll restore)
   }
   await dlgP;
@@ -1760,8 +1771,7 @@ async function restoreBackup(file) {
     if (p.showGloss != null) setGlossVisible(!!p.showGloss, true);
     if (p.glossMode) { S.glossMode = p.glossMode; await setting('glossMode', p.glossMode); }
     if (p.latQuant != null) { S.latQuant = !!p.latQuant; await setting('latQuant', S.latQuant); }
-    if (p.gramBtn != null) { S.gramBtn = !!p.gramBtn; await setting('gramBtn', S.gramBtn); applyTopButtons(); }
-    if (p.showGram != null) setGram(S.gramBtn && !!p.showGram, true);
+    if (p.showGram != null) setGram(!!p.showGram, true);
   }
   toast('Restored'); await openText(data.texts[0]?.id ?? null);
 }
@@ -2263,7 +2273,7 @@ function wire() {
     const b = ev.target.closest?.('[data-dict-fold]'); if (!b) return;
     const id = b.dataset.dictFold, o = new Set(S.dictPrefs.open);
     o.has(id) ? o.delete(id) : o.add(id); S.dictPrefs.open = [...o];
-    b.textContent = o.has(id) ? '▾ unfolded' : '▸ folded';
+    b.textContent = o.has(id) ? '▾' : '▸'; b.classList.toggle('on', o.has(id)); b.title = o.has(id) ? 'Open when a word is looked up' : 'Folded when a word is looked up';
     await setting('dictPrefs', S.dictPrefs); if (S.view) renderView();
   });
   document.addEventListener('change', async ev => {
@@ -2285,18 +2295,20 @@ function wire() {
       for (const [id] of POS) { const cb = document.querySelector(`[data-poson="${id}"]`), ci = document.querySelector(`[data-posc="${id}"]`); if (cb) cb.checked = true; if (ci) ci.value = S.posCfg[id].c; } }
   });
   document.addEventListener('toggle', ev => { if (ev.target.matches?.('details.sgram')) S.gramOpen = ev.target.open; else if (ev.target.matches?.('details.scol')) S.colOpen = ev.target.open; }, true);
-  document.addEventListener('toggle', async ev => { if (!ev.target.matches?.('details.ifold')) return; const f = (await setting('instFold')) || {}; f[ev.target.dataset.if] = ev.target.open; setting('instFold', f); }, true);
+  document.addEventListener('toggle', async ev => { if (!ev.target.matches?.('details.ifold, details.subfold')) return; const f = (await setting('instFold')) || {}; f[ev.target.dataset.if] = ev.target.open; setting('instFold', f); }, true);
   document.addEventListener('change', async ev => {
     const t = ev.target, id = t.dataset?.gramon, g = t.dataset?.gramgrp; if (!id && g == null) return;
     if (id) S.gramCfg[id] = t.checked; else for (const x of GRAM_GROUPS[+g][1]) S.gramCfg[x] = t.checked;
     syncGramRows(); await setting('gramCfg', S.gramCfg); applyGramCfg();
   });
   document.addEventListener('change', ev => { const sl = ev.target.closest?.('select[data-langtool]'); if (sl) setLangTool(sl.dataset.langtool, sl.value); });
+  document.addEventListener('change', ev => { const r = ev.target; if (r.dataset?.uselang && r.checked) setLangTool(r.dataset.uselang, r.value); });
   document.addEventListener('change', async ev => {      // settings take effect immediately
     const k = ev.target.dataset?.set; if (!k || (ev.target.type === 'radio' && !ev.target.checked)) return;
     if (k === 'theme') setTheme(ev.target.value, true);
     if (k === 'latQuant') { S.latQuant = ev.target.checked; await setting('latQuant', S.latQuant); renderText(); }
-    if (k === 'gramBtn') { S.gramBtn = ev.target.checked; await setting('gramBtn', S.gramBtn); if (!S.gramBtn) setGram(false, true); applyTopButtons(); }
+    if (k === 'posOn') { S.posOn = ev.target.checked; await setting('posOn', S.posOn); applyPosColors(); }
+    if (k === 'showGram') setGram(ev.target.checked, true);
     if (k === 'glossMode') { S.glossMode = ev.target.value; await setting('glossMode', S.glossMode); renderText(); }
   });
   document.addEventListener('change', ev => { if (ev.target.id === 'optSrcCol') { S.srcColors = ev.target.checked; setting('srcColors', S.srcColors); document.body.classList.toggle('nosrccol', !S.srcColors); } });
@@ -3333,8 +3345,9 @@ const tzSave = () => { clearTimeout(tzSaveT); tzSaveT = setTimeout(() => setting
   for (const r of await getAll('settings', IDBKeyRange.bound('lg|', 'lg|\uffff'))) S.lemmaGloss[r.k.slice(3)] = r.v;
   await loadDicts();
   setGlossVisible((await setting('showGloss')) !== false);
-  S.gramBtn = (await setting('gramBtn')) !== false; applyTopButtons();
-  setGram(S.gramBtn && !!(await setting('showGram')));
+  S.gramBtn = true; applyTopButtons();          // (the Grammar button is always shown)
+  setGram(!!(await setting('showGram')));
+  if (typeof applyMapsOn === 'function') applyMapsOn();
   const sp = await setting('split'); setSplit(sp || '50%', false);
   setTextZoom((await setting('textZoom')) || 1);
   S.srcColors = (await setting('srcColors')) !== false; document.body.classList.toggle('nosrccol', !S.srcColors);

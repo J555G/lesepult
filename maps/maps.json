@@ -20,29 +20,39 @@
    "url": "https://j555g.github.io/lesepult-maps/"
   },
   {
-   "id": "ancient",
-   "name": "Ancient world",
-   "desc": "Coastlines of the periods, empires and Roman provinces at several dates, names of regions and peoples, roads, aqueducts, frontier walls, canals, city outlines (Ancient World Mapping Center, ODbL)",
+   "id": "ancient-land",
+   "name": "Ancient landscape and states",
+   "desc": "Coastlines of the periods, empires and Roman provinces at several dates, names and areas of regions and peoples (Ancient World Mapping Center, ODbL)",
    "files": [
     "ancient/water.json",
     "ancient/empires.json",
     "ancient/provinces.json",
     "ancient/labels.json",
-    "ancient/areas.json",
+    "ancient/areas.json"
+   ],
+   "bytes": 1930593,
+   "v": "f2a0bca1025a",
+   "url": "https://j555g.github.io/lesepult-maps/"
+  },
+  {
+   "id": "ancient-built",
+   "name": "Ancient structures",
+   "desc": "Aqueducts, frontier walls, canals, city outlines and the roads of the Barrington Atlas (Ancient World Mapping Center, ODbL)",
+   "files": [
     "ancient/roads.json",
     "ancient/urban.json",
     "ancient/aqueducts.json",
     "ancient/walls.json",
     "ancient/canals.json"
    ],
-   "bytes": 4251842,
-   "v": "4ceccda5cff3",
+   "bytes": 2321249,
+   "v": "4a23bc7b1693",
    "url": "https://j555g.github.io/lesepult-maps/"
   },
   {
    "id": "places",
-   "name": "Ancient places",
-   "desc": "The Pleiades gazetteer (CC BY 3.0): about 40,000 places with their Greek and Latin names – needed to find the places of a text",
+   "name": "Ancient places (Pleiades)",
+   "desc": "The Pleiades gazetteer (CC BY 3.0): about 40,000 places with their Greek and Latin names – finds the places named in a text and shows them on the map",
    "files": [
     "places/places.json"
    ],
@@ -177,7 +187,7 @@
   {
    "id": "itinere",
    "name": "Roman roads (Itiner-e)",
-   "desc": "About 300,000 km of roads of the Roman Empire – main and secondary, certain, conjectured or hypothetical, with the itineraries that name them (Itiner-e, CC BY 4.0); replaces the roads of “Ancient world”",
+   "desc": "About 300,000 km of roads of the Roman Empire – main and secondary, certain, conjectured or hypothetical, with the itineraries that name them (Itiner-e, CC BY 4.0); shown instead of the roads of “Ancient structures”",
    "files": [
     "itinere/roads.pmtiles"
    ],

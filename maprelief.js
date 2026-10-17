@@ -146,7 +146,7 @@ function reliefLayerProps() {
 }
 // the menu: Layers → Landscape
 function reliefMenuHTML() {
-  if (!relFiles().length) return '<div class="navh">Relief</div><p class="hint small">Needs the download <b>Relief – overview</b> (and, for zooming in close, the regions).</p><button type="button" data-mapdl="1">Open Instruments → Maps</button>';
+  if (!relFiles().length) return '<div class="navh">Relief</div><p class="hint small">Needs the download <b>Relief – overview</b> (and, for zooming in close, the regions).</p><button type="button" data-mapdl="1">Open Instruments → Map</button>';
   const v5 = engineMajor() >= 5;
   return `<div class="navh">Relief</div>` + tgl('relShade', 'Shading', relOn('relShade')) + (v5 ? tgl('relColor', 'Colours by height', relOn('relColor')) : '') + tgl('relContours', 'Contour lines', relOn('relContours'))
     + (M.pkFiles?.has('relief/bathy.pmtiles') ? tgl('relBathy', 'Depth of the sea', relOn('relBathy')) : '');

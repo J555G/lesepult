@@ -250,7 +250,7 @@ function applyLayers() {
 
 // ---------------------------------------------------------------- labels of regions, peoples, mountains (and of sites)
 async function loadAncientLabels() {
-  if (M.ancLab || !M.anc) return M.ancLab;
+  if (M.ancLab || !M.ancFiles?.has('labels')) return M.ancLab;
   try {
     const j = await (await fetch(MAPS + 'ancient/labels.json')).json();
     M.ancLab = j.features.map(f => {
@@ -490,8 +490,10 @@ const segc = (k, opts, lbl) => `${lbl ? `<div class="navh">${lbl}</div>` : ''}<d
 // the layer menu (layers button): what the map shows
 // the layer menu: six groups, each with a count of what is switched on
 function layersHTML() {
-  const c = M.cfg, anc = M.anc, dark = document.documentElement.dataset.theme === 'dark';
-  const need = '<p class="hint small">Needs the download <b>Ancient world</b>.</p><button type="button" data-mapdl="1">Open Instruments → Maps</button>';
+  const c = M.cfg, F = M.ancFiles || new Set(), anc = F.has('water') || F.has('empires'), built = F.has('aqueducts') || F.has('urban'), dark = document.documentElement.dataset.theme === 'dark';
+  const it = M.pkFiles?.has('itinere/roads.pmtiles') || M.pkFiles?.has('itinere/roads_full.pmtiles');
+  const needP = name => `<p class="hint small">Needs the download <b>${name}</b>.</p><button type="button" data-mapdl="1">Open Instruments → Map</button>`;
+  const need = needP('Ancient landscape and states'), needB = needP('Ancient structures');
   const on = (...ks) => ks.filter(k => typeof k === 'boolean' ? k : c[k] !== false && !!c[k]).length;
   const grp = (k, title, n, body) => foldSec(k, `${title}${n ? ` <small class="mon">· ${n} on</small>` : ''}`, body);
   return grp('lplaces', 'Places', on('peoples', c.pfOn === false), tgl('peoples', 'Peoples among the places of the text')
@@ -499,36 +501,45 @@ function layersHTML() {
       + SITE_CATS.map(([k, lb, , c1, c2]) => `<button type="button" class="mtg${c.cats?.[k] ? ' on' : ''}" data-mcat="${k}"><span class="ck"></span><i class="dot" style="--c:${dark ? c2 : c1}"></i>${lb}</button>`).join('') + '</div>')
     + grp('lland', 'Landscape', on(!!(anc && c.coast), 'rivers', 'lakes'), segc('basemap', [['std', 'Standard'], ['hd', 'Detailed'], ['ne2', 'Natural Earth II']], 'Base map')
       + `<p class="hint small">${({ std: 'Natural Earth, simplified (light).', hd: 'Coasts and lakes as exact as OpenStreetMap, from zoom 5.', ne2: 'The painted landscape of Natural Earth II (sharp up to zoom 7).' })[c.basemap || 'hd']}</p>`
-      + ((c.basemap || 'hd') === 'hd' && !M.pkFiles?.has('landscape/landscape.pmtiles') ? '<p class="hint small">Needs the download <b>Landscape – detailed</b>.</p><button type="button" data-mapdl="1">Open Instruments → Maps</button>'
-        : c.basemap === 'ne2' && !M.pkFiles?.has('ne2/ne2.pmtiles') ? '<p class="hint small">Needs the download <b>Natural Earth II</b>.</p><button type="button" data-mapdl="1">Open Instruments → Maps</button>' : '')
+      + ((c.basemap || 'hd') === 'hd' && !M.pkFiles?.has('landscape/landscape.pmtiles') ? '<p class="hint small">Needs the download <b>Landscape – detailed</b>.</p><button type="button" data-mapdl="1">Open Instruments → Map</button>'
+        : c.basemap === 'ne2' && !M.pkFiles?.has('ne2/ne2.pmtiles') ? '<p class="hint small">Needs the download <b>Natural Earth II</b>.</p><button type="button" data-mapdl="1">Open Instruments → Map</button>' : '')
       + (anc ? segc('coast', [[false, 'Today'], [true, 'Of the period']], 'Coastline') : '') + tgl('rivers', 'Rivers', c.rivers !== false) + tgl('lakes', 'Lakes', c.lakes !== false)
       + reliefMenuHTML())
     + grp('lpol', 'Political', on(!!(anc && c.empires), !!(anc && c.provinces !== false), !!(anc && c.regArea), 'borders'), (anc ? tgl('empires', 'Empires and kingdoms at the date') + tgl('provinces', 'Roman provinces at the date', c.provinces !== false) + tgl('regArea', 'Areas of regions and peoples') : need) + tgl('borders', 'Modern borders'))
-    + grp('lbuilt', 'Built world', anc ? on('roads', 'urban', 'aqueducts', 'walls', 'canals') : 0, anc || M.pkFiles?.has('itinere/roads.pmtiles') ? tgl('roads', M.pkFiles?.has('itinere/roads.pmtiles') || M.pkFiles?.has('itinere/roads_full.pmtiles') ? 'Roman roads (Itiner-e)' : 'Roads (Barrington Atlas)') + tgl('aqueducts', 'Aqueducts') + tgl('walls', 'Frontier walls (Hadrian’s Wall, limes …)') + tgl('canals', 'Canals') + tgl('urban', 'City outlines') : need)
+    + grp('lbuilt', 'Built world', on(...(built || it ? ['roads'] : []), ...(built ? ['urban', 'aqueducts', 'walls', 'canals'] : [])),
+        (built || it ? tgl('roads', it ? 'Roman roads (Itiner-e)' : 'Roads (Barrington Atlas)') : '') + (built ? tgl('aqueducts', 'Aqueducts') + tgl('walls', 'Frontier walls (Hadrian’s Wall, limes …)') + tgl('canals', 'Canals') + tgl('urban', 'City outlines') : needB))
     + grp('lnames', 'Names on the map', on(c.nmPlaces !== false, c.nmRegions !== false, c.nmMountains !== false, c.nmIslands !== false), tgl('nmPlaces', 'Places', c.nmPlaces !== false) + tgl('nmRegions', 'Regions and peoples', c.nmRegions !== false) + tgl('nmMountains', 'Mountains', c.nmMountains !== false) + tgl('nmIslands', 'Islands and seas', c.nmIslands !== false))
     + grp('lown', 'Your own', c.own !== false ? [...(M.dsets?.keys() || [])].filter(k => !(c.dOff || []).includes(k)).length : 0, ownLayersHTML());
 }
 // the map settings (hold the map button, or ☰ → Settings → More map settings): how the map behaves
+// the map settings (☰ → Settings → Map): sub-headings instead of folds, switches like the rest of the dialog
 function settingsHTML() {
-  // folded sections (open ones remembered)
-  return foldSec('sgeneral', 'General', tgl('mark', 'Mark place names in the text') + tgl('jump', 'Move the map to a place chosen in the text')
-      + `<div class="navh">Map engine</div><div class="seg" role="group">${[['5', 'MapLibre 5.24'], ['4', 'MapLibre 4.7 (previous)']].map(([v, l]) => `<button type="button" data-mengine="${v}" class="${(M.engineSet || '5') === v ? 'on' : ''}">${l}</button>`).join('')}</div><p class="hint small">If the map does not appear or behaves oddly, the previous engine can be used. Takes effect when Pult is opened again.</p>`)
-    + foldSec('stext', 'Places in texts', segc('persons', [['unsure', 'Mark as uncertain'], ['hide', 'Not as places']], 'Words that may name a person')
-      + segc('names', [['text', 'As in the text'], ['english', 'English'], ['modern', 'Modern']], 'Names on the map'))
-    + foldSec('stime', 'Period', tgl('time', 'Period filter (time slider)')
-      + `<div class="mwd"><span>Date of the open work: <b>${S.text ? (M.year != null ? esc(fmtY(M.year)) : 'no date') : '–'}</b></span>${S.text ? '<button type="button" data-mwdate="1">Change …</button>' : ''}</div>`
-      + segc('tol', [[0, '0'], [10, '± 10'], [25, '± 25'], [50, '± 50'], [100, '± 100']], 'Tolerance (years)')
-      + segc('gone', [['fade', 'Faded'], ['hide', 'Hidden']], 'Places that no longer existed')
-      + segc('later', [['show', 'Shown'], ['fade', 'Faded'], ['hide', 'Hidden']], 'Places known only from later sources')
-      + segc('undated', [['show', 'Shown'], ['fade', 'Faded'], ['hide', 'Hidden']], 'Places without a date')
-      + segc('twoCol', [[false, 'One colour'], [true, 'A colour for each']], 'Several periods')
-      + `<div class="mcols">${RANGE_COL.map((_, k) => `<label title="Colour of period ${k + 1}"><input type="color" data-mcol="${k}" value="${rangeCol(k)}"><span>${k + 1}</span></label>`).join('')}<button type="button" class="mcolr" data-mcolreset="1">Standard colours</button></div>`
-      + `<div class="navh">Range of the slider</div><div class="mtlim"><label>Earliest<input type="text" data-mtlim="0" value="${esc(fmtY(TLIM()[0]))}" autocomplete="off" class="nofocus"></label><label>Latest<input type="text" data-mtlim="1" value="${esc(fmtY(TLIM()[1]))}" autocomplete="off" class="nofocus"></label><button type="button" data-mtlimreset="1">Standard</button></div>`
-      + `<div class="navh">Shown at first <small>(and with the button |↔| on the slider)</small></div><div class="mtlim"><label>From<input type="text" data-mtdef="0" value="${esc(fmtY(tDefView()[0]))}" autocomplete="off" class="nofocus"></label><label>To<input type="text" data-mtdef="1" value="${esc(fmtY(tDefView()[1]))}" autocomplete="off" class="nofocus"></label><button type="button" data-mtdefreset="1">Standard</button></div>`
-      + '<p class="hint small">Hold a date on the slider to make it a period, hold a period to split it in two; pull ends together to join them. Pinch the slider (or use the mouse wheel) to zoom it, drag the line to move it; a double click shows the whole range.</p>')
-    + foldSec('ssig', 'Significance of places', `<p class="hint small">Zoomed out, only the more significant places are shown, and their names come first. How much counts:</p>`
-      + SIG_UI.map(([k, lb, a, b, st]) => { const v = (M.cfg.sigW?.[k] ?? SIG_DEF[k]); return `<label class="msig"><span>${lb}</span><input type="range" min="${a}" max="${b}" step="${st}" value="${v}" data-msig="${k}"><output>${v}</output></label>`; }).join('')
-      + `<div class="macts"><button type="button" data-msigreset="1">Standard weights</button><button type="button" data-mcount="1">Count the places in all texts on this device</button></div>${M.P && !M.P.hasConn ? '<p class="hint small">Update the download <b>Ancient places</b> (Instruments → Maps) for the links between places.</p>' : ''}`);
+  const sw = (k, l, hint = '') => `<label class="srow1">${SW(`data-mapset="${k}"`, !!M.cfg[k])}<span>${l}${hint ? `<small class="hint">${hint}</small>` : ''}</span></label>`;
+  const line = (lbl, html) => `<div class="mline"><span>${lbl}</span>${html}</div>`;
+  const seg = (k, opts) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button type="button" data-mcfg="${k}" data-mv="${v}" class="${String(M.cfg[k]) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+  // the three kinds of dated places as a small table: Shown | Faded | Hidden
+  const trow = (k, lbl, opts) => `<div class="mtrow"><span>${lbl}</span>${[['show', 'Shown'], ['fade', 'Faded'], ['hide', 'Hidden']].map(([v, l]) => opts.includes(v) ? `<button type="button" data-mcfg="${k}" data-mv="${v}" class="${M.cfg[k] === v ? 'on' : ''}" aria-label="${l}">${l}</button>` : '<i></i>').join('')}</div>`;
+  const yrs = (attr, vals, reset) => `<div class="mtlim">${vals.map((v, i) => `<input type="text" data-${attr}="${i}" value="${esc(fmtY(v))}" autocomplete="off" class="nofocus" aria-label="${i ? 'To' : 'From'}">${i ? '' : '<span>–</span>'}`).join('')}<button type="button" class="mtreset" data-${reset}="1" title="Standard" aria-label="Standard">↺</button></div>`;
+  return `<div class="navh">Places in texts</div>`
+    + sw('jump', 'Move the map to a place chosen in the text')
+    + line('Words that may name a person', seg('persons', [['unsure', 'Uncertain'], ['hide', 'Not places']]))
+    + line('Names on the map', seg('names', [['text', 'As in text'], ['english', 'English'], ['modern', 'Modern']]))
+    + `<div class="navh">Period</div>`
+    + sw('time', 'Period filter (time slider)')
+    + `<div class="mwd"><span>Date of the open work: <b>${S.text ? (M.year != null ? esc(fmtY(M.year)) : 'no date') : '–'}</b></span>${S.text ? '<button type="button" data-mwdate="1">Change …</button>' : ''}</div>`
+    + line('Tolerance (years)', seg('tol', [[0, '0'], [10, '±10'], [25, '±25'], [50, '±50'], [100, '±100']]))
+    + `<div class="mtab">`
+    + trow('gone', 'No longer existed', ['fade', 'hide']) + trow('later', 'Known only from later sources', ['show', 'fade', 'hide']) + trow('undated', 'Undated', ['show', 'fade', 'hide']) + '</div>'
+    + line('Several periods', seg('twoCol', [[false, 'One colour'], [true, 'Each its colour']]))
+    + `<div class="mcols">${RANGE_COL.map((_, k) => `<label title="Colour of period ${k + 1}"><input type="color" data-mcol="${k}" value="${rangeCol(k)}"><span>${k + 1}</span></label>`).join('')}<button type="button" class="mtreset" data-mcolreset="1" title="Standard colours" aria-label="Standard colours">↺</button></div>`
+    + line('Range of the slider', yrs('mtlim', TLIM(), 'mtlimreset'))
+    + line('Default view', yrs('mtdef', tDefView(), 'mtdefreset'))
+    + `<p class="hint small">Hold a date on the slider to make it a period, hold a period to split it; pull ends together to join them. Pinch or wheel to zoom the slider, drag to move it; the default view button returns to the range above.</p>`
+    + `<div class="navh">Significance of places</div><p class="hint small">Zoomed out, only the more significant places are shown, and their names come first. How much counts:</p>`
+    + SIG_UI.map(([k, lb, a, b, st]) => { const v = (M.cfg.sigW?.[k] ?? SIG_DEF[k]); return `<label class="msig"><span>${lb}</span><input type="range" min="${a}" max="${b}" step="${st}" value="${v}" data-msig="${k}"><output>${v}</output></label>`; }).join('')
+    + `<div class="macts"><button type="button" data-msigreset="1">Standard weights</button><button type="button" data-mcount="1">Count the places in all texts</button></div>${M.P && !M.P.hasConn ? '<p class="hint small">Update the download <b>Ancient places (Pleiades)</b> (Instruments → Map) for the links between places.</p>' : ''}`
+    + `<div class="navh">Map engine</div>` + line('MapLibre', `<div class="seg" role="group">${[['5', '5.24'], ['4', '4.7 (previous)']].map(([v, l]) => `<button type="button" data-mengine="${v}" class="${(M.engineSet || '5') === v ? 'on' : ''}">${l}</button>`).join('')}</div>`)
+    + `<p class="hint small">If the map does not appear or behaves oddly, use the previous engine. Takes effect when Pult is opened again.</p>`;
 }
 function rightPop(k, title, html) {
   const pop = $('#mapPop'); if (!pop.hidden && pop.dataset.k === k) { pop.hidden = true; return; }

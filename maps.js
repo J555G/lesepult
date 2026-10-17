@@ -1,5 +1,5 @@
 // ================================================================ Pult · maps
-// Optional packages (Instruments → Maps): "base" = land, lakes, rivers, modern borders and the map engine (MapLibre);
+// Optional packages (Instruments → Map): "base" = land, lakes, rivers, modern borders and the map engine (MapLibre);
 // "places" = the Pleiades gazetteer. The places of a text are found here, in the app: the lemma of every proper noun is
 // looked up among the names of the gazetteer (any text, also imported ones). The reader can correct every place.
 // Settings keys: mapPk (installed packages) · pl|<text>|<word> (correction of one passage) · plw|<work>|<name> (in a work)
@@ -55,8 +55,16 @@ async function mapManifest() {
   try { const r = await (await caches.open(MAPCACHE)).match(new URL(MAPS + 'maps.json', location.href).href); if (r) return await r.json(); } catch (_) { }
   return null;
 }
-async function mapInstalled() { return (await setting('mapPk')) || {}; }
-async function mapHas(id) { return !!(await mapInstalled())[id]; }
+// installed packages {id: version}; "Ancient world" was split in two (its files stay where they were)
+async function mapInstalled() {
+  const inst = (await setting('mapPk')) || {};
+  if (inst.ancient) { inst['ancient-land'] = inst['ancient-built'] = inst.ancient; delete inst.ancient; await setting('mapPk', inst); }
+  return inst;
+}
+// switched off in Instruments → Map (kept on the device, not used) · the whole map switched off (no button, no place recognition)
+async function mapOff() { return (await setting('mapOff')) || {}; }
+async function mapsEnabled() { return (await setting('mapsOn')) !== false; }
+async function mapHas(id) { return !!(await mapInstalled())[id] && !(await mapOff())[id]; }
 async function downloadMapPkg(p, onp) {
   const c = await caches.open(MAPCACHE); let done = 0;
   for (const f of p.files) {
@@ -79,7 +87,7 @@ async function downloadMapPkg(p, onp) {
   // levels of detail of the same package (group): the one installed replaces the others
   if (p.group) for (const q of M.man?.packages || []) if (q.id !== p.id && q.group === p.group && inst[q.id]) await deleteMapPkg(q);
   if (p.id === 'places') { M.P = null; M.sitesFC = null; await placesForText(); }
-  if ((p.id === 'ancient' || /\.pmtiles$/.test(p.files[0])) && M.map) { M.map.remove(); M.map = null; M.ancLab = null; }
+  if ((/^ancient/.test(p.id) || /\.pmtiles$/.test(p.files[0])) && M.map) { M.map.remove(); M.map = null; M.ancLab = null; }
   for (const f of p.files) M.pmb?.delete(new URL(MAPS + f, location.href).href);
 }
 async function deleteMapPkg(p) {
@@ -89,37 +97,75 @@ async function deleteMapPkg(p) {
   for (const f of p.files) if (!keep.has(f)) await c.delete(new URL(MAPS + f, location.href).href);
   delete inst[p.id]; await setting('mapPk', inst);
   if (p.id === 'places') { M.P = null; M.hits = new Map(); markPlaces(); }
-  if ((p.id === 'base' || p.id === 'ancient' || /\.pmtiles$/.test(p.files[0])) && M.map) { M.map.remove(); M.map = null; M.ancLab = null; }
+  if ((p.id === 'base' || /^ancient/.test(p.id) || /\.pmtiles$/.test(p.files[0])) && M.map) { M.map.remove(); M.map = null; M.ancLab = null; }
   for (const f of p.files) if (!keep.has(f)) M.pmb?.delete(new URL(MAPS + f, location.href).href);
   if (p.id === 'places') M.sitesFC = null;
 }
-// the Maps section of the Instruments dialog
+// the Map section of ☰ → Instruments: "Enable map", then the packages in three groups. A package that comes in two
+// levels of detail is one row with a choice between them; each installed package can be switched off without deleting it.
+const MAP_GROUPS = [['Basic', ['base']],
+  ['Appearance', ['landscape', 'ne2', 'ancient-land', 'relief', 'relief-*']],
+  ['Gazetteers and databases', ['places', 'itinere', 'ancient-built']]];
 async function mapSectionHTML() {
-  const man = await mapManifest(), inst = await mapInstalled();
-  if (!man) return '';
-  const row = p => `<div class="item"><span class="t"><b>${esc(p.name)}</b><br><small>${esc(p.desc)} · ${(p.bytes / 1e6).toFixed(1)} MB${p.group ? ' · replaces the other level of detail' : ''}</small></span>`
-    + (inst[p.id] ? (inst[p.id] !== p.v ? `<button type="button" class="dlbtn" data-mapget="${p.id}">Update</button>` : '<button type="button" class="dlbtn" disabled>Installed</button>') + `<button type="button" class="danger" data-mapdel="${p.id}">Delete</button>`
-      : `<button type="button" class="dlbtn" data-mapget="${p.id}">Download</button>`) + '</div>';
+  const man = await mapManifest(); if (!man) return '';
   M.man = man;
-  // in groups: what the map needs, the ancient world, landscape and relief (levels of detail next to each other)
-  const kind = p => ['base', 'places'].includes(p.id) ? 0 : ['ancient', 'itinere', 'itinere-full'].includes(p.id) ? 1 : 2;
-  const heads = ['Needed for the map', 'The ancient world', 'Landscape and relief'];
-  return `<section class="dsec mapsec"><p class="hint small">Optional downloads for the map (the map button in the top bar). Where a package comes in two levels of detail, one of them is enough – the larger one is for zooming in close. ${info('More layers can be added later as further packages.')}</p>`
-    + heads.map((h, k) => { const ps = man.packages.filter(p => kind(p) === k); return ps.length ? `<div class="navh">${h}</div><div class="list plain">${ps.map(row).join('')}</div>` : ''; }).join('') + '</section>';
+  const inst = await mapInstalled(), off = await mapOff(), on = await mapsEnabled();
+  const units = new Map();                                     // one row per package or per group of levels
+  for (const p of man.packages) { const k = p.group || p.id; if (!units.has(k)) units.set(k, []); units.get(k).push(p); }
+  const row = k => {
+    const ps = units.get(k); if (!ps) return '';
+    const cur = ps.find(p => inst[p.id]), p0 = cur || ps[0];
+    const name = ps[0].name.replace(/\s*\((?:detailed|[^)]*full detail)\)$/, '').replace(/, full detail\)$/, ')');
+    const busy = M.dlBusy?.[k];
+    const lv = ps.length > 1 ? `<div class="seg lvl" role="group">${ps.map((p, i) => `<button type="button" data-mapget="${p.id}" class="${cur === p ? 'on' : ''}"${busy ? ' disabled' : ''} title="${cur === p ? 'Installed' : 'Download this level' + (cur ? ' (replaces the other)' : '')}">${cur === p ? '' : '⤓ '}${i ? 'Detailed' : 'Standard'} <small>${mbs(p.bytes)}</small></button>`).join('')}</div>` : '';
+    const right = busy ? `<button type="button" class="dlbtn busy" disabled style="--p:${busy}%">${busy} %</button>`
+      : !cur ? (ps.length > 1 ? '' : `<button type="button" class="dlbtn" data-mapget="${p0.id}">Download</button>`)
+      : inst[cur.id] !== cur.v ? `<button type="button" class="dlbtn" data-mapget="${cur.id}">Update</button>` : '';
+    return `<div class="mpk${cur ? '' : ' avail'}" data-mk="${esc(k)}">` + pkRow({
+      sw: cur ? SW(`data-mapsw="${cur.id}" aria-label="Use ${esc(name)}"`, !off[cur.id]) : '<span class="swsp"></span>',
+      name: esc(name), desc: esc(p0.desc) + (ps.length > 1 ? '' : ' · ' + mbs(p0.bytes)) + (cur && off[cur.id] ? ' · <i>switched off</i>' : ''),
+      right, more: cur ? `<button type="button" class="danger" data-mapdel="${cur.id}">Delete from this device</button><small class="hint">${k === 'base' ? 'Without it the map cannot be shown.' : 'To keep it but not use it, switch it off.'}</small>` : '' }) + lv + '</div>';
+  };
+  const regions = [...units.keys()].filter(k => /^relief-/.test(k));
+  const regFold = (await setting('instFold'))?.['map-reg'];
+  const group = ([h, keys]) => `<div class="navh2">${h}</div><div class="list plain">` + keys.map(k => k === 'relief-*'
+    ? (regions.length ? `<details class="subfold" data-if="map-reg"${regFold ? ' open' : ''}><summary>Relief – regions <small>${regions.filter(r => units.get(r).some(p => inst[p.id])).length} of ${regions.length} installed</small></summary>${regions.map(row).join('')}</details>` : '')
+    : row(k)).join('') + '</div>';
+  return `<section class="dsec mapsec"><label class="srow1 mapon">${SW('data-mapson="1"', on)}<span><b>Enable map</b><small class="hint">Off: no map button in the top bar and no place names recognised in the texts. Downloads stay on this device.</small></span></label>`
+    + `<div class="mapgroups"${on ? '' : ' hidden'}>${MAP_GROUPS.map(group).join('')}<p class="hint small">Only <b>Base map</b> is needed; everything else adds to it. Where there are two levels of detail, one is enough – the detailed one is for zooming in close.</p></div></section>`;
 }
+async function mapSummary() { const n = Object.keys(await mapInstalled()).length; return (await mapsEnabled()) ? `on · ${n} package${n === 1 ? '' : 's'}` : 'switched off'; }
+async function redrawMapSection() {
+  const sec = $('#dlg section.mapsec'); if (!sec) return;
+  const y = $('#dlg').scrollTop; sec.outerHTML = await mapSectionHTML(); $('#dlg').scrollTop = y;
+  const sm = $('#dlg details[data-if="maps"] > summary small'); if (sm) sm.textContent = await mapSummary();
+}
+// after a package was switched on or off, or the whole map: the map is built again with what is in use
+async function mapPkChanged(id) {
+  if (M.map) { M.map.remove(); M.map = null; M.ancLab = null; }
+  if (id === 'places' || id == null) { M.P = null; M.sitesFC = null; M.hits = new Map(); markPlaces(); if (await mapsEnabled()) await placesForText(); }
+  applyMapsOn();
+  if (S.tab === 'map') { if (await mapsEnabled()) showMap(); else showTab('entry'); }
+}
+async function applyMapsOn() { const b = $('#tabMap'); if (b) b.hidden = !(await mapsEnabled()); }
+document.addEventListener('change', async ev => {
+  const t = ev.target;
+  if (t.dataset?.mapson) { await setting('mapsOn', t.checked); t.closest('section').querySelector('.mapgroups').hidden = !t.checked; await mapPkChanged(null); const sm = $('#dlg details[data-if="maps"] > summary small'); if (sm) sm.textContent = await mapSummary(); return; }
+  if (t.dataset?.mapsw) { const id = t.dataset.mapsw, o = await mapOff(); if (t.checked) delete o[id]; else o[id] = true; await setting('mapOff', o); await mapPkChanged(id); await redrawMapSection(); }
+});
 document.addEventListener('click', async ev => {
   const g = ev.target.closest?.('[data-mapget]'), d = ev.target.closest?.('[data-mapdel]');
   if (!g && !d) return;
   const p = M.man?.packages.find(x => x.id === (g || d).dataset[g ? 'mapget' : 'mapdel']); if (!p) return;
-  if (d) { await deleteMapPkg(p); const sec = d.closest('section.dsec'); if (sec) sec.outerHTML = await mapSectionHTML(); toast(p.name + ' removed'); return; }
-  g.disabled = true; g.classList.add('busy');
+  if (d) { await deleteMapPkg(p); const o = await mapOff(); delete o[p.id]; await setting('mapOff', o); await redrawMapSection(); toast(p.name + ' deleted'); if (S.tab === 'map') showMap(); return; }
+  if (g.classList.contains('on')) return;                      // the level already installed
+  const k = p.group || p.id; (M.dlBusy ??= {})[k] = 0; await redrawMapSection();
   try {
-    await downloadMapPkg(p, f => { g.style.setProperty('--p', Math.round(f * 100) + '%'); g.textContent = Math.round(f * 100) + ' %'; });
-    g.textContent = 'Installed'; g.classList.remove('busy');
-    const sm = g.closest('details.ifold')?.querySelector('summary small'); if (sm) sm.textContent = Object.keys(await mapInstalled()).length + ' installed';
-    if (!g.parentElement.querySelector('[data-mapdel]')) g.insertAdjacentHTML('afterend', `<button type="button" class="danger" data-mapdel="${p.id}">Delete</button>`);
-    if (S.tab === 'map') showMap();
-  } catch (e) { g.disabled = false; g.classList.remove('busy'); g.textContent = 'Download'; toast('Download failed: ' + e.message); }
+    await downloadMapPkg(p, f => { M.dlBusy[k] = Math.round(f * 100); const b = $(`#dlg .mpk[data-mk="${k}"] .dlbtn.busy`); if (b) { b.style.setProperty('--p', M.dlBusy[k] + '%'); b.textContent = M.dlBusy[k] + ' %'; } });
+    toast(p.name + ' installed');
+  } catch (e) { toast('Download failed: ' + e.message, 4000); }
+  delete M.dlBusy[k]; await redrawMapSection();
+  if (S.tab === 'map') showMap();
 });
 
 // ---------------------------------------------------------------- keys for matching names
@@ -324,7 +370,7 @@ const textKeyOf = t => t?.id;
 const workKeyOf = t => t?.work ? t.work.id : 'imp:' + t?.id;
 // the places of the open text (after the lemmas are known)
 async function placesForText() {
-  const t = S.text; await mapCfg(); if (!t) { M.hits = new Map(); return; }
+  const t = S.text; await mapCfg(); if (!t || !(await mapsEnabled())) { M.hits = new Map(); return; }   // (the map switched off: no place recognition)
   if (!(await loadPlaceIndex())) { M.hits = new Map(); markPlaces(); return; }
   const id = t.id, hits = await findPlaceHits(S.tokens);
   if (S.text?.id !== id) return;
@@ -490,20 +536,21 @@ function showMap() {
 }
 async function showMap1() {
   const box = $('#mapBody');
-  M.step = 'packages'; const [base, places] = [await mapHas('base'), await mapHas('places')];
-  if (!base || !places) {
-    box.innerHTML = `<div class="mapmsg"><p>${EUROPE_ICON}</p><p>The map needs two downloads: <b>${[!base && 'Base map', !places && 'Ancient places'].filter(Boolean).join('</b> and <b>')}</b>.</p><button type="button" data-mapdl="1">Open Instruments → Maps</button></div>`;
+  M.step = 'packages';
+  if (!(await mapHas('base'))) {                                     // the only package the map cannot do without
+    box.innerHTML = `<div class="mapmsg"><p>${EUROPE_ICON}</p><p>The map needs the download <b>Base map</b>${(await mapInstalled()).base ? ' (switched off)' : ''}.</p><button type="button" data-mapdl="1">Open Instruments → Map</button></div>`;
     return;
   }
   M.step = 'settings'; await mapCfg();
-  M.anc = await mapHas('ancient');
-  // which files of "Ancient world" are on the device (an older download lacks the newer layers; they are left out, not fetched)
-  M.ancFiles = new Set();
-  if (M.anc) { const c = await caches.open(MAPCACHE); for (const n of ['water', 'empires', 'provinces', 'areas', 'roads', 'urban', 'aqueducts', 'walls', 'canals']) if (await c.match(new URL(MAPS + 'ancient/' + n + '.json', location.href).href)) M.ancFiles.add(n); }
-  // the PMTiles files of the installed packages (landscape, relief …)
-  M.pkFiles = new Set(); { const c = await caches.open(MAPCACHE), inst = await mapInstalled(), man = M.man || await mapManifest();
-    for (const p of man?.packages || []) if (inst[p.id]) for (const f of p.files) if (f.endsWith('.pmtiles') && await c.match(new URL(MAPS + f, location.href).href)) M.pkFiles.add(f); }
-  M.step = 'names of regions'; if (M.anc) await loadAncientLabels();
+  // the files of the packages that are installed and switched on (an older download may lack newer files: those layers are left out)
+  { const c = await caches.open(MAPCACHE), inst = await mapInstalled(), off = await mapOff(), man = M.man || await mapManifest();
+    M.files = new Set();
+    for (const p of man?.packages || []) if (inst[p.id] && !off[p.id]) for (const f of p.files) if (await c.match(new URL(MAPS + f, location.href).href)) M.files.add(f);
+    if (!man) for (const n of ['water', 'empires', 'provinces', 'labels', 'areas', 'roads', 'urban', 'aqueducts', 'walls', 'canals']) if (await c.match(new URL(MAPS + 'ancient/' + n + '.json', location.href).href)) M.files.add(`ancient/${n}.json`); }
+  M.ancFiles = new Set([...M.files].filter(f => f.startsWith('ancient/')).map(f => f.slice(8, -5)));
+  M.anc = M.ancFiles.size > 0;
+  M.pkFiles = new Set([...M.files].filter(f => f.endsWith('.pmtiles')));
+  M.step = 'names of regions'; M.ancLab = null; if (M.ancFiles.has('labels')) await loadAncientLabels();
   M.step = 'gazetteer'; await loadPlaceIndex();
   M.step = 'drawings'; await loadDrawings(); await dScopeUpdate();
   timeFor(S.text);
@@ -854,7 +901,8 @@ async function mapWordTapped(i) {
 document.addEventListener('change', async ev => {
   const k = ev.target.dataset?.mapset; if (!k) return;
   await mapCfg(); M.cfg[k] = ev.target.checked; await saveMapCfg();
-  if (k === 'mark') markPlaces();
+  if (k === 'mark') { markPlaces(); if (M.map) await refreshMapData(); }
+  if (k === 'time') { timeFor(S.text); renderTime(); applyLayers(); }
 });
 document.addEventListener('DOMContentLoaded', () => {
   const b = $('#tabMap'); if (!b) return;
