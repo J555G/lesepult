@@ -1398,9 +1398,11 @@ dialog .srow1.swr>.tsw{flex:none;margin-left:auto}
 #sugg .sgnote.gk{font:400 17px var(--greek);color:var(--fg)}
 #sugg .sgfoot{padding:.3rem .75rem .2rem;font-size:11.5px;color:var(--mut);border-top:1px solid var(--line);margin-top:.2rem}
 @media (pointer:coarse){#sugg .sgr{padding:.55rem .8rem}#sugg .sgfoot{display:none}}
-#srchLang{flex:none;font:500 12.5px var(--ui);padding:.25rem .45rem;border-radius:8px;white-space:nowrap}
-#srchLang .gk{font-family:var(--greek);font-size:14px}
-#srchLang small{margin:0 .1rem;color:var(--mut)}
+/* Greek/Latin: a fixed square right of the field; the language(s) searched in full colour, the other faint */
+#top #srchLang{flex:none;width:2.5rem;height:2.1rem;min-width:0;padding:0;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;gap:.18rem;font:400 18px/1 var(--greek);color:var(--fg)}
+#srchLang span{transition:opacity .15s}
+#srchLang[data-m="la"] .gr,#srchLang[data-m="grc"] .la{opacity:.28}
+@media (orientation:portrait) and (max-width:700px){#top #srchLang{order:3}}
 /* ---- the results page */
 .srch .srq{font-family:var(--greek)}
 .srch .sgrp{margin:.2rem 0 .9rem}
@@ -1426,3 +1428,8 @@ dialog .srow1.swr>.tsw{flex:none;margin-left:auto}
 dialog .scg .scmv{flex:none;min-width:0;width:1.9rem;height:1.9rem;padding:0;border-radius:7px}
 dialog .scg .scmv:disabled{opacity:.35}
 .srch .sgctx.noref{grid-template-columns:1fr}
+
+/* Delete: its two choices right beneath it, aligned right */
+dialog .pkmore.asking{justify-content:flex-end;padding-left:0}
+dialog .pkmore .dask{flex:none;display:flex;gap:.4rem;font-size:inherit}
+dialog .pkmore .dask button{font-size:12.5px;padding:.3rem .65rem}

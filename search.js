@@ -3,12 +3,13 @@
    (see core.js for the order of the scripts) */
 'use strict';
 // ---------------------------------------------------------------- settings (Settings → Search)
-const SC_DEF = { sugg: true, n: 8, tr: true, loose: true, tog: false, typo: true, dist: 1, dicts: 'on', groups: [] };
+const SC_DEF = { sugg: true, n: 7, tr: true, loose: true, tog: false, typo: true, dist: 1, dicts: 'on', groups: [] };
 // the groups of the results page; more kinds of data (places, people, encyclopedias …) add a group here
 const SEARCH_GROUPS = [];
 async function loadSearchCfg() {
   const c = Object.assign({}, SC_DEF, (await setting('searchCfg')) || {});
   const known = new Set(c.groups.map(g => g[0]));
+  if (![7, 14, 21].includes(c.n)) c.n = 7;
   c.groups = c.groups.filter(g => SEARCH_GROUPS.some(x => x.id === g[0])).concat(SEARCH_GROUPS.filter(x => !known.has(x.id)).map(x => [x.id, true]));
   S.sc = c; S.srchLang ??= (await setting('srchLang')) || 'all';
 }
@@ -226,9 +227,9 @@ async function updateSuggestions() {
   const plan = searchPlan(q); if (!plan.T.length) return hideSug();
   const b = sugBox();
   if (!HW[plan.T[0].lang]?.p) { b.innerHTML = '<div class="sgnote">Preparing the word lists …</div>'; b.hidden = false; placeSug(); }
-  const hits = await findKeys(plan, { limit: S.sc.n || 8 });
+  const hits = await findKeys(plan, { limit: S.sc.n || 7 });
   const forms = plan.wild || hits.some(h => h.d === 0) ? [] : (await formsFor(plan)).slice(0, 2);
-  const infos = (await Promise.all(hits.slice(0, S.sc.n || 8).map(hitInfo))).filter(Boolean);
+  const infos = (await Promise.all(hits.slice(0, S.sc.n || 7).map(hitInfo))).filter(Boolean);
   if (my !== sgSeq) return;
   const items = [...forms.map(x => ({ t: 'form', x })), ...infos.map(x => ({ t: 'hw', x }))];
   S.sgItems = items; S.sgSel = -1;
@@ -453,10 +454,11 @@ async function idxBuild({ full = false } = {}) {
 function srchLangBtn() {
   let b = $('#srchLang');
   if (!S.sc?.tog) { b?.remove(); return; }
-  if (!b) { b = document.createElement('button'); b.id = 'srchLang'; b.type = 'button'; $('#search').before(b);
+  if (!b) { b = document.createElement('button'); b.id = 'srchLang'; b.type = 'button'; $('#search').after(b);
     b.onclick = () => { S.srchLang = { all: 'grc', grc: 'la', la: 'all' }[S.srchLang] || 'all'; setting('srchLang', S.srchLang); srchLangBtn(); if ($('#search').value.trim()) updateSuggestions(); }; }
   const m = S.srchLang || 'all';
-  b.innerHTML = m === 'grc' ? '<span class="gk">αβ</span>' : m === 'la' ? 'ab' : '<span class="gk">αβ</span><small>+</small>ab';
+  b.innerHTML = '<span class="la">a</span><span class="gr">α</span>'; b.dataset.m = m;     // the language(s) searched light up, the other is faint
+  b.setAttribute('aria-label', m === 'grc' ? 'Greek only' : m === 'la' ? 'Latin only' : 'Greek and Latin');
   b.title = m === 'grc' ? 'Searching Greek (Latin letters become Greek) – tap for Latin' : m === 'la' ? 'Searching Latin – tap for both' : 'Searching Greek and Latin – tap for Greek only';
 }
 function wireSearch() {
@@ -526,7 +528,7 @@ function scGroupsHTML() {
 }
 function searchSettingsHTML() {
   return scSec('Suggestions', scSw('sugg', 'Suggestions while typing', 'a list beneath the search field; Enter shows all results')
-      + scLine('Lines in the list', scSeg('n', [[5, '5'], [8, '8'], [12, '12']])))
+      + scLine('Lines in the list', scSeg('n', [[7, '7'], [14, '14'], [21, '21']])))
     + scSec('Greek in Latin letters', scSw('tr', 'Find Greek words typed in Latin letters', 'logos → λόγος, psyche → ψυχή; betacode too (lo/gos)')
       + scSw('loose', 'Plain e and o also find η and ω', 'otherwise only ē and ō (or ê and ô)')
       + scSw('tog', 'Greek/Latin button beside the search field', 'to search one language only'))

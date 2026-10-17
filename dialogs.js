@@ -227,13 +227,13 @@ document.addEventListener('click', async ev => {
   const ask = ev.target.closest?.('#dlg [data-delask]'), no = ev.target.closest?.('#dlg [data-delno]'), ok = ev.target.closest?.('#dlg [data-dictdel]');
   if (ask) {
     const m = ask.closest('.pkrow').querySelector('.pkmore'), [kind, id] = ask.dataset.delask.split(/:(.*)/s);
-    if (!m.hidden && m.querySelector('.dask')) return;
-    m._was = m.innerHTML; m._hid = m.hidden; m.hidden = false;
-    m.innerHTML = `<span class="dask">Delete <b>${esc(ask.dataset.name || id)}</b> from this device?</span><button type="button" data-delno="1">Cancel</button>`
-      + `<button type="button" class="danger" ${kind === 'map' ? `data-mapdel="${esc(id)}"` : `data-dictdel="${esc(id)}"`}>Delete</button>`;
+    if (!m.hidden && m.querySelector('.dask')) return closeDelAsk();
+    closeDelAsk();
+    m._was = m.innerHTML; m._hid = m.hidden; m.hidden = false; m.classList.add('asking');
+    m.innerHTML = `<span class="dask"><button type="button" class="danger" ${kind === 'map' ? `data-mapdel="${esc(id)}"` : `data-dictdel="${esc(id)}"`} title="Delete ${esc(ask.dataset.name || id)} from this device">Delete from device</button><button type="button" data-delno="1">Cancel</button></span>`;
     return;
   }
-  if (no) { const m = no.closest('.pkmore'); m.innerHTML = m._was || ''; m.hidden = !!m._hid; return; }
+  if (no) return closeDelAsk();
   if (ok) {
     const id = ok.dataset.dictdel, row = ok.closest('.pkrow');
     if (DL.has(id)) return toast('Wait until the download has finished.');
@@ -247,6 +247,9 @@ document.addEventListener('click', async ev => {
     toast(name + ' deleted');
   }
 });
+// the two choices beneath Delete: gone again with Cancel, or a tap anywhere else
+function closeDelAsk() { document.querySelectorAll('#dlg .pkmore.asking').forEach(m => { if (m.querySelector('[disabled]')) return; m.classList.remove('asking'); m.innerHTML = m._was || ''; m.hidden = !!m._hid; }); }
+document.addEventListener('pointerdown', ev => { if (!ev.target.closest?.('#dlg .pkmore.asking, #dlg [data-delask]')) closeDelAsk(); }, true);
 document.addEventListener('click', ev => { const b = ev.target.closest?.('#dlg [data-pkmore]'); if (!b) return; const m = b.closest('.pkrow').querySelector('.pkmore'); m.hidden = !m.hidden; b.classList.toggle('on', !m.hidden); });
 
 async function dictsDialog() {
