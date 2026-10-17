@@ -1270,15 +1270,16 @@ dialog details.subfold.shead>summary{font:600 14px var(--ui);color:var(--fg);pad
 #textTitle.short .tbf{display:none}#textTitle.short .tbs{display:inline}
 dialog .xsw{padding:.2rem 0}
 #menu button:disabled{color:var(--mut);opacity:.5;background:none;cursor:default}
-/* back and forward in the dictionary pane: a slim bar at its top, the history list beneath it */
-#dictNav{position:sticky;top:0;z-index:4;display:flex;align-items:center;gap:.4rem;padding:.2rem .5rem;margin:0;background:var(--bg);border-bottom:1px solid var(--line);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+/* back and forward in the dictionary pane: a small pill in the top-right corner; the entry flows around it (only its
+   first line is shortened) and it floats over the entry when scrolled. Hold it for the history (anchored beneath it). */
+#dictNav{position:sticky;top:6px;float:right;z-index:4;display:flex;margin:6px 6px 2px 8px;border:1px solid var(--line);border-radius:999px;background:color-mix(in srgb,var(--bg) 86%,transparent);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 #dictNav[hidden]{display:none}
-#dictNav .dnsp{flex:1;align-self:stretch}
-#dictNav .dnb{background:none;border:0;padding:.3rem .45rem;border-radius:6px;color:var(--mut);font:500 13px var(--ui);max-width:48%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#dictNav .dnb b{font:600 15px var(--greek);color:var(--fg)}
-#dictNav .dnb:hover{background:var(--bar)}
-#dictNav .dnb[hidden]{display:none}
-#dictHist{position:absolute;left:.5rem;right:.5rem;top:100%;max-height:min(60vh,26rem);overflow:auto;overscroll-behavior:contain;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.3);padding:.25rem;display:flex;flex-direction:column}
+#dictNav .dnb{background:none;border:0;height:30px;min-width:36px;padding:0 .4rem;color:var(--fg);font-size:19px;line-height:1;border-radius:999px}
+#dictNav .dnb+.dnb{border-left:1px solid var(--line);border-radius:0 999px 999px 0}
+#dictNav .dnb:first-child{border-radius:999px 0 0 999px}
+#dictNav .dnb:disabled{color:var(--mut);opacity:.35;pointer-events:none}
+@media (hover:hover){#dictNav .dnb:not(:disabled):hover{background:var(--bar)}}
+#dictHist{position:absolute;right:0;top:calc(100% + 4px);width:max-content;min-width:14rem;max-width:22rem;max-height:min(60vh,26rem);overflow:auto;overscroll-behavior:contain;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.3);padding:.25rem;display:flex;flex-direction:column}
 #dictHist[hidden]{display:none}
 #dictHist button{display:flex;align-items:baseline;gap:.5rem;text-align:left;background:none;border:0;border-radius:7px;padding:.45rem .6rem;color:var(--fg);flex:none}
 #dictHist button b{font:600 16px var(--greek)}

@@ -319,9 +319,9 @@ function navButtons() {
   const back = S.hist.at(-1), fwd = S.fwd?.at(-1), show = S.tab !== 'list' && S.tab !== 'map' && (back || fwd);
   bar.hidden = !show; if (!show) { $('#dictHist').hidden = true; return; }
   const [b, f] = bar.querySelectorAll('.dnb');
-  b.hidden = !back; f.hidden = !fwd;
-  if (back) { b.innerHTML = `‹ <b>${esc(viewName(back))}</b>`; b.title = 'Back · hold for the history'; }
-  if (fwd) { f.innerHTML = `<b>${esc(viewName(fwd))}</b> ›`; f.title = 'Forward · hold for the history'; }
+  b.disabled = !back; f.disabled = !fwd;
+  b.title = back ? `Back to ${viewName(back)} · hold for the history` : 'Hold for the history';
+  f.title = fwd ? `Forward to ${viewName(fwd)} · hold for the history` : 'Hold for the history';
 }
 function goBack() { if (!S.hist.length) return; S.fwd.push(S.view); S.view = S.hist.pop(); navButtons(); showTab('entry'); renderView(); }
 function goFwd() { if (!S.fwd?.length) return; S.hist.push(S.view); S.view = S.fwd.pop(); navButtons(); showTab('entry'); renderView(); }
@@ -333,23 +333,27 @@ function goHist(k) {          // k: position in the whole history, oldest first
 function histList() {
   const box = $('#dictHist'), L = [...S.hist, S.view, ...[...(S.fwd || [])].reverse()], cur = S.hist.length;
   box.innerHTML = L.map((v, k) => [v, k]).reverse().map(([v, k]) => `<button type="button" data-hk="${k}" class="${k === cur ? 'on' : ''}"><b>${esc(viewName(v))}</b>${v.form && viewName(v) !== v.form ? `<small>${esc(v.form)}</small>` : ''}<i>${v.ref ? esc(v.ref) : v.ti == null ? 'look-up' : ''}</i></button>`).join('');
+  box.style.maxWidth = Math.min(352, Math.max(200, $('#dictPane').clientWidth - 16)) + 'px';      // never wider than the pane
   box.hidden = false;
-  box.querySelector('.on')?.scrollIntoView({ block: 'center' });
+  const on = box.querySelector('.on'); if (on) box.scrollTop = on.offsetTop - box.clientHeight / 2 + on.offsetHeight / 2;
 }
 (function wireDictNav() {
   document.addEventListener('DOMContentLoaded', () => {
     const bar = $('#dictNav'); if (!bar) return;
     let t = 0, held = false;
-    bar.addEventListener('pointerdown', e => { if (!e.target.closest('.dnb, .dnsp')) return; held = false; clearTimeout(t); t = setTimeout(() => { held = true; histList(); }, 500); });
+    // (a disabled arrow does not get pointer events: the pill listens for both)
+    bar.addEventListener('pointerdown', e => { if (e.target.closest('#dictHist')) return; held = false; clearTimeout(t); t = setTimeout(() => { held = true; histList(); }, 500); });
     for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) bar.addEventListener(ev, () => clearTimeout(t));
     bar.addEventListener('contextmenu', e => { if (e.target.closest('#dictHist')) return; e.preventDefault(); histList(); });
     bar.addEventListener('click', e => {
       const h = e.target.closest('[data-hk]'); if (h) { $('#dictHist').hidden = true; return goHist(+h.dataset.hk); }
       const b = e.target.closest('[data-dn]'); if (!b) return;
       if (held) { held = false; return; }
+      if (!$('#dictHist').hidden) { $('#dictHist').hidden = true; return; }      // the list open: a tap on the pill only closes it
       b.dataset.dn === 'back' ? goBack() : goFwd();
     });
     document.addEventListener('pointerdown', e => { if (!e.target.closest('#dictNav')) $('#dictHist').hidden = true; });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#dictHist').hidden) { $('#dictHist').hidden = true; e.preventDefault(); } });
   });
 })();
 async function renderView() {
