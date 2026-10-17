@@ -54,16 +54,43 @@ function demBlob(z, x, y) {
 }
 const relCanvas = n => typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(n, n) : Object.assign(document.createElement('canvas'), { width: n, height: n });
 const canvasBlob = cv => cv.convertToBlob ? cv.convertToBlob({ type: 'image/png' }) : new Promise(r => cv.toBlob(r, 'image/png'));
+// Some browsers (privacy protection against fingerprinting, e.g. Brave, Firefox, some Chrome extensions) add noise to what a
+// canvas gives back: a few pixels off by one in a colour – in red that is 256 m, so the relief got sharp pits and spikes, in
+// green small bumps (even in the sea). The map engine itself checks for this and then reads the pixels as a video frame;
+// so do we.
+let canvasNoisy = null;
+function noisyCanvas() {
+  if (canvasNoisy != null) return canvasNoisy;
+  canvasNoisy = false;
+  try {
+    const n = 5, ctx = relCanvas(n).getContext('2d', { willReadFrequently: true });
+    for (let i = 0; i < n * n; i++) { const b = i * 4; ctx.fillStyle = `rgb(${b},${b + 1},${b + 2})`; ctx.fillRect(i % n, Math.floor(i / n), 1, 1); }
+    const d = ctx.getImageData(0, 0, n, n).data;
+    for (let i = 0; i < n * n * 4; i++) if (i % 4 !== 3 && d[i] !== i) { canvasNoisy = true; break; }
+  } catch (_) {}
+  return canvasNoisy;
+}
+async function framePixels(bm) {
+  const f = new VideoFrame(bm, { timestamp: 0 });
+  try {
+    const fmt = f.format || '';
+    if (!/^(RGB|BGR)/.test(fmt)) throw new Error('format ' + fmt);
+    const px = new Uint8ClampedArray(bm.width * bm.height * 4);
+    await f.copyTo(px, { rect: { x: 0, y: 0, width: bm.width, height: bm.height }, layout: [{ offset: 0, stride: bm.width * 4 }] });
+    if (fmt.startsWith('BGR')) for (let i = 0; i < px.length; i += 4) { const t = px[i]; px[i] = px[i + 2]; px[i + 2] = t; }
+    return px;
+  } finally { f.close(); }
+}
 async function decodeDem(data) {
   const bm = await createImageBitmap(new Blob([data]), { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
-  const n = bm.width, cv = relCanvas(n), ctx = cv.getContext('2d', { willReadFrequently: true });
-  ctx.drawImage(bm, 0, 0); const px = ctx.getImageData(0, 0, n, n).data, h = new Float32Array(n * n);
+  const n = bm.width, h = new Float32Array(n * n);
+  let px = null;
+  if (noisyCanvas() && typeof VideoFrame !== 'undefined') try { px = await framePixels(bm); } catch (_) {}
+  if (!px) { const ctx = relCanvas(n).getContext('2d', { willReadFrequently: true }); ctx.drawImage(bm, 0, 0); px = ctx.getImageData(0, 0, n, n).data; }
   for (let i = 0; i < n * n; i++) h[i] = px[i * 4] * 256 + px[i * 4 + 1] + px[i * 4 + 2] / 256 - 32768;
   return { n, h };
 }
-// the heights as a PNG of our own making (Terrarium; the fraction of a metre in blue): a PNG from a canvas can carry colour
-// information, and a desktop with colour management then shifts the colours slightly when the map reads them – each shift a
-// pit or a bump of a metre or more, shaded as little holes. This PNG has none, so its colours are read exactly.
+// the heights as a PNG of our own making (Terrarium; the fraction of a metre in blue), without colour information: read exactly
 const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
 function pngChunk(type, data) {
   const out = new Uint8Array(12 + data.length), dv = new DataView(out.buffer);
