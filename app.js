@@ -34,7 +34,7 @@ function wire() {
     const i = +w.dataset.i;
     S.cur = [i, i]; markTarget();
     const tk = S.tokens.find(t => t.t === 'w' && t.i === i);
-    S.hist = []; S.view = null; await showWord(tk.s, { ti: i });
+    await showWord(tk.s, { ti: i });
   });
   let tipT = null, tipShown = false;
   document.addEventListener('pointerdown', ev => { const t = ev.target.closest?.('[data-tip]'); clearTimeout(tipT); tipShown = false; if (t) tipT = setTimeout(() => { tipShown = true; toast(t.dataset.tip, 3500); }, 500); }, true);
@@ -73,7 +73,7 @@ function wire() {
     const pos = +r.dataset.pos; S.cur = [pos, pos]; S.curHidden = false; markTarget();
     (ensureWord(pos) || document.querySelector(`.w[data-i="${pos}"]`))?.scrollIntoView({ block: 'center', behavior: S.TW ? 'auto' : 'smooth' });
     const tk = S.tokens.find(t => t.t === 'w' && t.i === pos);
-    S.hist = []; S.view = null; await showWord(tk.s, { lemma: r.dataset.lemma, ti: pos });
+    await showWord(tk.s, { lemma: r.dataset.lemma, ti: pos });
   });
   $('#listBody').addEventListener('input', ev => { if (ev.target.matches('textarea.lg')) autoGrow(ev.target); });
   $('#listBody').addEventListener('change', ev => { if (ev.target.matches('textarea.lg')) saveListGloss(ev.target); });
@@ -81,7 +81,6 @@ function wire() {
   $('#listBody').addEventListener('keydown', ev => { if (ev.target.matches('textarea.lg') && ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); ev.target.blur(); } });
   $('#textPane').addEventListener('click', ev => { if (ev.target.id === 'textPane') { S.curHidden = true; markTarget(); } });
   new ResizeObserver(setGlossMax).observe($('#textBody'));
-  $('#btnBack').onclick = goBack;
   $('#textTitle').onclick = navDialog;
   wireMarker();
   wireReading();
@@ -96,7 +95,6 @@ function wire() {
   $('#dictPane').addEventListener('pointerdown', ev => { if (ev.target.closest('.chip,[data-pin]')) guardText(); }, true);
   window.visualViewport?.addEventListener('resize', () => { const g = S.tGuard; if (g && Date.now() <= g.until && !S.tTouch) requestAnimationFrame(() => applyTextAnchor(g.a)); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveReadPos(); });
-  $('#btnFwd').onclick = goFwd;
   $('#tabEntry').onclick = () => {
     if (!$('#dictBody').hidden) return;
     showTab('entry');

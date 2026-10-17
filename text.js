@@ -299,7 +299,7 @@ async function openGlossField(kind = 'span', lemma = null) {
   const shown = S.view && S.view.ti != null && S.cur[0] <= S.view.ti && S.view.ti <= S.cur[1] && !$('#dictBody').hidden;
   if (!shown) {
     const tk = S.tokens.find(t => t.t === 'w' && t.i === i0);
-    S.hist = []; S.view = null; await showWord(tk.s, { ti: i0, lemma: lemma || tk.lemma || null });
+    await showWord(tk.s, { ti: i0, lemma: lemma || tk.lemma || null });
   }
   fillGlossBox();
   const inp = $(kind === 'def' ? '#glossbox textarea[data-def]' : '#glossbox textarea[data-span]');

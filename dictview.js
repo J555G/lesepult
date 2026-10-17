@@ -300,17 +300,58 @@ function wireDictScroll() {
   }, { passive: true });
 }
 async function showWord(word, opts = {}) {
-  if (S.view && !opts.replace) S.hist.push(S.view);
+  // every lookup goes into the history (taps in the text too); the same word again is not added twice
+  const same = S.view && S.view.form === word && (S.view.ti ?? null) === (opts.ti ?? null);
+  if (S.view && !opts.replace && !same) { S.hist.push(S.view); if (S.hist.length > 200) S.hist.shift(); }
   S.fwd = [];
-  S.view = { form: word, lemma: opts.lemma || null, openDict: opts.openDict || null, ti: opts.ti ?? null };
+  S.view = { form: word, lemma: opts.lemma || null, openDict: opts.openDict || null, ti: opts.ti ?? null, tid: opts.ti != null ? S.text?.id : null, ref: opts.ti != null ? refAt(opts.ti) : null };
   navButtons();
   if (S.tab === 'map') { if (opts.ti != null) mapWordTapped(opts.ti); }       // the map stays; the entry is prepared behind it
   else showTab('entry');
   await renderView();
 }
-function navButtons() { $('#btnBack').disabled = !S.hist.length; $('#btnFwd').disabled = !(S.fwd && S.fwd.length); }
+// ---- back and forward between entries: a slim bar at the top of the dictionary pane ("‹ λόγος" … "φημί ›");
+// holding it opens the whole history as a scrollable list
+const viewName = v => v ? (v.lemma || v.pick || v.form || '') : '';
+function refAt(i) { const R = S.refs || []; let r = null; for (const x of R) { if (x.i > i) break; r = x; } return r?.s || null; }
+function navButtons() {
+  const bar = $('#dictNav'); if (!bar) return;
+  const back = S.hist.at(-1), fwd = S.fwd?.at(-1), show = S.tab !== 'list' && S.tab !== 'map' && (back || fwd);
+  bar.hidden = !show; if (!show) { $('#dictHist').hidden = true; return; }
+  const [b, f] = bar.querySelectorAll('.dnb');
+  b.hidden = !back; f.hidden = !fwd;
+  if (back) { b.innerHTML = `‹ <b>${esc(viewName(back))}</b>`; b.title = 'Back · hold for the history'; }
+  if (fwd) { f.innerHTML = `<b>${esc(viewName(fwd))}</b> ›`; f.title = 'Forward · hold for the history'; }
+}
 function goBack() { if (!S.hist.length) return; S.fwd.push(S.view); S.view = S.hist.pop(); navButtons(); showTab('entry'); renderView(); }
 function goFwd() { if (!S.fwd?.length) return; S.hist.push(S.view); S.view = S.fwd.pop(); navButtons(); showTab('entry'); renderView(); }
+function goHist(k) {          // k: position in the whole history, oldest first
+  const L = [...S.hist, S.view, ...[...(S.fwd || [])].reverse()]; if (!L[k]) return;
+  S.hist = L.slice(0, k); S.view = L[k]; S.fwd = L.slice(k + 1).reverse();
+  navButtons(); showTab('entry'); renderView();
+}
+function histList() {
+  const box = $('#dictHist'), L = [...S.hist, S.view, ...[...(S.fwd || [])].reverse()], cur = S.hist.length;
+  box.innerHTML = L.map((v, k) => [v, k]).reverse().map(([v, k]) => `<button type="button" data-hk="${k}" class="${k === cur ? 'on' : ''}"><b>${esc(viewName(v))}</b>${v.form && viewName(v) !== v.form ? `<small>${esc(v.form)}</small>` : ''}<i>${v.ref ? esc(v.ref) : v.ti == null ? 'look-up' : ''}</i></button>`).join('');
+  box.hidden = false;
+  box.querySelector('.on')?.scrollIntoView({ block: 'center' });
+}
+(function wireDictNav() {
+  document.addEventListener('DOMContentLoaded', () => {
+    const bar = $('#dictNav'); if (!bar) return;
+    let t = 0, held = false;
+    bar.addEventListener('pointerdown', e => { if (!e.target.closest('.dnb, .dnsp')) return; held = false; clearTimeout(t); t = setTimeout(() => { held = true; histList(); }, 500); });
+    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) bar.addEventListener(ev, () => clearTimeout(t));
+    bar.addEventListener('contextmenu', e => { if (e.target.closest('#dictHist')) return; e.preventDefault(); histList(); });
+    bar.addEventListener('click', e => {
+      const h = e.target.closest('[data-hk]'); if (h) { $('#dictHist').hidden = true; return goHist(+h.dataset.hk); }
+      const b = e.target.closest('[data-dn]'); if (!b) return;
+      if (held) { held = false; return; }
+      b.dataset.dn === 'back' ? goBack() : goFwd();
+    });
+    document.addEventListener('pointerdown', e => { if (!e.target.closest('#dictNav')) $('#dictHist').hidden = true; });
+  });
+})();
 async function renderView() {
   const body = $('#dictBody'); const v = S.view; if (!v) return;
   flushDictScroll();
@@ -476,4 +517,5 @@ function showTab(which) {
   $('#dictBody').hidden = which !== 'entry'; $('#listBody').hidden = which !== 'list';
   const mb = $('#mapBody'); if (mb) mb.hidden = which !== 'map';
   $('#dictPane').classList.toggle('mapmode', which === 'map');
+  navButtons();
 }
