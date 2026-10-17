@@ -451,13 +451,15 @@ async function idxBuild({ full = false } = {}) {
 }
 
 // ---------------------------------------------------------------- the field, the results page's taps
+// the Greek/Latin icon: the letters a and α of Gentium Book Plus as outlines, centred (not text)
+const SRCH_LANG_ICON = '<svg viewBox="0 0 30 20" width="30" height="20" aria-hidden="true"><path class="la" d="M12.78 13.77Q11.92 14.35 11.25 14.68Q10.58 15 10.27 15Q9.89 15 9.66 14.47Q9.42 13.94 9.42 13.04V7.66Q9.42 6.99 9.09 6.54Q8.76 6.09 7.85 6.11Q7.26 6.12 6.76 6.48Q6.27 6.85 6.33 7.45Q6.34 7.56 6.08 7.68Q5.82 7.8 5.45 7.91Q5.09 8.02 4.76 8.08Q4.43 8.14 4.31 8.11L4.15 7.67Q4.46 6.95 5.2 6.34Q5.94 5.74 6.9 5.37Q7.85 5 8.8 5Q9.99 5 10.62 5.62Q11.24 6.24 11.24 7.27V12.7Q11.24 13.48 11.64 13.48Q11.78 13.48 11.99 13.43Q12.21 13.37 12.61 13.21ZM9.52 9.82Q8.46 9.99 7.86 10.15Q7.27 10.31 6.95 10.49Q6.64 10.68 6.43 10.89Q6.17 11.16 6.01 11.49Q5.84 11.83 5.84 12.28Q5.84 12.79 6.03 13.06Q6.22 13.33 6.46 13.43Q6.71 13.54 6.88 13.54Q7.43 13.54 8.08 13.24Q8.72 12.94 9.52 12.23L9.6 13.11Q8.65 14.13 7.71 14.57Q6.77 15 6.09 15Q5.57 15 5.07 14.77Q4.56 14.54 4.22 14.04Q3.88 13.55 3.88 12.77Q3.88 12.02 4.15 11.52Q4.41 11.02 4.78 10.65Q5.11 10.31 5.59 10.03Q6.08 9.74 6.99 9.48Q7.9 9.22 9.52 8.98Z"/><path class="gr" d="M19.31 15Q17.98 15 17.05 13.85Q16.12 12.7 16.12 10.54Q16.12 9.07 16.67 7.81Q17.23 6.56 18.19 5.78Q19.15 5 20.36 5Q21.29 5 22.04 5.75Q22.78 6.49 23.18 7.99Q23.34 7.3 23.44 6.66Q23.55 6.01 23.53 5.44Q23.97 5.37 24.66 5.25Q25.34 5.13 25.81 5Q25.88 5.1 25.93 5.24Q25.98 5.38 26.03 5.46Q25.47 5.77 25.07 6.23Q24.67 6.69 24.33 7.53Q23.99 8.37 23.6 9.85Q23.79 11.09 23.95 11.81Q24.12 12.54 24.26 12.89Q24.41 13.24 24.54 13.35Q24.67 13.45 24.81 13.45Q24.97 13.45 25.29 13.39Q25.61 13.33 25.97 13.18Q25.99 13.27 26.04 13.43Q26.08 13.59 26.12 13.74Q25.42 14.31 24.74 14.66Q24.07 15 23.63 15Q23.22 15 22.97 14.43Q22.72 13.86 22.51 12.22Q21.72 13.7 20.86 14.35Q19.99 15 19.31 15ZM19.76 13.4Q20.28 13.4 20.74 12.97Q21.2 12.55 21.58 11.88Q21.96 11.21 22.25 10.49Q21.96 8.26 21.3 7.2Q20.64 6.13 19.81 6.13Q19.34 6.13 18.88 6.52Q18.43 6.9 18.13 7.69Q17.83 8.48 17.83 9.72Q17.83 10.64 18.07 11.48Q18.3 12.32 18.73 12.86Q19.16 13.4 19.76 13.4Z"/></svg>';
 function srchLangBtn() {
   let b = $('#srchLang');
   if (!S.sc?.tog) { b?.remove(); return; }
   if (!b) { b = document.createElement('button'); b.id = 'srchLang'; b.type = 'button'; $('#search').after(b);
     b.onclick = () => { S.srchLang = { all: 'grc', grc: 'la', la: 'all' }[S.srchLang] || 'all'; setting('srchLang', S.srchLang); srchLangBtn(); if ($('#search').value.trim()) updateSuggestions(); }; }
   const m = S.srchLang || 'all';
-  b.innerHTML = '<span class="la">a</span><span class="gr">α</span>'; b.dataset.m = m;     // the language(s) searched light up, the other is faint
+  b.innerHTML = SRCH_LANG_ICON; b.dataset.m = m;     // the language(s) searched light up, the other is faint
   b.setAttribute('aria-label', m === 'grc' ? 'Greek only' : m === 'la' ? 'Latin only' : 'Greek and Latin');
   b.title = m === 'grc' ? 'Searching Greek (Latin letters become Greek) – tap for Latin' : m === 'la' ? 'Searching Latin – tap for both' : 'Searching Greek and Latin – tap for Greek only';
 }
