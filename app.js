@@ -44,10 +44,11 @@ function wire() {
   $('#dictBody').addEventListener('click', async ev => {
     if (ev.target.closest('.tip')) return toast(ev.target.closest('.tip').dataset.tip, 3500);
     const chip = ev.target.closest('.chip');
-    if (chip) { if (S.view.ti != null && S.text) return setTokChoice(S.view.ti, chip.dataset.lemma, null); S.view.lemma = chip.dataset.lemma; return renderView(); }
+    // (the default lemma or form – marked – tapped: back to the default reading, the choice forgotten)
+    const vtk = S.view.ti != null ? S.tokens?.find(t => t.t === 'w' && t.i === S.view.ti) : null;
+    if (chip) { if (S.view.ti != null && S.text) return setTokChoice(S.view.ti, vtk?.defL && chip.dataset.lemma === vtk.defL ? null : chip.dataset.lemma, null); S.view.lemma = chip.dataset.lemma; return renderView(); }
     const an = ev.target.closest('[data-ana]');
-    if (an && S.view.ti != null) return setTokChoice(S.view.ti, S.view.pick, S.view.anaList[+an.dataset.ana]);
-    if (ev.target.closest('[data-anareset]') && S.view.ti != null) return setTokChoice(S.view.ti, null);
+    if (an && S.view.ti != null) { const x = S.view.anaList[+an.dataset.ana]; return setTokChoice(S.view.ti, vtk?.defL && S.view.pick === vtk.defL && x === vtk.defA ? null : S.view.pick, x); }
     const pin = ev.target.closest('[data-pin]');
     if (pin) { const tk = S.view.ti != null ? S.tokens.find(t => t.t === 'w' && t.i === S.view.ti) : null;
       await put('choices', Object.assign({ f: canon(S.view.form), lemma: pin.dataset.pin }, tk?.anaSet && tk.lemma === pin.dataset.pin ? { ana: tk.ana } : {})); S.view.lemma = null; const f0 = canon(S.view.form); resetTokens(tk => canon(tk.s) === f0); await renderView(); resolveTokens(); renderText(); return; }
