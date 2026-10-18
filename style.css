@@ -1732,4 +1732,3 @@ dialog details.auth>summary.dlhost{position:relative}
 dialog details.trashg>summary b{font-weight:600;color:var(--mut)}
 dialog details.trashg{opacity:.85}
 dialog details.trashg>summary .trashall{margin-left:auto;font-size:12.5px;color:#c0392b}
-dialog details.trashg:not([open])>summary .trashall{display:none}

@@ -186,7 +186,7 @@ function authIconHTML(a, ws) {
   if (!miss.length) return `<button type="button" class="dli done" data-authpop="${aid}" title="All on this device" aria-label="All on this device">${DLARROW}</button>`;
   if (miss.length < W.length) return `<button type="button" class="dli part" data-authpop="${aid}" style="--f:${pc}" title="${W.length - miss.length} of ${W.length} on this device" aria-label="${W.length - miss.length} of ${W.length} on this device">${DLARROW}</button>`;
   const rst = trash.length === miss.length;
-  return `<button type="button" class="dli${rst ? ' rst' : ''}" data-authget="${aid}" title="${rst ? 'Restore – kept on this device' : `Download ${W.length === 1 ? 'the work' : `all ${W.length} works`} (${mb(st.rest)})`}" aria-label="${rst ? 'Restore' : 'Download all'}"${off ? ' disabled' : ''}>${rst ? RSTARROW : DLARROW}</button>`;
+  return `<button type="button" class="dli${rst ? ' rst' : ''}" ${rst ? 'data-authrpop' : 'data-authget'}="${aid}" title="${rst ? 'Restore – kept on this device' : `Download ${W.length === 1 ? 'the work' : `all ${W.length} works`} (${mb(st.rest)})`}" aria-label="${rst ? 'Restore' : 'Download all'}"${off ? ' disabled' : ''}>${rst ? RSTARROW : DLARROW}</button>`;
 }
 const authFind = id => libAuthors().find(a => a.id === id);
 // a work's download moved on: the icon of its author follows (at most once a frame)
@@ -206,11 +206,13 @@ function authQueue(a) {
   runDownloads(); authPaint(st.W[0].id);
 }
 document.addEventListener('click', async ev => {
-  const b = ev.target.closest?.('#libList [data-authget],#libList [data-authpop],#libList [data-authstop],#libList [data-authrest],#libList [data-authdel],#libList [data-authstopgo],#libList [data-authgo]'); if (!b) return;
+  const b = ev.target.closest?.('#libList [data-authget],#libList [data-authrpop],#libList [data-autherase],#libList [data-authpop],#libList [data-authstop],#libList [data-authrest],#libList [data-authdel],#libList [data-authstopgo],#libList [data-authgo]'); if (!b) return;
   ev.preventDefault(); ev.stopPropagation();
-  const d = b.dataset, a = authFind(d.authget || d.authpop || d.authstop || d.authrest || d.authdel || d.authstopgo || d.authgo); if (!a) return;
+  const d = b.dataset, a = authFind(d.authget || d.authrpop || d.autherase || d.authpop || d.authstop || d.authrest || d.authdel || d.authstopgo || d.authgo); if (!a) return;
   if (d.authget) { dlPopClose(); return authQueue(a); }
   if (d.authrest) { dlPopClose(); return authQueue(a); }
+  if (d.autherase) { dlPopClose(); const st = authState(libFilter(a)); for (const w of st?.trash || []) await workPurge(w.id); return renderLibList(); }
+  if (d.authrpop) return dlPopAt(b, `<button type="button" data-authrest="${esc(a.id)}">Restore all</button><button type="button" class="danger" data-autherase="${esc(a.id)}">Erase all</button>`);
   if (d.authdel) { dlPopClose(); const st = authState(libFilter(a)); for (const w of st?.have || []) await trashWork(w.id); return renderLibList(); }
   if (d.authpop) {                                                   // the choice to the left of the icon
     const open = b.classList.contains('open'); dlPopClose(); if (open) return;
@@ -219,7 +221,7 @@ document.addEventListener('click', async ev => {
     row.classList.add('dlhost'); b.classList.add('open');
     row.insertAdjacentHTML('beforeend', `<span class="dlpop" style="right:${Math.round(rr.right - br.left + 6)}px;top:${Math.round(br.top - rr.top + br.height / 2)}px">`
       + (st.miss.length ? `<button type="button" data-authrest="${esc(a.id)}"${restOff ? ' disabled' : ''}>Download the rest (${st.miss.length})</button>` : '')
-      + `<button type="button" class="danger" data-authdel="${esc(a.id)}">Delete all</button></span>`);
+      + `<button type="button" class="danger" data-authdel="${esc(a.id)}">Remove all</button></span>`);
     dlPopClose.t = setTimeout(dlPopClose, 5000); return;
   }
   if (d.authstop) {                                                  // stopping: asked beneath the author
@@ -243,7 +245,7 @@ document.addEventListener('click', async ev => {                    // Recently 
 function trashGroupHTML() {
   const q = fold(S.libQ), ws = Object.entries(S.trash || {}).sort((x, y) => y[1] - x[1]).map(([id]) => S.catWork?.[id]).filter(w => w && !S.libInst[w.id] && workPasses(w, q, true));
   if (!ws.length) return '';
-  return `<details class="auth trashg"${S.trashOpen ? ' open' : ''}><summary><span class="t"><b>Recently deleted</b><small>${ws.length} work${ws.length === 1 ? '' : 's'} · kept 7 days</small></span><button type="button" class="linkb trashall" data-trashall="${esc(ws.map(w => w.id).join('\n'))}">Delete all now</button></summary><div class="works">${ws.map(w => lmRowHTML(w, true)).join('')}</div></details>`;
+  return `<details class="auth trashg"${S.trashOpen ? ' open' : ''}><summary><span class="t"><b>Recently deleted</b><small>${ws.length} work${ws.length === 1 ? '' : 's'} · kept 7 days</small></span><button type="button" class="linkb trashall" data-trashall="${esc(ws.map(w => w.id).join('\n'))}">Erase all</button></summary><div class="works">${ws.map(w => lmRowHTML(w, true)).join('')}</div></details>`;
 }
 function renderLibList() {
   const el = $('#libList'); if (!el) return;

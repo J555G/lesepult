@@ -602,7 +602,7 @@ function dlPopClose() { document.querySelectorAll('.dlpop').forEach(x => x.remov
 // the buttons to the left of an icon (tapped again, or after 5 s: gone)
 function dlPopAt(b, html) {
   const open = b.classList.contains('open'); dlPopClose(); if (open) return;
-  const row = b.closest('.lrow,.pkrow,.lwl,.item') || b.parentElement;
+  const row = b.closest('summary,.lrow,.pkrow,.lwl,.item') || b.parentElement;
   const rr = row.getBoundingClientRect(), br = b.getBoundingClientRect();
   row.classList.add('dlhost'); b.classList.add('open');
   row.insertAdjacentHTML('beforeend', `<span class="dlpop" style="right:${Math.round(rr.right - br.left + 6)}px;top:${Math.round(br.top - rr.top + br.height / 2)}px">${html}</span>`);
@@ -610,12 +610,12 @@ function dlPopAt(b, html) {
 }
 function dlPop(b) {
   const id = b.dataset.dlon;
-  dlPopAt(b, `${b.dataset.upd ? `<button type="button" data-dlupd="${esc(id)}"${S.net === false ? ' disabled' : ''}>${esc(b.dataset.upd)}</button>` : ''}<button type="button" class="danger" data-dldel="${esc(id)}">Delete</button>`);
+  dlPopAt(b, `${b.dataset.upd ? `<button type="button" data-dlupd="${esc(id)}"${S.net === false ? ' disabled' : ''}>${esc(b.dataset.upd)}</button>` : ''}<button type="button" class="danger" data-dldel="${esc(id)}">${id.startsWith('work:') ? 'Remove' : 'Delete'}</button>`);
 }
-// a deleted work (kept 7 days): Restore, or Delete now (for good)
+// a removed work (kept 7 days): Restore, or Erase (for good)
 document.addEventListener('click', async ev => {
   const r = ev.target.closest?.('[data-dlrst]');
-  if (r) { ev.preventDefault(); ev.stopPropagation(); const id = r.dataset.dlrst; return dlPopAt(r, `<button type="button" data-dlrestore="${esc(id)}">Restore</button><button type="button" class="danger" data-dlpurge="${esc(id)}">Delete now</button>`); }
+  if (r) { ev.preventDefault(); ev.stopPropagation(); const id = r.dataset.dlrst; return dlPopAt(r, `<button type="button" data-dlrestore="${esc(id)}">Restore</button><button type="button" class="danger" data-dlpurge="${esc(id)}">Erase</button>`); }
   const go = ev.target.closest?.('[data-dlrestore],[data-dlpurge]'); if (!go) return;
   ev.preventDefault(); ev.stopPropagation(); dlPopClose();
   if (go.dataset.dlrestore) return queueDownload(go.dataset.dlrestore);
