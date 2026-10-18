@@ -421,7 +421,7 @@ const tzSave = () => { clearTimeout(tzSaveT); tzSaveT = setTimeout(() => setting
     next = { z: pinch.z0 * Math.pow(dist(e.touches) / pinch.d0, 0.75), at: mid(e.touches) };   // (a little gentler than the fingers)
     if (!raf) raf = requestAnimationFrame(run);
   }, { passive: false });
-  document.addEventListener('touchend', e => { if (pinch && e.touches.length < 2) { pinch = null; tzSave(); toast(`Text ${Math.round(S.tz * 100)} %`, 1200); } });
+  document.addEventListener('touchend', e => { if (pinch && e.touches.length < 2) { pinch = null; tzSave(); } });
   // Safari (iPad, iPhone, Mac trackpad): its own pinch events – no page zoom anywhere; on the text: the text size
   let g0 = null;
   document.addEventListener('gesturestart', e => { e.preventDefault(); const tg = e.target?.nodeType === 1 ? e.target : e.target?.parentElement; g0 = tg?.closest?.('#textPane') && !document.querySelector('dialog[open]') ? S.tz || 1 : null; }, { passive: false });
