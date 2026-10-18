@@ -605,7 +605,7 @@ function dlPopClose() { document.querySelectorAll('.dlpop').forEach(x => x.remov
 const FADE_BTNS = ['.dli,.lwm,.lwi,.fti,.ftreset,.greset,.creset,.mtreset,.dirb,.tzi,#libFilterBtn',     // small icon buttons
   '#btnMenu,#btnSplit,#tabEntry,#tabList,#tabMap',                                                            // top bar
   'dialog .seg button,dialog .chip2,dialog .chip',                                                  // choices
-  'dialog .lrow,dialog .pgrow,dialog .olj,dialog .olrest,dialog .srow,dialog .annrow,#libList details.auth>summary',   // rows
+  'dialog .pgrow,dialog .annrow',                                                                    // rows (not the Library's)
   '#dlgForm>.row>:is(button,a,label),dialog .dlpop button,dialog .dlask button,#instUpd button,dialog .lwmenu button,dialog .lwcont,dialog .srow1>button,dialog .ftrestore button,dialog .pgo',   // text buttons
   '#mapBody button'].join(',');                                                                     // the map's buttons
 document.addEventListener('click', ev => {
@@ -613,7 +613,7 @@ document.addEventListener('click', ev => {
   const b0 = ev.target.closest?.(FADE_BTNS); if (!b0) return;
   // (many of these redraw their part of the page when tapped: the button drawn anew, found by its data-…, keeps the colour)
   const a = [...b0.attributes].find(x => x.name.startsWith('data-')), sel = a ? `[${a.name}="${CSS.escape(a.value)}"]` : null, t0 = performance.now();
-  const cur = () => { const el = sel && !b0.isConnected ? document.querySelector(sel) : b0; return el?.closest('.olrow') || el; };   // (an outline row: the whole row)
+  const cur = () => sel && !b0.isConnected ? document.querySelector(sel) : b0;
   const step = () => { cur()?.classList.add('fxon'); if (performance.now() - t0 < 111) return requestAnimationFrame(step); setTimeout(() => cur()?.classList.remove('fxon'), 0); };
   step();
 }, true);
