@@ -1730,7 +1730,7 @@ dialog .dli.part{background:linear-gradient(0deg,var(--dlf) var(--f),var(--card)
 dialog details.auth>summary.dlhost{position:relative}
 dialog details.trashg>summary b{font-weight:600;color:var(--mut)}
 dialog details.trashg{opacity:.85}
-dialog details.trashg>summary .trashall{margin-left:auto;font-size:12.5px;color:#c0392b}
+dialog details.trashg>summary .trashall{margin-left:auto}
 /* This Pult: a row that opens a list; Annotations */
 dialog .pultlist .item.pgo{width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);border-radius:0;display:flex;align-items:center;gap:.5rem;cursor:pointer;color:inherit;font:inherit}
 dialog .pultlist .item.pgo i{font-style:normal;color:var(--mut)}
@@ -1808,3 +1808,13 @@ dialog .glsel{width:100%;margin-top:.4rem;font:inherit;padding:.4rem}
 dialog .glrv .glc s{color:var(--mut);text-decoration-color:var(--acc)}
 dialog .glrv .glc mark.soft{background:color-mix(in srgb,var(--acc) 12%,transparent)}
 dialog .glrv .glc s.soft{text-decoration-color:color-mix(in srgb,var(--acc) 45%,transparent)}
+/* small buttons acting on a whole list (Edit, Erase all): outlined; "Done" while editing filled in the accent */
+dialog .minib{flex:none;font-size:12.5px;line-height:1.2;padding:.28rem .65rem;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);text-decoration:none}
+dialog .minib.danger{color:#c0392b;border-color:color-mix(in srgb,#c0392b 45%,var(--line))}
+dialog .minib.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+dialog .libbar .minib{margin-left:.4rem}
+dialog .lsh .minib{margin-left:auto}
+body:not(.nofade) dialog .minib{transition:color .333s ease,border-color .333s ease}
+body:not(.nofade) dialog .minib:not(.on):is(:active,.fxon){color:var(--acc);border-color:var(--acc);transition:color .111s ease,border-color .111s ease}
+body:not(.nofade) dialog .minib.danger:is(:active,.fxon){color:#c0392b;border-color:#c0392b}
+dialog .libbar .libsort{margin-left:auto}

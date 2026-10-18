@@ -121,7 +121,7 @@ function lmOverviewHTML() {
     <div class="libtop"><input type="search" id="libSearch" placeholder="Search authors and works (English, Latin or Greek) …" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(S.libQ)}"><button type="button" id="libFilterBtn" title="Filters" aria-label="Filters" aria-expanded="false">${FILTER_ICON}</button></div>
     ${off}<div id="libActive" class="libactive" hidden></div>
     <div id="libCtl" class="libctl" hidden>${libControlsHTML()}</div>
-    <div class="libbar"${scr ? ' hidden' : ''}><span class="libcount" id="libCount"></span>${v.view === 'fav' && Object.keys(S.favs || {}).length ? `<button type="button" class="linkb" data-favedit="1">${S.favEdit ? 'Done' : 'Edit'}</button>` : ''}<span class="libsort" id="libSort">${sortBarHTML()}</span></div>
+    <div class="libbar"${scr ? ' hidden' : ''}><span class="libcount" id="libCount"></span><span class="libsort" id="libSort">${sortBarHTML()}</span>${v.view === 'fav' && Object.keys(S.favs || {}).length ? `<button type="button" class="minib${S.favEdit ? ' on' : ''}" data-favedit="1">${S.favEdit ? 'Done' : 'Edit'}</button>` : ''}</div>
     <div id="libWords"></div>
     <div class="list lib" id="libList"></div>
     <small class="libfoot">${libFootHTML()}</small>`;
@@ -257,7 +257,7 @@ document.addEventListener('click', async ev => {                    // Recently 
 function trashGroupHTML() {
   const q = fold(S.libQ), ws = Object.entries(S.trash || {}).sort((x, y) => y[1] - x[1]).map(([id]) => S.trashImp?.[id] || S.catWork?.[id]).filter(w => w && !S.libInst[w.id] && workPasses(w, q, true));
   if (!ws.length) return '';
-  return `<details class="auth trashg"${S.trashOpen ? ' open' : ''}><summary><span class="t"><b>Recently removed</b><small>${ws.length} work${ws.length === 1 ? '' : 's'} · kept 7 days</small></span><button type="button" class="linkb trashall" data-trashall="${esc(ws.map(w => w.id).join('\n'))}">Erase all</button></summary><div class="works">${ws.map(w => lmRowHTML(w, true)).join('')}</div></details>`;
+  return `<details class="auth trashg"${S.trashOpen ? ' open' : ''}><summary><span class="t"><b>Recently removed</b><small>${ws.length} work${ws.length === 1 ? '' : 's'} · kept 7 days</small></span><button type="button" class="minib danger trashall" data-trashall="${esc(ws.map(w => w.id).join('\n'))}">Erase all</button></summary><div class="works">${ws.map(w => lmRowHTML(w, true)).join('')}</div></details>`;
 }
 function renderLibList() {
   const el = $('#libList'); if (!el) return;
@@ -324,7 +324,7 @@ function scrLists() {
 function scrHTML() {
   const { rec, ann } = scrLists(), nr = S.scrN || SCR_N, na = S.scrNA || SCR_N;
   const more = (n, all, k) => all > n ? `<button type="button" class="lmmore" data-${k}="1">Show more (${all - n})</button>` : '';
-  let h = `<div class="lsec"><div class="lsh"><span>Recently read</span>${rec.length ? `<button type="button" class="linkb" data-scredit="1">${S.scrEdit ? 'Done' : 'Edit'}</button>` : ''}</div>`
+  let h = `<div class="lsec"><div class="lsh"><span>Recently read</span>${rec.length ? `<button type="button" class="minib${S.scrEdit ? ' on' : ''}" data-scredit="1">${S.scrEdit ? 'Done' : 'Edit'}</button>` : ''}</div>`
     + (rec.length ? rec.slice(0, nr).map(r => scrRowHTML(r.key, r)).join('') + more(nr, rec.length, 'scmore') : '<p class="hint small">Nothing read yet.</p>') + '</div>';
   h += `<div class="lsec"><div class="lsh"><span>Annotated</span></div>`
     + (ann.length ? ann.slice(0, na).map(k => scrRowHTML(k, null)).join('') + more(na, ann.length, 'anmore') : '<p class="hint small">Works with your glosses, markers or chosen analyses appear here (when not under Recently read).</p>') + '</div>';

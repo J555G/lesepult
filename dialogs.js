@@ -609,7 +609,7 @@ const FADE_BTNS = ['.dli,.lwm,.lwi,.fti,.ftreset,.greset,.creset,.mtreset,.dirb,
   '#btnMenu,#btnSplit,#tabEntry,#tabList,#tabMap',                                                            // top bar
   'dialog .seg button,dialog .chip2,dialog .chip',                                                  // choices
   'dialog .pgrow,dialog .annrow',                                                                    // rows (not the Library's)
-  '#dlgForm>.row>:is(button,a,label),dialog .dlpop button,dialog .dlask button,#instUpd button,dialog .lwmenu button,dialog .lwcont,dialog .srow1>button,dialog .ftrestore button,dialog .pgo',   // text buttons
+  '#dlgForm>.row>:is(button,a,label),dialog .minib,dialog .dlpop button,dialog .dlask button,#instUpd button,dialog .lwmenu button,dialog .lwcont,dialog .srow1>button,dialog .ftrestore button,dialog .pgo',   // text buttons
   '#mapBody button'].join(',');                                                                     // the map's buttons
 document.addEventListener('click', ev => {
   if (document.body.classList.contains('nofade')) return;
