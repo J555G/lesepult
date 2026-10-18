@@ -601,7 +601,7 @@ function dlIcon(id, { have = false, rev = false, size = 0, upd = 'Download revis
 function dlPopClose() { document.querySelectorAll('.dlpop').forEach(x => x.remove()); document.querySelectorAll('.dli.open').forEach(x => x.classList.remove('open')); clearTimeout(dlPopClose.t); }
 document.addEventListener('click', ev => {                         // (the accent of a tapped icon: held, then fading – only
   const b = ev.target.closest?.('.dli'); if (!b) return;           //  when the tap really counted, not when the finger slid off)
-  b.classList.add('held'); clearTimeout(b._held); b._held = setTimeout(() => b.classList.remove('held'), 222);
+  b.classList.add('held'); requestAnimationFrame(() => requestAnimationFrame(() => b.classList.remove('held')));   // (shown for one frame, then fading)
 }, true);
 // the buttons to the left of an icon (tapped again, or after 5 s: gone)
 function dlPopAt(b, html) {
