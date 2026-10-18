@@ -117,6 +117,7 @@ async function importDialog(t = null, fromLib = false) {
   if (t) await del('settings', 'wyear|imp:' + t.id);
   await openText(t ? t.id : id);
   note(t ? 'Saved' : 'Text imported – it is in the Library under “On this device”');
+  if (!t) await glAfterImport(id).catch(() => { });           // glosses of an erased text that find a place in this one
 }
 async function textsDialog() { return importDialog(); }
 async function saveText(title, text, choices) {
@@ -879,10 +880,11 @@ async function annotDialog() {
   const r = await dialog(`${dlgHead('Annotations')}
     <p class="hint small">What you have added to each text – glosses, the marker, chosen readings, places on the map. It stays when a text is removed or erased.</p>
     ${L.some(x => x.g) ? '<div class="annall"><button type="button" data-v="expall">Export all glosses …</button></div>' : ''}
-    <div class="list plain annlist">${L.length ? L.map((x, i) => `<div class="item annrow" data-ai="${i}"><span class="t"><b>${esc(x.title)}</b><small>${[esc(x.author), x.state, sum(x)].filter(Boolean).join(' · ')}</small></span>${x.g ? `<button type="button" data-v="exp${i}">Export …</button>` : ''}<button type="button" class="danger" data-annask="${i}">Delete</button></div>`).join('') : '<p class="hint">No annotations yet.</p>'}</div>`,
+    <div class="list plain annlist">${L.length ? L.map((x, i) => `<div class="item annrow" data-ai="${i}"><span class="t"><b>${esc(x.title)}</b><small>${[esc(x.author), x.state, sum(x)].filter(Boolean).join(' · ')}</small></span>${x.g && x.state === 'erased' ? `<button type="button" data-v="find${i}">Find a place …</button>` : ''}${x.g ? `<button type="button" data-v="exp${i}">Export …</button>` : ''}<button type="button" class="danger" data-annask="${i}">Delete</button></div>`).join('') : '<p class="hint">No annotations yet.</p>'}</div>`,
     [['back', 'Back']]);
   if (r.action === 'back') return pultDialog();
   if (r.action === 'expall') { await glossExportDialog(null, 'All glosses'); return annotDialog(); }
+  if (r.action?.startsWith('find')) { const x = L[+r.action.slice(4)]; await glFindPlace(x.key, x.title); return annotDialog(); }
   if (r.action?.startsWith('exp')) { const x = L[+r.action.slice(3)]; await glossExportDialog([x.key], x.title); return annotDialog(); }
 }
 document.addEventListener('click', async ev => {
@@ -935,6 +937,7 @@ async function restoreBackup(file) {
     if (p.showGram != null) setGram(!!p.showGram, true);
   }
   note('Restored'); await openText(data.texts[0]?.id ?? null);
+  await glAfterRestore([...new Set(data.glosses.map(g => g.textId))]).catch(() => { });   // glosses that no longer fit their text
 }
 
 // ---------------------------------------------------------------- acknowledgements (☰ → Acknowledgements)

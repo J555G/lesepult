@@ -1791,3 +1791,17 @@ body:not(.nofade) #toast.in{opacity:1;transition:opacity .111s ease}
 .chip.on.pre{border-style:dashed}
 dialog .annall{display:flex;justify-content:flex-end;margin:.2rem 0 .4rem}
 dialog .annall button{font-size:12.5px;padding:.3rem .65rem}
+/* reattaching glosses: the review */
+dialog .glbar{display:flex;gap:.4rem;flex-wrap:wrap;margin:.3rem 0 .5rem}
+dialog .glbar button{font-size:12.5px;padding:.3rem .65rem}
+dialog .glrvs{display:flex;flex-direction:column}
+dialog .glrv{padding:.5rem 0;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr auto;gap:.15rem .6rem;align-items:start}
+dialog .glrv .glg{grid-column:1;font-size:14px}dialog .glrv .glg small{display:block;color:var(--mut);font-size:11.5px}
+dialog .glrv .glc{grid-column:1;font:14px/1.4 var(--greek);color:var(--fg)}
+dialog .glrv .glc u{text-decoration:none;font-weight:700}
+dialog .glrv .glc mark{background:color-mix(in srgb,var(--acc) 30%,transparent);color:inherit;border-radius:3px;padding:0 .1em}
+dialog .glrv .gll{font:11px var(--ui);color:var(--mut);display:inline-block;width:2rem}
+dialog .glrv .glab{grid-column:2;grid-row:1/span 3;align-self:center}
+dialog .glrv .glab button{font-size:12.5px;padding:.3rem .6rem}
+dialog .glsel{width:100%;margin-top:.4rem;font:inherit;padding:.4rem}
+@media (max-width:600px){dialog .glrv{grid-template-columns:1fr}dialog .glrv .glab{grid-column:1;grid-row:auto;justify-self:end}}
