@@ -219,7 +219,7 @@ function libControlsHTML() {
         <label class="undl"><input type="checkbox" id="libUndated"${v.undated ? ' checked' : ''}> include undated</label></div>
     </div>
     <div class="ftl" id="libTl"><div class="fteras" id="libEras"></div><div class="fttrack" id="libTrack"><div class="ftaxis" id="libAxis"></div><div class="ftclip"><div id="libRanges"></div></div></div></div>
-    <p class="hint small fthint">Tap the line for a period and pull its ends; hold a period to split it, pull two ends together to join them. Pinch or wheel to zoom, drag to move.</p>`;
+    <p class="hint small fthint">Tap the line for a period and pull its ends; hold a period to split it, hold a single date to open it into a period, pull two ends together to join them. Pinch or wheel to zoom, drag to move.</p>`;
 }
 // what is filtered, as small removable chips (while the filter panel is closed)
 function libActiveHTML() {
@@ -253,9 +253,15 @@ function wireDateLine() {
     let best = null; R.forEach(([a, b], k) => { const rc = a === b ? reach : Math.min(reach, (xAt(b) - xAt(a)) / 3); for (const [e, v] of [[0, a], [1, b]]) { const d = Math.abs(xAt(v) - ev.clientX); if (d <= rc && (!best || d < best.d)) best = { k, e, d }; } });
     if (best) drag = { k: best.k, e: best.e, x0: ev.clientX };
     else { const k = R.findIndex(([a, b]) => a < b && y >= a && y <= b); drag = k >= 0 ? { k, e: 'm', x0: ev.clientX, y0: y, r0: [...R[k]] } : { pan: true, x0: ev.clientX, v0: [...ftView()], y }; }
-    clearTimeout(lp); lp = setTimeout(() => {                         // holding a period: it splits in two
-      if (!drag || drag.moved || drag.e !== 'm') return;
+    clearTimeout(lp); lp = setTimeout(() => {                         // holding a period: it splits in two; holding a single date: it opens into a period
+      if (!drag || drag.moved || drag.pan) return;
       const v = libView(), r = v.periods[drag.k], [a, b] = ftView(), g = Math.max(FT_STEP, ftSnap((b - a) / 60) - ftSnap(0));
+      if (drag.e !== 'm') {
+        if (!r || r[0] !== r[1]) return;
+        const [lo, hi] = ftLim(), h = Math.max(2 * FT_STEP, ftSnap(Math.min(100, (b - a) / 4) / 2));
+        r[0] = Math.max(lo, r[0] - h); r[1] = Math.min(hi, r[1] + h);
+        navigator.vibrate?.(15); drag = null; changed(true); return;
+      }
       if (v.periods.length >= FT_MAX || r[1] - r[0] < 6 * FT_STEP) return;
       v.periods.splice(drag.k, 1, [r[0], Math.max(r[0], drag.y0 - g)], [Math.min(r[1], drag.y0 + g), r[1]]);
       navigator.vibrate?.(15); drag = null; changed(true);
