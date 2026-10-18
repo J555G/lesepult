@@ -1818,3 +1818,4 @@ body:not(.nofade) dialog .minib{transition:color .333s ease,border-color .333s e
 body:not(.nofade) dialog .minib:not(.on):is(:active,.fxon){color:var(--acc);border-color:var(--acc);transition:color .111s ease,border-color .111s ease}
 body:not(.nofade) dialog .minib.danger:is(:active,.fxon){color:#c0392b;border-color:#c0392b}
 dialog .libbar .libsort{margin-left:auto}
+dialog .lsh .scrof{font-weight:400;color:var(--mut);font-size:12px;margin-left:.4rem}

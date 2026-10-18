@@ -120,7 +120,7 @@ function lmOverviewHTML() {
     <div class="lmtabs" id="libTabs" role="tablist">${lmTabsHTML()}</div>
     <div class="libtop"><input type="search" id="libSearch" placeholder="Search authors and works (English, Latin or Greek) …" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(S.libQ)}"><button type="button" id="libFilterBtn" title="Filters" aria-label="Filters" aria-expanded="false">${FILTER_ICON}</button></div>
     ${off}<div id="libActive" class="libactive" hidden></div>
-    <div id="libCtl" class="libctl" hidden>${libControlsHTML()}</div>
+    <div id="libCtl" class="libctl"${S.libCtlOpen ? '' : ' hidden'}>${libControlsHTML()}</div>
     <div class="libbar"${scr ? ' hidden' : ''}><span class="libcount" id="libCount"></span><span class="libsort" id="libSort">${sortBarHTML()}</span>${v.view === 'fav' && Object.keys(S.favs || {}).length ? `<button type="button" class="minib${S.favEdit ? ' on' : ''}" data-favedit="1">${S.favEdit ? 'Done' : 'Edit'}</button>` : ''}</div>
     <div id="libWords"></div>
     <div class="list lib" id="libList"></div>
@@ -314,19 +314,21 @@ function scrRowHTML(key, r) {
     + `<span class="lr">${edit ? `<button type="button" class="scrm" data-scrm="${esc(key)}" aria-label="Remove from Scriptorium" title="Remove from Scriptorium (the work stays)">✕</button>` : lmIcon(W, inst, false)}</span></div>`;
 }
 function scrLists() {
-  const q = fold(S.libQ), ok = key => { const W = workInfo(key); return W && workPasses(W, q); };
-  const rec = (S.recent || []).filter(r => ok(r.key)), seen = new Set(rec.map(r => r.key));
+  const q = fold(S.libQ), ok = key => { const W = workInfo(key); return W && workPasses(W, q); }, has = key => !!workInfo(key);
+  const recAll = (S.recent || []).filter(r => has(r.key)), rec = recAll.filter(r => ok(r.key)), seen = new Set(rec.map(r => r.key));
   const T = S.lmTr || { G: new Map(), M: new Set(), A: new Set() };
-  const ann = [...new Set([...T.G.keys(), ...T.M, ...T.A])].filter(k => !seen.has(k) && !(S.recent || []).some(r => r.key === k) && ok(k))
+  const annAll = [...new Set([...T.G.keys(), ...T.M, ...T.A])].filter(k => !(S.recent || []).some(r => r.key === k) && has(k));
+  const ann = annAll.filter(k => !seen.has(k) && ok(k))
     .sort((a, b) => (S.opened?.[b] || 0) - (S.opened?.[a] || 0) || (T.G.get(b) || 0) - (T.G.get(a) || 0));
-  return { rec, ann };
+  return { rec, ann, nRec: recAll.length, nAnn: annAll.length };
 }
 function scrHTML() {
-  const { rec, ann } = scrLists(), nr = S.scrN || SCR_N, na = S.scrNA || SCR_N;
+  const { rec, ann, nRec, nAnn } = scrLists(), nr = S.scrN || SCR_N, na = S.scrNA || SCR_N;
+  const of = (n, all) => n < all ? ` <small class="scrof">${n} of ${all} shown</small>` : '';     // (the search or the filters leave some out)
   const more = (n, all, k) => all > n ? `<button type="button" class="lmmore" data-${k}="1">Show more (${all - n})</button>` : '';
-  let h = `<div class="lsec"><div class="lsh"><span>Recently read</span>${rec.length ? `<button type="button" class="minib${S.scrEdit ? ' on' : ''}" data-scredit="1">${S.scrEdit ? 'Done' : 'Edit'}</button>` : ''}</div>`
+  let h = `<div class="lsec"><div class="lsh"><span>Recently read${of(rec.length, nRec)}</span>${rec.length ? `<button type="button" class="minib${S.scrEdit ? ' on' : ''}" data-scredit="1">${S.scrEdit ? 'Done' : 'Edit'}</button>` : ''}</div>`
     + (rec.length ? rec.slice(0, nr).map(r => scrRowHTML(r.key, r)).join('') + more(nr, rec.length, 'scmore') : '<p class="hint small">Nothing read yet.</p>') + '</div>';
-  h += `<div class="lsec"><div class="lsh"><span>Annotated</span></div>`
+  h += `<div class="lsec"><div class="lsh"><span>Annotated${of(ann.length, nAnn)}</span></div>`
     + (ann.length ? ann.slice(0, na).map(k => scrRowHTML(k, null)).join('') + more(na, ann.length, 'anmore') : '<p class="hint small">Works with your glosses, markers or chosen analyses appear here (when not under Recently read).</p>') + '</div>';
   return h;
 }
@@ -535,10 +537,11 @@ function wireLibrary() {
     if (d.lmback) return lmGo('');
     if (d.limport) { $('#dlg').close(); return importDialog(null, true); }
     // the overview: tabs, filters, sorting
-    if (b.id === 'libFilterBtn') { $('#libCtl').hidden = !$('#libCtl').hidden; filterIcon(); return; }
+    if (b.id === 'libFilterBtn') { $('#libCtl').hidden = !$('#libCtl').hidden; S.libCtlOpen = !$('#libCtl').hidden; filterIcon(); return; }   // (open or closed: kept across the tabs)
     if (d.view) {
       if (Date.now() < (S.lpUntil || 0)) return;                  // (the long press showed the hint: no switch)
-      const v = libView(); v.view = d.view; S.libLimit = 250; S.scrEdit = false; saveLibView(); return lmRender(false).then(() => { $('#dlg').scrollTop = 0; });
+      const v = libView(); (S.libTabY ??= {})[v.view] = $('#dlg').scrollTop;      // (each tab keeps its own place in the list)
+      v.view = d.view; S.libLimit = 250; S.scrEdit = false; saveLibView(); return lmRender(false).then(() => { const y = S.libTabY[d.view] || 0, go = () => { $('#dlg').scrollTop = y; }; go(); requestAnimationFrame(go); });
     }
     const f = b.closest('#libCtl [data-f]'), sg = b.closest('#libCtl [data-seg]'), rs = d.freset != null ? b : null, dr = b.closest('#libSort [data-dir]'), un = b.closest('#libActive [data-unf]'), uc = b.closest('#libCtl [data-undch]');
     if (f || sg || rs || dr || un || uc) {
