@@ -7,8 +7,9 @@
 const FT_STEP = 10, FT_MAX = 6;
 // the eras by level of zoom: [name, short name, from, to]
 const ERA_LV = (() => {
-  const broad = [['Bronze Age', 'Bronze', -3300, -1200], ['Iron Age', 'Iron', -1200, -800], ['Classical Antiquity', 'Antiquity', -800, 300], ['Late Antiquity', 'Late Ant.', 300, 600], ['Middle Ages', 'Med.', 600, 1453], ['Modern', 'Mod.', 1453, 2100]];
-  const mid = [['Bronze Age', 'Bronze', -3300, -1200], ['Early Iron Age', 'E. Iron', -1200, -800], ['Archaic', 'Arch.', -800, -500], ['Classical', 'Class.', -500, -323], ['Hellenistic', 'Hell.', -323, -31], ['Imperial', 'Imp.', -31, 300],
+  const PRE = [['Middle Palaeolithic', 'M. Palaeol.', -300000, -50000], ['Upper Palaeolithic', 'U. Palaeol.', -50000, -10000], ['Mesolithic', 'Mesol.', -10000, -7000], ['Neolithic', 'Neol.', -7000, -4500], ['Chalcolithic', 'Chalc.', -4500, -3300]];
+  const broad = [['Palaeolithic', 'Palaeol.', -300000, -10000], ['Mesolithic', 'Mesol.', -10000, -7000], ['Neolithic', 'Neol.', -7000, -3300], ['Bronze Age', 'Bronze', -3300, -1200], ['Iron Age', 'Iron', -1200, -800], ['Classical Antiquity', 'Antiquity', -800, 300], ['Late Antiquity', 'Late Ant.', 300, 600], ['Middle Ages', 'Med.', 600, 1453], ['Modern', 'Mod.', 1453, 2100]];
+  const mid = [...PRE, ['Bronze Age', 'Bronze', -3300, -1200], ['Early Iron Age', 'E. Iron', -1200, -800], ['Archaic', 'Arch.', -800, -500], ['Classical', 'Class.', -500, -323], ['Hellenistic', 'Hell.', -323, -31], ['Imperial', 'Imp.', -31, 300],
     ['Late Antique', 'L. Ant.', 300, 600], ['Byzantine', 'Byz.', 600, 1453], ['Early Modern', 'E. Mod.', 1453, 1789], ['Modern', 'Mod.', 1789, 2100]];
   const fine = [['Early Archaic', 'E. Arch.', -800, -650], ['Late Archaic', 'L. Arch.', -650, -479], ['Pentecontaetia', 'Pentec.', -479, -431], ['Peloponnesian War', 'Pelop. War', -431, -404], ['4th century', '4th c.', -404, -323],
     ['Diadochi', 'Diad.', -323, -281], ['High Hellenistic', 'High Hell.', -281, -133], ['Late Republic', 'L. Rep.', -133, -31], ['Augustan', 'Aug.', -31, 14], ['Julio-Claudian', 'Jul.-Cl.', 14, 68], ['Flavian', 'Flav.', 68, 96],
@@ -49,9 +50,9 @@ function ftDraw(L) {
   if (!W) { if ((st.tries = (st.tries || 0) + 1) < 30) requestAnimationFrame(() => ftDraw(L)); return; } st.tries = 0;     // (not laid out yet)
   const pc = y => ((y - a) / span * 100).toFixed(2) + '%';
   // the years beneath: four or five
-  const step = [10, 20, 25, 50, 100, 200, 250, 500, 1000].find(s => span / s <= W / 80) || 2000;
+  const step = [10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000, 20000, 25000, 50000].find(s => span / s <= W / 80) || 100000;
   let h = '';
-  for (let y = Math.ceil(a / step) * step; y <= b; y += step) { const p = (y - a) / span * 100; h += `<i${p < 6 ? ' class="l"' : p > 94 ? ' class="r"' : ''} style="left:${pc(y)}"><span>${y === 0 ? 'BC | AD' : Math.abs(y)}</span></i>`; }
+  for (let y = Math.ceil(a / step) * step; y <= b; y += step) { const p = (y - a) / span * 100; h += `<i${p < 6 ? ' class="l"' : p > 94 ? ' class="r"' : ''} style="left:${pc(y)}"><span>${y === 0 ? 'BC | AD' : Math.abs(y) >= 10000 ? Math.abs(y).toLocaleString('en') : Math.abs(y)}</span></i>`; }
   root.querySelector('.ftaxis').innerHTML = h;
   // the eras above: the names that fit (else the short ones); those a period touches in the accent colour
   const er = root.querySelector('.fteras'); er.hidden = S.lib?.ftEras === false;
@@ -100,7 +101,8 @@ function wireDateLine() {
     P.forEach(([a, b], k) => { const rc = a === b ? reach : Math.min(reach, (g.x(b) - g.x(a)) / 3); for (const [e, v] of [[0, a], [1, b]]) { const d = Math.abs(g.x(v) - cx); if (d <= rc && (!best || d < best.d)) best = { k, e, d }; } });
     if (best) return best;
     if (cy != null && !inBand(Lk, cy)) return null;
-    const k = P.findIndex(([a, b]) => a < b && y >= a && y <= b); return k >= 0 ? { k, e: 'm' } : null;
+    // (and only while the period covers less than half of the view: a wider one moves the view, its ends still pull)
+    const k = P.findIndex(([a, b]) => a < b && y >= a && y <= b && (b - a) < (g.b - g.a) / 2); return k >= 0 ? { k, e: 'm' } : null;
   };
   // a new period: a fifth of the visible line, around the place (within the line's range)
   const opened = (Lk, y0) => { const [a, b] = FTC[Lk].view(), [lo, hi] = ftLim(), w = Math.max(2 * FT_STEP, Math.round((b - a) / 5 / FT_STEP) * FT_STEP);

@@ -319,7 +319,7 @@ function wireRevisions() {
     ins.forEach(x => x.classList.remove('bad')); err.hidden = true;
     const y0 = ys[0] === null ? lo0 : ys[0], y1 = ys[1] === null ? hi0 : ys[1];
     if (ys[+k] === undefined) return bad('Not a year: e.g. “500 BC”, “-500”, “AD 120”, “120” or “5th c. BC”.');
-    if (y0 < -4000 || y1 > 2100) return bad('The line reaches from 4000 BC to AD 2100 at most.');
+    if (y0 < -100000 || y1 > 2100) return bad('The line reaches from 100,000 BC to AD 2100 at most.');
     if (y1 - y0 < 100) return bad('The latest date must come at least a century after the earliest.');
     v.ftMin = Math.round(y0 / FT_STEP) * FT_STEP; v.ftMax = Math.round(y1 / FT_STEP) * FT_STEP;
     ins[0].value = fmtY(v.ftMin); ins[1].value = fmtY(v.ftMax);
