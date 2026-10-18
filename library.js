@@ -33,6 +33,26 @@ async function deleteWork(id) {   // glosses and markers are kept, so they come 
   await done(t);
   if (S.text?.work?.id === id) await openText(null);
 }
+// deleting a work from the Library keeps it on the device for 7 days: its download icon then restores it at once (offline too)
+async function trashWork(id) {
+  const w = await libGet('works', id); if (!w) return;
+  const books = []; for (let i = 0; i < w.books.length; i++) { const b = await libGet('books', id + '|' + i); if (b) books.push(b); }
+  await setting('trash|' + id, { at: Date.now(), work: w, books });
+  await deleteWork(id); if (S.libInst) delete S.libInst[id]; S.partRefCache = {};
+  (S.trash ??= {})[id] = Date.now();
+}
+async function workRestore(id) {
+  const T = await setting('trash|' + id); if (!T) return false;
+  await revWrite(T.work, T.books); await del('settings', 'trash|' + id);
+  if (S.libInst) S.libInst[id] = await libGet('works', id); if (S.trash) delete S.trash[id]; S.partRefCache = {};
+  return true;
+}
+async function trashLoad() {
+  S.trash = {};
+  for (const r of await getAll('settings', IDBKeyRange.bound('trash|', 'trash|￿'))) {
+    if (Date.now() - (r.v?.at || 0) > 7 * 864e5) await del('settings', r.k); else S.trash[r.k.slice(6)] = r.v.at;
+  }
+}
 const isBook = id => typeof id === 'string' && id.startsWith('w:');
 async function loadBook(id) {      // id = "w:<work id>:<book index>"
   const j = id.lastIndexOf(':'), wid = id.slice(2, j), bi = +id.slice(j + 1);

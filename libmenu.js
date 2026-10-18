@@ -31,7 +31,7 @@ async function libPrep() {
   const inst = await libWorks();
   S.libInst = Object.fromEntries(inst.map(w => [w.id, w]));
   S.impWorks = (await getAll('texts')).map(impWork);
-  await lmTraces(); await revPrevLoad(); await revFlagsLoad();
+  await lmTraces(); await revPrevLoad(); await revFlagsLoad(); await trashLoad();
   netCheck();                                                   // reachable? the rows follow when the answer comes
 }
 // your traces in the works: glosses (counted), markers, words whose analysis you chose
@@ -117,7 +117,7 @@ function lmOverviewHTML() {
     <div class="libtop"><input type="search" id="libSearch" placeholder="Search authors and works (English, Latin or Greek) …" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(S.libQ)}"><button type="button" id="libFilterBtn" title="Filters" aria-label="Filters" aria-expanded="false">${FILTER_ICON}</button></div>
     ${off}<div id="libActive" class="libactive" hidden></div>
     <div id="libCtl" class="libctl" hidden>${libControlsHTML()}</div>
-    <div class="libbar"${scr ? ' hidden' : ''}><span class="libcount" id="libCount"></span><span class="libsort" id="libSort">${sortBarHTML()}</span></div>
+    <div class="libbar"${scr ? ' hidden' : ''}><span class="libcount" id="libCount"></span>${v.view === 'fav' && Object.keys(S.favs || {}).length ? `<button type="button" class="linkb" data-favedit="1">${S.favEdit ? 'Done' : 'Edit'}</button>` : ''}<span class="libsort" id="libSort">${sortBarHTML()}</span></div>
     <div id="libWords"></div>
     <div class="list lib" id="libList"></div>
     <small class="libfoot">${n} work${n === 1 ? '' : 's'} on this device${tot ? ` · ≈ ${mb(tot)}` : ''}${S.impWorks?.length ? ` · ${S.impWorks.length} imported` : ''}${S.catalog ? ` · the catalogue: ${S.catalog.authors.length} authors, ${Object.keys(S.catWork).length.toLocaleString('en')} works` : ''}</small>`;
@@ -141,19 +141,17 @@ function renderLibControls() {
 // a line of details · on the right a slot for the download button; a marker as a ribbon hanging from the row's top edge
 // at a fixed place (it does not take room from the title)
 const RIBBON = '<i class="rib" title="Marker" aria-label="Marker"></i>';
-function lmDlBtn(dk, w, off) {
-  if (DL.has(dk)) { const p = DL.get(dk); return `<button type="button" class="lmdl busy${p < 0 ? ' wait' : p >= 0.9 ? ' inst' : ''}" data-dl="${dk}" data-lbl="${esc(DLICON)}" style="--p:${Math.round(Math.max(0, p) * 100)}%" title="Tap to stop">${DLICON}</button>`; }
-  const x = DLX.get(dk);
-  return `<button type="button" class="lmdl${x?.err ? ' fail' : ''}" data-get="${dk}" title="${x?.err ? esc(x.err) + ' – tap to try again' : 'Download' + (w.bytes ? ' (' + mb(w.bytes) + ')' : '')}" aria-label="Download"${off ? ' disabled' : ''}>${x?.err ? '↻' : DLICON}</button>`;
-}
+// the download icon of a work (dialogs.js): download, or – on this device – revision and Delete; a work deleted within 7 days
+// is restored by it at once
+const lmIcon = (w, inst, off) => w.imported ? '' : dlIcon('work:' + w.id, { have: inst, rev: inst && S.revOn && revAvail(w.id), size: w.bytes, off: off && !S.trash?.[w.id] });
 function lmRowHTML(w, flat = false) {
-  const key = w.id, inst = !!(w.imported || S.libInst[key]), dk = 'work:' + key, cur = curKey() === key, fav = !!S.favs?.[key];
-  const a = authorOf(w), off = !inst && lmOffline();
-  const right = !inst && (S.catalog || DL.has(dk)) ? lmDlBtn(dk, w, off) : '';
+  const key = w.id, inst = !!(w.imported || S.libInst[key]), cur = curKey() === key;
+  const a = authorOf(w), off = !inst && lmOffline() && !S.trash?.[key];
+  const right = S.favEdit && libView().view === 'fav' ? `<button type="button" class="scrm" data-favrm="${esc(key)}" aria-label="Remove from favourites" title="Remove from favourites">✕</button>` : (S.catalog || inst || DL.has('work:' + key)) ? lmIcon(w, inst, off) : '';
   const info = [flat && a.date ? a.date : '', workLang(w) === 'la' ? 'Latin' : '', w.imported ? 'imported' : (w.verse ? 'verse' : 'prose'),
     w.books?.length > 1 ? w.books.length + ' parts' : '', w.words ? w.words.toLocaleString('en') + ' words' : ''].filter(Boolean).join(' · ');
-  return `<div class="item lrow${inst ? '' : ' nodl'}${off ? ' off' : ''}${cur ? ' cur' : ''}" data-lw="${esc(key)}">${S.lmTr?.M.has(key) ? RIBBON : ''}<button type="button" class="star${fav ? ' on' : ''}" data-star="${esc(key)}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" aria-pressed="${fav}">${FLAME}</button>`
-    + `<span class="t"><span class="lt">${esc(w.title)}</span>${S.revOn && revAvail(key) ? '<sup class="rev" title="Revision available">rev.</sup>' : ''}${flat ? ` <span class="by">${esc(a.name)}</span>` : ''}${w.greek && w.greek !== w.title ? ` <span class="gk">${esc(w.greek)}</span>` : ''}<small>${esc(info)}</small></span><span class="lr">${right}</span></div>`;
+  return `<div class="item lrow${inst ? '' : ' nodl'}${off ? ' off' : ''}${cur ? ' cur' : ''}" data-lw="${esc(key)}">${S.lmTr?.M.has(key) ? RIBBON : ''}`
+    + `<span class="t"><span class="lt">${esc(w.title)}</span>${flat ? ` <span class="by">${esc(a.name)}</span>` : ''}${w.greek && w.greek !== w.title ? ` <span class="gk">${esc(w.greek)}</span>` : ''}<small>${esc(info)}</small></span><span class="lr">${right}</span></div>`;
 }
 // an author: name; beneath it the dates, the number of works ("20" on a narrow screen) and how many are on this device;
 // "download all" on the right
@@ -211,10 +209,10 @@ function scrRowHTML(key, r) {
   const pos = posLabel(key, r), edit = S.scrEdit && r;
   // "1.171 ἀπολείποντες βιαζόμενοι … · 12 glosses" – on a narrow screen the count as a small raised figure
   const gl = nG ? `<span class="gc"> · ${nG.toLocaleString('en')} gloss${nG === 1 ? '' : 'es'}</span><sup class="gcs" title="${nG} gloss${nG === 1 ? '' : 'es'}">${nG.toLocaleString('en')}</sup>` : '';
-  return `<div class="item lrow srow${inst ? '' : ' nodl'}${cur ? ' cur' : ''}" data-lw="${esc(key)}">${S.lmTr?.M.has(key) ? RIBBON : ''}<button type="button" class="star${fav ? ' on' : ''}" data-star="${esc(key)}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" aria-pressed="${fav}">${FLAME}</button>`
-    + `<span class="t"><span class="lt">${esc(W.title)}</span>${S.revOn && revAvail(key) ? '<sup class="rev" title="Revision available">rev.</sup>' : ''} <span class="by">${esc(a.name)}</span>`
+  return `<div class="item lrow srow${inst ? '' : ' nodl'}${cur ? ' cur' : ''}" data-lw="${esc(key)}">${S.lmTr?.M.has(key) ? RIBBON : ''}`
+    + `<span class="t"><span class="lt">${esc(W.title)}</span> <span class="by">${esc(a.name)}</span>`
     + (pos || r?.line || nG ? `<span class="sp">${pos ? `<b>${esc(pos)}</b>` : ''}${r?.line ? `<span class="gk">${esc(r.line)} …</span>` : '<span class="gk"></span>'}${gl}</span>` : '') + '</span>'
-    + `<span class="lr">${edit ? `<button type="button" class="scrm" data-scrm="${esc(key)}" aria-label="Remove from Scriptorium" title="Remove from Scriptorium (the work stays)">✕</button>` : ''}</span></div>`;
+    + `<span class="lr">${edit ? `<button type="button" class="scrm" data-scrm="${esc(key)}" aria-label="Remove from Scriptorium" title="Remove from Scriptorium (the work stays)">✕</button>` : lmIcon(W, inst, false)}</span></div>`;
 }
 function scrLists() {
   const q = fold(S.libQ), ok = key => { const W = workInfo(key); return W && workPasses(W, q); };
@@ -268,29 +266,18 @@ async function lmWorkHTML(key) {
   const facts = [a.name, a.date, workLang(W) === 'la' ? 'Latin' : 'Greek', W.books?.length > 1 ? W.books.length + ' parts' : W.imported ? 'imported text' : ''].filter(Boolean);
   const more = [[W.words ? W.words.toLocaleString('en') + ' words' : '', W.imported ? '' : (W.verse ? 'verse' : W.verse === false ? 'prose' : ''), W.imported ? '' : W.source].filter(Boolean).join(' · '),
     W.edition, W.license || W.local?.license, W.notes].filter(Boolean);
-  h += `<div class="lwinfo"><div class="lwl"><button type="button" class="star${fav ? ' on' : ''}" data-star="${esc(key)}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" aria-pressed="${fav}">${FLAME}</button>`
-    + `<span class="lwf">${W.greek && W.greek !== W.title ? `<span class="gk">${esc(W.greek)}</span> · ` : ''}${facts.map(esc).join(' · ')}</span>`
-    + (more.length ? `<button type="button" class="lwi" data-lwi="1" aria-expanded="${!!S.lwInfo}" title="About this edition" aria-label="About this edition">i</button>` : '') + '</div>'
-    + (more.length && S.lwInfo ? `<div class="lwmore">${more.map(x => `<small>${esc(x)}</small>`).join('')}</div>` : '') + '</div>';
-  // what can be done with it: Continue reading; the rest in ⋯ (Download, Delete, the revision, Edit)
+  h += `<div class="lwinfo"><div class="lwl"><span class="lwf">${W.greek && W.greek !== W.title ? `<span class="gk">${esc(W.greek)}</span> · ` : ''}${facts.map(esc).join(' · ')}</span>`
+    + (more.length ? `<button type="button" class="lwi" data-lwi="1" aria-expanded="${!!S.lwInfo}" title="About this edition" aria-label="About this edition">i</button>` : '')
+    + `<span class="lwsp"></span>${lmIcon(W, W.inst, off && !S.trash?.[key])}<button type="button" class="lwm" data-lwm="1" aria-expanded="${S.lwMenu === key}" title="More" aria-label="More">⋯</button></div>`
+    + (more.length && S.lwInfo ? `<div class="lwmore">${more.map(x => `<small>${esc(x)}</small>`).join('')}</div>` : '')
+    + (S.lwMenu === key && S.lwAsk !== key ? `<div class="lwmenu"><button type="button" data-fav="1">${fav ? 'Remove from favourites' : 'Add to favourites'}</button>${revAvail(key) ? `<button type="button" data-revshow="${esc(key)}">See the revision</button>` : ''}${W.imported ? `<button type="button" data-iedit="${W.tid}">Edit</button><button type="button" class="danger" data-lwdel="1">Delete</button>` : ''}</div>` : '') + '</div>';
+  if (!W.inst && S.trash?.[key]) h += `<p class="lwrev">Deleted on ${new Date(S.trash[key]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · the download icon restores it from this device (until ${new Date(S.trash[key] + 7 * 864e5).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })})</p>`;
+  if (!W.inst && DLX.get(dk)?.err) h += `<p class="lwrev">${esc(DLX.get(dk).err)}</p>`;
+  // Continue reading (alone on its line); deleting an imported text is asked here
   let act = '';
-  if (S.lwAsk === key) act = `<div class="lwask"><span>${W.imported ? `Delete “${esc(W.title)}” and all its glosses from this device?` : `Delete “${esc(W.title)}” from this device? Your glosses and markers are kept and come back when you download it again.`}</span><button type="button" class="danger" data-lwdelok="1">Delete</button><button type="button" data-lwdelno="1">Cancel</button></div>`;
-  else {
-    if (W.inst && !cur && r) act += `<button type="button" class="acc lwcont" data-lcont="${esc(key)}">Continue reading${posLabel(key, r) ? ` at <b>${esc(posLabel(key, r))}</b>` : ''}</button>`;
-    if (!W.inst && DL.has(dk)) act += dlButtonHTML(dk, 'Download');
-    if (!W.inst && DLX.get(dk)?.err) act += `<button type="button" class="dlbtn fail" data-get="${dk}" title="${esc(DLX.get(dk).err)}">↻ Try again</button><small class="lwoff">${esc(DLX.get(dk).err)}</small>`;
-    act += `<button type="button" class="lwm" data-lwm="1" aria-expanded="${S.lwMenu === key}" title="More" aria-label="More">⋯</button>`;
-  }
-  if (S.lwMenu === key && S.lwAsk !== key) {
-    const items = [];
-    if (!W.inst && !DL.has(dk)) items.push(`<button type="button" data-get="${dk}"${off ? ' disabled' : ''}>Download${W.bytes ? ` <small>${mb(W.bytes)}</small>` : ''}${off ? ' <small>– offline</small>' : ''}</button>`);
-    if (revAvail(key)) items.push(`<button type="button" data-revshow="${esc(key)}">See the revision</button>`);
-    if (W.imported) items.push(`<button type="button" data-iedit="${W.tid}">Edit</button>`);
-    if (W.inst) items.push(`<button type="button" class="danger" data-lwdel="1">${W.imported ? 'Delete' : 'Delete from device'}</button>`);
-    act += `<div class="lwmenu">${items.join('')}</div>`;
-  }
+  if (S.lwAsk === key) act = `<div class="lwask"><span>Delete “${esc(W.title)}” and all its glosses from this device?</span><button type="button" class="danger" data-lwdelok="1">Delete</button><button type="button" data-lwdelno="1">Cancel</button></div>`;
+  else if (W.inst && !cur && r) act = `<button type="button" class="acc lwcont" data-lcont="${esc(key)}">Continue reading${posLabel(key, r) ? ` at <b>${esc(posLabel(key, r))}</b>` : ''}</button>`;
   h += `<div class="lwact">${act}</div>`;
-  if (revAvail(key)) h += `<p class="lwrev">Revision available · <button type="button" class="linkb" data-revshow="${esc(key)}">see the changes</button></p>`;
   if (typeof revBackHTML === 'function') h += revBackHTML(key);
   if (W.inst) h += `<div id="navOutline" class="outline">${F ? resultsHTML(F) : await outlineHTML(key)}</div>`;
   else h += `<div class="outline lwparts">${(W.books || []).map(b => `<div class="olrow d0 part off"><span class="olt"></span><span class="olj"><span class="olx">${esc(b)}</span></span></div>`).join('')}</div><p class="hint small">Download the work to read it.</p>`;
@@ -454,6 +441,8 @@ function wireLibrary() {
       S.libLimit = 250; saveLibView(); renderLibControls(); renderLibList(); return;
     }
     if (d.more) { S.libLimit += 500; renderLibList(); return; }
+    if (d.favedit) { S.favEdit = !S.favEdit; return lmRender(); }
+    if (d.favrm) { delete S.favs[d.favrm]; await setting('favs', S.favs); if (!Object.keys(S.favs).length) S.favEdit = false; return lmRender(); }
     if (d.star) {                                                    // favourite on/off (kept in the backup)
       const id = d.star; S.favs ??= {};
       if (S.favs[id]) delete S.favs[id]; else S.favs[id] = Date.now();
@@ -486,6 +475,7 @@ function wireLibrary() {
     const key = S.lmPage; if (!key) return;
     if (d.lcont) { const r = (S.recent || []).find(x => x.key === key); if (r) { await openText(r.id); await later(); } else { await openText(textIdOf(key, (await setting('wk|' + key)) ?? 0)); } return lmRender(); }
     if (d.lwi) { S.lwInfo = !S.lwInfo; return lmRender(); }
+    if (d.fav) { S.favs ??= {}; if (S.favs[key]) delete S.favs[key]; else S.favs[key] = Date.now(); await setting('favs', S.favs); S.lwMenu = null; return lmRender(); }
     if (d.lwm) { S.lwMenu = S.lwMenu === key ? null : key; return lmRender(); }
     if (d.lwdel) { S.lwAsk = key; S.lwMenu = null; return lmRender(); }
     if (d.lwdelno) { S.lwAsk = null; return lmRender(); }

@@ -132,13 +132,13 @@ async function mapSectionHTML() {
     const name = ps[0].name.replace(/\s*\((?:detailed|[^)]*full detail|Basic|Medium|Detailed)\)$/, '').replace(/, full detail\)$/, ')');
     const q = ps.map(p => 'map:' + p.id).find(x => DL.has(x)), busy = !!q;
     const lv = ps.length > 1 ? `<div class="seg lvl" role="group">${ps.map((p, i) => `<button type="button" data-mapget="${p.id}" class="${cur === p ? 'on' : ''}"${busy ? ' disabled' : ''} title="${cur === p ? 'Installed' : 'Download this level' + (cur ? ' (replaces the other)' : '')}">${cur === p ? '' : '⤓ '}${p.lvl || (i ? 'Detailed' : 'Standard')} <small>${mbs(p.bytes)}</small></button>`).join('')}</div>` : '';
-    const right = busy ? dlButtonHTML(q, 'Download')
-      : !cur ? (ps.length > 1 ? '' : `<button type="button" class="dlbtn" data-get="map:${p0.id}">Download</button>`)
-      : inst[cur.id] !== cur.v ? `<button type="button" class="dlbtn" data-get="map:${cur.id}">Update</button>` : '';
+    const right = busy ? dlIcon(q)
+      : cur ? dlIcon('map:' + cur.id, { have: true, rev: inst[cur.id] !== cur.v, upd: 'Download update' })
+      : ps.length > 1 ? '' : dlIcon('map:' + p0.id, { size: p0.bytes });
     return `<div class="mpk${cur ? '' : ' avail'}" data-mk="${esc(k)}">` + pkRow({
       sw: cur && k !== 'base' ? SW(`data-mapsw="${cur.id}" aria-label="Use ${esc(name)}"`, !off[cur.id]) : '<span class="swsp"></span>',
       name: esc(name), desc: esc(p0.desc) + (ps.length > 1 ? '' : ' · ' + mbs(p0.bytes)) + (cur && off[cur.id] ? ' · <i>switched off</i>' : ''),
-      right, del: cur ? delBtn('map', cur.id, name) : '', more: cur && k === 'places' ? (`<button type="button" data-pidx="1">Rebuild place index</button><small class="hint" id="pidxInfo">${pinfo?.built ? 'built ' + new Date(pinfo.built).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ` · ${pinfo.n.toLocaleString('en')} places` : 'not built yet – it is built when first needed'}</small>`) : '' }) + lv + '</div>';
+      right, del: '', more: cur && k === 'places' ? (`<button type="button" data-pidx="1">Rebuild place index</button><small class="hint" id="pidxInfo">${pinfo?.built ? 'built ' + new Date(pinfo.built).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ` · ${pinfo.n.toLocaleString('en')} places` : 'not built yet – it is built when first needed'}</small>`) : '' }) + lv + '</div>';
   };
   // regions (relief, Natural Earth II): folded together, each region a row with its levels of detail
   const folds = (await setting('instFold')) || {};

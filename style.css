@@ -1634,3 +1634,28 @@ dialog .olrow.on>.olj{background:none}
 dialog .olrow.on>.olrest,dialog .olrow.on>.olrest .olm,dialog .olrow.on>.olrest .olc,dialog .olrow.on>.olt{color:var(--bg)}
 @media (max-width:430px){dialog .lmtabs [data-view]{padding:.45rem .3rem .4rem;font-size:13px}dialog .lmtabs [data-view] .tn small{display:none}dialog .lmtabs .lmimp{padding:.15rem .4rem}}
 dialog .dlask span{flex:1 1 100%}
+/* ---- the download icon (v215): one quiet arrow colour throughout; accent when tapped and while downloading; filled when on the device */
+:root{--dla:#b3ac9f;--dlf:#8f887b}
+:root[data-theme=dark]{--dla:#6e6a62;--dlf:#9a9488}
+dialog .dli,.dli{flex:none;position:relative;width:2rem;height:2rem;min-width:0;padding:0;display:inline-grid;place-items:center;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--dla);line-height:0;--p:0%}
+dialog .dli .dla{width:17px;height:17px}
+dialog .dli.done{background:var(--dlf);border-color:var(--dlf)}
+dialog .dli:active,dialog .dli.open,dialog .dli.busy{color:var(--acc);border-color:var(--acc)}
+dialog .dli.busy{background:linear-gradient(0deg,color-mix(in srgb,var(--acc) 34%,var(--card)) var(--p),var(--card) var(--p))}
+dialog .dli.wait{border-style:dashed}
+dialog .dli.inst{background:color-mix(in srgb,var(--acc) 34%,var(--card));animation:dlpulse 1.2s ease-in-out infinite}
+dialog .dli.fail{color:#c0392b;border-color:color-mix(in srgb,#c0392b 55%,var(--line));font:16px/1 var(--ui)}
+dialog .dli[disabled]{opacity:.4;cursor:default}
+dialog .dli .drev{position:absolute;top:-.62rem;right:-.5rem;font:italic 400 9.5px/1 var(--ui);color:var(--mut);opacity:.85;line-height:1}
+dialog .dlhost{position:relative}
+dialog .dlpop{position:absolute;z-index:6;transform:translateY(-50%);display:flex;gap:.35rem;padding:.2rem;background:var(--card);border:1px solid var(--line);border-radius:9px;box-shadow:0 2px 10px rgba(0,0,0,.18);white-space:nowrap}
+dialog .dlpop button{font-size:12.5px;padding:.3rem .65rem}
+dialog .dlpop button.danger{color:#c0392b}
+/* rows without the flame: they begin with the title; works of an author indented a little */
+dialog.lmdlg details.auth .works .lrow{padding-left:1.1rem}
+dialog .lwinfo .lwl .lwsp{flex:1 1 0;min-width:0}
+dialog .lwinfo .lwl .lwm{flex:none;font:700 16px/1 var(--ui);letter-spacing:.08em;padding:.25rem .5rem;color:var(--mut);background:none;border-color:transparent}
+dialog .lwinfo .lwl .lwm[aria-expanded="true"]{border-color:var(--line);color:var(--fg)}
+dialog .lwinfo .lwmenu{margin-top:.45rem}
+dialog .libbar .linkb{margin-right:auto;margin-left:.5rem}
+dialog .dlall{color:var(--dla);border-color:var(--line)}dialog .dlall:active{color:var(--acc);border-color:var(--acc)}

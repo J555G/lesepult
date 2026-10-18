@@ -262,12 +262,10 @@ async function dictsDialog() {
   const sec = (k, title, sub, body) => `<details class="ifold" data-if="${k}"${fold[k] ? ' open' : ''}><summary><b>${title}</b><small>${sub}</small></summary><section class="dsec">${body}</section></details>`;
   // the button on the right: Update when the website has a newer version, Download when not installed
   const getBtn = id => {
-    const p = remote[id]; if (!p) return '';
-    if (DL.has(id)) return dlButtonHTML(id, S.installed[id] ? 'Update' : 'Download');
-    if (!S.installed[id]) return `<button type="button" class="dlbtn" data-get="${id}" title="${mbs(p.bytes)}">Download</button>`;
-    return S.installed[id].version !== p.version ? `<button type="button" class="dlbtn" data-get="${id}" title="${mbs(p.bytes)}">Update</button>` : '';
+    const p = remote[id], have = !!S.installed[id]; if (!p && !have) return '';
+    return dlIcon(id, { have, rev: have && !!p && S.installed[id].version !== p.version, size: p?.bytes, upd: 'Download update' });
   };
-  const delD = id => delBtn('dict', id, S.installed[id]?.name);
+  const delD = () => '';                       // (Delete: on the download icon)
   // after a delete: the row of a package becomes an available one in place
   S.instAvailRow = id => { const p = remote[id]; if (!p) return '';
     return pkRow({ grip: p.kind === 'dictionary' ? spacer : '<span class="trsp"></span>', name: esc(p.name), desc: `${esc(p.title || '')}${p.title ? ' · ' : ''}${mbs(p.bytes)}${p.priv ? ' · private repository' : ''}`, right: getBtn(p.id), cls: 'avail' }); };
@@ -281,7 +279,7 @@ async function dictsDialog() {
     grip: '<span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span>',
     sw: SW(`data-dict-on="${d.id}" aria-label="Use ${esc(d.name)}"`, !S.dictPrefs.off.includes(d.id)),
     name: esc(d.name), desc: `${esc(d.title || '')}${d.size ? ' · ' + mbs(d.size) : ''}`,
-    right: `<button type="button" class="chev${S.dictPrefs.open.includes(d.id) ? ' on' : ''}" data-dict-fold="${d.id}" title="${S.dictPrefs.open.includes(d.id) ? 'Open when a word is looked up' : 'Folded when a word is looked up'}" aria-label="Open or folded when a word is looked up">${S.dictPrefs.open.includes(d.id) ? '▾' : '▸'}</button>${getBtn(d.id)}`,
+    right: getBtn(d.id) + `<button type="button" class="chev${S.dictPrefs.open.includes(d.id) ? ' on' : ''}" data-dict-fold="${d.id}" title="${S.dictPrefs.open.includes(d.id) ? 'Open when a word is looked up' : 'Folded when a word is looked up'}" aria-label="Open or folded when a word is looked up">${S.dictPrefs.open.includes(d.id) ? '▾' : '▸'}</button>${getBtn(d.id)}`,
     del: delD(d.id) }); }
   const privState = privCfgNow.token ? (S.privErr ? '<span class="bad">' + esc(S.privErr) + '</span>' : '<span class="ok">connected</span>') : 'not connected';
   const nD = lang => S.dicts.filter(d => d.src === lang).length;
@@ -493,7 +491,7 @@ function dlButtonHTML(id, label) {
 // every button of this download, wherever it is shown: its state
 function paintDL(id, text) {
   for (const b of document.querySelectorAll(`#dlg [data-get="${id}"], #dlg [data-dl="${id}"]`)) {
-    const p = DL.get(id), x = DLX.get(id), icon = b.classList.contains('lmdl');
+    const p = DL.get(id), x = DLX.get(id), icon = b.classList.contains('lmdl') || b.classList.contains('dli');
     if (b.dataset.lbl == null) b.dataset.lbl = icon ? b.innerHTML : b.textContent;
     b.classList.remove('busy', 'wait', 'inst', 'fail'); b.disabled = false;
     if (DL.has(id)) {
@@ -504,11 +502,64 @@ function paintDL(id, text) {
     } else {
       b.removeAttribute('data-dl'); b.dataset.get = id; b.style.removeProperty('--p');
       if (x?.err) { b.classList.add('fail'); b.title = x.err + ' – tap to try again'; if (icon) b.innerHTML = '↻'; else b.textContent = '↻ ' + (text || 'Try again'); }
-      else if (text) { b.textContent = text; if (text === 'Up to date') b.disabled = true; }
+      else if (text && !icon) { b.textContent = text; if (text === 'Up to date') b.disabled = true; }
       else { if (icon) b.innerHTML = b.dataset.lbl; else b.textContent = b.dataset.lbl; b.title = ''; }
     }
   }
   if (!DL.has(id)) document.querySelectorAll(`#dlg .dlask[data-for="${CSS.escape(id)}"]`).forEach(x => x.remove());
+}
+// the download icon (Library, Instruments): an arrow of one quiet colour throughout; lit in the accent colour when tapped and
+// while it downloads (the box filling from the bottom); once on the device the box is filled (neutral), with a faint "rev."
+// when a revision / update is available. A tap on a downloaded icon shows two buttons to its left: the revision (or
+// update) and Delete (no question: a deleted work can be restored for 7 days).
+const DLARROW = '<svg class="dla" width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/></g></svg>';
+function dlIcon(id, { have = false, rev = false, size = 0, upd = 'Download revision', off = false } = {}) {
+  const p = DL.get(id), x = DLX.get(id);
+  if (DL.has(id)) return `<button type="button" class="dli busy${p < 0 ? ' wait' : p >= 0.9 ? ' inst' : ''}" data-dl="${esc(id)}" data-lbl="${esc(DLARROW)}" style="--p:${Math.round(Math.max(0, p) * 100)}%" title="Tap to stop" aria-label="Downloading – tap to stop">${DLARROW}</button>`;
+  if (x?.err && !have) return `<button type="button" class="dli fail" data-get="${esc(id)}" title="${esc(x.err)} – tap to try again" aria-label="Try again">↻</button>`;
+  if (have) return `<button type="button" class="dli done" data-dlon="${esc(id)}" data-upd="${rev ? esc(upd) : ''}" title="On this device${rev ? ' – ' + esc(upd.toLowerCase().replace('download ', '')) + ' available' : ''}" aria-label="On this device">${DLARROW}${rev ? '<sup class="drev">rev.</sup>' : ''}</button>`;
+  return `<button type="button" class="dli" data-get="${esc(id)}" title="Download${size ? ' (' + mbs(size) + ')' : ''}" aria-label="Download"${off ? ' disabled' : ''}>${DLARROW}</button>`;
+}
+function dlPopClose() { document.querySelectorAll('.dlpop').forEach(x => x.remove()); document.querySelectorAll('.dli.open').forEach(x => x.classList.remove('open')); clearTimeout(dlPopClose.t); }
+function dlPop(b) {
+  const open = b.classList.contains('open'); dlPopClose(); if (open) return;
+  const id = b.dataset.dlon, row = b.closest('.lrow,.pkrow,.lwl,.item') || b.parentElement;
+  const rr = row.getBoundingClientRect(), br = b.getBoundingClientRect();
+  row.classList.add('dlhost'); b.classList.add('open');
+  row.insertAdjacentHTML('beforeend', `<span class="dlpop" style="right:${Math.round(rr.right - br.left + 6)}px;top:${Math.round(br.top - rr.top + br.height / 2)}px">${b.dataset.upd ? `<button type="button" data-dlupd="${esc(id)}"${S.net === false ? ' disabled' : ''}>${esc(b.dataset.upd)}</button>` : ''}<button type="button" class="danger" data-dldel="${esc(id)}">Delete</button></span>`);
+  dlPopClose.t = setTimeout(dlPopClose, 5000);
+}
+document.addEventListener('click', async ev => {
+  const on = ev.target.closest?.('[data-dlon]'); if (on) { ev.preventDefault(); ev.stopPropagation(); return dlPop(on); }
+  const up = ev.target.closest?.('[data-dlupd]'), dl = ev.target.closest?.('[data-dldel]');
+  if (!up && !dl) { if (!ev.target.closest?.('.dlpop')) dlPopClose(); return; }
+  ev.preventDefault(); ev.stopPropagation();
+  const id = (up || dl).dataset[up ? 'dlupd' : 'dldel'], row = (up || dl).closest('.dlhost'); dlPopClose();
+  if (up) return dlUpdate(id);
+  return dlDelete(id, row);
+}, true);
+document.addEventListener('scroll', () => dlPopClose(), true);
+async function dlUpdate(id) {
+  if (id.startsWith('work:')) { const key = id.slice(5); if (!$('#libBody')) return; if (S.lmPage !== key) await lmGo(key); S.revDone = null; return revOpen(key); }
+  queueDownload(id);
+}
+async function dlDelete(id, row) {
+  if (DL.has(id)) return toast('Wait until the download has finished.');
+  if (id.startsWith('work:')) { await trashWork(id.slice(5)); if ($('#libBody')) lmRender(); return; }
+  if (id.startsWith('map:')) {
+    const p = M.man?.packages.find(x => x.id === id.slice(4)); if (!p) return;
+    await deleteMapPkg(p); const o = await mapOff(); delete o[p.id]; await setting('mapOff', o); await redrawMapSection(); toast(p.name + ' deleted'); if (S.tab === 'map') showMap(); return;
+  }
+  return dictDeleteRow(id, row?.closest('.pkrow') || row);
+}
+// a dictionary or analysis package deleted; its row stays where it is and becomes an available one
+async function dictDeleteRow(id, row) {
+  const name = S.installed[id]?.name || id;
+  await deleteDict(id); await loadDicts(); bucketCache.clear(); if (S.view) renderView();
+  const av = S.instAvailRow?.(id);
+  if (row && av) row.outerHTML = av; else row?.remove();
+  S.instAfterDel?.();
+  toast(name + ' deleted');
 }
 function queueDownload(id) {
   if (DL.has(id)) return;
@@ -559,6 +610,7 @@ async function runDownloads() {
     const id = [...DL.keys()].find(k => DL.get(k) < 0); if (!id) break;
     const ctl = new AbortController(); DLX.set(id, { ctl });
     try {
+      if (id.startsWith('work:') && await workRestore(id.slice(5))) { DL.delete(id); DLX.delete(id); paintDL(id); if ($('#libBody')) lmRender(); continue; }   // deleted within 7 days: back at once
       if (!(await netCheck())) throw new Error('No connection');
       if (id.startsWith('map:') && !M.man) M.man = await mapManifest();
       if (!id.startsWith('work:') && !id.startsWith('map:') && !S.manifest) S.manifest = await fetchManifest();
