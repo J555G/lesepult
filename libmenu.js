@@ -143,9 +143,9 @@ function renderLibControls() {
 const RIBBON = '<i class="rib" title="Marker" aria-label="Marker"></i>';
 // the download icon of a work (dialogs.js): download, or – on this device – revision and Delete; a work deleted within 7 days
 // is restored by it at once
-const lmIcon = (w, inst, off) => w.imported ? '' : dlIcon('work:' + w.id, { have: inst, rev: inst && S.revOn && revAvail(w.id), size: w.bytes, off: off && !S.trash?.[w.id], rst: !inst && S.trash?.[w.id] || 0 });
+const lmIcon = (w, inst, off) => w.imported ? (S.trashImp?.[w.id] ? dlIcon('work:' + w.id, { rst: S.trash[w.id] }) : '') : dlIcon('work:' + w.id, { have: inst, rev: inst && S.revOn && revAvail(w.id), size: w.bytes, off: off && !S.trash?.[w.id], rst: !inst && S.trash?.[w.id] || 0 });
 function lmRowHTML(w, flat = false) {
-  const key = w.id, inst = !!(w.imported || S.libInst[key]), cur = curKey() === key;
+  const key = w.id, inst = !!((w.imported && !S.trashImp?.[key]) || S.libInst[key]), cur = curKey() === key;
   const a = authorOf(w), off = !inst && lmOffline() && !S.trash?.[key];
   const right = S.favEdit && libView().view === 'fav' ? `<button type="button" class="scrm" data-favrm="${esc(key)}" aria-label="Remove from favourites" title="Remove from favourites">✕</button>` : (S.catalog || inst || DL.has('work:' + key)) ? lmIcon(w, inst, off) : '';
   const info = [flat && a.date ? a.date : '', workLang(w) === 'la' ? 'Latin' : '', w.imported ? 'imported' : (w.verse ? 'verse' : 'prose'),
@@ -235,7 +235,7 @@ document.addEventListener('click', async ev => {
     return authPaint(a.works[0]?.id);
   }
 }, true);
-document.addEventListener('click', async ev => {                    // Recently deleted: all of them (shown) removed for good
+document.addEventListener('click', async ev => {                    // Recently removed: all of them (shown) erased
   const b = ev.target.closest?.('#libList [data-trashall]'); if (!b) return;
   ev.preventDefault(); ev.stopPropagation();
   for (const id of b.dataset.trashall.split('\n')) await workPurge(id);
@@ -243,9 +243,9 @@ document.addEventListener('click', async ev => {                    // Recently 
 }, true);
 // Armarium: the works deleted in the last 7 days (most recent first), folded beneath the shelf
 function trashGroupHTML() {
-  const q = fold(S.libQ), ws = Object.entries(S.trash || {}).sort((x, y) => y[1] - x[1]).map(([id]) => S.catWork?.[id]).filter(w => w && !S.libInst[w.id] && workPasses(w, q, true));
+  const q = fold(S.libQ), ws = Object.entries(S.trash || {}).sort((x, y) => y[1] - x[1]).map(([id]) => S.trashImp?.[id] || S.catWork?.[id]).filter(w => w && !S.libInst[w.id] && workPasses(w, q, true));
   if (!ws.length) return '';
-  return `<details class="auth trashg"${S.trashOpen ? ' open' : ''}><summary><span class="t"><b>Recently deleted</b><small>${ws.length} work${ws.length === 1 ? '' : 's'} · kept 7 days</small></span><button type="button" class="linkb trashall" data-trashall="${esc(ws.map(w => w.id).join('\n'))}">Erase all</button></summary><div class="works">${ws.map(w => lmRowHTML(w, true)).join('')}</div></details>`;
+  return `<details class="auth trashg"${S.trashOpen ? ' open' : ''}><summary><span class="t"><b>Recently removed</b><small>${ws.length} work${ws.length === 1 ? '' : 's'} · kept 7 days</small></span><button type="button" class="linkb trashall" data-trashall="${esc(ws.map(w => w.id).join('\n'))}">Erase all</button></summary><div class="works">${ws.map(w => lmRowHTML(w, true)).join('')}</div></details>`;
 }
 function renderLibList() {
   const el = $('#libList'); if (!el) return;
@@ -355,8 +355,8 @@ async function lmWorkHTML(key) {
     + (more.length ? `<button type="button" class="lwi" data-lwi="1" aria-expanded="${!!S.lwInfo}" title="About this edition" aria-label="About this edition">i</button>` : '')
     + `<span class="lwsp"></span>${lmIcon(W, W.inst, off && !S.trash?.[key])}<button type="button" class="lwm" data-lwm="1" aria-expanded="${S.lwMenu === key}" title="More" aria-label="More">⋯</button></div>`
     + (more.length && S.lwInfo ? `<div class="lwmore">${more.map(x => `<small>${esc(x)}</small>`).join('')}</div>` : '')
-    + (S.lwMenu === key && S.lwAsk !== key ? `<div class="lwmenu"><button type="button" data-fav="1">${fav ? 'Remove from favourites' : 'Add to favourites'}</button>${revAvail(key) ? `<button type="button" data-revshow="${esc(key)}">See the revision</button>` : ''}${W.imported ? `<button type="button" data-iedit="${W.tid}">Edit</button><button type="button" class="danger" data-lwdel="1">Delete</button>` : ''}</div>` : '') + '</div>';
-  if (!W.inst && S.trash?.[key]) h += `<p class="lwrev">Deleted on ${new Date(S.trash[key]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · the download icon restores it from this device (until ${new Date(S.trash[key] + 7 * 864e5).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })})</p>`;
+    + (S.lwMenu === key && S.lwAsk !== key ? `<div class="lwmenu"><button type="button" data-fav="1">${fav ? 'Remove from favourites' : 'Add to favourites'}</button>${revAvail(key) ? `<button type="button" data-revshow="${esc(key)}">See the revision</button>` : ''}${W.imported ? `<button type="button" data-iedit="${W.tid}">Edit</button><button type="button" class="danger" data-lwdel="1">Remove</button>` : ''}</div>` : '') + '</div>';
+  if (!W.inst && S.trash?.[key]) h += `<p class="lwrev">Removed on ${new Date(S.trash[key]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · restorable until ${new Date(S.trash[key] + 7 * 864e5).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</p>`;
   if (!W.inst && DLX.get(dk)?.err) h += `<p class="lwrev">${esc(DLX.get(dk).err)}</p>`;
   // Continue reading (alone on its line); deleting an imported text is asked here
   let act = '';
@@ -549,7 +549,7 @@ function wireLibrary() {
     if (d.lwmore) { S.lwN = (S.lwN || 5) + 10; lmWords(); return; }
     if (d.lww) { const k = d.lww, lem = d.lem; S.findMode = 'lemma'; S.navFind = null; await lmGo(k); const i = $('#navFind'); if (i) i.value = lem; return lmRunFind(lem, 'lemma'); }
     // a work: its page
-    if (b.classList.contains('lrow') && d.lw && !S.scrEdit) return lmGo(d.lw);
+    if (b.classList.contains('lrow') && d.lw && !S.scrEdit) { if (S.trashImp?.[d.lw]) return; return lmGo(d.lw); }
     if (b.classList.contains('lrow')) return;
     // the page of a work
     const key = S.lmPage; if (!key) return;
@@ -557,7 +557,7 @@ function wireLibrary() {
     if (d.lwi) { S.lwInfo = !S.lwInfo; return lmRender(); }
     if (d.fav) { S.favs ??= {}; if (S.favs[key]) delete S.favs[key]; else S.favs[key] = Date.now(); await setting('favs', S.favs); S.lwMenu = null; return lmRender(); }
     if (d.lwm) { S.lwMenu = S.lwMenu === key ? null : key; return lmRender(); }
-    if (d.lwdel) { S.lwAsk = key; S.lwMenu = null; return lmRender(); }
+    if (d.lwdel) { S.lwMenu = null; const W = workInfo(key); if (W?.imported) { await trashImported(W.tid); return lmGo(''); } return lmRender(); }
     if (d.lwdelno) { S.lwAsk = null; return lmRender(); }
     if (d.lwdelok) {
       S.lwAsk = null; const W = workInfo(key);

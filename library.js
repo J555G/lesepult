@@ -42,17 +42,36 @@ async function trashWork(id) {
   (S.trash ??= {})[id] = Date.now();
 }
 // a deleted work removed for good (no longer restorable)
-async function workPurge(id) { await del('settings', 'trash|' + id); if (S.trash) delete S.trash[id]; }
+async function workPurge(id) { await del('settings', 'trash|' + id); if (S.trash) delete S.trash[id]; if (S.trashImp) delete S.trashImp[id]; }
+// an imported text removed: kept in the same way (the text, its glosses, its place in Scriptorium)
+async function trashImported(tid) {
+  const t = await get('texts', tid); if (!t) return;
+  const glosses = await req2p(tx('glosses').objectStore('glosses').index('textId').getAll(tid)), key = 'imp:' + tid;
+  const recent = (S.recent || []).find(r => r.key === key) || null;
+  await setting('trash|' + key, { at: Date.now(), text: t, glosses, recent });
+  for (const g of glosses) await del('glosses', g.id);
+  await del('texts', tid); if (S.text?.id === tid) await openText(null);
+  S.recent = (S.recent || []).filter(r => r.key !== key); await setting('recent', S.recent);
+  S.impWorks = (await getAll('texts')).map(impWork);
+  (S.trash ??= {})[key] = Date.now(); (S.trashImp ??= {})[key] = impWork(t);
+}
 async function workRestore(id) {
   const T = await setting('trash|' + id); if (!T) return false;
+  if (T.text) {                                                    // an imported text
+    await put('texts', T.text); for (const g of T.glosses || []) await put('glosses', g);
+    if (T.recent) { S.recent = [T.recent, ...(S.recent || []).filter(r => r.key !== id)]; await setting('recent', S.recent); }
+    await del('settings', 'trash|' + id); if (S.trash) delete S.trash[id]; if (S.trashImp) delete S.trashImp[id];
+    S.impWorks = (await getAll('texts')).map(impWork); return true;
+  }
   await revWrite(T.work, T.books); await del('settings', 'trash|' + id);
   if (S.libInst) S.libInst[id] = await libGet('works', id); if (S.trash) delete S.trash[id]; S.partRefCache = {};
   return true;
 }
 async function trashLoad() {
-  S.trash = {};
+  S.trash = {}; S.trashImp = {};
   for (const r of await getAll('settings', IDBKeyRange.bound('trash|', 'trash|￿'))) {
-    if (Date.now() - (r.v?.at || 0) > 7 * 864e5) await del('settings', r.k); else S.trash[r.k.slice(6)] = r.v.at;
+    if (Date.now() - (r.v?.at || 0) > 7 * 864e5) await del('settings', r.k);
+    else { S.trash[r.k.slice(6)] = r.v.at; if (r.v.text) S.trashImp[r.k.slice(6)] = impWork(r.v.text); }
   }
 }
 const isBook = id => typeof id === 'string' && id.startsWith('w:');
