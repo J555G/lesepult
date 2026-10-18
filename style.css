@@ -1710,4 +1710,10 @@ dialog .fti.on{color:var(--acc)}
 dialog .fthelp{list-style:none;margin:.45rem 0 0;padding:0;font-size:12px;line-height:1.45;color:var(--mut)}
 dialog .fthelp[hidden]{display:none}
 dialog .fthelp b{font-weight:600;color:var(--fg);opacity:.8}
-.tzrow{justify-content:flex-end}
+/* Settings → Reading → Text size: the hint and the buttons on one line (as Glosses) */
+dialog .tzline{display:flex;align-items:center;justify-content:space-between;gap:.6rem}
+dialog .tzline>small{flex:1 1 4rem;min-width:0;font-size:12px;line-height:1.3}
+dialog .tzline .tzrow{flex:none;flex-wrap:nowrap;gap:.25rem;margin-left:auto}
+dialog .tzline .tzrow button.tzi{width:2.15rem;height:2.15rem}
+dialog .tzline .tzrow span{min-width:3em;font-size:14px}
+dialog .tzline .nw{white-space:nowrap}
