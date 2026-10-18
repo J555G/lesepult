@@ -218,7 +218,7 @@ document.addEventListener('click', async ev => {
     const restOff = lmOffline() && st.trash.length < st.miss.length;
     row.classList.add('dlhost'); b.classList.add('open');
     row.insertAdjacentHTML('beforeend', `<span class="dlpop" style="right:${Math.round(rr.right - br.left + 6)}px;top:${Math.round(br.top - rr.top + br.height / 2)}px">`
-      + (st.miss.length ? `<button type="button" data-authrest="${esc(a.id)}"${restOff ? ' disabled' : ''}>Download the rest (${st.miss.length} · ${mb(st.rest)})</button>` : '')
+      + (st.miss.length ? `<button type="button" data-authrest="${esc(a.id)}"${restOff ? ' disabled' : ''}>Download the rest (${st.miss.length})</button>` : '')
       + `<button type="button" class="danger" data-authdel="${esc(a.id)}">Delete all</button></span>`);
     dlPopClose.t = setTimeout(dlPopClose, 5000); return;
   }
