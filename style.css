@@ -1750,8 +1750,8 @@ body:not(.nofade) dialog :is(.dli,.lwm,.lwi,.fti,.ftreset,.greset,.creset,.mtres
 body:not(.nofade) #mapBody button:is(:active,.fxon),body:not(.nofade) #dlgForm>.row>:is(button,a,label):is(:active,.fxon){color:var(--acc);border-color:var(--acc);transition:color .111s ease,border-color .111s ease}
 body:not(.nofade) dialog :is(.seg button.on,.chip2.on,.chip.on):is(:active,.fxon){color:inherit}
 body:not(.nofade) dialog .danger:is(:active,.fxon){color:#c0392b;border-color:#c0392b}
-body:not(.nofade) dialog :is(.lrow,.pgrow,.olj,.olrest,.srow,.annrow,.pgo),body:not(.nofade) #libList details.auth>summary{transition:background-color .333s ease}
-body:not(.nofade) dialog :is(.lrow,.pgrow,.olj,.olrest,.srow,.annrow,.pgo):is(:active,.fxon),body:not(.nofade) #libList details.auth>summary:is(:active,.fxon){background-color:color-mix(in srgb,var(--acc) 14%,transparent);transition:background-color .111s ease}
+body:not(.nofade) dialog :is(.lrow,.pgrow,.olrow,.srow,.annrow,.pgo),body:not(.nofade) #libList details.auth>summary{transition:background-color .333s ease}
+body:not(.nofade) dialog :is(.lrow,.pgrow,.olrow,.srow,.annrow,.pgo):is(:active,.fxon,:has(>:active)),body:not(.nofade) #libList details.auth>summary:is(:active,.fxon){background-color:color-mix(in srgb,var(--acc) 14%,transparent);transition:background-color .111s ease}
 body:not(.nofade) #btnMenu{transition:color .333s ease}
 body:not(.nofade) #btnMenu:is(:active,.fxon){color:var(--acc);transition:color .111s ease}
 /* the pane tabs: the picture in colour as a layer over the grey one, fading in and out */
@@ -1774,5 +1774,13 @@ dialog .lwm{border:0!important;background:none!important;box-shadow:none}
 dialog .lwmenu{border:0;border-radius:0;overflow:visible;align-items:flex-end}
 dialog .lwmi{display:flex;flex-direction:column;align-items:stretch;border:1px solid var(--line);border-radius:8px;overflow:hidden;min-width:9rem}
 dialog .lwmenu button{font-size:12.5px;padding:.32rem .6rem}
-dialog .olrest:disabled{cursor:default;opacity:1}
 dialog .sapp2{border-top:0}
+/* Colourisation: a class's button fades in its own colour (as when it is on); the reset buttons: the circle arrow too;
+   the open book (split) takes the accent in its sign only */
+body:not(.nofade) dialog .cchip:is(:active,.fxon){color:var(--c);border-color:var(--c)}
+body:not(.nofade) dialog .tzrst{transition:color .333s ease}
+body:not(.nofade) dialog :is(.greset,.creset,.tzi):is(:active,.fxon) .tzrst{color:var(--acc);transition:color .111s ease}
+body:not(.nofade) dialog .creset:is(:active,.fxon){color:inherit;border-color:var(--acc)}
+body:not(.nofade) #btnSplit{transition:color .333s ease}
+body:not(.nofade) #btnSplit:is(:active,.fxon){color:var(--acc);transition:color .111s ease}
+dialog .olrest[data-olnone]{cursor:default}

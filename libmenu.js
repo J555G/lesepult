@@ -420,7 +420,7 @@ function outlineNodes(nodes, part, cr, depth, list, T) {
     h += `<div class="olrow d${Math.min(depth, 4)}${n.ref && n.ref === cr ? ' on' : ''}${onPath ? ' path' : ''}">`
       + (kids ? `<button type="button" class="olt" data-olt="${esc(key)}" aria-expanded="${!!open}" aria-label="${open ? 'Fold' : 'Unfold'}">${open ? '▾' : '▸'}</button>` : '<span class="olt"></span>')
       + `<button type="button" class="olj" data-sec="${esc(r?.s || '')}" data-secpart="${part}"><span class="oln">${esc(n.seg)}</span><span class="olx">${esc(title)}</span></button>`
-      + `<button type="button" class="olrest" ${kids ? `data-olt="${esc(key)}" aria-expanded="${!!open}"` : 'disabled'} tabindex="-1" aria-hidden="true"><span class="olm">${marksHTML(m)}</span>${kids && !open ? `<span class="olc">${kids}</span>` : ''}</button></div>`;
+      + `<button type="button" class="olrest" ${kids ? `data-olt="${esc(key)}" aria-expanded="${!!open}"` : `data-olnone="${esc(key)}"`} tabindex="-1" aria-hidden="true"><span class="olm">${marksHTML(m)}</span>${kids && !open ? `<span class="olc">${kids}</span>` : ''}</button></div>`;
     if (open) h += outlineNodes(n.kids, part, cr, depth + 1, list, T);
   }
   return h;
@@ -563,7 +563,7 @@ function wireLibrary() {
     if (d.lwmore) { S.lwN = (S.lwN || 5) + 10; lmWords(); return; }
     if (d.lww) { const k = d.lww, lem = d.lem; S.findMode = 'lemma'; S.navFind = null; await lmGo(k); const i = $('#navFind'); if (i) i.value = lem; return lmRunFind(lem, 'lemma'); }
     // a work: its page
-    if (b.classList.contains('lrow') && d.lw && !S.scrEdit) { if (S.trashImp?.[d.lw]) return; return lmGo(d.lw); }
+    if (b.classList.contains('lrow') && d.lw && !S.scrEdit) { if (S.trashImp?.[d.lw] || !ev.target.closest('.lrow .t>*')) return; return lmGo(d.lw); }   // (only the title and the lines beneath it open it; the empty part of the row does not)
     if (b.classList.contains('lrow')) return;
     // the page of a work
     const key = S.lmPage; if (!key) return;
