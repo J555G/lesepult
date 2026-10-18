@@ -1,5 +1,5 @@
 // Offline cache for the app shell (dictionaries and texts live in IndexedDB, not here).
-const CACHE = 'lesepult-v259';
+const CACHE = 'lesepult-v260';
 const FILES = ['./', 'index.html', 'core.js', 'analysis.js', 'text.js', 'dictview.js', 'dialogs.js', 'export.js', 'library.js', 'libtime.js', 'libmenu.js', 'librev.js', 'glosses.js', 'search.js', 'app.js', 'maps.js', 'maplayers.js', 'mapsaved.js', 'mapdraw.js', 'maprelief.js', 'style.css', 'fonts.css', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'fonts/roboto-condensed-latin-400-normal.woff2', ...['latin', 'latin-ext', 'greek', 'greek-ext'].map(x => `fonts/source-sans-3-${x}-wght-normal.woff2`), 'fonts/source-sans-3-latin-wght-italic.woff2', 'fonts/source-sans-3-latin-ext-wght-italic.woff2',
   ...['greek', 'greek-ext', 'latin', 'latin-ext'].flatMap(s => ['400-normal', '700-normal', '400-italic'].map(w => `fonts/gentium-book-plus-${s}-${w}.woff2`))];
 

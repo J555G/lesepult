@@ -24,7 +24,8 @@ function dialog(inner, buttons = [['ok', 'OK']], defaultAction = null) {
       if (ev.key === 'Enter' && !ev.isComposing && ev.target.tagName !== 'TEXTAREA' && ev.target.tagName !== 'BUTTON') { ev.preventDefault(); if (defaultAction) finish(defaultAction); }
     };
     d.onscroll = () => { if (d.open) (S.dlgScroll ??= {})[key] = d.scrollTop; };
-    d.onclose = () => { const data = Object.fromEntries(new FormData(f)); res({ action, data }); };
+    // (the close of a dialog replaced at once by another – Library → Import – arrives late: the new one, open, ignores it)
+    d.onclose = () => { if (d.open) return; const data = Object.fromEntries(new FormData(f)); res({ action, data }); };
     // a click outside the dialog (on the dimmed background) closes it like "Close"
     const outside = e => { const r = d.getBoundingClientRect(); return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom; };
     d.onpointerdown = e => { d._down = outside(e); };
