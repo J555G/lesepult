@@ -66,23 +66,27 @@ async function mapInstalled() {
 async function mapOff() { const o = (await setting('mapOff')) || {}; delete o.base; return o; }
 async function mapsEnabled() { return true; }      // (the map can no longer be switched off as a whole)
 async function mapHas(id) { return !!(await mapInstalled())[id] && !(await mapOff())[id]; }
-async function downloadMapPkg(p, onp) {
-  const c = await caches.open(MAPCACHE); let done = 0;
+async function downloadMapPkg(p, onp, signal) {
+  const c = await caches.open(MAPCACHE), tmp = await caches.open('pult-dl-parts'); let done = 0;
   for (const f of p.files) {
     const url = new URL(MAPS + f, location.href).href, from = g => p.url ? new URL(g, p.url).href : new URL(MAPS + g, location.href).href;
-    // a large file comes in parts (f.0, f.1 …), joined here into one
+    // a large file comes in parts (f.0, f.1 …), joined here into one; each part is kept as it arrives, so that a
+    // download that was stopped or broke off goes on from the part where it stopped (tagged with the package version)
     const names = p.parts?.[f] ? Array.from({ length: p.parts[f] }, (_, k) => `${f}.${k}`) : [f], pieces = [];
     for (const g of names) {
+      const tk = from(g) + '?v=' + encodeURIComponent(p.v || '');
+      let b = names.length > 1 ? await (await tmp.match(tk))?.blob() : null;
       // (up to three tries: right after an update a file can briefly fail on the way)
-      let b = null;
       for (let k = 0; k < 3 && !b; k++) {
-        try { const r = await fetch(from(g), { cache: 'reload' }); if (!r.ok) throw new Error(g + ': ' + r.status); b = await r.blob(); }
-        catch (e) { if (k === 2) throw e; await new Promise(res => setTimeout(res, 1500 * (k + 1))); }
+        try { const r = await fetch(from(g), { cache: 'reload', signal }); if (!r.ok) throw new Error(g + ': ' + r.status); b = await r.blob(); }
+        catch (e) { if (k === 2 || e.name === 'AbortError') throw e; await new Promise(res => setTimeout(res, 1500 * (k + 1))); }
+        if (b && names.length > 1) await tmp.put(tk, new Response(b));
       }
       pieces.push(b); done += b.size; onp?.(Math.min(1, done / p.bytes));
     }
     const b = pieces.length === 1 ? pieces[0] : new Blob(pieces);
     await c.put(url, new Response(b, { headers: { 'Content-Type': f.endsWith('.js') ? 'text/javascript' : f.endsWith('.css') ? 'text/css' : f.endsWith('.json') ? 'application/json' : 'application/octet-stream' } }));
+    for (const g of names.length > 1 ? names : []) await tmp.delete(from(g) + '?v=' + encodeURIComponent(p.v || ''));
   }
   const inst = await mapInstalled(); inst[p.id] = p.v; await setting('mapPk', inst);
   // levels of detail of the same package (group): the one installed replaces the others
@@ -90,6 +94,14 @@ async function downloadMapPkg(p, onp) {
   if (p.id === 'places') { M.P = null; M.sitesFC = null; await buildPlaceIndex().catch(() => { }); await placesForText(); }
   if ((/^ancient/.test(p.id) || /\.pmtiles$/.test(p.files[0])) && M.map) { M.map.remove(); M.map = null; M.ancLab = null; }
   for (const f of p.files) M.pmb?.delete(new URL(MAPS + f, location.href).href);
+}
+// a map package in the download queue (dialogs.js): the row shows the filling button, then becomes an installed one
+async function downloadMapQueued(id, signal) {
+  const p = M.man?.packages.find(x => x.id === id); if (!p) throw new Error('not on the website');
+  const q = 'map:' + id; DL.set(q, 0); await redrawMapSection();
+  try { await downloadMapPkg(p, f => { DL.set(q, Math.min(0.98, f)); paintDL(q); }, signal); toast(p.name + ' installed'); }
+  finally { DL.delete(q); await redrawMapSection(); }
+  if (S.tab === 'map') showMap();
 }
 async function deleteMapPkg(p) {
   const c = await caches.open(MAPCACHE), inst = await mapInstalled();
@@ -118,11 +130,11 @@ async function mapSectionHTML() {
     const ps = units.get(k); if (!ps) return '';
     const cur = ps.find(p => inst[p.id]), p0 = cur || ps[0];
     const name = ps[0].name.replace(/\s*\((?:detailed|[^)]*full detail|Basic|Medium|Detailed)\)$/, '').replace(/, full detail\)$/, ')');
-    const busy = M.dlBusy?.[k];
+    const q = ps.map(p => 'map:' + p.id).find(x => DL.has(x)), busy = !!q;
     const lv = ps.length > 1 ? `<div class="seg lvl" role="group">${ps.map((p, i) => `<button type="button" data-mapget="${p.id}" class="${cur === p ? 'on' : ''}"${busy ? ' disabled' : ''} title="${cur === p ? 'Installed' : 'Download this level' + (cur ? ' (replaces the other)' : '')}">${cur === p ? '' : '⤓ '}${p.lvl || (i ? 'Detailed' : 'Standard')} <small>${mbs(p.bytes)}</small></button>`).join('')}</div>` : '';
-    const right = busy ? `<button type="button" class="dlbtn busy" disabled style="--p:${busy}%">${busy} %</button>`
-      : !cur ? (ps.length > 1 ? '' : `<button type="button" class="dlbtn" data-mapget="${p0.id}">Download</button>`)
-      : inst[cur.id] !== cur.v ? `<button type="button" class="dlbtn" data-mapget="${cur.id}">Update</button>` : '';
+    const right = busy ? dlButtonHTML(q, 'Download')
+      : !cur ? (ps.length > 1 ? '' : `<button type="button" class="dlbtn" data-get="map:${p0.id}">Download</button>`)
+      : inst[cur.id] !== cur.v ? `<button type="button" class="dlbtn" data-get="map:${cur.id}">Update</button>` : '';
     return `<div class="mpk${cur ? '' : ' avail'}" data-mk="${esc(k)}">` + pkRow({
       sw: cur && k !== 'base' ? SW(`data-mapsw="${cur.id}" aria-label="Use ${esc(name)}"`, !off[cur.id]) : '<span class="swsp"></span>',
       name: esc(name), desc: esc(p0.desc) + (ps.length > 1 ? '' : ' · ' + mbs(p0.bytes)) + (cur && off[cur.id] ? ' · <i>switched off</i>' : ''),
@@ -173,13 +185,7 @@ document.addEventListener('click', async ev => {
   const p = M.man?.packages.find(x => x.id === (g || d).dataset[g ? 'mapget' : 'mapdel']); if (!p) return;
   if (d) { await deleteMapPkg(p); const o = await mapOff(); delete o[p.id]; await setting('mapOff', o); await redrawMapSection(); toast(p.name + ' deleted'); if (S.tab === 'map') showMap(); return; }
   if (g.classList.contains('on')) return;                      // the level already installed
-  const k = p.group || p.id; (M.dlBusy ??= {})[k] = 0; await redrawMapSection();
-  try {
-    await downloadMapPkg(p, f => { M.dlBusy[k] = Math.round(f * 100); const b = $(`#dlg .mpk[data-mk="${k}"] .dlbtn.busy`); if (b) { b.style.setProperty('--p', M.dlBusy[k] + '%'); b.textContent = M.dlBusy[k] + ' %'; } });
-    toast(p.name + ' installed');
-  } catch (e) { toast('Download failed: ' + e.message, 4000); }
-  delete M.dlBusy[k]; await redrawMapSection();
-  if (S.tab === 'map') showMap();
+  queueDownload('map:' + p.id); redrawMapSection();
 });
 
 // ---------------------------------------------------------------- keys for matching names

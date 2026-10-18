@@ -145,13 +145,13 @@ async function cleanStorage() {
 // Frisk and Bailly may not be published: they live in a PRIVATE GitHub repository, read with a personal
 // access token that is stored only on this device (☰ → Instruments → Private dictionaries).
 async function privCfg() { return (await setting('privRepo')) || { repo: '', token: '' }; }
-async function privFetch(cfg, path) {
+async function privFetch(cfg, path, signal) {
   const r = await fetch(`https://api.github.com/repos/${cfg.repo}/contents/${path}`, {
-    cache: 'no-store', headers: { Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github.raw', 'X-GitHub-Api-Version': '2022-11-28' } });
+    signal, cache: 'no-store', headers: { Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github.raw', 'X-GitHub-Api-Version': '2022-11-28' } });
   if (!r.ok) throw new Error(r.status === 401 ? 'the token is not valid (any more)' : r.status === 404 ? 'repository not found, or the token has no access to it' : 'HTTP ' + r.status);
   return r;
 }
-function pkgFetch(p) { return p.priv ? privFetch(p.priv, p.file) : fetch('packages/' + p.file, { cache: 'no-cache' }); }
+function pkgFetch(p, signal) { return p.priv ? privFetch(p.priv, p.file, signal) : fetch('packages/' + p.file, { cache: 'no-cache', signal }); }
 async function fetchManifest() {
   let man;
   try { man = await (await fetchT('packages/packages.json', { cache: 'no-cache' })).json(); } catch (_) { return null; }
@@ -161,6 +161,7 @@ async function fetchManifest() {
     try { const pm = await (await privFetch(cfg, 'packages.json')).json(); for (const p of pm.packages) man.packages.push(Object.assign(p, { priv: cfg })); }
     catch (e) { S.privErr = e.message; }
   }
+  S.manifest = man;
   return man;
 }
 // ---- shared parts of the two big dialogs (Instruments, Settings): a switch, a sticky title, a package row
@@ -253,7 +254,7 @@ document.addEventListener('pointerdown', ev => { if (!ev.target.closest?.('#dlg 
 document.addEventListener('click', ev => { const b = ev.target.closest?.('#dlg [data-pkmore]'); if (!b) return; const m = b.closest('.pkrow').querySelector('.pkmore'); m.hidden = !m.hidden; b.classList.toggle('on', !m.hidden); });
 
 async function dictsDialog() {
-  await loadDicts();
+  await loadDicts(); setTimeout(netCheck, 0);
   const man = await fetchManifest();
   const privCfgNow = await privCfg();
   const remote = Object.fromEntries((man?.packages || []).map(p => [p.id, p]));
@@ -475,61 +476,129 @@ async function posDialog() {
 }
 function defaultPosCfg() { return Object.fromEntries(POS.map(([id, , c]) => [id, { on: true, c }])); }
 // free dictionaries (Pape, LSJ, morphology) are published next to the app: packages/packages.json
-// ---- downloads inside the Dictionaries dialog: the button fills with colour as the download progresses.
-// Several can be started; they run one after the other, so the iPad is not overloaded.
+// ---------------------------------------------------------------- downloads (dictionaries, texts, maps): one queue, one button
+// The button fills from the bottom like a vessel while its download runs; "Waiting" while queued, "Installing" at the end.
+// A tap on a running or waiting download asks, in a line beneath its row, whether to stop it. A failed download shows ↻
+// (tap: again) and the reason. Before each download: is the website reachable, is there room on the device.
+// Ids: a dictionary package by its id, "work:<id>" a text of the library, "map:<id>" a map package.
 const DL = new Map();          // id -> progress 0..1 (or -1 = waiting)
+const DLX = new Map();         // id -> { ctl: AbortController, err: reason of a failure, bytes }
 let dlRunning = false;
+const dlName = id => id.startsWith('work:') ? (S.catWork?.[id.slice(5)]?.title || id.slice(5)) : id.startsWith('map:') ? (M.man?.packages.find(p => p.id === id.slice(4))?.name || id.slice(4))
+  : (S.manifest?.packages?.find(p => p.id === id)?.name || id);
 function dlButtonHTML(id, label) {
   const p = DL.get(id); const pct = p < 0 ? 0 : Math.round(p * 100);
-  return `<button type="button" class="dlbtn busy" data-dl="${id}" style="--p:${pct}%" disabled>${p < 0 ? 'Waiting…' : p >= 0.9 ? 'Installing…' : pct + ' %'}</button>`;
+  return `<button type="button" class="dlbtn busy${p < 0 ? ' wait' : p >= 0.9 ? ' inst' : ''}" data-dl="${id}" data-lbl="${esc(label || 'Download')}" style="--p:${pct}%" title="Tap to stop">${p < 0 ? 'Waiting' : p >= 0.9 ? 'Installing' : pct + ' %'}</button>`;
 }
+// every button of this download, wherever it is shown: its state
 function paintDL(id, text) {
   for (const b of document.querySelectorAll(`#dlg [data-get="${id}"], #dlg [data-dl="${id}"]`)) {
-    const p = DL.get(id);
-    b.removeAttribute('data-get'); b.dataset.dl = id; b.disabled = true; b.classList.add('busy');
-    b.style.setProperty('--p', Math.round(Math.max(0, p ?? 1) * 100) + '%');
-    b.textContent = text || (p < 0 ? 'Waiting…' : p >= 0.9 ? 'Installing…' : Math.round(p * 100) + ' %');
+    const p = DL.get(id), x = DLX.get(id), icon = b.classList.contains('lmdl');
+    if (b.dataset.lbl == null) b.dataset.lbl = icon ? b.innerHTML : b.textContent;
+    b.classList.remove('busy', 'wait', 'inst', 'fail'); b.disabled = false;
+    if (DL.has(id)) {
+      b.removeAttribute('data-get'); b.dataset.dl = id; b.classList.add('dlbtn', 'busy'); if (p < 0) b.classList.add('wait'); else if (p >= 0.9) b.classList.add('inst');
+      b.style.setProperty('--p', Math.round(Math.max(0, p) * 100) + '%');
+      const t = p < 0 ? 'Waiting' : p >= 0.9 ? 'Installing' : Math.round(p * 100) + ' %';
+      if (icon) b.title = t + ' – tap to stop'; else { b.textContent = t; b.title = 'Tap to stop'; }
+    } else {
+      b.removeAttribute('data-dl'); b.dataset.get = id; b.style.removeProperty('--p');
+      if (x?.err) { b.classList.add('fail'); b.title = x.err + ' – tap to try again'; if (icon) b.innerHTML = '↻'; else b.textContent = '↻ ' + (text || 'Try again'); }
+      else if (text) { b.textContent = text; if (text === 'Up to date') b.disabled = true; }
+      else { if (icon) b.innerHTML = b.dataset.lbl; else b.textContent = b.dataset.lbl; b.title = ''; }
+    }
   }
+  if (!DL.has(id)) document.querySelectorAll(`#dlg .dlask[data-for="${CSS.escape(id)}"]`).forEach(x => x.remove());
 }
 function queueDownload(id) {
   if (DL.has(id)) return;
   navigator.storage?.persist?.().catch(() => { });
-  DL.set(id, -1); paintDL(id); runDownloads();
+  DLX.delete(id); DL.set(id, -1); paintDL(id); runDownloads();
 }
+// stopping: asked in a line beneath the row of the button (the download goes on meanwhile)
+function dlAsk(b) {
+  const id = b.dataset.dl, row = b.closest('.lrow,.pkrow,.lwact,.lwmenu,.item') || b.parentElement;
+  document.querySelectorAll('#dlg .dlask').forEach(x => x.remove());
+  row.insertAdjacentHTML('afterend', `<div class="dlask" data-for="${esc(id)}"><span>Stop downloading ${esc(dlName(id))}?</span><button type="button" class="danger" data-dlstop="${esc(id)}">Stop</button><button type="button" data-dlgo="1">Continue</button></div>`);
+}
+function dlStop(id) {
+  if (DL.get(id) < 0) { DL.delete(id); paintDL(id); return; }
+  DLX.get(id)?.ctl?.abort();
+}
+document.addEventListener('click', ev => {
+  const busy = ev.target.closest?.('#dlg [data-dl]'); if (busy) { ev.preventDefault(); ev.stopPropagation(); return dlAsk(busy); }
+  const st = ev.target.closest?.('#dlg [data-dlstop]'); if (st) { ev.stopPropagation(); st.closest('.dlask').remove(); return dlStop(st.dataset.dlstop); }
+  const go = ev.target.closest?.('#dlg .dlask [data-dlgo]'); if (go) { ev.stopPropagation(); go.closest('.dlask').remove(); }
+}, true);
+// is the website reachable? (a small request past every cache, at most 3.5 s): when the Library or Instruments open,
+// before each download, when the network changes, after a failure. Offline: downloads faint; back online: as before.
+async function netCheck() {
+  let ok = false;
+  try { const r = await fetchT('texts/catalog.json', { method: 'HEAD', cache: 'no-store' }, 3500); ok = r.ok; } catch (_) { ok = false; }
+  const was = S.net; S.net = ok; if (!ok) S.catOnline = false; else if (S.catOnline === false) S.catOnline = null;
+  document.body.classList.toggle('netoff', !ok);
+  // Instruments: a line beneath the title while offline
+  const h = $('#dlgForm .dlghead[data-menu="inst"]'), l = $('#dlgForm .netline');
+  if (h && !ok && !l) h.insertAdjacentHTML('afterend', '<p class="lmoff netline">Offline · downloads need a connection</p>');
+  if (ok && l) l.remove();
+  // the Library: the catalogue fetched again when it is not from this session or older than a day; the rows follow
+  if (ok && (S.catOnline !== true || Date.now() - (S.catAt || 0) > 864e5) && typeof fetchCatalog === 'function') fetchCatalog().then(() => { if ($('#libBody')) lmRender(); });
+  else if (was !== ok && $('#libBody')) lmRender();
+  return ok;
+}
+addEventListener('online', () => netCheck()); addEventListener('offline', () => netCheck());
+// room on the device for a download of this size (with a margin)
+async function dlRoom(bytes) {
+  try { const e = await navigator.storage?.estimate?.(); if (!e?.quota || !bytes) return null; const free = e.quota - e.usage; return free < bytes * 1.3 ? `Not enough storage – needs ${mbs(bytes)}, about ${mbs(Math.max(0, free))} free` : null; } catch (_) { return null; }
+}
+const dlBytes = id => id.startsWith('work:') ? S.catWork?.[id.slice(5)]?.bytes : id.startsWith('map:') ? M.man?.packages.find(p => p.id === id.slice(4))?.bytes : S.manifest?.packages?.find(p => p.id === id)?.bytes;
 async function runDownloads() {
   if (dlRunning) return; dlRunning = true;
-  let man = null, dicts = false;
+  let dicts = false;
   for (;;) {
     const id = [...DL.keys()].find(k => DL.get(k) < 0); if (!id) break;
-    if (id.startsWith('work:')) { await downloadWork(id); continue; }
-    dicts = true;
-    if (!man) man = await fetchManifest();
-    if (!man) { for (const k of [...DL.keys()]) if (!k.startsWith('work:')) { DL.delete(k); paintDL(k, 'Failed'); } toast('Could not reach the website – are you online?'); continue; }
-    const p = man.packages.find(x => x.id === id);
+    const ctl = new AbortController(); DLX.set(id, { ctl });
     try {
-      DL.set(id, 0); paintDL(id);
-      const r = await pkgFetch(p);
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const reader = r.body.getReader(); const parts = []; let got = 0;
-      for (;;) { const { done: fin, value } = await reader.read(); if (fin) break; parts.push(value); got += value.length; DL.set(id, 0.9 * got / p.bytes); paintDL(id); }
-      DL.set(id, 0.9); paintDL(id);
-      await importPackage(new File(parts, p.file), x => { DL.set(id, 0.9 + 0.1 * x); paintDL(id); }, p.version);
-      DL.delete(id); paintDL(id, 'Up to date');
-      document.querySelectorAll(`#dlg [data-dl="${id}"]`).forEach(b => { b.classList.remove('busy'); b.style.removeProperty('--p'); });
-      toast(`${p.name} installed`);
-      await loadDicts(); bucketCache.clear();
-      // the open Instruments menu: the row becomes an installed one where it is, the summaries follow (no redraw of the menu)
-      if ($('#dlg').open && $('#dlgForm .dlghead[data-menu="inst"]') && S.instRow) {
-        const html = S.instRow(id);
-        document.querySelectorAll(`#dlg [data-dl="${id}"]`).forEach(b => { const row = b.closest('.pkrow'); if (row && html) row.outerHTML = html; });
-        S.instAfterDel?.();
-      }
-    } catch (e) { DL.delete(id); toast(`${p?.name || id}: download failed (${e.message})`, 4000); paintDL(id, 'Failed'); }
-    await loadDicts(); bucketCache.clear();
+      if (!(await netCheck())) throw new Error('No connection');
+      if (id.startsWith('map:') && !M.man) M.man = await mapManifest();
+      if (!id.startsWith('work:') && !id.startsWith('map:') && !S.manifest) S.manifest = await fetchManifest();
+      const room = await dlRoom(dlBytes(id)); if (room) throw new Error(room);
+      if (id.startsWith('work:')) await downloadWork(id, ctl.signal);
+      else if (id.startsWith('map:')) await downloadMapQueued(id.slice(4), ctl.signal);
+      else { dicts = true; await downloadDictPkg(id, ctl.signal); }
+      DLX.delete(id);
+    } catch (e) {
+      DL.delete(id);
+      if (e.name === 'AbortError') { DLX.delete(id); toast(`${dlName(id)}: stopped`); }
+      else { DLX.set(id, { err: e.message }); toast(`${dlName(id)}: download failed (${e.message})`, 4000); netCheck(); }
+      paintDL(id);
+      if ($('#libBody')) lmRender();
+    }
   }
   dlRunning = false;
-  if (!dicts) return;
-  if (S.view) renderView(); resetTokens(); resolveTokens();
+  if (dicts) { await loadDicts(); bucketCache.clear(); if (S.view) renderView(); resetTokens(); resolveTokens(); }
+}
+async function downloadDictPkg(id, signal) {
+  const man = S.manifest = S.manifest || await fetchManifest();
+  if (!man) throw new Error('No connection');
+  const p = man.packages.find(x => x.id === id); if (!p) throw new Error('not on the website');
+  DL.set(id, 0); paintDL(id);
+  const r = await pkgFetch(p, signal);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const reader = r.body.getReader(); const parts = []; let got = 0;
+  for (;;) { const { done: fin, value } = await reader.read(); if (fin) break; parts.push(value); got += value.length; DL.set(id, 0.9 * got / p.bytes); paintDL(id); }
+  DL.set(id, 0.9); paintDL(id);
+  await importPackage(new File(parts, p.file), x => { DL.set(id, 0.9 + 0.1 * x); paintDL(id); }, p.version);
+  DL.delete(id); paintDL(id, 'Up to date');
+  document.querySelectorAll(`#dlg [data-get="${id}"]`).forEach(b => { b.classList.remove('busy'); b.style.removeProperty('--p'); });
+  toast(`${p.name} installed`);
+  await loadDicts(); bucketCache.clear();
+  // the open Instruments menu: the row becomes an installed one where it is, the summaries follow (no redraw of the menu)
+  if ($('#dlg').open && $('#dlgForm .dlghead[data-menu="inst"]') && S.instRow) {
+    const html = S.instRow(id);
+    document.querySelectorAll(`#dlg [data-get="${id}"]`).forEach(b => { const row = b.closest('.pkrow'); if (row && html) row.outerHTML = html; });
+    S.instAfterDel?.();
+  }
 }
 // ids: download exactly these packages; without ids: everything that is new or changed (first start)
 async function syncPackages(ids = null) {

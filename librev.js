@@ -296,7 +296,7 @@ function wireRevisions() {
   document.addEventListener('click', async ev => {
     const b = ev.target.closest?.('#libBody button'); if (!b) return;
     const d = b.dataset, key = S.lmPage;
-    if (d.revshow) { S.revDone = null; return revOpen(d.revshow); }
+    if (d.revshow) { S.revDone = null; S.lwMenu = null; return revOpen(d.revshow); }
     if (d.revflags) { S.lmRev = 'flags'; await lmRender(false); $('#dlg').scrollTop = 0; return; }
     if (d.revclose) { S.lmRev = null; S.revDone = null; await revFlagsLoad(); return lmRender(false); }
     if (d.revok) { b.disabled = true; b.textContent = 'Accepting …'; await revAccept(key); await revFlagsLoad(); return lmRender(false); }

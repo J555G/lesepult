@@ -32,7 +32,7 @@ async function libPrep() {
   S.libInst = Object.fromEntries(inst.map(w => [w.id, w]));
   S.impWorks = (await getAll('texts')).map(impWork);
   await lmTraces(); await revPrevLoad(); await revFlagsLoad();
-  if (!S.catOnline) fetchCatalog().then(() => { if ($('#libBody')) lmRender(); }).catch(() => { });
+  netCheck();                                                   // reachable? the rows follow when the answer comes
 }
 // your traces in the works: glosses (counted), markers, words whose analysis you chose
 async function lmTraces() {
@@ -77,7 +77,7 @@ async function libMenu(page) {
 async function lmGo(page) {
   const d = $('#dlg');
   if (!S.lmPage) S.lmOvY = d.scrollTop;
-  S.lmPage = page; S.navOpen = new Set(); S.navShut = new Set(); S.lwAsk = null; S.lmRev = null; S.revDone = null;
+  S.lmPage = page; S.navOpen = new Set(); S.navShut = new Set(); S.lwAsk = null; S.lwMenu = null; S.lmRev = null; S.revDone = null;
   await lmRender(false);
   if (!page) d.scrollTop = S.lmOvY || 0;
   else { d.scrollTop = 0; requestAnimationFrame(() => $('#navOutline .olrow.on')?.scrollIntoView({ block: 'center' })); }
@@ -129,7 +129,7 @@ function filterIcon() {
   b.classList.toggle('active', !!filtersOn(libView())); b.classList.toggle('open', open);
   b.setAttribute('aria-expanded', open);
   const ac = $('#libActive'); if (ac) { ac.innerHTML = open ? '' : libActiveHTML(); ac.hidden = !ac.innerHTML; }
-  document.body.classList.toggle('libsheet', open);
+  if (open) ftRender();
 }
 function renderLibControls() {
   const c = $('#libCtl'); if (c) c.innerHTML = libControlsHTML();
@@ -137,27 +137,33 @@ function renderLibControls() {
   const tb = $('#libTabs'); if (tb) tb.innerHTML = lmTabsHTML();
   filterIcon();
 }
-// a work in the lists: flame · title (lighter when not on this device), Greek title, a line of details · marks and download
+// a work in the lists: flame · title (lighter when not on this device; in flat lists the author faint beside it), Greek title,
+// a line of details · on the right a slot for the download button; a marker as a ribbon hanging from the row's top edge
+// at a fixed place (it does not take room from the title)
+const RIBBON = '<i class="rib" title="Marker" aria-label="Marker"></i>';
+function lmDlBtn(dk, w, off) {
+  if (DL.has(dk)) { const p = DL.get(dk); return `<button type="button" class="lmdl busy${p < 0 ? ' wait' : p >= 0.9 ? ' inst' : ''}" data-dl="${dk}" data-lbl="${esc(DLICON)}" style="--p:${Math.round(Math.max(0, p) * 100)}%" title="Tap to stop">${DLICON}</button>`; }
+  const x = DLX.get(dk);
+  return `<button type="button" class="lmdl${x?.err ? ' fail' : ''}" data-get="${dk}" title="${x?.err ? esc(x.err) + ' – tap to try again' : 'Download' + (w.bytes ? ' (' + mb(w.bytes) + ')' : '')}" aria-label="Download"${off ? ' disabled' : ''}>${x?.err ? '↻' : DLICON}</button>`;
+}
 function lmRowHTML(w, flat = false) {
   const key = w.id, inst = !!(w.imported || S.libInst[key]), dk = 'work:' + key, cur = curKey() === key, fav = !!S.favs?.[key];
   const a = authorOf(w), off = !inst && lmOffline();
-  let right = '';
-  if (S.lmTr?.M.has(key)) right += BMARK;
-  if (!inst && (S.catalog || DL.has(dk))) right += DL.has(dk) ? dlButtonHTML(dk, 'Download') : `<button type="button" class="lmdl" data-get="${dk}" title="Download${w.bytes ? ' (' + mb(w.bytes) + ')' : ''}" aria-label="Download"${off ? ' disabled' : ''}>${DLICON}</button>`;
-  if (cur) right += '<small class="lmnow">open now</small>';
-  const info = [flat ? a.name + (a.date ? ' · ' + a.date : '') : '', workLang(w) === 'la' ? 'Latin' : '', w.imported ? 'imported' : (w.verse ? 'verse' : 'prose'),
+  const right = !inst && (S.catalog || DL.has(dk)) ? lmDlBtn(dk, w, off) : '';
+  const info = [flat && a.date ? a.date : '', workLang(w) === 'la' ? 'Latin' : '', w.imported ? 'imported' : (w.verse ? 'verse' : 'prose'),
     w.books?.length > 1 ? w.books.length + ' parts' : '', w.words ? w.words.toLocaleString('en') + ' words' : ''].filter(Boolean).join(' · ');
-  return `<div class="item lrow${inst ? '' : ' nodl'}${off ? ' off' : ''}${cur ? ' cur' : ''}" data-lw="${esc(key)}"><button type="button" class="star${fav ? ' on' : ''}" data-star="${esc(key)}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" aria-pressed="${fav}">${FLAME}</button>`
-    + `<span class="t"><span class="lt">${esc(w.title)}</span>${S.revOn && revAvail(key) ? '<sup class="rev" title="Revision available">rev.</sup>' : ''}${w.greek && w.greek !== w.title ? ` <span class="gk">${esc(w.greek)}</span>` : ''}<small>${esc(info)}</small></span><span class="lr">${right}</span></div>`;
+  return `<div class="item lrow${inst ? '' : ' nodl'}${off ? ' off' : ''}${cur ? ' cur' : ''}" data-lw="${esc(key)}">${S.lmTr?.M.has(key) ? RIBBON : ''}<button type="button" class="star${fav ? ' on' : ''}" data-star="${esc(key)}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" aria-pressed="${fav}">${FLAME}</button>`
+    + `<span class="t"><span class="lt">${esc(w.title)}</span>${S.revOn && revAvail(key) ? '<sup class="rev" title="Revision available">rev.</sup>' : ''}${flat ? ` <span class="by">${esc(a.name)}</span>` : ''}${w.greek && w.greek !== w.title ? ` <span class="gk">${esc(w.greek)}</span>` : ''}<small>${esc(info)}</small></span><span class="lr">${right}</span></div>`;
 }
-// an author: name and dates; the number of works and "download all" in columns of their own
+// an author: name; beneath it the dates, the number of works ("20" on a narrow screen) and how many are on this device;
+// "download all" on the right
 function lmAuthorHTML(a, ws, open) {
   const inst = a.works.filter(w => S.libInst[w.id] || w.imported).length;
   const todo = S.catalog && !lmOffline() ? ws.filter(w => !w.imported && !S.libInst[w.id] && !DL.has('work:' + w.id)) : [];
   const all = todo.length ? `<button type="button" class="dlall" data-all="${a.id}" title="Download ${todo.length === 1 ? 'the work' : `all ${todo.length} works`} (${mb(todo.reduce((x, w) => x + w.bytes, 0))})" aria-label="Download ${todo.length === 1 ? 'the work' : `all ${todo.length} works`}">${DLICON}</button>` : '';
-  const n = ws.length < a.works.length ? `${ws.length} of ${a.works.length}` : `${a.works.length} work${a.works.length > 1 ? 's' : ''}`;
-  const sub = [a.date ? esc(a.date) : '', inst && libView().view === 'all' ? `<span class="ok">${inst} on this device</span>` : ''].filter(Boolean).join(' · ');
-  return `<details class="auth" data-a="${a.id}"${open ? ' open' : ''}><summary><span class="t"><b>${esc(a.name)}</b>${sub ? `<small>${sub}</small>` : ''}</span><span class="wn">${n}</span><span class="dlc">${all}</span></summary><div class="works">${open ? ws.map(w => lmRowHTML(w)).join('') : ''}</div></details>`;
+  const n = ws.length < a.works.length ? `${ws.length} of ${a.works.length}<span class="wnw"> works</span>` : `${a.works.length}<span class="wnw"> work${a.works.length > 1 ? 's' : ''}</span>`;
+  const sub = [a.date ? esc(a.date) : '', `<span class="wn">${n}</span>`, inst && libView().view === 'all' ? `<span class="ok">${inst} on this device</span>` : ''].filter(Boolean).join(' · ');
+  return `<details class="auth" data-a="${a.id}"${open ? ' open' : ''}><summary><span class="t"><b>${esc(a.name)}</b><small>${sub}</small></span><span class="dlc">${all}</span></summary><div class="works">${open ? ws.map(w => lmRowHTML(w)).join('') : ''}</div></details>`;
 }
 function renderLibList() {
   const el = $('#libList'); if (!el) return;
@@ -165,8 +171,12 @@ function renderLibList() {
   if (v.view === 'scr') { el.innerHTML = scrHTML(); return; }
   S.libLimit ??= 250;
   let html = '', n = 0, nw = 0;
-  if (v.sort === 'author') {
-    const as = libAuthors().slice().sort((x, y) => v.dir * x.name.localeCompare(y.name)).map(a => [a, libFilter(a)]).filter(x => x[1].length);
+  if (v.view === 'fav') {                                          // favourites: one flat list, the author beside each title
+    const ws = sortedWorks(); nw = ws.length;
+    html = ws.map(w => lmRowHTML(w, true)).join('');
+  } else if (v.sort === 'author' || v.sort === 'adate') {
+    const byDate = (x, y) => (x.year == null) - (y.year == null) || v.dir * ((x.year ?? 0) - (y.year ?? 0)) || x.name.localeCompare(y.name);   // (undated at the end)
+    const as = libAuthors().slice().sort(v.sort === 'adate' ? byDate : (x, y) => v.dir * x.name.localeCompare(y.name)).map(a => [a, libFilter(a)]).filter(x => x[1].length);
     const few = v.view !== 'all' && as.reduce((t, x) => t + x[1].length, 0) <= 30;       // your own shelves, when short: unfolded
     for (const [a, ws] of as) {
       n++; nw += ws.length;
@@ -178,7 +188,7 @@ function renderLibList() {
       + (ws.length > S.libLimit ? `<div class="row" style="justify-content:center"><button type="button" data-more="1">Show more (${ws.length - S.libLimit} further)</button></div>` : '');
   }
   const cnt = `${nw.toLocaleString('en')} work${nw === 1 ? '' : 's'}`;
-  const c = $('#libCount'); if (c) c.textContent = nw ? cnt + (v.sort === 'author' ? ` by ${n} author${n === 1 ? '' : 's'}` : '') : '';
+  const c = $('#libCount'); if (c) c.textContent = nw ? cnt + (n ? ` by ${n} author${n === 1 ? '' : 's'}` : '') : '';
   const sh = $('#libShowN'); if (sh) sh.textContent = nw ? `Show ${cnt}` : 'No works match';
   const empty = v.view === 'fav' && !Object.keys(S.favs || {}).length ? 'No favourites yet – tap the flame next to a work.'
     : v.view === 'mine' && !Object.keys(S.libInst || {}).length && !S.impWorks?.length ? 'No works on this device yet – download them in Bibliotheca, or import a text (+).'
@@ -199,10 +209,12 @@ function scrRowHTML(key, r) {
   const W = workInfo(key); if (!W) return '';
   const a = authorOf(W), nG = S.lmTr?.G.get(key) || 0, cur = curKey() === key, inst = W.inst, fav = !!S.favs?.[key];
   const pos = posLabel(key, r), edit = S.scrEdit && r;
-  return `<div class="item lrow srow${inst ? '' : ' nodl'}${cur ? ' cur' : ''}" data-lw="${esc(key)}"><button type="button" class="star${fav ? ' on' : ''}" data-star="${esc(key)}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" aria-pressed="${fav}">${FLAME}</button>`
-    + `<span class="t"><span class="lt">${esc(W.title)}</span>${S.revOn && revAvail(key) ? '<sup class="rev" title="Revision available">rev.</sup>' : ''} <small class="sa">${esc(a.name)}</small>`
-    + (pos || r?.line ? `<span class="sp">${pos ? `<b>${esc(pos)}</b>` : ''}${r?.line ? ` <span class="gk">${esc(r.line)} …</span>` : ''}</span>` : '') + '</span>'
-    + `<span class="lr">${S.lmTr?.M.has(key) ? BMARK : ''}${nG ? `<small class="gc">${nG.toLocaleString('en')} gloss${nG === 1 ? '' : 'es'}</small>` : ''}${cur ? '<small class="lmnow">open now</small>' : ''}${edit ? `<button type="button" class="scrm" data-scrm="${esc(key)}" aria-label="Remove from Scriptorium" title="Remove from Scriptorium (the work stays)">✕</button>` : ''}</span></div>`;
+  // "1.171 ἀπολείποντες βιαζόμενοι … · 12 glosses" – on a narrow screen the count as a small raised figure
+  const gl = nG ? `<span class="gc"> · ${nG.toLocaleString('en')} gloss${nG === 1 ? '' : 'es'}</span><sup class="gcs" title="${nG} gloss${nG === 1 ? '' : 'es'}">${nG.toLocaleString('en')}</sup>` : '';
+  return `<div class="item lrow srow${inst ? '' : ' nodl'}${cur ? ' cur' : ''}" data-lw="${esc(key)}">${S.lmTr?.M.has(key) ? RIBBON : ''}<button type="button" class="star${fav ? ' on' : ''}" data-star="${esc(key)}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" aria-pressed="${fav}">${FLAME}</button>`
+    + `<span class="t"><span class="lt">${esc(W.title)}</span>${S.revOn && revAvail(key) ? '<sup class="rev" title="Revision available">rev.</sup>' : ''} <span class="by">${esc(a.name)}</span>`
+    + (pos || r?.line || nG ? `<span class="sp">${pos ? `<b>${esc(pos)}</b>` : ''}${r?.line ? `<span class="gk">${esc(r.line)} …</span>` : '<span class="gk"></span>'}${gl}</span>` : '') + '</span>'
+    + `<span class="lr">${edit ? `<button type="button" class="scrm" data-scrm="${esc(key)}" aria-label="Remove from Scriptorium" title="Remove from Scriptorium (the work stays)">✕</button>` : ''}</span></div>`;
 }
 function scrLists() {
   const q = fold(S.libQ), ok = key => { const W = workInfo(key); return W && workPasses(W, q); };
@@ -249,22 +261,33 @@ async function lmWorkHTML(key) {
   if (S.lmRev) return revPageHTML(key);                              // Library › Work › Revision (librev.js)
   const a = authorOf(W), cur = curKey() === key, fav = !!S.favs?.[key], dk = 'work:' + key, off = lmOffline();
   const F = navFindFor(key), r = (S.recent || []).find(x => x.key === key);
-  let h = `<div class="dlghead lmhead lwhead"><h3><button type="button" class="crumb" data-lmback="1" title="Back to the Library">Library</button><span class="csep" aria-hidden="true">›</span><span class="ccur">${esc(W.title)}</span></h3>`
-    + `<button type="button" class="star lmstar${fav ? ' on' : ''}" data-star="${esc(key)}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" aria-pressed="${fav}">${FLAME}</button></div>`;
+  let h = `<div class="dlghead lmhead lwhead"><h3><button type="button" class="crumb" data-lmback="1" title="Back to the Library">Library</button><span class="csep" aria-hidden="true">›</span><span class="ccur">${esc(W.title)}</span></h3></div>`;
   if (W.inst) h += `<div class="navsearch lmfind"><input type="search" id="navFind" class="nofocus" value="${esc(F?.q || '')}" placeholder="Find in this ${W.books?.length > 1 ? 'work' : 'text'} …" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Find in this work">`
     + `<span class="seg" role="group">${[['form', 'Form'], ['lemma', 'Lemma']].map(([v, l]) => `<button type="button" data-findmode="${v}" class="${(S.findMode || 'form') === v ? 'on' : ''}" title="${v === 'form' ? 'This word form (accents ignored, * = any letters)' : 'All forms of this dictionary headword'}">${l}</button>`).join('')}</span></div>`;
-  const facts = [a.name, a.date, workLang(W) === 'la' ? 'Latin' : 'Greek', W.imported ? 'imported text' : (W.verse ? 'verse' : W.verse === false ? 'prose' : ''), W.books?.length > 1 ? W.books.length + ' parts' : '',
-    W.words ? W.words.toLocaleString('en') + ' words' : '', W.imported ? '' : W.source].filter(Boolean);
-  h += `<div class="lwinfo">${W.greek && W.greek !== W.title ? `<div class="gk lwg">${esc(W.greek)}</div>` : ''}<small>${facts.map(esc).join(' · ')}</small>${W.edition ? `<small class="lwed">${esc(W.edition)}</small>` : ''}${W.license || W.local?.license ? `<small class="lwed">${esc(W.license || W.local.license)}</small>` : ''}${W.notes ? `<small class="lwed">${esc(W.notes)}</small>` : ''}</div>`;
-  // what can be done with it
+  // one line about the work (the flame first); ⓘ unfolds the rest
+  const facts = [a.name, a.date, workLang(W) === 'la' ? 'Latin' : 'Greek', W.books?.length > 1 ? W.books.length + ' parts' : W.imported ? 'imported text' : ''].filter(Boolean);
+  const more = [[W.words ? W.words.toLocaleString('en') + ' words' : '', W.imported ? '' : (W.verse ? 'verse' : W.verse === false ? 'prose' : ''), W.imported ? '' : W.source].filter(Boolean).join(' · '),
+    W.edition, W.license || W.local?.license, W.notes].filter(Boolean);
+  h += `<div class="lwinfo"><div class="lwl"><button type="button" class="star${fav ? ' on' : ''}" data-star="${esc(key)}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" aria-pressed="${fav}">${FLAME}</button>`
+    + `<span class="lwf">${W.greek && W.greek !== W.title ? `<span class="gk">${esc(W.greek)}</span> · ` : ''}${facts.map(esc).join(' · ')}</span>`
+    + (more.length ? `<button type="button" class="lwi" data-lwi="1" aria-expanded="${!!S.lwInfo}" title="About this edition" aria-label="About this edition">i</button>` : '') + '</div>'
+    + (more.length && S.lwInfo ? `<div class="lwmore">${more.map(x => `<small>${esc(x)}</small>`).join('')}</div>` : '') + '</div>';
+  // what can be done with it: Continue reading; the rest in ⋯ (Download, Delete, the revision, Edit)
   let act = '';
   if (S.lwAsk === key) act = `<div class="lwask"><span>${W.imported ? `Delete “${esc(W.title)}” and all its glosses from this device?` : `Delete “${esc(W.title)}” from this device? Your glosses and markers are kept and come back when you download it again.`}</span><button type="button" class="danger" data-lwdelok="1">Delete</button><button type="button" data-lwdelno="1">Cancel</button></div>`;
   else {
     if (W.inst && !cur && r) act += `<button type="button" class="acc lwcont" data-lcont="${esc(key)}">Continue reading${posLabel(key, r) ? ` at <b>${esc(posLabel(key, r))}</b>` : ''}</button>`;
-    if (cur) act += '<span class="lmnow">open now</span>';
-    if (!W.inst) act += DL.has(dk) ? dlButtonHTML(dk, 'Download') : `<button type="button" class="acc lwdl" data-get="${dk}"${off ? ' disabled' : ''}>Download${W.bytes ? ` <small>${mb(W.bytes)}</small>` : ''}</button>${off ? '<small class="lwoff">offline</small>' : ''}`;
-    if (W.imported) act += `<button type="button" data-iedit="${W.tid}">Edit</button>`;
-    if (W.inst) act += `<button type="button" class="linkb danger lwdel" data-lwdel="1">${W.imported ? 'Delete' : 'Delete from device'}</button>`;
+    if (!W.inst && DL.has(dk)) act += dlButtonHTML(dk, 'Download');
+    if (!W.inst && DLX.get(dk)?.err) act += `<button type="button" class="dlbtn fail" data-get="${dk}" title="${esc(DLX.get(dk).err)}">↻ Try again</button><small class="lwoff">${esc(DLX.get(dk).err)}</small>`;
+    act += `<button type="button" class="lwm" data-lwm="1" aria-expanded="${S.lwMenu === key}" title="More" aria-label="More">⋯</button>`;
+  }
+  if (S.lwMenu === key && S.lwAsk !== key) {
+    const items = [];
+    if (!W.inst && !DL.has(dk)) items.push(`<button type="button" data-get="${dk}"${off ? ' disabled' : ''}>Download${W.bytes ? ` <small>${mb(W.bytes)}</small>` : ''}${off ? ' <small>– offline</small>' : ''}</button>`);
+    if (revAvail(key)) items.push(`<button type="button" data-revshow="${esc(key)}">See the revision</button>`);
+    if (W.imported) items.push(`<button type="button" data-iedit="${W.tid}">Edit</button>`);
+    if (W.inst) items.push(`<button type="button" class="danger" data-lwdel="1">${W.imported ? 'Delete' : 'Delete from device'}</button>`);
+    act += `<div class="lwmenu">${items.join('')}</div>`;
   }
   h += `<div class="lwact">${act}</div>`;
   if (revAvail(key)) h += `<p class="lwrev">Revision available · <button type="button" class="linkb" data-revshow="${esc(key)}">see the changes</button></p>`;
@@ -310,7 +333,8 @@ function outlineNodes(nodes, part, cr, depth, list, T) {
     const m = T ? rangeHas(T, ...nodeRange(n, list)) : {};
     h += `<div class="olrow d${Math.min(depth, 4)}${n.ref && n.ref === cr ? ' on' : ''}${onPath ? ' path' : ''}">`
       + (kids ? `<button type="button" class="olt" data-olt="${esc(key)}" aria-expanded="${!!open}" aria-label="${open ? 'Fold' : 'Unfold'}">${open ? '▾' : '▸'}</button>` : '<span class="olt"></span>')
-      + `<button type="button" class="olj" data-sec="${esc(r?.s || '')}" data-secpart="${part}"><span class="oln">${esc(n.seg)}</span><span class="olx">${esc(title)}</span><span class="olm">${marksHTML(m)}</span>${kids && !open ? `<span class="olc">${kids}</span>` : ''}</button></div>`;
+      + `<button type="button" class="olj" data-sec="${esc(r?.s || '')}" data-secpart="${part}"><span class="oln">${esc(n.seg)}</span><span class="olx">${esc(title)}</span></button>`
+      + `<button type="button" class="olrest" ${kids ? `data-olt="${esc(key)}" aria-expanded="${!!open}"` : `data-sec="${esc(r?.s || '')}" data-secpart="${part}"`} tabindex="-1" aria-hidden="true"><span class="olm">${marksHTML(m)}</span>${kids && !open ? `<span class="olc">${kids}</span>` : ''}</button></div>`;
     if (open) h += outlineNodes(n.kids, part, cr, depth + 1, list, T);
   }
   return h;
@@ -327,7 +351,8 @@ async function outlineHTML(key) {
     const k = 'part|' + bi, here = cur && bi === t.bi, open = S.navOpen.has(k) || (here && !S.navShut.has(k));
     const T = await partTraces(key, bi), m = { mk: T.mk != null, gl: T.gl.length > 0 };
     h += `<div class="olrow d0 part${here ? ' path' : ''}"><button type="button" class="olt" data-olt="${k}" aria-expanded="${open}">${open ? '▾' : '▸'}</button>`
-      + `<button type="button" class="olj" data-sec="" data-secpart="${bi}"><span class="olx">${esc(W.books[bi])}</span><span class="olm">${marksHTML(m)}</span>${here ? '<span class="olc">open now</span>' : ''}</button></div>`;
+      + `<button type="button" class="olj" data-sec="" data-secpart="${bi}"><span class="olx">${esc(W.books[bi])}</span></button>`
+      + `<button type="button" class="olrest" data-olt="${k}" aria-expanded="${open}" tabindex="-1" aria-hidden="true"><span class="olm">${marksHTML(m)}</span></button></div>`;
     if (open) { const list = await refsFor(key, bi), tree = refTree(list); h += tree.kids.length ? outlineNodes(tree.kids, bi, here ? cr : null, 1, list, T) : '<p class="hint" style="font-size:13px;margin:.2rem 0 .4rem 2.4rem">No numbered sections.</p>'; }
   }
   return h;
@@ -373,25 +398,14 @@ async function lmRunFind(q, mode) {
 
 // ---------------------------------------------------------------- what is tapped
 function wireLibrary() {
+  wireDateLine();
   const later = () => new Promise(r => setTimeout(r, 160));          // (the text has scrolled to the place: its section is known)
   document.addEventListener('input', ev => {
     if (ev.target.id === 'libSearch') { clearTimeout(wireLibrary.t); wireLibrary.t = setTimeout(() => { S.libQ = ev.target.value.trim(); S.libLimit = 250; S.lwN = 0; renderLibList(); lmWords(); }, 150); }
     if (ev.target.id === 'navFind' && !ev.target.value.trim() && S.navFind) { S.navFind = null; lmRender(); }   // the field emptied: the outline again
   });
-  // century slider: the two handles cannot cross; the list follows while dragging
-  document.addEventListener('input', ev => {
-    if (ev.target.id !== 'centFrom' && ev.target.id !== 'centTo') return;
-    const v = libView(), f = $('#centFrom'), t = $('#centTo');
-    if (+f.value > +t.value) { if (ev.target === f) f.value = t.value; else t.value = f.value; }
-    v.from = +f.value; v.to = +t.value;
-    const sl = f.closest('.cslider'), pct = y => ((y - YMIN) / (YMAX - YMIN) * 100).toFixed(2) + '%';
-    sl.style.setProperty('--a', pct(v.from)); sl.style.setProperty('--b', pct(v.to));
-    $('#centLabel').textContent = rangeLabel(v); $('#eraLab').innerHTML = eraLabelsHTML(v);
-    clearTimeout(wireLibrary.ts); wireLibrary.ts = setTimeout(() => { saveLibView(); filterIcon(); S.libLimit = 250; renderLibList(); }, 120);
-  });
   document.addEventListener('change', ev => {
-    if (ev.target.id === 'centFrom' || ev.target.id === 'centTo') renderLibControls();
-    else if (ev.target.id === 'libUndated' || ev.target.id === 'libSortSel') {
+    if (ev.target.id === 'libUndated' || ev.target.id === 'libSortSel') {
       const v = libView();
       if (ev.target.id === 'libUndated') v.undated = ev.target.checked;
       else { v.sort = ev.target.value; v.dir = SORTS.find(s => s[0] === v.sort)[2]; }
@@ -425,7 +439,6 @@ function wireLibrary() {
     if (d.limport) { $('#dlg').close(); return importDialog(null, true); }
     // the overview: tabs, filters, sorting
     if (b.id === 'libFilterBtn') { $('#libCtl').hidden = !$('#libCtl').hidden; filterIcon(); return; }
-    if (b.closest('#libCtl') && d.fdone) { $('#libCtl').hidden = true; filterIcon(); return; }
     if (d.view) {
       if (Date.now() < (S.lpUntil || 0)) return;                  // (the long press showed the hint: no switch)
       const v = libView(); v.view = d.view; S.libLimit = 250; S.scrEdit = false; saveLibView(); return lmRender(false).then(() => { $('#dlg').scrollTop = 0; });
@@ -435,9 +448,9 @@ function wireLibrary() {
       const v = libView();
       if (f) { const arr = v[f.dataset.f], x = f.dataset.val, i = arr.indexOf(x); i < 0 ? arr.push(x) : arr.splice(i, 1); }
       if (sg) v[sg.dataset.seg] = sg.dataset.val ? [sg.dataset.val] : [];
-      if (un) { const k = un.dataset.unf; if (k === 'date') Object.assign(v, { from: YMIN, to: YMAX }); else if (k === 'undated') v.undated = true; else v[k] = v[k].filter(x => x !== un.dataset.val); }
+      if (un) { const k = un.dataset.unf; if (k === 'date') v.periods.splice(+un.dataset.val, 1); else if (k === 'undated') v.undated = true; else v[k] = v[k].filter(x => x !== un.dataset.val); }
       if (dr) v.dir = -v.dir;
-      if (rs) Object.assign(v, { langs: [], src: [], form: [], from: YMIN, to: YMAX, undated: true });
+      if (rs) Object.assign(v, { langs: [], src: [], form: [], periods: [], undated: true });
       S.libLimit = 250; saveLibView(); renderLibControls(); renderLibList(); return;
     }
     if (d.more) { S.libLimit += 500; renderLibList(); return; }
@@ -458,7 +471,7 @@ function wireLibrary() {
       for (const w of libFilter(a)) if (!S.libInst[w.id] && !w.imported) DL.set('work:' + w.id, -1);
       S.libOpen.add(a.id); renderLibList(); runDownloads(); return;
     }
-    if (d.get || d.dl) return;                                       // (downloads: app.js)
+    if (d.get || d.dl) { if (b.closest('.lwmenu')) { S.lwMenu = null; setTimeout(() => lmRender(), 30); } return; }   // (downloads: app.js)
     // Scriptorium
     if (d.scredit) { S.scrEdit = !S.scrEdit; renderLibList(); return; }
     if (d.scrm) { S.recent = (S.recent || []).filter(r => r.key !== d.scrm); await setting('recent', S.recent); renderLibList(); return; }
@@ -472,7 +485,9 @@ function wireLibrary() {
     // the page of a work
     const key = S.lmPage; if (!key) return;
     if (d.lcont) { const r = (S.recent || []).find(x => x.key === key); if (r) { await openText(r.id); await later(); } else { await openText(textIdOf(key, (await setting('wk|' + key)) ?? 0)); } return lmRender(); }
-    if (d.lwdel) { S.lwAsk = key; return lmRender(); }
+    if (d.lwi) { S.lwInfo = !S.lwInfo; return lmRender(); }
+    if (d.lwm) { S.lwMenu = S.lwMenu === key ? null : key; return lmRender(); }
+    if (d.lwdel) { S.lwAsk = key; S.lwMenu = null; return lmRender(); }
     if (d.lwdelno) { S.lwAsk = null; return lmRender(); }
     if (d.lwdelok) {
       S.lwAsk = null; const W = workInfo(key);

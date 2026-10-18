@@ -1557,3 +1557,80 @@ dialog .rvg button[data-revok1]{flex:none;font-size:12px;padding:.2rem .55rem}
 dialog .rvg .rvr.linkb{text-align:left;padding:0}
 dialog details.rvann{margin:.8rem 0}
 dialog details.rvann>summary{cursor:pointer;font:600 13px var(--ui);color:var(--mut);padding:.3rem 0}
+/* ---- downloads (v214): the button fills from the bottom like a vessel; waiting, installing, failed (↻); stop asked beneath the row */
+dialog .dlbtn.busy,dialog .lmdl.busy{position:relative;overflow:hidden;opacity:1;color:var(--fg);border-color:var(--acc);background:linear-gradient(0deg,color-mix(in srgb,var(--acc) 42%,var(--card)) var(--p),var(--card) var(--p));transition:background-size .3s}
+dialog .dlbtn.wait{border-style:dashed;color:var(--mut)}
+dialog .dlbtn.inst{background:color-mix(in srgb,var(--acc) 42%,var(--card));animation:dlpulse 1.2s ease-in-out infinite}
+@keyframes dlpulse{50%{opacity:.7}}
+@media (prefers-reduced-motion:reduce){dialog .dlbtn.inst{animation:none}}
+dialog .dlbtn.fail,dialog .lmdl.fail{color:#c0392b;border-color:color-mix(in srgb,#c0392b 60%,var(--line))}
+dialog .lmdl.busy{min-width:0;width:2.1rem;height:2.1rem;padding:0;font:600 10px var(--ui)}
+dialog .lrow .lmdl.busy{color:var(--fg)}
+dialog .dlask{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem;padding:.45rem .6rem;margin:.2rem 0 .35rem;border:1px solid var(--line);border-radius:8px;font-size:13.5px}
+dialog .dlask span{flex:1 1 12rem}
+dialog .dlask button{font-size:12.5px;padding:.25rem .65rem}
+body.netoff dialog [data-get]{opacity:.45;pointer-events:none}
+/* ---- Library v214 */
+/* author rows: the number of works beneath the name ("20" on a narrow screen); no column on the right but download-all */
+dialog.lmdlg details.auth>summary .t small .wn{width:auto;text-align:left;font-size:inherit;color:inherit;flex:none}
+@media (max-width:600px){dialog.lmdlg .wnw{display:none}}
+/* work rows: the author faint beside the title (flat lists, Scriptorium); a marker as a ribbon from the top edge, always at the same place */
+dialog .lrow{position:relative}
+dialog .lrow .by{font-size:13px;color:var(--mut);font-weight:400}
+dialog .lrow .rib{position:absolute;top:-1px;right:2.75rem;z-index:1;filter:drop-shadow(0 0 1px var(--card)) drop-shadow(0 0 1px var(--card));pointer-events:none}
+dialog .lrow .rib::after{content:"";display:block;width:8px;height:13px;background:var(--acc);clip-path:polygon(0 0,100% 0,100% 100%,50% 70%,0 100%)}
+dialog .lrow .lr{min-width:2.1rem;justify-content:flex-end}
+dialog .lrow .lmdl.fail{font-size:16px;line-height:1}
+/* Scriptorium: "1.171 ἀπολείποντες … · 12 glosses" in the colour of glosses; narrow: the count raised */
+dialog .srow .sp{display:flex;align-items:baseline;gap:.3rem;white-space:nowrap}
+dialog .srow .sp b{flex:none}
+dialog .srow .sp .gk{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+dialog .srow .sp .gc{flex:none;color:var(--gloss);font-size:12.5px}
+dialog .srow .sp .gcs{display:none;flex:none;color:var(--gloss);font:600 10px var(--ui);align-self:flex-start}
+@media (max-width:600px){dialog .srow .sp .gc{display:none}dialog .srow .sp .gcs{display:inline}}
+/* filters: no heading or buttons; ↺ resets; the panel pushes the list down (also on a phone); the date line */
+dialog.lmdlg .libctl{position:relative}
+dialog.lmdlg .libctl:not([hidden]){position:relative;inset:auto;z-index:auto;margin:.55rem 0 .2rem;border:1px solid var(--line);border-radius:10px;background:var(--card);overflow:visible;display:block;padding:.6rem .7rem .4rem}
+dialog .ftreset{position:absolute;top:.4rem;right:.45rem;width:30px;height:26px;padding:0;font-size:15px;line-height:1;color:var(--mut)}
+dialog .ftreset:disabled{opacity:.3}
+dialog.lmdlg .fgrid{margin-right:2.2rem}
+dialog .ftl{margin:.25rem 0 0;user-select:none;-webkit-user-select:none}
+dialog .fteras{position:relative;height:16px;margin:0 6px}
+dialog .fteras span{position:absolute;top:0;font:11px/16px var(--ui);color:var(--mut);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 2px}
+dialog .fteras b{position:absolute;top:3px;width:1px;height:12px;background:var(--line)}
+dialog .fttrack{position:relative;height:34px;margin:0 6px;touch-action:none;cursor:pointer}
+dialog .fttrack::before{content:"";position:absolute;left:0;right:0;top:9px;height:3px;border-radius:2px;background:var(--line)}
+dialog .ftaxis i{position:absolute;top:6px;width:1px;height:9px;background:var(--mut);opacity:.6}
+dialog .ftaxis i span{position:absolute;top:10px;left:50%;transform:translateX(-50%);font:10px var(--ui);color:var(--mut);white-space:nowrap}
+dialog .ftaxis i.l span{left:0;transform:none}dialog .ftaxis i.r span{left:auto;right:0;transform:none}
+dialog .ftr{position:absolute;top:7px;height:7px;border-radius:4px;background:var(--acc);opacity:.55}
+dialog .ftr.pt{width:0!important}
+dialog .fth{position:absolute;top:2px;width:16px;height:16px;margin-left:-8px;border-radius:50%;background:var(--acc);border:2px solid var(--card);box-sizing:border-box;box-shadow:0 1px 3px rgba(0,0,0,.35);cursor:ew-resize}
+dialog .fdate .crange small{font-weight:400;color:var(--mut)}
+@media (max-width:600px){dialog.lmdlg .fgrid{margin-right:2rem}}
+/* work page: one line (flame first, ⓘ unfolds the rest); Continue reading, and ⋯ with Download / Delete / revision / Edit */
+dialog .lwinfo .lwl{display:flex;align-items:center;gap:.35rem;min-width:0}
+dialog .lwinfo .lwl .star{flex:none;background:none;border:0;padding:.15rem .25rem .15rem 0;line-height:0;color:var(--mut)}
+dialog .lwinfo .lwl .star.on{color:#e0702a}dialog .lwinfo .lwl .star.on .flame .fo{fill:#f0a030}dialog .lwinfo .lwl .star.on .flame .fi{fill:#ffd36a}
+dialog .lwinfo .lwf{flex:0 1 auto;min-width:0;font-size:12.5px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+dialog .lwinfo .lwf .gk{font-size:15px;color:var(--fg)}
+dialog .lwi{flex:none;width:1.25rem;height:1.25rem;padding:0;border-radius:50%;font:italic 600 11px/1 var(--greek);color:var(--mut);display:grid;place-items:center}
+dialog .lwi[aria-expanded="true"]{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+dialog .lwmore{display:flex;flex-direction:column;gap:.1rem;margin:.3rem 0 0 1.6rem}
+dialog .lwmore small{font-size:11.5px;color:var(--mut);line-height:1.4}
+dialog .lwact .lwm{margin-left:auto;font:700 16px/1 var(--ui);letter-spacing:.08em;padding:.25rem .55rem;color:var(--mut);background:none;border-color:transparent}
+dialog .lwact .lwm[aria-expanded="true"]{border-color:var(--line);color:var(--fg)}
+dialog .lwmenu{flex-basis:100%;display:flex;flex-direction:column;align-items:stretch;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+dialog .lwmenu button{border:0;border-bottom:1px solid var(--line);border-radius:0;text-align:left;padding:.5rem .7rem;font-size:14px;background:var(--card)}
+dialog .lwmenu button:last-child{border-bottom:0}
+dialog .lwmenu button small{color:var(--mut);font-size:12px;margin-left:.3rem}
+dialog .lwmenu button.danger{color:#c0392b}
+/* outline: number and text open the section; the rest of the row unfolds it */
+dialog .olrow .olj{flex:0 1 auto;min-width:0}
+dialog .olrow .olrest{flex:1 1 1.5rem;min-width:1.5rem;display:flex;align-items:center;justify-content:flex-end;gap:.45rem;border:0;background:none;border-radius:0;padding:0 .4rem;cursor:pointer}
+@media (hover:hover){dialog .olrow .olj:hover .olx{text-decoration:underline;text-underline-offset:3px;text-decoration-color:color-mix(in srgb,currentColor 45%,transparent)}}
+dialog .olrow.on{background:var(--acc);border-radius:6px}
+dialog .olrow.on>.olj{background:none}
+dialog .olrow.on>.olrest,dialog .olrow.on>.olrest .olm,dialog .olrow.on>.olrest .olc,dialog .olrow.on>.olt{color:var(--bg)}
+@media (max-width:430px){dialog .lmtabs [data-view]{padding:.45rem .3rem .4rem;font-size:13px}dialog .lmtabs [data-view] .tn small{display:none}dialog .lmtabs .lmimp{padding:.15rem .4rem}}
+dialog .dlask span{flex:1 1 100%}

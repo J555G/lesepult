@@ -70,7 +70,7 @@ function indexCatalog() {
 const fold = s => String(s || '').normalize('NFD').replace(/[̀-ͯͅ]/g, '').replace(/ς/g, 'σ').toLowerCase();
 const mb = b => b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' kB';
 // ---- Library view: filters (highlighted when on) and sorting (arrow shows the direction)
-const SORTS = [['author', 'Author', 1], ['title', 'Title', 1], ['date', 'Date', 1], ['recent', 'Recently opened', -1]];
+const SORTS = [['author', 'Author A–Z', 1], ['adate', 'Author by date', 1], ['title', 'Title', 1]];
 // century slider: from the start of the 8th c. BC to the end of the 15th c. AD (years; 0 = start of the 1st c. AD)
 const YMIN = -800, YMAX = 1500;
 const ERAS = [['Archaic', -800, -500], ['Classical', -500, -323], ['Hellenistic', -323, -31], ['Imperial', -31, 300], ['Late Antique', 300, 600], ['Byzantine', 600, 1500]];
@@ -80,18 +80,17 @@ function libView() {
   S.lib ??= {};
   if (S.lib.mine || S.lib.fav) S.lib.view ??= S.lib.mine ? 'mine' : 'fav';         // older settings: these were filters
   delete S.lib.mine; delete S.lib.fav;
-  S.lib = Object.assign({ view: 'all', langs: [], src: [], form: [], from: YMIN, to: YMAX, undated: true, sort: 'author', dir: 1 }, S.lib);
+  S.lib = Object.assign({ view: 'all', langs: [], src: [], form: [], periods: [], undated: true, sort: 'author', dir: 1 }, S.lib);
+  if (!SORTS.some(x => x[0] === S.lib.sort)) S.lib.sort = S.lib.sort === 'date' ? 'adate' : 'author';      // (sorts of before v214)
+  if (S.lib.from != null || S.lib.to != null) {                                                      // the century slider of before v214: one period
+    if ((S.lib.from ?? YMIN) > YMIN || (S.lib.to ?? YMAX) < YMAX) S.lib.periods = [[S.lib.from ?? YMIN, S.lib.to ?? YMAX]];
+    delete S.lib.from; delete S.lib.to;
+  }
   return S.lib;
 }
 const workLang = w => (w.lang === 'lat' || w.lang === 'la') ? 'la' : 'grc';
 // the tabs (all / favourites / on this device) are views, not filters
-const filtersOn = v => v.langs.length || v.src.length || v.form.length || v.from > YMIN || v.to < YMAX || !v.undated;
-function centLabel(y, end) {           // year at a century boundary -> "5th c. BC"
-  const ord = n => n + ((n % 100 >= 11 && n % 100 <= 13) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' })[n % 10] || 'th');
-  const c = end ? (y <= 0 ? -y / 100 + 1 : y / 100) : (y < 0 ? -y / 100 : y / 100 + 1);
-  return y < 0 || (end && y === 0) ? `${ord(Math.round(c))} c. BC` : `${ord(Math.round(c))} c. AD`;
-}
-const rangeLabel = v => `${centLabel(v.from)} – ${centLabel(v.to, true)}`;
+const filtersOn = v => v.langs.length || v.src.length || v.form.length || v.periods.length || !v.undated;
 function saveLibView() { setting('libView', S.lib); }
 const authorOf = w => S.catAuthor?.[w.id] || { name: w.author || 'Unknown author', id: w.authorId, period: null, year: w.year ?? null, date: w.date || '' };
 // imported texts as works of the library (source "Imported")
@@ -108,7 +107,7 @@ function workPasses(w, q) {
   if (v.src.length && !v.src.includes(w.source)) return false;
   if (v.form.length && w.verse != null && !v.form.includes(w.verse ? 'verse' : 'prose')) return false;
   if (a.year == null) { if (!v.undated) return false; }
-  else if (a.year < v.from || a.year > v.to) return false;
+  else if (v.periods.length && !v.periods.some(([x, y]) => a.year >= x - (x === y ? 25 : 0) && a.year <= y + (x === y ? 25 : 0))) return false;   // (a single year: ± 25)
   if (q && !fold(a.name).includes(q) && !fold(w.title + ' ' + (w.greek || '') + ' ' + w.id).includes(q)) return false;
   return true;
 }
@@ -142,32 +141,57 @@ function libSources() {
 }
 const yPct = y => ((y - YMIN) / (YMAX - YMIN) * 100);
 const eraOf = y => (ERAS.find(([, a, b]) => y >= a && y < b) || ERAS[ERAS.length - 1])[0];
-// the era names sit under the knobs (one combined name when the knobs are close together)
-function eraLabelsHTML(v) {
-  const a = yPct(v.from), b = yPct(v.to), ea = eraOf(v.from), eb = eraOf(Math.max(v.from, v.to - 1));
-  const at = (p, t) => `<span style="left:${p.toFixed(2)}%;transform:translateX(-${p.toFixed(2)}%)">${esc(t)}</span>`;
-  if (ea === eb) return at((a + b) / 2, ea);
-  if (b - a < 30) return at((a + b) / 2, `${ea} – ${eb}`);
-  return at(a, ea) + at(b, eb);
+// ---- the filters: language, source, form, and the date as a time line like the map's: it scrolls and zooms, in steps of
+// ten years, the eras named above it; several periods at once (a tap on the line adds one, holding a period splits it,
+// pulling two ends together joins them)
+const FT_STEP = 10, FT_MAX = 6;
+const ftView = () => S.ftView ??= [YMIN, YMAX];
+const ftPct = y => { const [a, b] = ftView(); return (y - a) / (b - a) * 100; };
+const ftSnap = y => Math.max(YMIN, Math.min(YMAX, Math.round(y / FT_STEP) * FT_STEP));
+function ftLabel([a, b]) {
+  const bc = y => y < 0 ? -y : y;
+  if (a === b) return `c. ${a < 0 ? -a + ' BC' : 'AD ' + a}`;
+  return a < 0 && b <= 0 ? `${bc(a)}–${bc(b)} BC` : a >= 0 ? `AD ${a}–${b}` : `${bc(a)} BC – AD ${b}`;
+}
+function ftAxisHTML() {
+  const [a, b] = ftView(), span = b - a, W = $('#libTrack')?.clientWidth || 300;
+  const step = [10, 20, 25, 50, 100, 200, 250, 500].find(s => span / s <= W / 46) || 1000;
+  let h = '';
+  for (let y = Math.ceil(a / step) * step; y <= b; y += step) { const pc = ftPct(y); h += `<i${pc < 6 ? ' class="l"' : pc > 94 ? ' class="r"' : ''} style="left:${pc.toFixed(2)}%"><span>${y === 0 ? 'BC | AD' : Math.abs(y)}</span></i>`; }
+  return h;
+}
+function ftErasHTML() {
+  const [a, b] = ftView(); let h = '';
+  for (const [n, x, y] of ERAS) {
+    const lo = Math.max(a, x), hi = Math.min(b, y); if (hi <= lo) continue;
+    const w = (hi - lo) / (b - a) * 100; if (w < 7) continue;
+    h += `<span style="left:${ftPct(lo).toFixed(2)}%;width:${w.toFixed(2)}%">${esc(n)}</span>`;
+  }
+  return h + ERAS.slice(1).map(([, x]) => x > a && x < b ? `<b style="left:${ftPct(x).toFixed(2)}%"></b>` : '').join('');
+}
+function ftRangesHTML() {
+  return libView().periods.map(([a, b], k) => `<div class="ftr${a === b ? ' pt' : ''}" style="left:${ftPct(a).toFixed(2)}%;width:${Math.max(0, ftPct(b) - ftPct(a)).toFixed(2)}%"></div>`
+    + `<div class="fth" data-k="${k}" data-e="0" style="left:${ftPct(a).toFixed(2)}%"></div>` + (a !== b ? `<div class="fth" data-k="${k}" data-e="1" style="left:${ftPct(b).toFixed(2)}%"></div>` : '')).join('');
+}
+function ftRender() {
+  const v = libView();
+  const ax = $('#libAxis'); if (ax) ax.innerHTML = ftAxisHTML();
+  const er = $('#libEras'); if (er) er.innerHTML = ftErasHTML();
+  const rg = $('#libRanges'); if (rg) rg.innerHTML = ftRangesHTML();
+  const lb = $('#libDates'); if (lb) lb.innerHTML = v.periods.length ? v.periods.map(ftLabel).map(esc).join(' · ') : '<small>any date – tap the line to choose a period</small>';
 }
 function libControlsHTML() {
   const v = libView();
-  return `<div class="fhead"><b>Filters</b><button type="button" data-fdone="1">Close</button></div>
+  return `<button type="button" class="ftreset" data-freset="1" title="Reset the filters" aria-label="Reset the filters"${filtersOn(v) ? '' : ' disabled'}>↺</button>
     <div class="fgrid">
       <span class="fl">Language</span>${seg('langs', [['', 'All'], ['grc', 'Greek'], ['la', 'Latin']])}
       <span class="fl">Source</span><div class="fchips">${libSources().map(x => chip('src', x, x)).join('')}</div>
       <span class="fl">Form</span>${seg('form', [['', 'All'], ['prose', 'Prose'], ['verse', 'Verse']])}
-      <span class="fl">Date</span><div class="fdate"><span class="crange" id="centLabel">${rangeLabel(v)}</span>
+      <span class="fl">Date</span><div class="fdate"><span class="crange" id="libDates"></span>
         <label class="undl"><input type="checkbox" id="libUndated"${v.undated ? ' checked' : ''}> include undated</label></div>
-      <span></span><div class="cslider" style="--a:${yPct(v.from).toFixed(2)}%;--b:${yPct(v.to).toFixed(2)}%">
-        <div class="track"><i></i></div><b class="knob ka"></b><b class="knob kb"></b>
-        <input type="range" id="centFrom" min="${YMIN}" max="${YMAX}" step="100" value="${v.from}" aria-label="From century">
-        <input type="range" id="centTo" min="${YMIN}" max="${YMAX}" step="100" value="${v.to}" aria-label="To century">
-        <div class="ticks">${ERAS.slice(1).map(([, a]) => `<i style="left:${yPct(a).toFixed(2)}%"></i>`).join('')}</div>
-        <div class="eras" id="eraLab">${eraLabelsHTML(v)}</div>
-      </div>
     </div>
-    <div class="fbottom"><button type="button" class="linkb" data-freset="1"${filtersOn(v) ? '' : ' hidden'}>Reset filters</button><button type="button" class="fshow" data-fdone="1" id="libShowN">Show works</button></div>`;
+    <div class="ftl"><div class="fteras" id="libEras"></div><div class="fttrack" id="libTrack"><div class="ftaxis" id="libAxis"></div><div id="libRanges"></div></div>
+      <p class="hint small">Tap the line for a period, pull its ends; hold a period to split it, pull two ends together to join them. Pinch or wheel to zoom, drag to move.</p></div>`;
 }
 // what is filtered, as small removable chips (while the filter panel is closed)
 function libActiveHTML() {
@@ -176,42 +200,103 @@ function libActiveHTML() {
   for (const l of v.langs) x(l === 'la' ? 'Latin' : 'Greek', 'langs', l);
   for (const s of v.src) x(s, 'src', s);
   for (const f of v.form) x(f === 'verse' ? 'Verse' : 'Prose', 'form', f);
-  if (v.from > YMIN || v.to < YMAX) x(rangeLabel(v), 'date');
+  v.periods.forEach((p, k) => x(ftLabel(p), 'date', String(k)));
   if (!v.undated) x('Dated works only', 'undated');
-  if (out.length > 1) out.push('<button type="button" class="linkb" data-freset="1">Clear all</button>');
   return out.join('');
 }
+// the time line's touches: a period's end pulled (snapping onto another end), a period moved, held (split), the line
+// tapped (a new period), two fingers or the wheel (zoom), dragged (move)
+function wireDateLine() {
+  const ptrs = new Map(); let drag = null, pinch = null, lp = 0;
+  const tr = () => $('#libTrack');
+  const yRaw = x => { const r = tr().getBoundingClientRect(), [a, b] = ftView(); return a + (x - r.left) / r.width * (b - a); };
+  const xAt = y => { const r = tr().getBoundingClientRect(); return r.left + ftPct(y) / 100 * r.width; };
+  const setView = (a, b) => { const span = Math.max(60, Math.min(YMAX - YMIN, b - a)); a = Math.max(YMIN, Math.min(YMAX - span, a)); S.ftView = [a, a + span]; ftRender(); };
+  const changed = (fin) => { ftRender(); clearTimeout(lp.t); if (fin) { normPeriods(); ftRender(); saveLibView(); filterIcon(); S.libLimit = 250; renderLibList(); const r = $('#libCtl .ftreset'); if (r) r.disabled = !filtersOn(libView()); } };
+  const normPeriods = () => { const v = libView(); let R = v.periods.map(([a, b]) => [Math.min(a, b), Math.max(a, b)]).sort((x, y) => x[0] - y[0]); const out = [];
+    for (const r of R) { const l = out[out.length - 1]; if (l && r[0] <= l[1]) l[1] = Math.max(l[1], r[1]); else out.push(r); } v.periods = out; };
+  document.addEventListener('pointerdown', ev => {
+    const t = ev.target.closest?.('#libTrack'); if (!t) return;
+    ev.preventDefault(); ptrs.set(ev.pointerId, ev.clientX); t.setPointerCapture(ev.pointerId);
+    if (ptrs.size === 2) { clearTimeout(lp); drag = null; const [x1, x2] = [...ptrs.values()], v = ftView(); pinch = { d0: Math.max(10, Math.abs(x1 - x2)), span0: v[1] - v[0], ym: yRaw((x1 + x2) / 2) }; return; }
+    if (ptrs.size > 2) return;
+    const R = libView().periods, reach = ev.pointerType === 'mouse' ? 14 : 30, y = ftSnap(yRaw(ev.clientX));
+    let best = null; R.forEach(([a, b], k) => { const rc = a === b ? reach : Math.min(reach, (xAt(b) - xAt(a)) / 3); for (const [e, v] of [[0, a], [1, b]]) { const d = Math.abs(xAt(v) - ev.clientX); if (d <= rc && (!best || d < best.d)) best = { k, e, d }; } });
+    if (best) drag = { k: best.k, e: best.e, x0: ev.clientX };
+    else { const k = R.findIndex(([a, b]) => a < b && y >= a && y <= b); drag = k >= 0 ? { k, e: 'm', x0: ev.clientX, y0: y, r0: [...R[k]] } : { pan: true, x0: ev.clientX, v0: [...ftView()], y }; }
+    clearTimeout(lp); lp = setTimeout(() => {                         // holding a period: it splits in two
+      if (!drag || drag.moved || drag.e !== 'm') return;
+      const v = libView(), r = v.periods[drag.k], [a, b] = ftView(), g = Math.max(FT_STEP, ftSnap((b - a) / 60));
+      if (v.periods.length >= FT_MAX || r[1] - r[0] < 6 * FT_STEP) return;
+      v.periods.splice(drag.k, 1, [r[0], Math.max(r[0], drag.y0 - g)], [Math.min(r[1], drag.y0 + g), r[1]]);
+      navigator.vibrate?.(15); drag = null; changed(true);
+    }, 550);
+  });
+  document.addEventListener('pointermove', ev => {
+    if (!ptrs.has(ev.pointerId) || !tr()) return;
+    ptrs.set(ev.pointerId, ev.clientX);
+    if (pinch && ptrs.size >= 2) { const [x1, x2] = [...ptrs.values()], r = tr().getBoundingClientRect(), span = pinch.span0 * pinch.d0 / Math.max(10, Math.abs(x1 - x2)), f = ((x1 + x2) / 2 - r.left) / r.width; setView(pinch.ym - f * span, pinch.ym - f * span + span); return; }
+    if (!drag) return;
+    if (Math.abs(ev.clientX - drag.x0) > 4) drag.moved = true; if (!drag.moved) return;
+    if (drag.pan) { const r = tr().getBoundingClientRect(), d = (ev.clientX - drag.x0) / r.width * (drag.v0[1] - drag.v0[0]); setView(drag.v0[0] - d, drag.v0[1] - d); return; }
+    const v = libView(), r = v.periods[drag.k]; if (!r) return;
+    const tb = tr().getBoundingClientRect(), y = ftSnap(yRaw(Math.max(tb.left, Math.min(tb.right, ev.clientX))));
+    if (drag.e === 'm') { const w = drag.r0[1] - drag.r0[0], a = Math.max(YMIN, Math.min(YMAX - w, drag.r0[0] + y - drag.y0)); r[0] = a; r[1] = a + w; }
+    else {
+      // an end near another end (of its own period or the next) snaps onto it: they join when let go
+      const near = ev.pointerType === 'mouse' ? 10 : 16, x = xAt(y); let yy = y, bd = near + 1;
+      v.periods.forEach(([a, b], k) => [[0, a], [1, b]].forEach(([e, val]) => { if (k === drag.k && (e === drag.e || r[0] === r[1])) return; const d = Math.abs(xAt(val) - x); if (d <= near && d < bd) { bd = d; yy = val; } }));
+      if (r[0] === r[1]) r[0] = r[1] = yy; else { r[drag.e] = yy; if (r[0] > r[1]) { r.reverse(); drag.e = 1 - drag.e; } }
+    }
+    changed(false);
+  });
+  const up = ev => {
+    if (!ptrs.has(ev.pointerId)) return;
+    ptrs.delete(ev.pointerId); clearTimeout(lp);
+    if (pinch) { if (ptrs.size < 2) pinch = null; drag = null; return; }
+    const d = drag; drag = null; if (!d) return;
+    if (d.pan) { if (!d.moved) { const v = libView(); if (v.periods.length < FT_MAX) { v.periods.push([ftSnap(d.y - 50), ftSnap(d.y + 50)]); changed(true); } } return; }   // a tap: a period of a century
+    changed(true);
+  };
+  document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up);
+  document.addEventListener('wheel', ev => {
+    const t = ev.target.closest?.('#libTrack'); if (!t) return;
+    ev.preventDefault();
+    const r = t.getBoundingClientRect(), [a, b] = ftView(), span = b - a;
+    if (Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) { const d = ev.deltaX / r.width * span; setView(a + d, b + d); return; }
+    const y = yRaw(ev.clientX), f = (ev.clientX - r.left) / r.width, ns = span * Math.exp(ev.deltaY * 0.0015);
+    setView(y - f * ns, y - f * ns + ns);
+  }, { passive: false });
+  document.addEventListener('dblclick', ev => { if (ev.target.closest?.('#libTrack')) { S.ftView = [YMIN, YMAX]; ftRender(); } });
+}
 const DLICON = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/></g></svg>';
-function sortedWorks() {        // flat list for the sorts by title, date and recently opened
+function sortedWorks() {        // a flat list (sort by title; Favourites): by title, or by author (name or date)
   const v = libView(), q = fold(S.libQ), d = v.dir;
   const ws = libAuthors().flatMap(a => a.works.filter(w => workPasses(w, q)));
-  const byTitle = (x, y) => x.title.localeCompare(y.title);
+  const byTitle = (x, y) => x.title.localeCompare(y.title), byName = (x, y) => authorOf(x).name.localeCompare(authorOf(y).name);
   const cmp = {
-    title: (x, y) => d * byTitle(x, y) || authorOf(x).name.localeCompare(authorOf(y).name),
-    date: (x, y) => { const a = authorOf(x).year, b = authorOf(y).year;
-      if (a == null || b == null) return (a == null) - (b == null);              // undated works at the end
-      return d * (a - b) || authorOf(x).name.localeCompare(authorOf(y).name) || (x.no ?? 0) - (y.no ?? 0); },
-    recent: (x, y) => { const a = S.opened?.[x.id], b = S.opened?.[y.id];
-      if (!a || !b) return (!a) - (!b) || byTitle(x, y);                          // never opened at the end
-      return d * (a - b); },
-  }[v.sort];
+    title: (x, y) => d * byTitle(x, y) || byName(x, y),
+    author: (x, y) => d * byName(x, y) || byTitle(x, y),
+    adate: (x, y) => { const a = authorOf(x).year, b = authorOf(y).year;
+      if (a == null || b == null) return (a == null) - (b == null) || byName(x, y);   // undated works at the end
+      return d * (a - b) || byName(x, y) || byTitle(x, y); },
+  }[v.sort] || ((x, y) => byTitle(x, y));
   return ws.sort(cmp);
 }
-async function downloadWork(key) {
+// a text of the library (in the download queue, dialogs.js): fetched with the progress shown, then installed
+async function downloadWork(key, signal) {
   const id = key.slice(5), w = S.catWork?.[id];
-  try {
-    if (!w) throw new Error('not in the catalogue');
-    DL.set(key, 0); paintDL(key);
-    const r = await fetch('texts/works/' + id + '.json.gz', { cache: 'no-cache' });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const reader = r.body.getReader(); const parts = []; let got = 0;
-    for (;;) { const { done: fin, value } = await reader.read(); if (fin) break; parts.push(value); got += value.length; DL.set(key, 0.9 * Math.min(1, got / w.bytes)); paintDL(key); }
-    DL.set(key, 0.9); paintDL(key);
-    await installWork(new File(parts, id + '.json.gz'), w.v);
-    DL.delete(key);
-    if (S.libInst) S.libInst[id] = await libGet('works', id);
-    if (S.text?.work?.id === id) await openText(S.text.id, false);
-  } catch (e) { DL.delete(key); toast(`${w?.title || id}: download failed (${e.message})`, 4000); paintDL(key, 'Failed'); }
+  if (!w) throw new Error('not in the catalogue');
+  DL.set(key, 0); paintDL(key);
+  const r = await fetch('texts/works/' + id + '.json.gz', { cache: 'no-cache', signal });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const reader = r.body.getReader(); const parts = []; let got = 0;
+  for (;;) { const { done: fin, value } = await reader.read(); if (fin) break; parts.push(value); got += value.length; DL.set(key, 0.9 * Math.min(1, got / w.bytes)); paintDL(key); }
+  DL.set(key, 0.9); paintDL(key);
+  await installWork(new File(parts, id + '.json.gz'), w.v);
+  DL.delete(key);
+  if (S.libInst) S.libInst[id] = await libGet('works', id);
+  if (S.text?.work?.id === id) await openText(S.text.id, false);
   if ($('#libBody')) lmRender();
 }
 // ---------------------------------------------------------------- navigation between texts and books
