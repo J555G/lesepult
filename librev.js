@@ -373,7 +373,7 @@ function libSettingsHTML() {
   return `<section class="rsec ftset"><div class="rhd"><span>Date filter</span></div>
       <div class="mline"><span>Range of the line<small class="hint">its earliest and latest dates</small></span><div class="mtlim"><input type="text" data-ftlim="0" value="${esc(fmtY(lo))}" placeholder="e.g. 2000 BC" autocomplete="off" class="nofocus" aria-label="Earliest date"><span>–</span><input type="text" data-ftlim="1" value="${esc(fmtY(hi))}" placeholder="e.g. AD 1500" autocomplete="off" class="nofocus" aria-label="Latest date"></div></div>
       <small class="fterr" role="alert" hidden></small>
-      <div class="ftsetl"><span>Default view and periods<small class="hint">the Library opens with this view; the periods (or none) are set when the filters are reset ↺</small></span>${ftLineHTML('def')}</div>
+      <div class="ftsetl"><span>Default view and periods <button type="button" class="fti" data-ftinfo="1" aria-expanded="false" title="How to use the line" aria-label="How to use the line">ⓘ</button><small class="hint">the Library opens with this view; the periods (or none) are set when the filters are reset ↺</small></span>${ftLineHTML('def')}${ftHelpHTML()}</div>
       <small class="ftnote" hidden>The default view and periods were cut to the new range.</small>
       <label class="srow1 swr"><span>Era names<small class="hint">above the line</small></span>${SW('data-fteras="1"', S.lib?.ftEras !== false)}</label>
       <div class="ftrestore"><button type="button" data-ftrestore="1">Restore defaults</button></div></section>

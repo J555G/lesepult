@@ -1706,3 +1706,7 @@ dialog .ftrestore button{font-size:13px;padding:.3rem .7rem}
 /* long presses select text only in the text and the dictionary (and in fields) */
 body,dialog{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 #textPane,#dictPane,input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+dialog .fti.on{color:var(--acc)}
+dialog .fthelp{list-style:none;margin:.45rem 0 0;padding:0;font-size:12px;line-height:1.45;color:var(--mut)}
+dialog .fthelp[hidden]{display:none}
+dialog .fthelp b{font-weight:600;color:var(--fg);opacity:.8}

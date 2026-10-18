@@ -78,7 +78,9 @@ function ftDraw(L) {
   root.querySelector('.ftx').hidden = !P.length;
 }
 function ftRender() { ftDraw('lib'); ftDraw('def'); }
-const FT_HELP = 'Tap the empty line for a period, hold the line for another. Pull a period’s ends, or move it; hold it to split it, hold a single date to open it. Pull two ends together to join them. Pinch or wheel to zoom, drag to move, double-tap for the default view.';
+const FT_HELP = [['Tap the empty line', 'a first period'], ['Hold the line', 'another period'], ['Pull an end', 'a longer or shorter period'], ['Drag a period', 'move it'],
+  ['Hold a period', 'split it (a single date: open it)'], ['Pull two ends together', 'join them'], ['Pinch or wheel', 'zoom'], ['Drag above or below the line', 'move the view'], ['Double-tap', 'the default view']];
+const ftHelpHTML = () => `<ul class="fthelp" hidden>${FT_HELP.map(([a, b]) => `<li><b>${a}</b> – ${b}</li>`).join('')}</ul>`;
 // the touches: an end pulled (snapping onto another end), a period moved or held (split), the line tapped or held
 // (a new period), two fingers or the wheel (zoom), dragged (move), tapped twice (the default view)
 function wireDateLine() {
@@ -91,10 +93,13 @@ function wireDateLine() {
     P.splice(0, P.length, ...out); };
   const changed = (Lk, fin) => { if (fin) norm(FTC[Lk].per()); ftDraw(Lk); if (fin) FTC[Lk].done(); };
   // what is under the pointer: an end (the nearest within reach), a period, or nothing
-  const hit = (Lk, cx, mouse) => {
+  // (a period's middle is taken only in a band along the line: above it, the era names, and below, the years, move the view)
+  const inBand = (Lk, cy) => Math.abs(cy - (geo(Lk).r.top + 7.5)) <= 10;
+  const hit = (Lk, cx, mouse, cy) => {
     const g = geo(Lk), reach = mouse ? 14 : 30, P = FTC[Lk].per(), y = g.y(cx); let best = null;
     P.forEach(([a, b], k) => { const rc = a === b ? reach : Math.min(reach, (g.x(b) - g.x(a)) / 3); for (const [e, v] of [[0, a], [1, b]]) { const d = Math.abs(g.x(v) - cx); if (d <= rc && (!best || d < best.d)) best = { k, e, d }; } });
     if (best) return best;
+    if (cy != null && !inBand(Lk, cy)) return null;
     const k = P.findIndex(([a, b]) => a < b && y >= a && y <= b); return k >= 0 ? { k, e: 'm' } : null;
   };
   // a new period: a fifth of the visible line, around the place (within the line's range)
@@ -107,16 +112,16 @@ function wireDateLine() {
     ev.preventDefault(); ptrs.set(ev.pointerId, ev.clientX); t.setPointerCapture(ev.pointerId);
     if (ptrs.size === 2) { clearTimeout(lp); drag = null; st.hot = null; st.lab = null; const [x1, x2] = [...ptrs.values()], v = c.view(); pinch = { d0: Math.max(10, Math.abs(x1 - x2)), span0: v[1] - v[0], ym: geo(L).y((x1 + x2) / 2) }; ftDraw(L); return; }
     if (ptrs.size > 2) return;
-    const y = ftSnap(geo(L).y(ev.clientX)), h = hit(L, ev.clientX, ev.pointerType === 'mouse');
+    const y = ftSnap(geo(L).y(ev.clientX)), h = hit(L, ev.clientX, ev.pointerType === 'mouse', ev.clientY);
     if (h && h.e !== 'm') drag = { k: h.k, e: h.e, x0: ev.clientX };
     else if (h) drag = { k: h.k, e: 'm', x0: ev.clientX, y0: y, r0: [...c.per()[h.k]] };
-    else drag = { pan: true, x0: ev.clientX, v0: [...c.view()], y };
+    else drag = { pan: true, x0: ev.clientX, v0: [...c.view()], y, band: inBand(L, ev.clientY) };
     drag.type = ev.pointerType; st.hot = h ? h.k : null; ftDraw(L);
     clearTimeout(lp); lp = setTimeout(() => {
       if (!drag || drag.moved) return;
       const P = c.per(), [a, b] = c.view();
       if (drag.pan) {                                               // holding the empty line: a new period there
-        if (P.length >= FT_MAX) return;
+        if (P.length >= FT_MAX || !drag.band) return;
         P.push(opened(L, drag.y)); st.hot = null;
       } else if (drag.e !== 'm') {                                  // holding a single date: it opens into a period
         const r = P[drag.k]; if (!r || r[0] !== r[1]) return;
@@ -133,7 +138,7 @@ function wireDateLine() {
     if (!ptrs.has(ev.pointerId)) {                                  // the mouse over a line: the period under it shows its knobs
       if (ev.pointerType !== 'mouse' || ptrs.size) return;
       const t = ev.target.closest?.('.ftl');
-      for (const Lk of ['lib', 'def']) { const k = t?.dataset.ftl === Lk ? hit(Lk, ev.clientX, true)?.k ?? null : null; if (FTS[Lk].hot !== k && (k != null || FTS[Lk].hot != null)) { FTS[Lk].hot = k; ftDraw(Lk); } }
+      for (const Lk of ['lib', 'def']) { const k = t?.dataset.ftl === Lk ? hit(Lk, ev.clientX, true, ev.clientY)?.k ?? null : null; if (FTS[Lk].hot !== k && (k != null || FTS[Lk].hot != null)) { FTS[Lk].hot = k; ftDraw(Lk); } }
       return;
     }
     if (!ftRoot(L)) return;
@@ -194,7 +199,7 @@ function wireDateLine() {
   document.addEventListener('dblclick', ev => { const t = ev.target.closest?.('.ftl'); if (!t || ev.target.closest('button')) return; const Lk = t.dataset.ftl; FTC[Lk].set([...homeView(Lk)]); ftDraw(Lk); FTC[Lk].viewDone(); });
   document.addEventListener('click', ev => {
     const x = ev.target.closest?.('[data-ftclear]'); if (x) { const Lk = x.dataset.ftclear; FTC[Lk].per().length = 0; FTS[Lk].hot = null; changed(Lk, true); return; }
-    const i = ev.target.closest?.('[data-ftinfo]'); if (i) toast(FT_HELP, 7000, i);
+    const i = ev.target.closest?.('[data-ftinfo]'); if (i) { const h = i.closest('.ftsetl')?.querySelector('.fthelp'); if (h) { h.hidden = !h.hidden; i.classList.toggle('on', !h.hidden); i.setAttribute('aria-expanded', !h.hidden); } }
   });
 }
 // ---- years typed in Settings (the range of the line). Years: "500", "-500", "−500", "+120", "2.000", "2,000"; with
@@ -234,8 +239,8 @@ function ftParseYear(s, end) {
   }
   if (part) return undefined;                                       // (early, late … only with a century or a millennium)
   // a year
-  m = s.match(/^([-+])?\s?(\d{1,2}[.,' ]\d{3}|\d{1,4})$/); if (!m) return undefined;
-  let y = +m[2].replace(/[.,' ]/g, '');
+  m = s.match(/^([-+])?\s?(\d{1,3}(?:[.,' ]\d{3})+|\d+)$/); if (!m) return undefined;
+  let y = +m[2].replace(/[.,' ]/g, ''); if (!Number.isSafeInteger(y)) return undefined;
   if (m[1] === '-') { if (bcM || adM) return undefined; y = -y; }
   else if (m[1] === '+' && bc) return undefined;
   return bc ? -y : y;
