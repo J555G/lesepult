@@ -44,6 +44,12 @@ async function glossMigrate() {
 }
 // names of lemmata with a default gloss (the gloss is kept under an accent-free key; its lemma is remembered beside it)
 async function lemmaNames() { return (S.lgName ??= (await setting('lgName')) || {}); }
+// default glosses made before their lemma was remembered: the lemma found among the words of a text opened
+async function lemmaNamesFill() {
+  const N = await lemmaNames(); let ch = false;
+  for (const tk of S.tokens || []) { if (!tk.lemma) continue; const k = gkey(tk.lemma); if (S.lemmaGloss?.[k] && !N[k]) { N[k] = tk.lemma; ch = true; } }
+  if (ch) await setting('lgName', N);
+}
 async function lemmaNameSet(k, l) { const N = await lemmaNames(); if (l && N[k] !== l) { N[k] = l; await setting('lgName', N); } }
 
 // ---- export (☰ → This Pult → Annotations): all glosses, or those of one text; a spreadsheet (CSV) or a readable document
@@ -184,11 +190,13 @@ async function glMisfits(textIds) {
 // the review: each gloss with its old context and the place found (differences marked); Accept / Reject; Auto-approve
 async function glReview(found, title) {
   if (!found.length) return 0;
+  // (in the old context: the words no longer there, struck through)
+  const G = (s, other) => { const o = new Set(String(other || '').split(' ').filter(Boolean).map(glFold)); return String(s || '').split(' ').filter(Boolean).map(x => o.has(glFold(x)) ? esc(x) : `<s>${esc(x)}</s>`).join(' '); };
   const W = (s, other) => { const o = new Set(String(other || '').split(' ').filter(Boolean).map(glFold)); return String(s || '').split(' ').filter(Boolean).map(x => o.has(glFold(x)) ? esc(x) : `<mark>${esc(x)}</mark>`).join(' '); };
   const row = (f, i) => { const { g, m } = f, ws = m.src.words, newW = ws.slice(m.k, m.k2 + 1).map(x => x.s).join(' ');
     const nb = ws.slice(Math.max(0, m.k - GL_CTX), m.k).map(x => x.s).join(' '), na = ws.slice(m.k2 + 1, m.k2 + 1 + GL_CTX).map(x => x.s).join(' ');
     return `<div class="glrv${m.certain ? ' sure' : ''}" data-gi="${i}"><div class="glg"><b>${esc(g.w)}</b> – ${esc(g.t)} <small>${m.sc} of ${m.of} words around it${m.exact ? '' : ' · the word itself differs'}</small></div>
-      <div class="glc"><span class="gll">was</span> ${esc(g.cb || '')} <u>${esc(g.w)}</u> ${esc(g.ca || '')}</div>
+      <div class="glc"><span class="gll">was</span> ${G(g.cb, nb)} <u>${G(g.w, newW)}</u> ${G(g.ca, na)}</div>
       <div class="glc"><span class="gll">now</span> ${W(nb, g.cb)} <u>${W(newW, g.w)}</u> ${W(na, g.ca)}${m.src.tt && found.some(x => x.m.src !== m.src) ? ` <small>· ${esc(m.src.tt)}</small>` : ''}</div>
       <div class="seg glab" role="group"><button type="button" data-glok="${i}">Accept</button><button type="button" data-glno="${i}">Reject</button></div></div>`; };
   const st = found.map(() => null);

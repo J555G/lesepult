@@ -85,6 +85,7 @@ async function resolveTokens() {      // lemma + word class for every word of th
   await resolveTokens1(run);
   if (run === resolveTokens.run && S.dgPending) { S.dgPending = false; renderText(); }
   if (run === resolveTokens.run && typeof placesForText === 'function') placesForText();
+  if (run === resolveTokens.run && typeof lemmaNamesFill === 'function') lemmaNamesFill().catch(() => { });
 }
 async function resolveTokens1(run) {
   const memo = new Map(), bmap = new Map();
