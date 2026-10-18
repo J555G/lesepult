@@ -191,8 +191,11 @@ async function glMisfits(textIds) {
 async function glReview(found, title) {
   if (!found.length) return 0;
   // (in the old context: the words no longer there, struck through)
-  const G = (s, other) => { const o = new Set(String(other || '').split(' ').filter(Boolean).map(glFold)); return String(s || '').split(' ').filter(Boolean).map(x => o.has(glFold(x)) ? esc(x) : `<s>${esc(x)}</s>`).join(' '); };
-  const W = (s, other) => { const o = new Set(String(other || '').split(' ').filter(Boolean).map(glFold)); return String(s || '').split(' ').filter(Boolean).map(x => o.has(glFold(x)) ? esc(x) : `<mark>${esc(x)}</mark>`).join(' '); };
+  // (a word that differs only in accents or breathings: found all the same, shown fainter)
+  const exact = s => String(s || '').normalize('NFC').toLowerCase().replace(/[^\p{L}\p{M}]/gu, '');
+  const mk = (s, other, tag) => { const ws = String(other || '').split(' ').filter(Boolean), o = new Set(ws.map(glFold)), oe = new Set(ws.map(exact));
+    return String(s || '').split(' ').filter(Boolean).map(x => !o.has(glFold(x)) ? `<${tag}>${esc(x)}</${tag}>` : !oe.has(exact(x)) ? `<${tag} class="soft">${esc(x)}</${tag}>` : esc(x)).join(' '); };
+  const G = (s, other) => mk(s, other, 's'), W = (s, other) => mk(s, other, 'mark');
   const row = (f, i) => { const { g, m } = f, ws = m.src.words, newW = ws.slice(m.k, m.k2 + 1).map(x => x.s).join(' ');
     const nb = ws.slice(Math.max(0, m.k - GL_CTX), m.k).map(x => x.s).join(' '), na = ws.slice(m.k2 + 1, m.k2 + 1 + GL_CTX).map(x => x.s).join(' ');
     return `<div class="glrv${m.certain ? ' sure' : ''}" data-gi="${i}"><div class="glg"><b>${esc(g.w)}</b> – ${esc(g.t)} <small>${m.sc} of ${m.of} words around it${m.exact ? '' : ' · the word itself differs'}</small></div>
