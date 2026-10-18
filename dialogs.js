@@ -514,7 +514,8 @@ async function settingsDialog(focus) {
     { k: 'lib', title: 'Library', sub: 'revision notices · rejected revisions' },
     ...(hasMap ? [{ k: 'map', title: 'Map', sub: 'places in texts · period · significance · engine' }] : [])];
   const dlgP = dialog(pagedHTML('set', 'Settings', rows, { read: reading, search: searchSettingsHTML(), lib: libSettingsHTML(), ...(hasMap ? { map: `<div class="mapset">${settingsHTML()}</div>` } : {}) },
-      `<div class="srow1 sapp"><b>Appearance</b>${seg('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']])}</div>`)
+      `<div class="srow1 sapp"><b>Appearance</b>${seg('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']])}</div>`
+      + `<label class="srow1 swr sapp2"><span>Fades<small class="hint">buttons light up briefly when tapped, switches fade in and out</small></span>${SW('data-fades="1"', !document.body.classList.contains('nofade'))}</label>`)
     + `<p class="sver">Pult · version ${ver} · published ${PULT_DATE}</p>`, []);
   syncGramRows($('#dlgForm')); scIdxInfo();
   if (focus) {                                                   // the part asked for, at the top of the dialog
@@ -599,20 +600,27 @@ function dlIcon(id, { have = false, rev = false, size = 0, upd = 'Download revis
   return `<button type="button" class="dli" data-get="${esc(id)}" title="Download${size ? ' (' + mbs(size) + ')' : ''}" aria-label="Download"${off ? ' disabled' : ''}>${DLARROW}</button>`;
 }
 function dlPopClose() { document.querySelectorAll('.dlpop').forEach(x => x.remove()); document.querySelectorAll('.dli.open').forEach(x => x.classList.remove('open')); clearTimeout(dlPopClose.t); }
-// the accent of a tapped icon button: coming in over 1/9 s, then fading (only when the tap really counted, not when the
-// finger slid off) – the buttons of the fade (style.css) 
-const FADE_BTNS = '.dli,.lwm,.lwi,.fti,.ftreset,.greset,.creset,.mtreset,.dirb,.tzi,#libFilterBtn';
+// the fade of a tapped button: its colour (the accent, or its own) comes in over 1/9 s and goes back over 1/3 s – only when
+// the tap really counted, not when the finger slid off; Settings → Appearance → Fades switches it off (body.nofade)
+const FADE_BTNS = ['.dli,.lwm,.lwi,.fti,.ftreset,.greset,.creset,.mtreset,.dirb,.tzi,#libFilterBtn',     // small icon buttons
+  '#btnMenu,#tabEntry,#tabList,#tabMap',                                                            // top bar
+  'dialog .seg button,dialog .chip2,dialog .chip',                                                  // choices
+  'dialog .lrow,dialog .pgrow,dialog .olj,dialog .olrest,dialog .srow,dialog .annrow,#libList details.auth>summary',   // rows
+  '#dlgForm>.row>:is(button,a,label),dialog .dlpop button,dialog .dlask button,#instUpd button,dialog .lwmenu button,dialog .lwcont,dialog .srow1>button,dialog .ftrestore button,dialog .pgo',   // text buttons
+  '#mapBody button'].join(',');                                                                     // the map's buttons
 document.addEventListener('click', ev => {
+  if (document.body.classList.contains('nofade')) return;
   const b0 = ev.target.closest?.(FADE_BTNS); if (!b0) return;
-  // (many of these redraw their part of the page when tapped: the button drawn anew, found by its data-…, keeps the accent)
+  // (many of these redraw their part of the page when tapped: the button drawn anew, found by its data-…, keeps the colour)
   const a = [...b0.attributes].find(x => x.name.startsWith('data-')), sel = a ? `[${a.name}="${CSS.escape(a.value)}"]` : null, t0 = performance.now();
-  const step = () => {
-    const b = sel && !b0.isConnected ? document.querySelector(sel) : b0; if (b) b.classList.add('held');
-    if (performance.now() - t0 < 111) return requestAnimationFrame(step);
-    setTimeout(() => { (sel && !b0.isConnected ? document.querySelector(sel) : b0)?.classList.remove('held'); }, 0);
-  };
+  const cur = () => sel && !b0.isConnected ? document.querySelector(sel) : b0;
+  const step = () => { cur()?.classList.add('fxon'); if (performance.now() - t0 < 111) return requestAnimationFrame(step); setTimeout(() => cur()?.classList.remove('fxon'), 0); };
   step();
 }, true);
+document.addEventListener('change', ev => {
+  if (ev.target.dataset?.fades == null) return;
+  document.body.classList.toggle('nofade', !ev.target.checked); setting('fades', ev.target.checked);
+});
 // the buttons to the left of an icon (tapped again, or after 5 s: gone)
 function dlPopAt(b, html) {
   const open = b.classList.contains('open'); dlPopClose(); if (open) return;

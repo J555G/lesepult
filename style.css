@@ -1741,10 +1741,38 @@ dialog .annlist .annrow small{color:var(--mut);font-size:12px}
 dialog .annlist .annrow button{flex:none;font-size:12.5px;padding:.3rem .65rem}
 dialog .dlpop{background:none;border:0;box-shadow:none;padding:0}
 dialog .dlpop button{background:var(--card)}
-/* small icon buttons (download icons, ⋯, ⓘ, ↺, sort direction, text size, the filter icon): pressed, the accent comes in
-   over 1/9 s and fades back over 1/3 s */
-dialog :is(.dli,.lwm,.lwi,.fti,.ftreset,.greset,.creset,.mtreset,.dirb,.tzi,#libFilterBtn){transition:color .333s ease,border-color .333s ease}
-dialog :is(.dli,.lwm,.lwi,.fti,.ftreset,.greset,.creset,.mtreset,.dirb,.tzi,#libFilterBtn:not(.active)):is(:active,.held){color:var(--acc);border-color:var(--acc);transition:color .111s ease,border-color .111s ease}
+/* the fades (Settings → Appearance → Fades; off: body.nofade): a tapped button takes its colour over 1/9 s (.fxon, or
+   while pressed) and gives it back over 1/3 s. Small icon buttons, choices, text buttons and the map's buttons: the accent
+   (red ones: their red); rows: a faint tint; ☰: only its sign; the pane tabs: the accent border, their picture in colour */
+body:not(.nofade) dialog :is(.dli,.lwm,.lwi,.fti,.ftreset,.greset,.creset,.mtreset,.dirb,.tzi,#libFilterBtn,.seg button,.chip2,.chip,.dlgrowb,.dlpop button,.dlask button,#instUpd button,.lwmenu button,.lwcont,.srow1>button,.ftrestore button),
+body:not(.nofade) #mapBody button,body:not(.nofade) #dlgForm>.row>:is(button,a,label){transition:color .333s ease,border-color .333s ease}
+body:not(.nofade) dialog :is(.dli,.lwm,.lwi,.fti,.ftreset,.greset,.creset,.mtreset,.dirb,.tzi,#libFilterBtn:not(.active),.seg button,.chip2,.chip,.dlgrowb,.dlpop button,.dlask button,#instUpd button,.lwmenu button,.lwcont,.srow1>button,.ftrestore button):is(:active,.fxon),
+body:not(.nofade) #mapBody button:is(:active,.fxon),body:not(.nofade) #dlgForm>.row>:is(button,a,label):is(:active,.fxon){color:var(--acc);border-color:var(--acc);transition:color .111s ease,border-color .111s ease}
+body:not(.nofade) dialog :is(.seg button.on,.chip2.on,.chip.on):is(:active,.fxon){color:inherit}
+body:not(.nofade) dialog .danger:is(:active,.fxon){color:#c0392b;border-color:#c0392b}
+body:not(.nofade) dialog :is(.lrow,.pgrow,.olj,.olrest,.srow,.annrow,.pgo),body:not(.nofade) #libList details.auth>summary{transition:background-color .333s ease}
+body:not(.nofade) dialog :is(.lrow,.pgrow,.olj,.olrest,.srow,.annrow,.pgo):is(:active,.fxon),body:not(.nofade) #libList details.auth>summary:is(:active,.fxon){background-color:color-mix(in srgb,var(--acc) 14%,transparent);transition:background-color .111s ease}
+body:not(.nofade) #btnMenu{transition:color .333s ease}
+body:not(.nofade) #btnMenu:is(:active,.fxon){color:var(--acc);transition:color .111s ease}
+/* the pane tabs: the picture in colour as a layer over the grey one, fading in and out */
+#tabEntry,#tabList,#tabMap{position:relative}
+#tabEntry::after,#tabList::after,#tabMap::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:0}
+#tabEntry::after{background:var(--pape) center/cover no-repeat}
+#tabList::after{background:var(--cards) center/cover no-repeat}
+#tabMap::after{background:var(--mapimg) center/cover no-repeat}
+:is(#tabEntry,#tabList,#tabMap):is(.on,.fxon)::after{opacity:1}
+body:not(.nofade) :is(#tabEntry,#tabList,#tabMap){transition:border-color .333s ease}
+body:not(.nofade) :is(#tabEntry,#tabList,#tabMap)::after{transition:opacity .333s ease}
+body:not(.nofade) :is(#tabEntry,#tabList,#tabMap).fxon{border-color:var(--acc);transition:border-color .111s ease}
+body:not(.nofade) :is(#tabEntry,#tabList,#tabMap):is(.on,.fxon)::after{transition:opacity .111s ease}
+/* the switches of the top bar: their colours come in over 1/9 s and go over 1/3 s (no accent) */
+body:not(.nofade) :is(#btnGlossToggle,#btnGram) .w2,body:not(.nofade) #btnPos span{transition:color .333s ease,opacity .333s ease}
+body:not(.nofade) :is(#btnGlossToggle,#btnGram).on .w2,body:not(.nofade) #btnPos.on span{transition:color .111s ease,opacity .111s ease}
+body.nofade #btnPos span{transition:none}
 /* ⋯ without a box; its menu's buttons smaller */
 dialog .lwm{border:0!important;background:none!important;box-shadow:none}
+dialog .lwmenu{border:0;border-radius:0;overflow:visible;align-items:flex-end}
+dialog .lwmi{display:flex;flex-direction:column;align-items:stretch;border:1px solid var(--line);border-radius:8px;overflow:hidden;min-width:9rem}
 dialog .lwmenu button{font-size:12.5px;padding:.32rem .6rem}
+dialog .olrest:disabled{cursor:default;opacity:1}
+dialog .sapp2{border-top:0}

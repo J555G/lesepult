@@ -369,7 +369,7 @@ async function lmWorkHTML(key) {
     + (more.length ? `<button type="button" class="lwi" data-lwi="1" aria-expanded="${!!S.lwInfo}" title="About this edition" aria-label="About this edition">i</button>` : '')
     + `<span class="lwsp"></span>${lmIcon(W, W.inst, off && !S.trash?.[key])}<button type="button" class="lwm" data-lwm="1" aria-expanded="${S.lwMenu === key}" title="More" aria-label="More">⋯</button></div>`
     + (more.length && S.lwInfo ? `<div class="lwmore">${more.map(x => `<small>${esc(x)}</small>`).join('')}</div>` : '')
-    + (S.lwMenu === key && S.lwAsk !== key ? `<div class="lwmenu"><button type="button" data-fav="1">${fav ? 'Remove from favourites' : 'Add to favourites'}</button>${revAvail(key) ? `<button type="button" data-revshow="${esc(key)}">See the revision</button>` : ''}${W.imported ? `<button type="button" data-iedit="${W.tid}">Edit</button><button type="button" class="danger" data-lwdel="1">Remove</button>` : ''}</div>` : '') + '</div>';
+    + (S.lwMenu === key && S.lwAsk !== key ? `<div class="lwmenu"><div class="lwmi"><button type="button" data-fav="1">${fav ? 'Remove from favourites' : 'Add to favourites'}</button>${revAvail(key) ? `<button type="button" data-revshow="${esc(key)}">See the revision</button>` : ''}${W.imported ? `<button type="button" data-iedit="${W.tid}">Edit</button><button type="button" class="danger" data-lwdel="1">Remove</button>` : ''}</div></div>` : '') + '</div>';
   if (!W.inst && S.trash?.[key]) h += `<p class="lwrev">Removed on ${new Date(S.trash[key]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · restorable until ${new Date(S.trash[key] + 7 * 864e5).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</p>`;
   if (!W.inst && DLX.get(dk)?.err) h += `<p class="lwrev">${esc(DLX.get(dk).err)}</p>`;
   // Continue reading (alone on its line); deleting an imported text is asked here
@@ -420,7 +420,7 @@ function outlineNodes(nodes, part, cr, depth, list, T) {
     h += `<div class="olrow d${Math.min(depth, 4)}${n.ref && n.ref === cr ? ' on' : ''}${onPath ? ' path' : ''}">`
       + (kids ? `<button type="button" class="olt" data-olt="${esc(key)}" aria-expanded="${!!open}" aria-label="${open ? 'Fold' : 'Unfold'}">${open ? '▾' : '▸'}</button>` : '<span class="olt"></span>')
       + `<button type="button" class="olj" data-sec="${esc(r?.s || '')}" data-secpart="${part}"><span class="oln">${esc(n.seg)}</span><span class="olx">${esc(title)}</span></button>`
-      + `<button type="button" class="olrest" ${kids ? `data-olt="${esc(key)}" aria-expanded="${!!open}"` : `data-sec="${esc(r?.s || '')}" data-secpart="${part}"`} tabindex="-1" aria-hidden="true"><span class="olm">${marksHTML(m)}</span>${kids && !open ? `<span class="olc">${kids}</span>` : ''}</button></div>`;
+      + `<button type="button" class="olrest" ${kids ? `data-olt="${esc(key)}" aria-expanded="${!!open}"` : 'disabled'} tabindex="-1" aria-hidden="true"><span class="olm">${marksHTML(m)}</span>${kids && !open ? `<span class="olc">${kids}</span>` : ''}</button></div>`;
     if (open) h += outlineNodes(n.kids, part, cr, depth + 1, list, T);
   }
   return h;

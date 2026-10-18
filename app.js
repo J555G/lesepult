@@ -410,6 +410,7 @@ function splitIcon() {   // an open book: the fold sits where the split is, the 
   await migrateOld();
   wire();
   setTheme((await setting('theme')) || 'dark');
+  document.body.classList.toggle('nofade', (await setting('fades')) === false);
   S.glossMode = (await setting('glossMode')) || 'replace';
   S.latQuant = !!(await setting('latQuant'));
   for (const r of await getAll('settings', IDBKeyRange.bound('lg|', 'lg|\uffff'))) S.lemmaGloss[r.k.slice(3)] = r.v;
