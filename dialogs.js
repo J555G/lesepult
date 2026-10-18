@@ -563,6 +563,7 @@ function dlButtonHTML(id, label) {
 }
 // every button of this download, wherever it is shown: its state
 function paintDL(id, text) {
+  if (id.startsWith('work:') && typeof authPaint === 'function') authPaint(id.slice(5));
   if (S.updQ?.includes(id)) { clearTimeout(paintDL.ut); paintDL.ut = setTimeout(updPaint, 150); }
   for (const b of document.querySelectorAll(`#dlg [data-get="${id}"], #dlg [data-dl="${id}"]`)) {
     const p = DL.get(id), x = DLX.get(id), icon = b.classList.contains('lmdl') || b.classList.contains('dli');
@@ -587,11 +588,14 @@ function paintDL(id, text) {
 // when a revision / update is available. A tap on a downloaded icon shows two buttons to its left: the revision (or
 // update) and Delete (no question: a deleted work can be restored for 7 days).
 const DLARROW = '<svg class="dla" width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/></g></svg>';
-function dlIcon(id, { have = false, rev = false, size = 0, upd = 'Download revision', off = false } = {}) {
+// (a deleted work, kept on the device for 7 days: a return arrow – a tap brings it back at once)
+const RSTARROW = '<svg class="dla" width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13.5a6.5 6.5 0 1 0 1.9-6.1"/><path d="M5 4.5v4.2h4.2"/></g></svg>';
+function dlIcon(id, { have = false, rev = false, size = 0, upd = 'Download revision', off = false, rst = 0 } = {}) {
   const p = DL.get(id), x = DLX.get(id);
   if (DL.has(id)) return `<button type="button" class="dli busy${p < 0 ? ' wait' : p >= 0.9 ? ' inst' : ''}" data-dl="${esc(id)}" data-lbl="${esc(DLARROW)}" style="--p:${Math.round(Math.max(0, p) * 100)}%" title="Tap to stop" aria-label="Downloading – tap to stop">${DLARROW}</button>`;
   if (x?.err && !have) return `<button type="button" class="dli fail" data-get="${esc(id)}" title="${esc(x.err)} – tap to try again" aria-label="Try again">↻</button>`;
   if (have) return `<button type="button" class="dli done" data-dlon="${esc(id)}" data-upd="${rev ? esc(upd) : ''}" title="On this device${rev ? ' – ' + esc(upd.toLowerCase().replace('download ', '')) + ' available' : ''}" aria-label="On this device">${DLARROW}${rev ? '<sup class="drev">rev.</sup>' : ''}</button>`;
+  if (rst) return `<button type="button" class="dli rst" data-get="${esc(id)}" title="Restore – kept on this device until ${new Date(rst + 7 * 864e5).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}" aria-label="Restore">${RSTARROW}</button>`;
   return `<button type="button" class="dli" data-get="${esc(id)}" title="Download${size ? ' (' + mbs(size) + ')' : ''}" aria-label="Download"${off ? ' disabled' : ''}>${DLARROW}</button>`;
 }
 function dlPopClose() { document.querySelectorAll('.dlpop').forEach(x => x.remove()); document.querySelectorAll('.dli.open').forEach(x => x.classList.remove('open')); clearTimeout(dlPopClose.t); }

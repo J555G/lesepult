@@ -143,7 +143,7 @@ function renderLibControls() {
 const RIBBON = '<i class="rib" title="Marker" aria-label="Marker"></i>';
 // the download icon of a work (dialogs.js): download, or – on this device – revision and Delete; a work deleted within 7 days
 // is restored by it at once
-const lmIcon = (w, inst, off) => w.imported ? '' : dlIcon('work:' + w.id, { have: inst, rev: inst && S.revOn && revAvail(w.id), size: w.bytes, off: off && !S.trash?.[w.id] });
+const lmIcon = (w, inst, off) => w.imported ? '' : dlIcon('work:' + w.id, { have: inst, rev: inst && S.revOn && revAvail(w.id), size: w.bytes, off: off && !S.trash?.[w.id], rst: !inst && S.trash?.[w.id] || 0 });
 function lmRowHTML(w, flat = false) {
   const key = w.id, inst = !!(w.imported || S.libInst[key]), cur = curKey() === key;
   const a = authorOf(w), off = !inst && lmOffline() && !S.trash?.[key];
@@ -157,11 +157,87 @@ function lmRowHTML(w, flat = false) {
 // "download all" on the right
 function lmAuthorHTML(a, ws, open) {
   const inst = a.works.filter(w => S.libInst[w.id] || w.imported).length;
-  const todo = S.catalog && !lmOffline() ? ws.filter(w => !w.imported && !S.libInst[w.id] && !DL.has('work:' + w.id)) : [];
-  const all = todo.length ? `<button type="button" class="dlall" data-all="${a.id}" title="Download ${todo.length === 1 ? 'the work' : `all ${todo.length} works`} (${mb(todo.reduce((x, w) => x + w.bytes, 0))})" aria-label="Download ${todo.length === 1 ? 'the work' : `all ${todo.length} works`}">${DLICON}</button>` : '';
   const n = ws.length < a.works.length ? `${ws.length} of ${a.works.length}<span class="wnw"> works</span>` : `${a.works.length}<span class="wnw"> work${a.works.length > 1 ? 's' : ''}</span>`;
   const sub = [a.date ? esc(a.date) : '', `<span class="wn">${n}</span>`, inst && libView().view === 'all' ? `<span class="ok">${inst} on this device</span>` : ''].filter(Boolean).join(' · ');
-  return `<details class="auth" data-a="${a.id}"${open ? ' open' : ''}><summary><span class="t"><b>${esc(a.name)}</b><small>${sub}</small></span><span class="dlc">${all}</span></summary><div class="works">${open ? ws.map(w => lmRowHTML(w)).join('') : ''}</div></details>`;
+  return `<details class="auth" data-a="${a.id}"${open ? ' open' : ''}><summary><span class="t"><b>${esc(a.name)}</b><small>${sub}</small></span><span class="dlc">${authIconHTML(a, ws)}</span></summary><div class="works">${open ? ws.map(w => lmRowHTML(w)).join('') : ''}</div></details>`;
+}
+// ---- an author's download icon: an overview of their works that the filters show (imported texts aside). Empty: a tap
+// downloads them all (in the bin, all of them: the return arrow, restored at once); partly on the device: filled in
+// proportion, a tap offers the rest and Delete all; all there: filled, a tap offers Delete all; while downloading: the
+// fill rises with the size of all (what is on the device included); some failed: ↻ tries them again
+function authState(ws) {
+  const W = ws.filter(w => !w.imported); if (!W.length) return null;
+  const sz = w => w.bytes || S.libInst[w.id]?.size || 0;
+  let T = 0, H = 0, busy = 0, prog = 0; const miss = [], fail = [], trash = [], have = [];
+  for (const w of W) {
+    const s = sz(w), id = 'work:' + w.id; T += s;
+    if (DL.has(id)) { busy++; prog += s * Math.max(0, DL.get(id)); }
+    else if (S.libInst[w.id]) { H += s; have.push(w); }
+    else { miss.push(w); if (DLX.get(id)?.err) fail.push(w); if (S.trash?.[w.id]) trash.push(w); }
+  }
+  return { W, T, H, busy, prog, miss, fail, trash, have, rest: miss.reduce((x, w) => x + sz(w), 0) };
+}
+function authIconHTML(a, ws) {
+  const st = authState(ws); if (!st) return '';
+  const { W, T, H, busy, prog, miss, fail, trash } = st, pc = Math.round((T ? (H + prog) / T : 0) * 100) + '%', aid = esc(a.id);
+  const off = lmOffline() && trash.length < miss.length;
+  if (busy) return `<button type="button" class="dli busy" data-authstop="${aid}" style="--p:${pc}" title="Downloading ${busy} of ${W.length} – tap to stop" aria-label="Downloading – tap to stop">${DLARROW}</button>`;
+  if (fail.length) return `<button type="button" class="dli fail" data-authget="${aid}" title="${fail.length} failed – tap to try again" aria-label="Try again">↻</button>`;
+  if (!miss.length) return `<button type="button" class="dli done" data-authpop="${aid}" title="All on this device" aria-label="All on this device">${DLARROW}</button>`;
+  if (miss.length < W.length) return `<button type="button" class="dli part" data-authpop="${aid}" style="--f:${pc}" title="${W.length - miss.length} of ${W.length} on this device" aria-label="${W.length - miss.length} of ${W.length} on this device">${DLARROW}</button>`;
+  const rst = trash.length === miss.length;
+  return `<button type="button" class="dli${rst ? ' rst' : ''}" data-authget="${aid}" title="${rst ? 'Restore – kept on this device' : `Download ${W.length === 1 ? 'the work' : `all ${W.length} works`} (${mb(st.rest)})`}" aria-label="${rst ? 'Restore' : 'Download all'}"${off ? ' disabled' : ''}>${rst ? RSTARROW : DLARROW}</button>`;
+}
+const authFind = id => libAuthors().find(a => a.id === id);
+// a work's download moved on: the icon of its author follows (at most once a frame)
+function authPaint(wid) {
+  if (!$('#libList')) return;
+  const a = libAuthors().find(x => x.works.some(w => w.id === wid)); if (!a) return;
+  (authPaint.q ??= new Set()).add(a.id);
+  if (authPaint.f) return;
+  authPaint.f = requestAnimationFrame(() => { authPaint.f = 0;
+    for (const id of authPaint.q) { const el = document.querySelector(`#libList details.auth[data-a="${CSS.escape(id)}"] .dlc`), x = authFind(id); if (el && x && !el.querySelector('.open')) el.innerHTML = authIconHTML(x, libFilter(x)); }
+    authPaint.q.clear(); });
+}
+function authQueue(a) {
+  const st = authState(libFilter(a)); if (!st) return;
+  navigator.storage?.persist?.().catch(() => { });
+  for (const w of st.miss) { const id = 'work:' + w.id; DLX.delete(id); DL.set(id, -1); paintDL(id); }
+  runDownloads(); authPaint(st.W[0].id);
+}
+document.addEventListener('click', async ev => {
+  const b = ev.target.closest?.('#libList [data-authget],#libList [data-authpop],#libList [data-authstop],#libList [data-authrest],#libList [data-authdel],#libList [data-authstopgo],#libList [data-authgo]'); if (!b) return;
+  ev.preventDefault(); ev.stopPropagation();
+  const d = b.dataset, a = authFind(d.authget || d.authpop || d.authstop || d.authrest || d.authdel || d.authstopgo || d.authgo); if (!a) return;
+  if (d.authget) { dlPopClose(); return authQueue(a); }
+  if (d.authrest) { dlPopClose(); return authQueue(a); }
+  if (d.authdel) { dlPopClose(); const st = authState(libFilter(a)); for (const w of st?.have || []) await trashWork(w.id); return renderLibList(); }
+  if (d.authpop) {                                                   // the choice to the left of the icon
+    const open = b.classList.contains('open'); dlPopClose(); if (open) return;
+    const st = authState(libFilter(a)), row = b.closest('summary'), rr = row.getBoundingClientRect(), br = b.getBoundingClientRect();
+    const restOff = lmOffline() && st.trash.length < st.miss.length;
+    row.classList.add('dlhost'); b.classList.add('open');
+    row.insertAdjacentHTML('beforeend', `<span class="dlpop" style="right:${Math.round(rr.right - br.left + 6)}px;top:${Math.round(br.top - rr.top + br.height / 2)}px">`
+      + (st.miss.length ? `<button type="button" data-authrest="${esc(a.id)}"${restOff ? ' disabled' : ''}>Download the rest (${st.miss.length} · ${mb(st.rest)})</button>` : '')
+      + `<button type="button" class="danger" data-authdel="${esc(a.id)}">Delete all</button></span>`);
+    dlPopClose.t = setTimeout(dlPopClose, 5000); return;
+  }
+  if (d.authstop) {                                                  // stopping: asked beneath the author
+    document.querySelectorAll('#dlg .dlask').forEach(x => x.remove());
+    b.closest('details.auth').insertAdjacentHTML('afterend', `<div class="dlask"><span>Stop downloading the works of ${esc(a.name)}?</span><button type="button" class="danger" data-authstopgo="${esc(a.id)}">Stop</button><button type="button" data-authgo="${esc(a.id)}">Continue</button></div>`);
+    return;
+  }
+  if (d.authstopgo || d.authgo) {
+    b.closest('.dlask')?.remove();
+    if (d.authstopgo) for (const w of a.works) { const id = 'work:' + w.id; if (DL.has(id)) dlStop(id); }
+    return authPaint(a.works[0]?.id);
+  }
+}, true);
+// Armarium: the works deleted in the last 7 days (most recent first), folded beneath the shelf
+function trashGroupHTML() {
+  const q = fold(S.libQ), ws = Object.entries(S.trash || {}).sort((x, y) => y[1] - x[1]).map(([id]) => S.catWork?.[id]).filter(w => w && !S.libInst[w.id] && workPasses(w, q, true));
+  if (!ws.length) return '';
+  return `<details class="auth trashg"${S.trashOpen ? ' open' : ''}><summary><span class="t"><b>Recently deleted</b><small>${ws.length} work${ws.length === 1 ? '' : 's'} · kept 7 days</small></span></summary><div class="works">${ws.map(w => lmRowHTML(w, true)).join('')}</div></details>`;
 }
 function renderLibList() {
   const el = $('#libList'); if (!el) return;
@@ -192,7 +268,8 @@ function renderLibList() {
     : v.view === 'mine' && !Object.keys(S.libInst || {}).length && !S.impWorks?.length ? 'No works on this device yet – download them in Bibliotheca, or import a text (+).'
     : v.view === 'all' && !S.catalog && !Object.keys(S.libInst || {}).length ? 'The catalogue could not be loaded yet (offline?).'
     : `Nothing found${S.libQ ? ' for “' + esc(S.libQ) + '”' : ''} with these filters.`;
-  el.innerHTML = html || `<p class="hint">${empty}</p>`;
+  const tg = v.view === 'mine' ? trashGroupHTML() : '';
+  el.innerHTML = (html || `<p class="hint">${empty}</p>`) + tg;
 }
 
 // ---------------------------------------------------------------- Scriptorium: recently read · annotated
@@ -400,7 +477,8 @@ function wireLibrary() {
     }
   });
   document.addEventListener('toggle', ev => {
-    const d = ev.target; if (!d.matches?.('#libList details.auth')) return;
+    const d = ev.target; if (d.matches?.('#libList details.trashg')) { S.trashOpen = d.open; return; }
+    if (!d.matches?.('#libList details.auth')) return;
     const id = d.dataset.a;
     if (d.open) { S.libOpen.add(id); const a = libAuthors().find(x => x.id === id); d.querySelector('.works').innerHTML = libFilter(a).map(w => lmRowHTML(w)).join(''); }
     else S.libOpen.delete(id);
@@ -453,13 +531,6 @@ function wireLibrary() {
       const tb = $('#libTabs'); if (tb) tb.innerHTML = lmTabsHTML();
       if (libView().view === 'fav' && !S.lmPage) renderLibList();
       return;
-    }
-    if (d.all) {
-      ev.preventDefault();
-      const a = libAuthors().find(x => x.id === d.all);
-      navigator.storage?.persist?.().catch(() => { });
-      for (const w of libFilter(a)) if (!S.libInst[w.id] && !w.imported) DL.set('work:' + w.id, -1);
-      S.libOpen.add(a.id); renderLibList(); runDownloads(); return;
     }
     if (d.get || d.dl) { if (b.closest('.lwmenu')) { S.lwMenu = null; setTimeout(() => lmRender(), 30); } return; }   // (downloads: app.js)
     // Scriptorium

@@ -128,10 +128,10 @@ function impWork(t) {
   return { id: 'imp:' + t.id, tid: t.id, title: t.title, greek: '', author: t.author || '', authorId: 'imp|' + (t.author || ''), source: 'Imported', lang: lang === 'la' ? 'lat' : 'grc',
     words: ((t.text || '').match(new RegExp(WORD_TOKEN.source, 'g')) || []).length, verse: null, books: [t.title], imported: true, year: t.year ?? null, date: t.date || '', edition: t.edition || '', notes: t.notes || '', created: t.created };
 }
-function workPasses(w, q) {
+function workPasses(w, q, anyView = false) {           // (anyView: the filters and the search only, not the tab)
   const v = libView(), a = authorOf(w);
-  if (v.view === 'mine' && !S.libInst[w.id] && !w.imported) return false;
-  if (v.view === 'fav' && !S.favs?.[w.id]) return false;
+  if (!anyView && v.view === 'mine' && !S.libInst[w.id] && !w.imported) return false;
+  if (!anyView && v.view === 'fav' && !S.favs?.[w.id]) return false;
   if (v.langs.length && !v.langs.includes(workLang(w))) return false;
   if (v.form.length && w.verse != null && !v.form.includes(w.verse ? 'verse' : 'prose')) return false;
   if (a.year == null) { if (!v.undated) return false; }
