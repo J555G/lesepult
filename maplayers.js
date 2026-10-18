@@ -373,15 +373,10 @@ function renderTime() {
     + `<div class="mth" data-k="${k}" data-e="0" style="left:${tPct(a)}%${two ? `;--rc:${rangeCol(k)}` : ''}"></div>` + (a !== b ? `<div class="mth" data-k="${k}" data-e="1" style="left:${tPct(b)}%${two ? `;--rc:${rangeCol(k)}` : ''}"></div>` : '')).join('')
     + (M.year != null ? `<div class="mtwk" style="left:${tPct(M.year)}%" title="Date of the work"></div>` : '');
 }
-// a change of the dates: the slider is drawn again once per screen frame (a finger or pen sends 60–240 movements a second);
-// the map follows about 8 times a second while a date is pulled, and exactly when it is let go
-let timeRaf = 0, mapT = 0, mapLast = 0;
-function renderTimeSoon() { if (!timeRaf) timeRaf = requestAnimationFrame(() => { timeRaf = 0; renderTime(); }); }
+let timeRaf = 0;
 function timeChanged(final) {
-  renderTimeSoon();
-  clearTimeout(mapT);
-  const go = () => { mapLast = performance.now(); requestAnimationFrame(() => applyLayers()); };
-  if (final || performance.now() - mapLast > 120) go(); else mapT = setTimeout(go, 120 - (performance.now() - mapLast));
+  renderTime();
+  if (!timeRaf) timeRaf = requestAnimationFrame(() => { timeRaf = 0; applyLayers(); });
 }
 // merging: a range whose ends meet becomes a date; ranges that touch become one
 function normRanges() {
@@ -395,7 +390,7 @@ function setView(a, b) {
   const [lo, hi] = TLIM(); let span = Math.max(20, Math.min(hi - lo, b - a));
   a = Math.max(lo, Math.min(hi - span, a));
   M.cfg.tView = [Math.round(a), Math.round(a + span)];
-  renderTimeSoon(); clearTimeout(M.tvT); M.tvT = setTimeout(saveMapCfg, 400);
+  renderTime(); clearTimeout(M.tvT); M.tvT = setTimeout(saveMapCfg, 400);
 }
 // the whole bar (and a margin around it) takes the touches: two fingers anywhere on it zoom the line, one finger works the line
 function wireTime() {
