@@ -99,7 +99,7 @@ async function downloadMapPkg(p, onp, signal) {
 async function downloadMapQueued(id, signal) {
   const p = M.man?.packages.find(x => x.id === id); if (!p) throw new Error('not on the website');
   const q = 'map:' + id; DL.set(q, 0); await redrawMapSection();
-  try { await downloadMapPkg(p, f => { DL.set(q, Math.min(0.98, f)); paintDL(q); }, signal); toast(p.name + ' installed'); }
+  try { await downloadMapPkg(p, f => { DL.set(q, Math.min(0.98, f)); paintDL(q); }, signal); note(p.name + ' installed'); }
   finally { DL.delete(q); await redrawMapSection(); }
   if (S.tab === 'map') showMap();
 }
@@ -175,7 +175,7 @@ document.addEventListener('click', async ev => {
     const keepMap = !!M.map; M.sitesFC = null;
     if (keepMap) await loadPlaceIndex(true);
     await placesForText(); if (S.tab === 'map') refreshMapData();
-    toast(`Place index rebuilt: ${n.toLocaleString('en')} places`);
+    note(`Place index rebuilt: ${n.toLocaleString('en')} places`);
   } catch (e) { toast('Could not rebuild the place index: ' + e.message, 4000); }
   redrawMapSection();
 });
@@ -183,7 +183,7 @@ document.addEventListener('click', async ev => {
   const g = ev.target.closest?.('[data-mapget]'), d = ev.target.closest?.('[data-mapdel]');
   if (!g && !d) return;
   const p = M.man?.packages.find(x => x.id === (g || d).dataset[g ? 'mapget' : 'mapdel']); if (!p) return;
-  if (d) { await deleteMapPkg(p); const o = await mapOff(); delete o[p.id]; await setting('mapOff', o); await redrawMapSection(); toast(p.name + ' deleted'); if (S.tab === 'map') showMap(); return; }
+  if (d) { await deleteMapPkg(p); const o = await mapOff(); delete o[p.id]; await setting('mapOff', o); await redrawMapSection(); note(p.name + ' deleted'); if (S.tab === 'map') showMap(); return; }
   if (g.classList.contains('on')) return;                      // the level already installed
   queueDownload('map:' + p.id); redrawMapSection();
 });
@@ -899,13 +899,13 @@ async function saveCorrection(v, quiet) {
   if (quiet) { await refreshMapData(); return; }
   const h = M.hits.get(s.i);
   if (h) { M.sel = { p: h.p, i: s.i, name: h.name, h }; await refreshMapData(); showCard(h.p); M.map.easeTo({ center: [h.p.lon, h.p.lat], duration: 500 }); }
-  else { closeCard(); toast('No longer marked as a place.'); }
+  else { closeCard(); note('No longer marked as a place.'); }
   // learn from the correction: the same for the other passages of this name?
   if (v && sc === 'occ') {
     const k = exKey(s.name), others = [...M.hits].filter(([i, x]) => i !== s.i && exKey(x.name) === k && (v.none || x.p.id !== v.p)).length;
     const box = $('#mapAlso');
     if (others && box) box.innerHTML = `<div class="munsure">Also for the other ${others} passage${others === 1 ? '' : 's'} of ${esc(plainName(s.name))}? <button type="button" data-malso='${JSON.stringify(v)}' data-mwhere="book">In this part</button><button type="button" data-malso='${JSON.stringify(v)}' data-mwhere="work">In the whole work</button></div>`;
-    else if (others && !h) toast(`${others} other passage${others === 1 ? '' : 's'} of ${plainName(s.name)} – change them on the map.`);
+    else if (others && !h) note(`${others} other passage${others === 1 ? '' : 's'} of ${plainName(s.name)} – change them on the map.`);
   }
 }
 function wireMapUI() {
@@ -926,7 +926,7 @@ function wireMapUI() {
       const s0 = M.sel, v = JSON.parse(d.malso), t = S.text;
       if (b.dataset.mwhere === 'work') await setting(`plw|${workKeyOf(t)}|${exKey(s0.name)}`, Object.assign({ name: s0.name }, v));
       else for (const [i, h] of M.hits) if (i !== s0.i && exKey(h.name) === exKey(s0.name)) await setting(`pl|${t.id}|${i}`, Object.assign({ name: h.name }, v));
-      $('#mapAlso').innerHTML = ''; M.workCache = null; M.anyCache = null; await placesForText(); await refreshMapData(); toast('Applied.'); return;
+      $('#mapAlso').innerHTML = ''; M.workCache = null; M.anyCache = null; await placesForText(); await refreshMapData(); note('Applied.'); return;
     }
     if (await drawUIClick(b) || await layerClick(b) || await savedClick(b)) return;
     if (b.id === 'mapScope') return scopePop();

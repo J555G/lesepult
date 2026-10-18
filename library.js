@@ -469,7 +469,7 @@ function setReading(on) {
   document.body.classList.toggle('reading', on);
   if (on) {
     document.documentElement.requestFullscreen?.().catch(() => { });
-    toast('Reading mode – swipe in from the middle of the right edge, or press Esc, to leave.', 3500);
+    note('Reading mode – swipe in from the middle of the right edge, or press Esc, to leave.', 3500);
   } else if (document.fullscreenElement) document.exitFullscreen?.().catch(() => { });
   setGlossMax();
 }

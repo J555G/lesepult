@@ -116,13 +116,13 @@ async function importDialog(t = null, fromLib = false) {
   const id = await put('texts', rec);
   if (t) await del('settings', 'wyear|imp:' + t.id);
   await openText(t ? t.id : id);
-  toast(t ? 'Saved' : 'Text imported – it is in the Library under “On this device”');
+  note(t ? 'Saved' : 'Text imported – it is in the Library under “On this device”');
 }
 async function textsDialog() { return importDialog(); }
 async function saveText(title, text, choices) {
   const id = await put('texts', { title, text, created: Date.now() });
   if (choices) for (const [f, lemma] of Object.entries(choices)) await put('choices', { f: canon(f), lemma });
-  await openText(id); toast('Text saved');
+  await openText(id); note('Text saved');
 }
 // housekeeping, silently, a while after each start: what can no longer be used is removed – databases of removed
 // dictionaries, the pre-v3 database, old app caches, pieces of map downloads left for a week, the search index's
@@ -313,7 +313,7 @@ document.addEventListener('click', async ev => {
     const av = S.instAvailRow?.(id);
     if (row && av) row.outerHTML = av; else row?.remove();
     S.instAfterDel?.();
-    toast(name + ' deleted');
+    note(name + ' deleted');
   }
 });
 // the two choices beneath Delete: gone again with Cancel, or a tap anywhere else
@@ -515,7 +515,8 @@ async function settingsDialog(focus) {
     ...(hasMap ? [{ k: 'map', title: 'Map', sub: 'places in texts · period · significance · engine' }] : [])];
   const dlgP = dialog(pagedHTML('set', 'Settings', rows, { read: reading, search: searchSettingsHTML(), lib: libSettingsHTML(), ...(hasMap ? { map: `<div class="mapset">${settingsHTML()}</div>` } : {}) },
       `<div class="srow1 sapp"><b>Appearance</b>${seg('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']])}</div>`
-      + `<label class="srow1 swr sapp2"><span>Fades<small class="hint">buttons light up briefly when tapped, switches fade in and out</small></span>${SW('data-fades="1"', !document.body.classList.contains('nofade'))}</label>`)
+      + `<label class="srow1 swr sapp2"><span>Fades<small class="hint">buttons light up briefly when tapped, switches fade in and out</small></span>${SW('data-fades="1"', !document.body.classList.contains('nofade'))}</label>`
+      + `<label class="srow1 swr sapp2"><span>Notices<small class="hint">short hints and confirmations at the bottom of the screen (warnings always show)</small></span>${SW('data-notices="1"', document.body.classList.contains('notices'))}</label>`)
     + `<p class="sver">Pult · version ${ver} · published ${PULT_DATE}</p>`, []);
   syncGramRows($('#dlgForm')); scIdxInfo();
   if (focus) {                                                   // the part asked for, at the top of the dialog
@@ -618,6 +619,7 @@ document.addEventListener('click', ev => {
   step();
 }, true);
 document.addEventListener('change', ev => {
+  if (ev.target.dataset?.notices != null) { document.body.classList.toggle('notices', ev.target.checked); setting('notices', ev.target.checked); return; }
   if (ev.target.dataset?.fades == null) return;
   document.body.classList.toggle('nofade', !ev.target.checked); setting('fades', ev.target.checked);
 });
@@ -662,7 +664,7 @@ async function dlDelete(id, row) {
   if (id.startsWith('work:')) { await trashWork(id.slice(5)); if ($('#libBody')) lmRender(); return; }
   if (id.startsWith('map:')) {
     const p = M.man?.packages.find(x => x.id === id.slice(4)); if (!p) return;
-    await deleteMapPkg(p); const o = await mapOff(); delete o[p.id]; await setting('mapOff', o); await redrawMapSection(); toast(p.name + ' deleted'); if (S.tab === 'map') showMap(); return;
+    await deleteMapPkg(p); const o = await mapOff(); delete o[p.id]; await setting('mapOff', o); await redrawMapSection(); note(p.name + ' deleted'); if (S.tab === 'map') showMap(); return;
   }
   return dictDeleteRow(id, row?.closest('.pkrow') || row);
 }
@@ -673,7 +675,7 @@ async function dictDeleteRow(id, row) {
   const av = S.instAvailRow?.(id);
   if (row && av) row.outerHTML = av; else row?.remove();
   S.instAfterDel?.();
-  toast(name + ' deleted');
+  note(name + ' deleted');
 }
 function queueDownload(id) {
   if (DL.has(id)) return;
@@ -735,7 +737,7 @@ async function runDownloads() {
       DLX.delete(id);
     } catch (e) {
       DL.delete(id);
-      if (e.name === 'AbortError') { DLX.delete(id); toast(`${dlName(id)}: stopped`); }
+      if (e.name === 'AbortError') { DLX.delete(id); note(`${dlName(id)}: stopped`); }
       else { DLX.set(id, { err: e.message }); toast(`${dlName(id)}: download failed (${e.message})`, 4000); netCheck(); }
       paintDL(id);
       if ($('#libBody')) lmRender();
@@ -757,7 +759,7 @@ async function downloadDictPkg(id, signal) {
   await importPackage(new File(parts, p.file), x => { DL.set(id, 0.9 + 0.1 * x); paintDL(id); }, p.version);
   DL.delete(id); paintDL(id, 'Up to date');
   document.querySelectorAll(`#dlg [data-get="${id}"]`).forEach(b => { b.classList.remove('busy'); b.style.removeProperty('--p'); });
-  toast(`${p.name} installed`);
+  note(`${p.name} installed`);
   await loadDicts(); bucketCache.clear();
   // the open Instruments menu: the row becomes an installed one where it is, the summaries follow (no redraw of the menu)
   if ($('#dlg').open && $('#dlgForm .dlghead[data-menu="inst"]') && S.instRow) {
@@ -772,7 +774,7 @@ async function syncPackages(ids = null) {
   if (!man) return toast('Could not reach the website – are you online?');
   await loadDicts();
   const todo = man.packages.filter(p => ids ? ids.includes(p.id) : S.installed[p.id]?.version !== p.version);
-  if (!todo.length) return toast('All downloadable dictionaries are up to date.');
+  if (!todo.length) return note('All downloadable dictionaries are up to date.');
   const d = $('#dlg'), f = $('#dlgForm');
   if (d.open) d.close();
   f.innerHTML = '<h3>Download</h3><p id="impMsg">…</p><div class="prog"><i id="impBar"></i></div>'; d.showModal();
@@ -786,7 +788,7 @@ async function syncPackages(ids = null) {
       for (;;) { const { done: fin, value } = await reader.read(); if (fin) break; parts.push(value); got += value.length; prog(got / p.bytes); }
       await importPackage(new File(parts, p.file), prog, p.version);
     }
-    d.close(); toast(todo.length === 1 ? `${todo[0].name} installed` : 'Dictionaries installed');
+    d.close(); note(todo.length === 1 ? `${todo[0].name} installed` : 'Dictionaries installed');
   } catch (e) {
     $('#impMsg').textContent = 'Error: ' + e.message;
     await new Promise(res => { f.insertAdjacentHTML('beforeend', '<div class="row"><button>OK</button></div>'); f.onsubmit = ev => { ev.preventDefault(); d.close(); res(); }; });
@@ -800,7 +802,7 @@ async function importFiles(files) {
   const prog = (x, msg) => { if (msg) $('#impMsg').textContent = msg; $('#impBar').style.width = (x * 100).toFixed(0) + '%'; };
   try {
     for (const file of files) { prog(0, 'Reading ' + file.name + ' …'); await importPackage(file, prog); }
-    d.close(); toast('Import finished');
+    d.close(); note('Import finished');
   } catch (e) { $('#impMsg').textContent = 'Error: ' + e.message; f.insertAdjacentHTML('beforeend', '<div class="row"><button>OK</button></div>'); f.onsubmit = ev => { ev.preventDefault(); d.close(); }; }
   await loadDicts(); bucketCache.clear(); if (S.view) renderView();
   resetTokens(); resolveTokens();
@@ -899,7 +901,7 @@ document.addEventListener('click', async ev => {
   await del('settings', 'gone|' + x.key);
   if (S.text && keyOfText(S.text.id) === x.key) await openText(S.text.id, false);
   const row = document.querySelector(`#dlg .annrow[data-ai="${ok.dataset.anndel}"]`); row?.remove();
-  toast('Deleted', 1800);
+  note('Deleted', 1800);
 });
 async function restoreBackup(file) {
   const data = JSON.parse(await file.text());
@@ -929,7 +931,7 @@ async function restoreBackup(file) {
     if (p.latQuant != null) { S.latQuant = !!p.latQuant; await setting('latQuant', S.latQuant); }
     if (p.showGram != null) setGram(!!p.showGram, true);
   }
-  toast('Restored'); await openText(data.texts[0]?.id ?? null);
+  note('Restored'); await openText(data.texts[0]?.id ?? null);
 }
 
 // ---------------------------------------------------------------- acknowledgements (☰ → Acknowledgements)

@@ -193,7 +193,7 @@ async function saveMapDialog() {
   const r = await dialog(`<h3>Save this map</h3><p class="hint small">Keeps the texts, the part, the view, the period and the layers – to open again later (the bookmark button of the map).</p><label>Name<input type="text" name="n" value="${esc(sug)}" autocomplete="off"></label>`, [['cancel', 'Cancel'], ['ok', 'Save']], 'ok');
   if (r.action !== 'ok' || !r.data.n?.trim()) return;
   const m = Object.assign(mapState(), { id: Date.now().toString(36), name: r.data.n.trim(), created: Date.now() });
-  await setting('mmap|' + m.id, m); toast('Map saved');
+  await setting('mmap|' + m.id, m); note('Map saved');
 }
 async function openSavedMap(m) {
   $('#mapPop').hidden = true;
@@ -267,7 +267,7 @@ async function savedClick(b) {
   if (d.mgoany != null) { mapGoAny(d.mgoany, +d.mi); return true; }
   if (d.msave) { $('#mapPop').hidden = true; await saveMapDialog(); return true; }
   if (d.mopen) { const m = await setting('mmap|' + d.mopen); if (m) await openSavedMap(m); return true; }
-  if (d.mdelmap) { await del('settings', 'mmap|' + d.mdelmap); await savePop(true); toast('Map deleted'); return true; }
+  if (d.mdelmap) { await del('settings', 'mmap|' + d.mdelmap); await savePop(true); note('Map deleted'); return true; }
   if (d.mexp) { $('#mapPop').hidden = true; await exportMap(d.mexp); return true; }
   if (d.mimport) {
     $('#mapPop').hidden = true;
@@ -348,7 +348,7 @@ async function exportMap(fmt) {
     blob = new Blob([JSON.stringify({ format: 'pult-map-1', date: new Date().toISOString(), map: st, places, corrections: Object.fromEntries(corr.map(r => [r.k, r.v])) })], { type: 'application/json' });
     name = base + '.pultmap.json';
   } else {
-    toast('Preparing the image …');
+    note('Preparing the image …');
     const cv = await mapCanvas();
     if (fmt === 'png') { blob = await new Promise(r => cv.toBlob(r, 'image/png')); name = base + '.png'; }
     else { blob = await pdfOf(cv); name = base + '.pdf'; }

@@ -51,8 +51,12 @@ function toast(msg, ms = 2500, high = false) {
   t.style.width = at ? 'max-content' : ''; t.style.maxWidth = at ? `${Math.round(Math.min(innerWidth - 24, Math.max(at.width - 16, 300)))}px` : '';
   t.hidden = false;
   if (at) { const w = t.getBoundingClientRect().width / 2, cx = (at.left + at.right) / 2; t.style.left = `${Math.round(Math.max(12 + w, Math.min(innerWidth - 12 - w, cx)))}px`; }   // (inside the window)
-  clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, ms);
+  // (with Fades on: in over 1/9 s, out over 1/3 s)
+  t.classList.remove('in'); void t.offsetWidth; t.classList.add('in');
+  clearTimeout(toast.t); toast.t = setTimeout(() => { t.classList.remove('in'); toast.t = setTimeout(() => { t.hidden = true; }, document.body.classList.contains('nofade') ? 0 : 333); }, ms);
 }
+// a hint or a confirmation (not a warning): shown only when Settings → Appearance → Notices is on
+function note(msg, ms, high) { if (document.body.classList.contains('notices')) toast(msg, ms, high); }
 
 // ---------------------------------------------------------------- IndexedDB
 // Storage layout (since v3):
@@ -125,7 +129,7 @@ async function migrateOld() {
   }
   old.close();
   await new Promise(res => { const r = indexedDB.deleteDatabase(OLD_DB); r.onsuccess = r.onerror = r.onblocked = () => res(); });
-  dlg.close(); toast('Storage reorganised – the old copy was removed.');
+  dlg.close(); note('Storage reorganised – the old copy was removed.');
 }
 function tx(stores, mode = 'readonly') { return db.transaction(stores, mode); }
 function req2p(r) { return new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }

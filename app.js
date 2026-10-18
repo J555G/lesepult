@@ -56,8 +56,8 @@ function wire() {
   });
   $('#dictBody').addEventListener('change', async ev => {
     const inp = ev.target; const t = cleanGloss(inp.value);
-    if (inp.dataset.span) { const [a, b] = inp.dataset.span.split(',').map(Number); await saveSpanGloss(a, b, t); renderText(); toast(t ? 'Gloss saved' : 'Gloss removed'); }
-    if (inp.dataset.def) { await setDefaultGloss(inp.dataset.def, t); renderText(); toast(t ? 'Default gloss saved' : 'Default gloss removed'); }
+    if (inp.dataset.span) { const [a, b] = inp.dataset.span.split(',').map(Number); await saveSpanGloss(a, b, t); renderText(); note(t ? 'Gloss saved' : 'Gloss removed'); }
+    if (inp.dataset.def) { await setDefaultGloss(inp.dataset.def, t); renderText(); note(t ? 'Default gloss saved' : 'Default gloss removed'); }
     setTimeout(fillGlossBox, 0);
   });
   $('#dictBody').addEventListener('input', ev => { if (ev.target.matches('#glossbox textarea')) autoGrow(ev.target); });
@@ -247,7 +247,7 @@ function wire() {
       }
       fm.text.value = await readTextFile(f);
       if (!fm.title.value) fm.title.value = f.name.replace(/\.[^.]+$/, '');
-      toast(`${f.name} loaded`);
+      note(`${f.name} loaded`);
     } catch (e) { toast(`${f.name}: ${e.message}`, 4000); }
   });
   $('#fileText').onchange = async ev => {
@@ -411,6 +411,7 @@ function splitIcon() {   // an open book: the fold sits where the split is, the 
   wire();
   setTheme((await setting('theme')) || 'dark');
   document.body.classList.toggle('nofade', (await setting('fades')) === false);
+  document.body.classList.toggle('notices', (await setting('notices')) === true);       // (hints and confirmations: off unless switched on)
   S.glossMode = (await setting('glossMode')) || 'replace';
   S.latQuant = !!(await setting('latQuant'));
   for (const r of await getAll('settings', IDBKeyRange.bound('lg|', 'lg|\uffff'))) S.lemmaGloss[r.k.slice(3)] = r.v;

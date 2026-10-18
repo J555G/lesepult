@@ -272,12 +272,12 @@ async function addGloss(text, asDefault = false, add = false) {
     const l = (add && S.view?.pick) || targetLemma(); if (!l) return toast('A default gloss needs a single word with a known lemma.');
     const k = gkey(l);
     await setDefaultGloss(k, add ? joinGloss(S.lemmaGloss[k], text) : text);
-    renderText(); fillGlossBox(); return toast(`Default gloss for ${l} ${add && S.lemmaGloss[k] !== text ? 'extended' : 'set'}`);
+    renderText(); fillGlossBox(); return note(`Default gloss for ${l} ${add && S.lemmaGloss[k] !== text ? 'extended' : 'set'}`);
   }
   if (!S.cur) return toast('First tap the word in the text that the gloss belongs to.');
   const old = spanGloss(S.cur[0], S.cur[1])?.t;
   await saveSpanGloss(S.cur[0], S.cur[1], add ? joinGloss(old, text) : text);
-  renderText(); fillGlossBox(); toast(old && add ? 'Gloss extended' : 'Gloss saved');
+  renderText(); fillGlossBox(); note(old && add ? 'Gloss extended' : 'Gloss saved');
 }
 async function writeGloss() {     // type a gloss directly, without the dictionary
   if (!S.text) return toast('Open a text first.');
@@ -372,14 +372,14 @@ function wireMarker() {
     long = false; clearTimeout(timer);
     timer = setTimeout(async () => {
       long = true; const i = anchorWord(); if (i == null) return;
-      if (i === S.marker) { await setMarker(null); toast('Marker removed'); } else { await setMarker(i); toast('Marker moved here'); }
+      if (i === S.marker) { await setMarker(null); note('Marker removed'); } else { await setMarker(i); toast('Marker moved here'); }
     }, 550);
   });
   for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, () => clearTimeout(timer));
   b.addEventListener('contextmenu', e => e.preventDefault());
   b.addEventListener('click', async () => {
     if (long) { long = false; return; }
-    if (S.marker == null) { const i = anchorWord(); if (i == null) return; await setMarker(i); toast('Marker set – tap the ribbon to come back here; hold it to move the marker.', 3500); }
+    if (S.marker == null) { const i = anchorWord(); if (i == null) return; await setMarker(i); note('Marker set – tap the ribbon to come back here; hold it to move the marker.', 3500); }
     else goMarker();
   });
 }

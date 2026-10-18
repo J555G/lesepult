@@ -425,8 +425,8 @@ function wireTime() {
       const r = M.T.ranges[drag.k], [lo, hi] = TLIM(), st = tStep(), v = tView();
       // a new period about 90 px wide, easy to hold and split
       const half = Math.max(2 * st, snapY((90 / tr.getBoundingClientRect().width) * (v[1] - v[0]) / 2));
-      if (r[0] === r[1]) { M.T.ranges[drag.k] = [Math.max(lo, snapY(r[0] - half)), Math.min(hi, snapY(r[0] + half))]; toast('A period – pull the two ends apart or together', 2500, $('#mapTime')); }
-      else if (drag.e === 'm' && M.T.ranges.length < TMAXR && r[1] - r[0] >= 6 * st) { const m = snapY(drag.y0), g = Math.max(st, snapY((v[1] - v[0]) / 60)); M.T.ranges.splice(drag.k, 1, [r[0], Math.max(r[0], m - g)], [Math.min(r[1], m + g), r[1]]); toast('Two periods – pull them together to join them', 2500, $('#mapTime')); }
+      if (r[0] === r[1]) { M.T.ranges[drag.k] = [Math.max(lo, snapY(r[0] - half)), Math.min(hi, snapY(r[0] + half))]; note('A period – pull the two ends apart or together', 2500, $('#mapTime')); }
+      else if (drag.e === 'm' && M.T.ranges.length < TMAXR && r[1] - r[0] >= 6 * st) { const m = snapY(drag.y0), g = Math.max(st, snapY((v[1] - v[0]) / 60)); M.T.ranges.splice(drag.k, 1, [r[0], Math.max(r[0], m - g)], [Math.min(r[1], m + g), r[1]]); note('Two periods – pull them together to join them', 2500, $('#mapTime')); }
       else return;
       navigator.vibrate?.(15); drag = null; timeChanged();
     }, 550);
@@ -682,7 +682,7 @@ async function countDevice(btn) {
   }
   await loadDevCounts(); recomputeSig();
   if (btn) { btn.disabled = false; btn.textContent = 'Count the places in all texts on this device'; }
-  toast(`Places counted in ${ids.length} text${ids.length === 1 ? '' : 's'}.`);
+  note(`Places counted in ${ids.length} text${ids.length === 1 ? '' : 's'}.`);
 }
 
 // a tap on a road of Itiner-e: its name, kind, certainty, itineraries, builder and dates

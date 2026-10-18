@@ -308,7 +308,7 @@ async function dDelete(id) {
   if (r.action !== 'ok') return;
   M.dm?.undo.push({ id, before: dClone(x) });
   await dRemove(x); if (M.sel?.p?.id === id) M.sel = null;
-  closeCard(); applyLayers(); refreshLayersPop(); toast('Deleted' + (M.dm ? ' – Undo brings it back' : ''));
+  closeCard(); applyLayers(); refreshLayersPop(); note('Deleted' + (M.dm ? ' – Undo brings it back' : ''));
 }
 
 // ---------------------------------------------------------------- drawing mode
@@ -355,7 +355,7 @@ async function drawToggle(on = !M.dm) {
   const body = $('#mapBody'), bar = $('#mapDraw'); if (!bar || !M.map) return;
   if (on) {
     await loadDrawings();
-    if (M.cfg.own === false) { M.cfg.own = true; toast('Your own places and drawings are shown again.'); }
+    if (M.cfg.own === false) { M.cfg.own = true; note('Your own places and drawings are shown again.'); }
     if (!M.dsets.has(M.cfg.dSet)) M.cfg.dSet = [...M.dsets.keys()][0];
     if ((M.cfg.dOff || []).includes(M.cfg.dSet)) M.cfg.dOff = M.cfg.dOff.filter(s => s !== M.cfg.dSet);
     saveMapCfg();
@@ -378,7 +378,7 @@ async function dTool(t) {
   M.map.getCanvas().style.cursor = !t || t === 'edit' ? '' : 'crosshair';
   $('#mapDraw')?.querySelectorAll('[data-dtool]').forEach(b => b.classList.toggle('on', b.dataset.dtool === t));
   if (t !== 'edit') { M.dSel = null; $('#mapCard').hidden = true; applyLayers(); }
-  if (t && M.dm.hinted !== t) { M.dm.hinted = t; toast(D_HINT[t], 3000, true); }
+  if (t && M.dm.hinted !== t) { M.dm.hinted = t; note(D_HINT[t], 3000, true); }
   dInfo(); dHandles();
 }
 async function dFinish() {
@@ -587,7 +587,7 @@ async function dSetMenu(id) {
     M.dsets.delete(id); await del('settings', 'dset|' + id);
     if (M.cfg.dSet === id) M.cfg.dSet = [...M.dsets.keys()][0];
     M.cfg.dOff = (M.cfg.dOff || []).filter(x => x !== id); await saveMapCfg();
-    closeCard(); toast('Set deleted');
+    closeCard(); note('Set deleted');
   }
   applyLayers(); refreshLayersPop();
 }
@@ -681,5 +681,5 @@ async function dImport(file) {
   }
   M.cfg.own = true; await saveMapCfg(); applyLayers(); refreshLayersPop();
   if (n && M.map) M.map.fitBounds([[x0, y0], [x1, y1]], { padding: 60, maxZoom: 10, duration: 600 });
-  toast(`${n} item${n === 1 ? '' : 's'} imported into “${s.name}”.`);
+  note(`${n} item${n === 1 ? '' : 's'} imported into “${s.name}”.`);
 }

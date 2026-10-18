@@ -1785,3 +1785,6 @@ body:not(.nofade) #btnSplit:is(:active,.fxon){color:var(--acc);transition:color 
 dialog .olrest[data-olnone]{cursor:default}
 /* ☰ keeps its accent while the menu is open */
 #top .menuwrap:has(#menu:not([hidden])) #btnMenu{color:var(--acc)}
+/* notices: with Fades on, in over 1/9 s and out over 1/3 s */
+body:not(.nofade) #toast{opacity:0;transition:opacity .333s ease}
+body:not(.nofade) #toast.in{opacity:1;transition:opacity .111s ease}
