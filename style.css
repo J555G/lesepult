@@ -1659,3 +1659,10 @@ dialog .lwinfo .lwl .lwm[aria-expanded="true"]{border-color:var(--line);color:va
 dialog .lwinfo .lwmenu{margin-top:.45rem}
 dialog .libbar .linkb{margin-right:auto;margin-left:.5rem}
 dialog .dlall{color:var(--dla);border-color:var(--line)}dialog .dlall:active{color:var(--acc);border-color:var(--acc)}
+/* the Library's date line (v217): the whole line (with the era names) takes the touches; periods fade out at its ends */
+dialog .ftl{padding:2px 0 6px;touch-action:none}
+dialog .ftclip{position:absolute;inset:0 -9px;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 14px,#000 calc(100% - 14px),transparent);mask-image:linear-gradient(90deg,transparent 0,#000 14px,#000 calc(100% - 14px),transparent)}
+dialog .ftclip>#libRanges{position:absolute;top:0;bottom:0;left:9px;right:9px}
+dialog .fthint{margin:.1rem 0 0}
+dialog .ftclear{font-size:12px;padding:.12rem .5rem;margin-left:.4rem;color:var(--mut)}
+dialog .ftclear[hidden]{display:none}

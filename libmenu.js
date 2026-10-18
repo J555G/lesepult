@@ -437,7 +437,7 @@ function wireLibrary() {
       if (sg) v[sg.dataset.seg] = sg.dataset.val ? [sg.dataset.val] : [];
       if (un) { const k = un.dataset.unf; if (k === 'date') v.periods.splice(+un.dataset.val, 1); else if (k === 'undated') v.undated = true; else v[k] = v[k].filter(x => x !== un.dataset.val); }
       if (dr) v.dir = -v.dir;
-      if (rs) Object.assign(v, { langs: [], src: [], form: [], periods: [], undated: true });
+      if (rs) { Object.assign(v, { langs: [], src: [], form: [], periods: ftDef(), undated: true }); S.ftView = ftView0(); }
       S.libLimit = 250; saveLibView(); renderLibControls(); renderLibList(); return;
     }
     if (d.more) { S.libLimit += 500; renderLibList(); return; }

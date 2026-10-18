@@ -93,7 +93,14 @@ const mb = b => b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round
 const SORTS = [['author', 'Author A–Z', 1], ['adate', 'Author by date', 1], ['title', 'Title', 1]];
 // century slider: from the start of the 8th c. BC to the end of the 15th c. AD (years; 0 = start of the 1st c. AD)
 const YMIN = -800, YMAX = 1500;
-const ERAS = [['Archaic', -800, -500], ['Classical', -500, -323], ['Hellenistic', -323, -31], ['Imperial', -31, 300], ['Late Antique', 300, 600], ['Byzantine', 600, 1500]];
+const ERAS = [['Bronze Age', -3300, -1200], ['Early Iron Age', -1200, -800], ['Archaic', -800, -500], ['Classical', -500, -323], ['Hellenistic', -323, -31], ['Imperial', -31, 300], ['Late Antique', 300, 600],
+  ['Byzantine', 600, 1453], ['Early Modern', 1453, 1789], ['Modern', 1789, 2100]];
+// the date line's settings (Settings → Library): its earliest and latest dates, the view it opens with, the period set
+// when the filters are reset (or none)
+const ftLim = () => [S.lib?.ftMin ?? YMIN, S.lib?.ftMax ?? YMAX];
+const ftView0 = () => { const [lo, hi] = ftLim(), v = S.lib?.ftView0; return v ? [Math.max(lo, v[0]), Math.min(hi, v[1])] : [lo, hi]; };
+const ftDef = () => S.lib?.ftDef ? [[...S.lib.ftDef]] : [];
+const filtersAtDefault = v => !v.langs.length && !v.src.length && !v.form.length && v.undated && JSON.stringify(v.periods) === JSON.stringify(ftDef());
 // favourites: a small flame (outline = not a favourite, filled = favourite)
 const FLAME = '<svg class="flame" width="15" height="20" viewBox="6.4 0.8 11.2 15.2" aria-hidden="true"><g transform="translate(12 0) scale(.82 1) translate(-12 0)" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"><path class="fo" vector-effect="non-scaling-stroke" d="M12 15.2c-3.6-.6-5.6-2.6-5.4-5.4.1-1.6.9-2.6 1.6-3.6.1 1.4.6 2.3 1.3 2.7-.4-2.4.2-5 1.5-7.4.4 2.4 1.4 3.6 2.4 4.6.4-1.4 1-2.4 2-3.2-.3 1.8 0 3.2.8 4.4.5-.6.8-1.4.9-2.4 1 1.4 1.4 3 1.2 4.6-.3 3.1-2.4 5.2-6.3 5.7z"/><path class="fi" vector-effect="non-scaling-stroke" d="M12 15c-1.6-.4-2.4-1.4-2.3-2.8 0-.8.4-1.4.8-1.9.1.7.4 1.1.7 1.2-.1-1.2.3-2.4.9-3.4.3 1 .9 1.7 1.4 2.4.6.8.8 1.6.6 2.4-.2 1.1-1 1.8-2.1 2.1z"/></g></svg>';
 function libView() {
@@ -165,9 +172,9 @@ const eraOf = y => (ERAS.find(([, a, b]) => y >= a && y < b) || ERAS[ERAS.length
 // ten years, the eras named above it; several periods at once (a tap on the line adds one, holding a period splits it,
 // pulling two ends together joins them)
 const FT_STEP = 10, FT_MAX = 6;
-const ftView = () => S.ftView ??= [YMIN, YMAX];
+const ftView = () => S.ftView ??= ftView0();
 const ftPct = y => { const [a, b] = ftView(); return (y - a) / (b - a) * 100; };
-const ftSnap = y => Math.max(YMIN, Math.min(YMAX, Math.round(y / FT_STEP) * FT_STEP));
+const ftSnap = y => { const [lo, hi] = ftLim(); return Math.max(lo, Math.min(hi, Math.round(y / FT_STEP) * FT_STEP)); };
 function ftLabel([a, b]) {
   const bc = y => y < 0 ? -y : y;
   if (a === b) return `c. ${a < 0 ? -a + ' BC' : 'AD ' + a}`;
@@ -199,19 +206,20 @@ function ftRender() {
   const er = $('#libEras'); if (er) er.innerHTML = ftErasHTML();
   const rg = $('#libRanges'); if (rg) rg.innerHTML = ftRangesHTML();
   const lb = $('#libDates'); if (lb) lb.innerHTML = v.periods.length ? v.periods.map(ftLabel).map(esc).join(' · ') : '<small>any date – tap the line to choose a period</small>';
+  const cl = $('#libCtl .ftclear'); if (cl) cl.hidden = !v.periods.length;
 }
 function libControlsHTML() {
   const v = libView();
-  return `<button type="button" class="ftreset" data-freset="1" title="Reset the filters" aria-label="Reset the filters"${filtersOn(v) ? '' : ' disabled'}>↺</button>
+  return `<button type="button" class="ftreset" data-freset="1" title="Reset the filters" aria-label="Reset the filters"${filtersAtDefault(v) ? ' disabled' : ''}>↺</button>
     <div class="fgrid">
       <span class="fl">Language</span>${seg('langs', [['', 'All'], ['grc', 'Greek'], ['la', 'Latin']])}
       <span class="fl">Source</span><div class="fchips">${libSources().map(x => chip('src', x, x)).join('')}</div>
       <span class="fl">Form</span>${seg('form', [['', 'All'], ['prose', 'Prose'], ['verse', 'Verse']])}
-      <span class="fl">Date</span><div class="fdate"><span class="crange" id="libDates"></span>
+      <span class="fl">Date</span><div class="fdate"><span class="crange" id="libDates"></span><button type="button" class="ftclear" data-ftclear="1" title="Remove all periods"${v.periods.length ? '' : ' hidden'}>✕ all periods</button>
         <label class="undl"><input type="checkbox" id="libUndated"${v.undated ? ' checked' : ''}> include undated</label></div>
     </div>
-    <div class="ftl"><div class="fteras" id="libEras"></div><div class="fttrack" id="libTrack"><div class="ftaxis" id="libAxis"></div><div id="libRanges"></div></div>
-      <p class="hint small">Tap the line for a period, pull its ends; hold a period to split it, pull two ends together to join them. Pinch or wheel to zoom, drag to move.</p></div>`;
+    <div class="ftl" id="libTl"><div class="fteras" id="libEras"></div><div class="fttrack" id="libTrack"><div class="ftaxis" id="libAxis"></div><div class="ftclip"><div id="libRanges"></div></div></div></div>
+    <p class="hint small fthint">Tap the line for a period and pull its ends; hold a period to split it, pull two ends together to join them. Pinch or wheel to zoom, drag to move.</p>`;
 }
 // what is filtered, as small removable chips (while the filter panel is closed)
 function libActiveHTML() {
@@ -231,12 +239,13 @@ function wireDateLine() {
   const tr = () => $('#libTrack');
   const yRaw = x => { const r = tr().getBoundingClientRect(), [a, b] = ftView(); return a + (x - r.left) / r.width * (b - a); };
   const xAt = y => { const r = tr().getBoundingClientRect(); return r.left + ftPct(y) / 100 * r.width; };
-  const setView = (a, b) => { const span = Math.max(60, Math.min(YMAX - YMIN, b - a)); a = Math.max(YMIN, Math.min(YMAX - span, a)); S.ftView = [a, a + span]; ftRender(); };
-  const changed = (fin) => { ftRender(); clearTimeout(lp.t); if (fin) { normPeriods(); ftRender(); saveLibView(); filterIcon(); S.libLimit = 250; renderLibList(); const r = $('#libCtl .ftreset'); if (r) r.disabled = !filtersOn(libView()); } };
+  const setView = (a, b) => { const [lo, hi] = ftLim(), span = Math.max(60, Math.min(hi - lo, b - a)); a = Math.max(lo, Math.min(hi - span, a)); S.ftView = [a, a + span]; ftRender(); };
+  const changed = fin => { ftRender(); if (fin) { normPeriods(); ftRender(); saveLibView(); filterIcon(); S.libLimit = 250; renderLibList(); const r = $('#libCtl .ftreset'); if (r) r.disabled = filtersAtDefault(libView()); } };
   const normPeriods = () => { const v = libView(); let R = v.periods.map(([a, b]) => [Math.min(a, b), Math.max(a, b)]).sort((x, y) => x[0] - y[0]); const out = [];
     for (const r of R) { const l = out[out.length - 1]; if (l && r[0] <= l[1]) l[1] = Math.max(l[1], r[1]); else out.push(r); } v.periods = out; };
+  // the whole line with the era names above it takes the touches (as the map's time slider)
   document.addEventListener('pointerdown', ev => {
-    const t = ev.target.closest?.('#libTrack'); if (!t) return;
+    const t = ev.target.closest?.('#libTl'); if (!t || !tr()) return;
     ev.preventDefault(); ptrs.set(ev.pointerId, ev.clientX); t.setPointerCapture(ev.pointerId);
     if (ptrs.size === 2) { clearTimeout(lp); drag = null; const [x1, x2] = [...ptrs.values()], v = ftView(); pinch = { d0: Math.max(10, Math.abs(x1 - x2)), span0: v[1] - v[0], ym: yRaw((x1 + x2) / 2) }; return; }
     if (ptrs.size > 2) return;
@@ -246,7 +255,7 @@ function wireDateLine() {
     else { const k = R.findIndex(([a, b]) => a < b && y >= a && y <= b); drag = k >= 0 ? { k, e: 'm', x0: ev.clientX, y0: y, r0: [...R[k]] } : { pan: true, x0: ev.clientX, v0: [...ftView()], y }; }
     clearTimeout(lp); lp = setTimeout(() => {                         // holding a period: it splits in two
       if (!drag || drag.moved || drag.e !== 'm') return;
-      const v = libView(), r = v.periods[drag.k], [a, b] = ftView(), g = Math.max(FT_STEP, ftSnap((b - a) / 60));
+      const v = libView(), r = v.periods[drag.k], [a, b] = ftView(), g = Math.max(FT_STEP, ftSnap((b - a) / 60) - ftSnap(0));
       if (v.periods.length >= FT_MAX || r[1] - r[0] < 6 * FT_STEP) return;
       v.periods.splice(drag.k, 1, [r[0], Math.max(r[0], drag.y0 - g)], [Math.min(r[1], drag.y0 + g), r[1]]);
       navigator.vibrate?.(15); drag = null; changed(true);
@@ -260,8 +269,11 @@ function wireDateLine() {
     if (Math.abs(ev.clientX - drag.x0) > 4) drag.moved = true; if (!drag.moved) return;
     if (drag.pan) { const r = tr().getBoundingClientRect(), d = (ev.clientX - drag.x0) / r.width * (drag.v0[1] - drag.v0[0]); setView(drag.v0[0] - d, drag.v0[1] - d); return; }
     const v = libView(), r = v.periods[drag.k]; if (!r) return;
-    const tb = tr().getBoundingClientRect(), y = ftSnap(yRaw(Math.max(tb.left, Math.min(tb.right, ev.clientX))));
-    if (drag.e === 'm') { const w = drag.r0[1] - drag.r0[0], a = Math.max(YMIN, Math.min(YMAX - w, drag.r0[0] + y - drag.y0)); r[0] = a; r[1] = a + w; }
+    // pulled past the end of the line: the line moves along, a little with each movement
+    const tb = tr().getBoundingClientRect(), vw = ftView(), sh = (vw[1] - vw[0]) * 0.02;
+    if (ev.clientX > tb.right) setView(vw[0] + sh, vw[1] + sh); else if (ev.clientX < tb.left) setView(vw[0] - sh, vw[1] - sh);
+    const y = ftSnap(yRaw(Math.max(tb.left, Math.min(tb.right, ev.clientX)))), [lo, hi] = ftLim();
+    if (drag.e === 'm') { const w = drag.r0[1] - drag.r0[0], a = Math.max(lo, Math.min(hi - w, drag.r0[0] + y - drag.y0)); r[0] = a; r[1] = a + w; }
     else {
       // an end near another end (of its own period or the next) snaps onto it: they join when let go
       const near = ev.pointerType === 'mouse' ? 10 : 16, x = xAt(y); let yy = y, bd = near + 1;
@@ -275,19 +287,24 @@ function wireDateLine() {
     ptrs.delete(ev.pointerId); clearTimeout(lp);
     if (pinch) { if (ptrs.size < 2) pinch = null; drag = null; return; }
     const d = drag; drag = null; if (!d) return;
-    if (d.pan) { if (!d.moved) { const v = libView(); if (v.periods.length < FT_MAX) { v.periods.push([ftSnap(d.y - 50), ftSnap(d.y + 50)]); changed(true); } } return; }   // a tap: a period of a century
+    // a tap on the empty line: a period of a century – only while there is none (afterwards: split by holding)
+    if (d.pan) { if (!d.moved && !libView().periods.length) { libView().periods.push([ftSnap(d.y - 50), ftSnap(d.y + 50)]); changed(true); } return; }
     changed(true);
   };
   document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up);
   document.addEventListener('wheel', ev => {
-    const t = ev.target.closest?.('#libTrack'); if (!t) return;
+    const t = ev.target.closest?.('#libTl'); if (!t || !tr()) return;
     ev.preventDefault();
-    const r = t.getBoundingClientRect(), [a, b] = ftView(), span = b - a;
+    const r = tr().getBoundingClientRect(), [a, b] = ftView(), span = b - a;
     if (Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) { const d = ev.deltaX / r.width * span; setView(a + d, b + d); return; }
     const y = yRaw(ev.clientX), f = (ev.clientX - r.left) / r.width, ns = span * Math.exp(ev.deltaY * 0.0015);
     setView(y - f * ns, y - f * ns + ns);
   }, { passive: false });
-  document.addEventListener('dblclick', ev => { if (ev.target.closest?.('#libTrack')) { S.ftView = [YMIN, YMAX]; ftRender(); } });
+  document.addEventListener('dblclick', ev => { if (ev.target.closest?.('#libTl')) { S.ftView = ftView0(); ftRender(); } });
+  document.addEventListener('click', ev => {
+    if (!ev.target.closest?.('#libCtl [data-ftclear]')) return;
+    libView().periods = []; changed(true);
+  });
 }
 const DLICON = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/></g></svg>';
 function sortedWorks() {        // a flat list (sort by title; Favourites): by title, or by author (name or date)
