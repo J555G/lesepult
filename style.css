@@ -1617,7 +1617,7 @@ dialog .olrow .olrest{flex:1 1 1.5rem;min-width:1.5rem;display:flex;align-items:
 /* the section where you are: its number and name in the accent colour (the row itself not lit) */
 dialog .olrow.on{background:none}
 dialog .olrow.on>.olj{background:none}
-dialog .olrow.on>.olj :is(.oln,.olx){color:var(--acc)!important;font-weight:600}
+dialog .olrow.on>.olj :is(.oln,.olx){color:var(--acc)!important}
 dialog .olrow.on>.olj .olm{color:inherit}
 @media (max-width:430px){dialog .lmtabs [data-view]{padding:.45rem .3rem .4rem;font-size:13px}dialog .lmtabs [data-view] .tn small{display:none}dialog .lmtabs .lmimp{padding:.15rem .4rem}}
 dialog .dlask span{flex:1 1 100%}
