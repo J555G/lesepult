@@ -1788,6 +1788,6 @@ dialog .olrest[data-olnone]{cursor:default}
 /* notices: with Fades on, in over 1/9 s and out over 1/3 s */
 body:not(.nofade) #toast{opacity:0;transition:opacity .333s ease}
 body:not(.nofade) #toast.in{opacity:1;transition:opacity .111s ease}
-.vtop.hasrst{position:relative;padding-right:2.2rem}
-.vtop .anarst{position:absolute;top:0;right:0;line-height:0;padding:.3rem;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
-.vtop .anarst svg{display:block;pointer-events:none}
+.anas.hasrst{position:relative;padding-right:2rem}
+.anas .anarst{position:absolute;top:0;right:0;line-height:0;padding:.3rem;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.anas .anarst svg{display:block;pointer-events:none}

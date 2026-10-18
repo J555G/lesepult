@@ -408,9 +408,10 @@ async function renderView() {
   if (A.lemmas.length) {
     const many = A.lemmas.length > 1 || (px?.ana.length || 0) > 1;
     const icons = '';
-    // a reading chosen for this word: back to the default one – a small icon in the top right corner
-    if (many && tk && S.tokCh?.has(tk.i)) h = h.replace('<div class="vtop">', `<div class="vtop hasrst"><button type="button" class="ico anarst" data-anareset="1" aria-label="Back to the default reading"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13.5a6.5 6.5 0 1 0 1.9-6.1"/><path d="M5 4.5v4.2h4.2"/></g></svg></button>`);
-    h += '<div class="anas">' + A.lemmas.map(x => `<button class="chip${x.lemma === lemma ? ' on' : ''}${tk && tk.amb && x.lemma === tk.defL && x.lemma !== lemma ? ' pre' : ''}" data-lemma="${esc(x.lemma)}"><b>${esc(x.lemma)}</b>${x.ana.length > 1 ? ` <small>${x.ana.length}</small>` : ''}</button>`).join('')
+    // a reading chosen for this word: back to the default one – a small icon pinned to the right of the first line of the
+    // lemmata (that row keeps clear of the back/forward pill floating beside it)
+    const rst = many && tk && S.tokCh?.has(tk.i) ? `<button type="button" class="ico anarst" data-anareset="1" aria-label="Back to the default reading"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13.5a6.5 6.5 0 1 0 1.9-6.1"/><path d="M5 4.5v4.2h4.2"/></g></svg></button>` : '';
+    h += `<div class="anas${rst ? ' hasrst' : ''}">` + rst + A.lemmas.map(x => `<button class="chip${x.lemma === lemma ? ' on' : ''}${tk && tk.amb && x.lemma === tk.defL && x.lemma !== lemma ? ' pre' : ''}" data-lemma="${esc(x.lemma)}"><b>${esc(x.lemma)}</b>${x.ana.length > 1 ? ` <small>${x.ana.length}</small>` : ''}</button>`).join('')
       + (!(tk && px && px.lemma === tk.lemma && px.ana.length) ? icons : '') + '</div>';
     // the forms of the chosen lemma, without the word; what all of them share is written once in front
     if (tk && px && px.lemma === tk.lemma && px.ana.length) {          // also a single form: the reading is always shown
