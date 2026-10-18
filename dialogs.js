@@ -610,7 +610,7 @@ function dlPop(b) {
 document.addEventListener('click', async ev => {
   const on = ev.target.closest?.('[data-dlon]'); if (on) { ev.preventDefault(); ev.stopPropagation(); return dlPop(on); }
   const up = ev.target.closest?.('[data-dlupd]'), dl = ev.target.closest?.('[data-dldel]');
-  if (!up && !dl) { if (!ev.target.closest?.('.dlpop')) dlPopClose(); return; }
+  if (!up && !dl) { if (!ev.target.closest?.('.dlpop,.dli.open')) dlPopClose(); return; }   // (a tap on the open icon: its own handler closes)
   ev.preventDefault(); ev.stopPropagation();
   const id = (up || dl).dataset[up ? 'dlupd' : 'dldel'], row = (up || dl).closest('.dlhost'); dlPopClose();
   if (up) return dlUpdate(id);
