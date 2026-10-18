@@ -50,7 +50,8 @@ function toast(msg, ms = 2500, high = false) {
   t.style.bottom = at ? `${Math.round(innerHeight - at.top + 8)}px` : ''; t.style.left = at ? `${Math.round((at.left + at.right) / 2)}px` : '';
   t.style.width = at ? 'max-content' : ''; t.style.maxWidth = at ? `${Math.round(Math.min(innerWidth - 24, Math.max(at.width - 16, 300)))}px` : '';
   t.hidden = false;
-  if (at) { const w = t.getBoundingClientRect().width / 2, cx = (at.left + at.right) / 2; t.style.left = `${Math.round(Math.max(12 + w, Math.min(innerWidth - 12 - w, cx)))}px`; }   // (inside the window) clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, ms);
+  if (at) { const w = t.getBoundingClientRect().width / 2, cx = (at.left + at.right) / 2; t.style.left = `${Math.round(Math.max(12 + w, Math.min(innerWidth - 12 - w, cx)))}px`; }   // (inside the window)
+  clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, ms);
 }
 
 // ---------------------------------------------------------------- IndexedDB
