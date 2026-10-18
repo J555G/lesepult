@@ -39,7 +39,7 @@ const FTC = {
 };
 const ftRoot = L => document.querySelector(`.ftl[data-ftl="${L}"]`);
 function ftLineHTML(L) {
-  return `<div class="ftl" data-ftl="${L}"><div class="fteras"${S.lib?.ftEras === false ? ' hidden' : ''}></div><div class="fttrack"><div class="ftaxis"></div><div class="ftclip"><div class="ftranges"></div></div><div class="ftlab"></div></div>`
+  return `<div class="ftl" data-ftl="${L}"><div class="fteras"${S.lib?.ftEras === false ? ' hidden' : ''}></div><div class="fttrack"><div class="ftaxis"></div><div class="ftclip"><div class="ftranges"></div></div><div class="ftlab"><div></div></div></div>`
     + `<button type="button" class="ftx" data-ftclear="${L}" title="Remove all periods" aria-label="Remove all periods" hidden>✕</button></div>`;
 }
 function ftTextW(s) { const c = (ftTextW.c ??= document.createElement('canvas').getContext('2d')); c.font = '10.5px "Source Sans 3", sans-serif'; return (ftTextW.m ??= {})[s] ??= c.measureText(s).width; }
@@ -71,7 +71,10 @@ function ftDraw(L) {
   root.querySelector('.ftranges').innerHTML = P.map(([p, q], k) => `<div class="ftp${p === q ? ' pt' : ''}${st.hot === k ? ' on' : ''}">`
     + (p === q ? '' : `<i class="ftr" style="left:calc(${pc(p)} - 3px);width:calc(${((q - p) / span * 100).toFixed(2)}% + 6px)"></i>`)
     + `<i class="fth" style="left:${pc(p)}"></i>${p === q ? '' : `<i class="fth" style="left:${pc(q)}"></i>`}</div>`).join('');
-  root.querySelector('.ftlab').innerHTML = st.lab ? `<span style="left:${pc(Math.max(a, Math.min(b, st.lab.y)))}">${esc(st.lab.t)}</span>` : '';
+  // the years over the knobs being pulled (two that would meet: one range); past the ends of the line they fade out
+  let lab = st.lab || [];
+  if (lab.length === 2 && Math.abs(lab[1].y - lab[0].y) / span * W < (ftTextW(lab[0].t) + ftTextW(lab[1].t)) * 0.55 + 12) lab = [{ y: (lab[0].y + lab[1].y) / 2, t: ftLabel([lab[0].y, lab[1].y]) }];
+  root.querySelector('.ftlab>div').innerHTML = lab.map(l => `<span style="left:${pc(l.y)}">${esc(l.t)}</span>`).join('');
   root.querySelector('.ftx').hidden = !P.length;
 }
 function ftRender() { ftDraw('lib'); ftDraw('def'); }
@@ -145,14 +148,14 @@ function wireDateLine() {
     const vw = c.view(), sh = (vw[1] - vw[0]) * 0.02;
     if (ev.clientX > g.r.right) setView(L, vw[0] + sh, vw[1] + sh); else if (ev.clientX < g.r.left) setView(L, vw[0] - sh, vw[1] - sh);
     const g2 = geo(L), y = ftSnap(g2.y(Math.max(g2.r.left, Math.min(g2.r.right, ev.clientX)))), [lo, hi] = ftLim();
-    if (drag.e === 'm') { const w = drag.r0[1] - drag.r0[0], a = Math.max(lo, Math.min(hi - w, drag.r0[0] + y - drag.y0)); r[0] = a; r[1] = a + w; st.lab = { y: a + w / 2, t: ftLabel(r) }; }
+    if (drag.e === 'm') { const w = drag.r0[1] - drag.r0[0], a = Math.max(lo, Math.min(hi - w, drag.r0[0] + y - drag.y0)); r[0] = a; r[1] = a + w; st.lab = [{ y: a, t: fmtY(a) }, { y: a + w, t: fmtY(a + w) }]; }
     else {
       // an end near another end (of its own period or the next) snaps onto it: they join when let go
       const near = drag.type === 'mouse' ? 10 : 16, x = g2.x(y); let yy = y, bd = near + 1, snap = null;
       P.forEach(([a, b], k) => [[0, a], [1, b]].forEach(([e, val]) => { if (k === drag.k && (e === drag.e || r[0] === r[1])) return; const d = Math.abs(g2.x(val) - x); if (d <= near && d < bd) { bd = d; yy = val; snap = k + ':' + e; } }));
       if (snap && snap !== drag.snap) navigator.vibrate?.(8); drag.snap = snap;
       if (r[0] === r[1]) r[0] = r[1] = yy; else { r[drag.e] = yy; if (r[0] > r[1]) { r.reverse(); drag.e = 1 - drag.e; } }
-      st.lab = { y: yy, t: fmtY(yy) };
+      st.lab = r[0] === r[1] ? [{ y: yy, t: fmtY(yy) }] : [{ y: r[drag.e], t: fmtY(r[drag.e]) }];
     }
     changed(L, false);
   });
@@ -198,7 +201,8 @@ function wireDateLine() {
 // "BC", "B.C.", "v. Chr.", "vor Christus", "a. Chr. (n.)", "ante Christum", "a.C.", "av. J.-C." or "AD", "A.D.", "n. Chr.",
 // "nach Christus", "p. Chr. (n.)", "post Christum", "d.C.", "apr. J.-C." before or after; "c.", "ca.", "circa", "um" before.
 // Centuries ("5th c. BC", "5th cent.", "5th century", "5 c.", "V c.", "5. Jh. v. Chr.", "5. Jhdt.", "V. Jahrhundert",
-// "s. V a.C.", "saec. V") and millennia ("2nd millennium BC", "2. Jt. v. Chr.", "2. Jahrtausend") as their first year
+// "s. V a.C.", "saec. V") and millennia, also early / mid / late (a third) or the first / second half ("late 5th c. BC",
+// "mid-4th century", "Anfang 5. Jh. v. Chr.", "erste Hälfte des 4. Jh.", "first half of the 2nd millennium BC"), ("2nd millennium BC", "2. Jt. v. Chr.", "2. Jahrtausend") as their first year
 // (end = false) or their last (end = true). BCE, CE, B.C.E., C.E., v. u. Z. and u. Z. are not taken.
 // A wrong entry: undefined; an empty one: null.
 const FT_BC = /(?<![a-z])(?:b\.? ?c\.?|v\.? ?chr(?:\.|isti|istus)?(?: ?g(?:eb)?\.?)?|vor chr(?:\.|isti|istus)?(?: ?geb(?:\.|urt)?)?|a\.? ?chr\.?(?: ?n\.?)?|ante christum(?: natum)?|a\.? ?c\.?|av\.? ?j\.? ?-? ?c\.?)(?![a-z])/;
@@ -213,15 +217,22 @@ function ftParseYear(s, end) {
   if (bcM && adM) return undefined;
   const bc = !!bcM; if (bcM || adM) s = s.replace(bcM ? FT_BC : FT_AD, ' ').replace(/\s+/g, ' ').trim();
   const num = x => /^\d+$/.test(x) ? +x : ftRoman(x);
+  // early / mid / late (a third), first / second half: of a century or a millennium
+  const QUAL = [[/^(?:early|beginning of|start of|anfang|beginn|frühe[sn]?|fruehe[sn]?|frühe)\b/, 0, 1 / 3], [/^(?:mid|middle of|mitte|mittlere[sn]?)\b/, 1 / 3, 2 / 3],
+    [/^(?:late|end of|ende|späte[sn]?|spaete[sn]?)\b/, 2 / 3, 1], [/^(?:first half of|1st half of|erste hälfte|erste haelfte|1\. ?hälfte|1\. ?haelfte)\b/, 0, .5],
+    [/^(?:second half of|2nd half of|zweite hälfte|zweite haelfte|2\. ?hälfte|2\. ?haelfte)\b/, .5, 1]];
+  let part = null; s = s.replace(/^the /, '');
+  for (const [re, f0, f1] of QUAL) if (re.test(s)) { part = [f0, f1]; s = s.replace(re, '').replace(/^[-\s]*(?:(?:of )?the |des |der )?/, '').trim(); break; }
   // a century or a millennium: the number, then the word (or the word, then the number)
   const UNIT = '(c|cent|century|centuries|jh|jhd|jhdt|jahrhundert|s|sec|saec|saeculum|siècle|siecle|secolo|siglo|mill|millennium|jt|jtd|jts|jtsd|jahrtausend|millénaire)';
   let m = s.match(new RegExp(`^(\\d{1,2}|[ivxl]+)\\.?\\s?(?:st|nd|rd|th|er|e|ème)?\\.?\\s?${UNIT}\\.?$`)) || s.match(new RegExp(`^${UNIT}\\.?\\s?(\\d{1,2}|[ivxl]+)\\.?$`));
   if (m) {
     const [n, u] = /^\d|^[ivxl]+$/.test(m[1]) && num(m[1]) != null ? [num(m[1]), m[2]] : [num(m[2]), m[1]];
     if (!n) return undefined;
-    const k = /^(mill|jt|jahrtausend)/.test(u) ? 1000 : 100;
-    return bc ? (end ? -(n - 1) * k - 1 : -n * k) : (end ? n * k : (n - 1) * k + 1);
+    const k = /^(mill|jt|jahrtausend)/.test(u) ? 1000 : 100, lo = bc ? -n * k : (n - 1) * k + 1, [f0, f1] = part || [0, 1];
+    return end ? lo + Math.round(f1 * k) - 1 : lo + Math.round(f0 * k);
   }
+  if (part) return undefined;                                       // (early, late … only with a century or a millennium)
   // a year
   m = s.match(/^([-+])?\s?(\d{1,2}[.,' ]\d{3}|\d{1,4})$/); if (!m) return undefined;
   let y = +m[2].replace(/[.,' ]/g, '');
@@ -237,7 +248,7 @@ function libControlsHTML() {
       <div class="fgr"><span class="fl">Language</span>${seg('langs', [['', 'All'], ['grc', 'Greek'], ['la', 'Latin']])}</div>
       <div class="fgr"><span class="fl">Form</span>${seg('form', [['', 'All'], ['prose', 'Prose'], ['verse', 'Verse']])}</div>
     </div>
-    <div class="fdrow"><span class="fl">Date</span><button type="button" class="fti" data-ftinfo="1" title="${esc(FT_HELP)}" aria-label="How to use the date line">ⓘ</button>
+    <div class="fdrow"><span class="fl">Date</span>
       <button type="button" class="chip2${v.undated ? ' on' : ''}" data-undch="1" aria-pressed="${v.undated}" title="Works without a known date">Undated</button></div>
     ${ftLineHTML('lib')}`;
 }

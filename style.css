@@ -1682,8 +1682,9 @@ dialog .ftp{--pc:var(--acc)}
 dialog .ftr{position:absolute;top:4.5px;height:6px;border-radius:3px;background:var(--pc)}
 dialog .fth{position:absolute;top:3px;width:9px;height:9px;margin-left:-4.5px;border-radius:50%;background:var(--pc);transform:scale(.6667);transition:transform .15s}
 dialog .ftp.on .fth{transform:scale(1)}
-dialog .ftlab{position:absolute;left:0;right:0;top:0;height:0;pointer-events:none}
-dialog .ftlab span{position:absolute;bottom:2px;transform:translateX(-50%);font:600 11px/14px var(--ui);color:var(--acc);background:var(--card);padding:0 4px;border-radius:4px;white-space:nowrap}
+dialog .ftlab{position:absolute;left:-30px;right:-30px;top:-16px;height:16px;overflow:hidden;pointer-events:none;-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 30px,#000 calc(100% - 30px),transparent);mask-image:linear-gradient(90deg,transparent 0,#000 30px,#000 calc(100% - 30px),transparent)}
+dialog .ftlab>div{position:absolute;left:30px;right:30px;top:0;bottom:0}
+dialog .ftlab span{position:absolute;bottom:1px;transform:translateX(-50%);font:600 11px/14px var(--ui);color:var(--acc);background:var(--card);padding:0 4px;border-radius:4px;white-space:nowrap}
 dialog .ftx{position:absolute;right:0;top:auto;bottom:6px;width:22px;height:22px;padding:0;border:0;background:none;color:var(--mut);font-size:13px;line-height:1}
 dialog .fteras[hidden]+.fttrack{margin-top:14px}
 dialog .ftx[hidden]{display:none}
