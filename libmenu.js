@@ -107,6 +107,10 @@ function lmTabsHTML() {
   return LTABS.map(([id, name, hint]) => `<button type="button" role="tab" class="${v.view === id ? 'on' : ''}" data-view="${id}" aria-selected="${v.view === id}"${hint ? ` title="${hint}"` : ''}><span class="tn">${name}${n[id] ? ` <small>${n[id]}</small>` : ''}</span>${hint ? `<span class="th">${hint}</span>` : ''}</button>`).join('')
     + `<button type="button" class="lmimp" data-limport="1" title="Import text …" aria-label="Import text"><b aria-hidden="true">+</b><span>Import</span></button>`;
 }
+function libFootHTML() {
+  const n = Object.keys(S.libInst || {}).length, tot = Object.values(S.libInst || {}).reduce((a, w) => a + (w.size || 0), 0);
+  return `${n} work${n === 1 ? '' : 's'} on this device${tot ? ` · ≈ ${mb(tot)}` : ''}${S.impWorks?.length ? ` · ${S.impWorks.length} imported` : ''}${S.catalog ? ` · the catalogue: ${S.catalog.authors.length} authors, ${Object.keys(S.catWork).length.toLocaleString('en')} works` : ''}`;
+}
 function lmOverviewHTML() {
   const v = libView(), scr = v.view === 'scr', n = Object.keys(S.libInst || {}).length;
   const tot = Object.values(S.libInst || {}).reduce((a, w) => a + (w.size || 0), 0);
@@ -120,7 +124,7 @@ function lmOverviewHTML() {
     <div class="libbar"${scr ? ' hidden' : ''}><span class="libcount" id="libCount"></span>${v.view === 'fav' && Object.keys(S.favs || {}).length ? `<button type="button" class="linkb" data-favedit="1">${S.favEdit ? 'Done' : 'Edit'}</button>` : ''}<span class="libsort" id="libSort">${sortBarHTML()}</span></div>
     <div id="libWords"></div>
     <div class="list lib" id="libList"></div>
-    <small class="libfoot">${n} work${n === 1 ? '' : 's'} on this device${tot ? ` · ≈ ${mb(tot)}` : ''}${S.impWorks?.length ? ` · ${S.impWorks.length} imported` : ''}${S.catalog ? ` · the catalogue: ${S.catalog.authors.length} authors, ${Object.keys(S.catWork).length.toLocaleString('en')} works` : ''}</small>`;
+    <small class="libfoot">${libFootHTML()}</small>`;
 }
 // the filter icon is highlighted while any filter is on; the active filters show as chips while the panel is closed
 function filterIcon() {
@@ -286,6 +290,8 @@ function renderLibList() {
     : `Nothing found${S.libQ ? ' for “' + esc(S.libQ) + '”' : ''} with these filters.`;
   const tg = v.view === 'mine' ? trashGroupHTML() : '';
   el.innerHTML = (html || `<p class="hint">${empty}</p>`) + tg;
+  const f = $('#dlg .libfoot'); if (f) f.innerHTML = libFootHTML();                 // (the counts follow removals and downloads)
+  const tb = $('#libTabs'); if (tb) tb.innerHTML = lmTabsHTML();
 }
 
 // ---------------------------------------------------------------- Scriptorium: recently read · annotated

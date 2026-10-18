@@ -1739,3 +1739,5 @@ dialog .annlist .annrow{display:flex;align-items:center;gap:.6rem}
 dialog .annlist .annrow .t{flex:1;min-width:0;display:flex;flex-direction:column}
 dialog .annlist .annrow small{color:var(--mut);font-size:12px}
 dialog .annlist .annrow button{flex:none;font-size:12.5px;padding:.3rem .65rem}
+dialog .dlpop{background:none;border:0;box-shadow:none;padding:0}
+dialog .dlpop button{background:var(--card)}
