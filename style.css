@@ -1452,3 +1452,91 @@ dialog .fres .fr:last-child{border-bottom:0}
 dialog .fres .fr.on{background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--fg)}
 dialog .fres .fr.on .frc{color:var(--fg)}
 dialog .fmore{align-self:center;margin:.4rem 0;font-size:12.5px}
+
+/* ---- the Library menu (v212): overview with four tabs, a page per work; full height, the page scrolls under a sticky title */
+dialog.lmdlg[open]{margin-top:max(8px,env(safe-area-inset-top));height:calc(100dvh - max(8px,env(safe-area-inset-top)) - max(8px,env(safe-area-inset-bottom)));max-height:none}
+dialog.lmdlg .list.lib{max-height:none;overflow:visible}
+dialog.lmdlg #dlgForm>.row:empty{display:none}
+dialog .lmhead h3{display:flex;align-items:baseline;gap:.35rem;min-width:0}
+dialog .lwhead h3{font-size:16px}
+dialog .lwhead .ccur{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+dialog .lwhead .crumb{flex:none}
+dialog .lmhead .lmstar{flex:none;background:none;border:0;padding:.25rem .4rem;line-height:0;color:var(--mut)}
+dialog .lmhead .lmstar.on{color:#e0702a}dialog .lmhead .lmstar.on .flame .fo{fill:#f0a030}dialog .lmhead .lmstar.on .flame .fi{fill:#ffd36a}
+/* tabs, with the explanation beneath the name on hover or a long press; "+ Import" at the right */
+dialog .lmtabs{display:flex;align-items:flex-end;gap:0;margin:.15rem 0 .65rem;border-bottom:1px solid var(--line);container-type:inline-size;position:relative;z-index:2}
+dialog .lmtabs [data-view]{flex:none;background:none;border:0;border-bottom:2px solid transparent;border-radius:0;margin-bottom:-1px;padding:.45rem .7rem .4rem;color:var(--mut);font-size:14.5px;display:flex;flex-direction:column;align-items:flex-start;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+dialog .lmtabs [data-view] .tn small{font-size:11px;opacity:.75}
+dialog .lmtabs [data-view].on{color:var(--fg);border-bottom-color:var(--acc);font-weight:600}
+dialog .lmtabs [data-view]{position:relative}
+dialog .lmtabs .th{display:none;position:absolute;left:.4rem;top:calc(100% + 1px);font:400 11px/1.3 var(--ui);color:var(--mut);white-space:nowrap;background:var(--card);padding:.1rem .3rem .15rem .25rem;border-radius:0 0 5px 5px;pointer-events:none}
+@media (hover:hover){dialog .lmtabs [data-view]:hover .th{display:block}}
+dialog .lmtabs [data-view].hint .th{display:block}
+dialog .lmtabs .lmimp{flex:none;margin:0 0 .3rem auto;align-self:center;display:inline-flex;align-items:center;gap:.25rem;padding:.25rem .55rem;font-size:13px;color:var(--mut);background:none;border:1px solid var(--line);border-radius:999px}
+dialog .lmtabs .lmimp b{font:400 17px/1 var(--ui)}
+dialog .lmtabs .lmimp span{display:none}
+@container (min-width:470px){dialog .lmtabs .lmimp span{display:inline}}
+dialog .lmoff{margin:.35rem 0 0;font-size:12px;color:var(--mut)}
+dialog.lmdlg .libfoot{display:block;margin:.9rem 0 .2rem;font-size:12px;color:var(--mut)}
+/* rows: flame · title (lighter when not on this device) · marks and download on the right */
+dialog .lrow{display:flex;align-items:center;gap:.45rem;padding:.42rem 0;border-bottom:1px solid var(--line);cursor:pointer;flex-wrap:nowrap!important}
+dialog .lrow>.t{flex:1;min-width:0}
+dialog .lrow .lt{font-size:15.5px;font-weight:500;color:var(--fg)}
+dialog .lrow.nodl .lt{font-weight:300;color:color-mix(in srgb,var(--fg) 72%,var(--bg))}
+dialog .lrow.off{opacity:.55}
+dialog .lrow .gk{font-size:14px;color:var(--mut)}
+dialog .lrow .t small{display:block;font-size:12px;line-height:1.35;color:var(--mut)}
+dialog .lrow .t small.sa{display:inline}
+dialog .lrow sup.rev{font:italic 400 10px var(--ui);color:var(--mut);opacity:.75;margin-left:.15rem;vertical-align:super}
+dialog .lrow .lr{flex:none;display:flex;align-items:center;gap:.45rem;color:var(--mut)}
+dialog .lrow .lr .bm{fill:currentColor;opacity:.8}
+dialog .lrow .lmdl{line-height:0;padding:.35rem;border-radius:8px;color:var(--acc);background:none;border:1px solid var(--line)}
+dialog .lrow .lmdl[disabled]{opacity:.45;color:var(--mut);cursor:default}
+dialog .lrow .dlbtn{font-size:12px;padding:.25rem .55rem}
+dialog .lmnow{font-size:11.5px;color:var(--acc)}
+dialog .lrow.cur .lt{color:var(--acc)}
+dialog .lrow .gc{font-size:12px;color:var(--mut);white-space:nowrap}
+dialog .lrow .scrm{flex:none;width:1.9rem;height:1.9rem;padding:0;border-radius:50%;background:none;border:1px solid var(--line);color:var(--mut);font-size:13px}
+dialog .srow .sp{display:block;font-size:13px;line-height:1.35;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+dialog .srow .sp b{font:600 12.5px var(--ui);color:var(--acc);margin-right:.2rem}
+dialog .srow .sp .gk{font-size:14px;color:var(--fg);opacity:.85}
+dialog .lwrow{width:100%;text-align:left;background:none;border-width:0 0 1px;border-radius:0;color:var(--fg)}
+dialog details.auth .works .lrow{padding-left:.2rem}
+dialog .lsec{margin:0 0 1rem}
+dialog .lsh{display:flex;align-items:baseline;justify-content:space-between;gap:.5rem;padding:.2rem 0 .3rem;border-bottom:1px solid var(--line);font:600 13px var(--ui);color:var(--mut);text-transform:none}
+dialog .lsh small{font-weight:400}
+dialog .lsh .linkb{font-size:12.5px}
+dialog .lmmore{display:block;margin:.5rem auto 0;font-size:12.5px;padding:.25rem .8rem}
+dialog .lwords{margin-top:.2rem}
+/* the page of a work */
+dialog .lmfind{display:flex;gap:.4rem;align-items:center;margin:.1rem 0 .6rem}
+dialog .lmfind input{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:.42rem .6rem;background:var(--bg);color:var(--fg);font:16px var(--greek)}
+dialog .lmfind .seg button{padding:.35rem .7rem;font-size:13px}
+dialog .lwinfo{display:flex;flex-direction:column;gap:.15rem;margin:.1rem 0 .55rem}
+dialog .lwinfo .lwg{font-size:17px}
+dialog .lwinfo small{font-size:12.5px;color:var(--mut);line-height:1.4}
+dialog .lwinfo .lwed{font-size:11.5px}
+dialog .lwact{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:.2rem 0 .7rem}
+dialog .lwact:empty{display:none}
+dialog .lwact .lwcont{font-size:14px}
+dialog .lwact .lwdl small{opacity:.75;font-size:11.5px;margin-left:.2rem}
+dialog .lwact .lwdl[disabled]{opacity:.45}
+dialog .lwact .lwdel{margin-left:auto}
+dialog .lwask{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;width:100%;padding:.5rem .6rem;border:1px solid var(--line);border-radius:8px;font-size:13.5px}
+dialog .lwask span{flex:1 1 14rem}
+dialog .lwrev{margin:-.3rem 0 .7rem;font-size:12.5px;color:var(--mut)}
+dialog .lwparts .olrow.off .olx{font-weight:400;color:var(--mut)}
+dialog .olrow .olm{flex:none;display:inline-flex;align-items:center;gap:.3rem;color:var(--mut)}
+dialog .olrow .olm:empty{display:none}
+dialog .olrow .olm .bm{fill:currentColor}
+dialog .olrow.on>.olj .olm{color:var(--bg)}
+dialog .libbar[hidden]{display:none}
+@media (max-width:600px){
+  dialog .lmtabs [data-view]{padding:.45rem .42rem .4rem;font-size:13.5px}
+  dialog .lmtabs [data-view] .tn small{font-size:10px}
+  dialog .lmtabs .lmimp{padding:.2rem .45rem}
+  dialog .lrow .t small{font-size:11.5px}
+}
+@media (max-width:370px){dialog .lmtabs [data-view]{padding:.45rem .32rem .4rem;font-size:12.5px}}
+dialog .list.lib .lrow>.star{order:0}dialog .list.lib .lrow>.t{order:1;flex:1 1 auto}dialog .list.lib .lrow>.lr{order:2;margin-left:auto}
+dialog .lwact .lwoff{font-size:12px;color:var(--mut)}

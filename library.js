@@ -53,11 +53,19 @@ async function fetchCatalog() {
   if (S.catalog && S.catOnline) return S.catalog;
   try {
     const r = await fetchT('texts/catalog.json', { cache: 'no-cache' }); if (!r.ok) throw new Error();
-    S.catalog = await r.json(); S.catOnline = true; setting('catalog', S.catalog);
-  } catch (_) { S.catalog = S.catalog || (await setting('catalog')) || null; S.catOnline = false; }
+    S.catalog = await r.json(); S.catOnline = true; S.catAt = Date.now(); setting('catalog', S.catalog); setting('catalogAt', S.catAt);
+  } catch (_) { S.catalog = S.catalog || (await setting('catalog')) || null; S.catOnline = false; S.catAt ??= await setting('catalogAt'); }
+  indexCatalog();
+  return S.catalog;
+}
+// the last known catalogue, at once (the Library opens without waiting for the network)
+async function cachedCatalog() {
+  if (!S.catalog) { S.catalog = (await setting('catalog')) || null; S.catAt = await setting('catalogAt'); indexCatalog(); }
+  return S.catalog;
+}
+function indexCatalog() {
   S.catWork = {}; S.catAuthor = {};
   if (S.catalog) for (const a of S.catalog.authors) for (const w of a.works) { S.catWork[w.id] = Object.assign(w, { author: a.name, authorId: a.id }); S.catAuthor[w.id] = a; }
-  return S.catalog;
 }
 const fold = s => String(s || '').normalize('NFD').replace(/[̀-ͯͅ]/g, '').replace(/ς/g, 'σ').toLowerCase();
 const mb = b => b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' kB';
@@ -123,11 +131,6 @@ function seg(f, opts) {
   const cur = libView()[f][0] || '';
   return `<div class="seg" role="group">${opts.map(([val, label]) => `<button type="button" class="${cur === val ? 'on' : ''}" data-seg="${f}" data-val="${val}" aria-pressed="${cur === val}">${label}</button>`).join('')}</div>`;
 }
-function libTabsHTML() {
-  const v = libView(), nf = Object.keys(S.favs || {}).length, ni = Object.keys(S.libInst || {}).length + (S.impWorks?.length || 0);
-  const tab = (id, label, n) => `<button type="button" role="tab" class="${v.view === id ? 'on' : ''}" data-view="${id}" aria-selected="${v.view === id}">${label}${n != null ? ` <small>${n}</small>` : ''}</button>`;
-  return tab('all', 'All') + tab('fav', FLAME + 'Favourites', nf) + tab('mine', 'On this device', ni);
-}
 function sortBarHTML() {
   const v = libView();
   return `<label class="sortsel">Sort <select id="libSortSel" aria-label="Sort by">${SORTS.map(([id, label]) => `<option value="${id}"${v.sort === id ? ' selected' : ''}>${label}</option>`).join('')}</select></label>`
@@ -179,35 +182,6 @@ function libActiveHTML() {
   return out.join('');
 }
 const DLICON = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/></g></svg>';
-function workRowHTML(w, flat = false) {
-  if (w.imported) return impRowHTML(w, flat);
-  const i = S.libInst[w.id], key = 'work:' + w.id;
-  let btn;
-  if (DL.has(key)) btn = dlButtonHTML(key, 'Download');
-  else if (!i) btn = S.catalog ? `<button type="button" class="dlbtn" data-get="${key}" title="${mb(w.bytes)}">Download</button>` : '';
-  else btn = (w.v && i.version !== w.v ? `<button type="button" class="dlbtn" data-get="${key}" title="A corrected version is available">Update</button>` : '')
-    + `<button type="button" data-lopen="${w.id}">Open</button><button type="button" class="danger" data-ldel="${w.id}">Delete</button>`;
-  const nb = w.books.length > 1 ? `${w.books.length} parts` : 'one part';
-  const ed = w.id.split('.').pop().replace(/^perseus-|^1st1K-/, '');
-  const a = authorOf(w), op = S.opened?.[w.id];
-  const who = (flat ? `${esc(a.name)}${a.date ? ' · ' + esc(a.date) : ''} · ` : '') + (workLang(w) === 'la' ? 'Latin · ' : '');
-  const fav = !!S.favs?.[w.id];
-  return `<div class="item" data-w="${w.id}"><button type="button" class="star${fav ? ' on' : ''}" data-star="${w.id}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" aria-pressed="${fav}">${FLAME}</button><span class="t"><b>${esc(w.title)}</b> <span class="gk">${w.greek && w.greek !== w.title ? esc(w.greek) : ''}</span><br><small>${who}${w.verse ? 'verse' : 'prose'} · ${nb}${w.words ? ' · ' + w.words.toLocaleString('en') + ' words' : ''} · ${esc(w.source || '')} ${esc(ed)}${op ? ' · opened ' + new Date(op).toLocaleDateString('en-GB') : ''}</small></span>${btn}</div>`;
-}
-function impRowHTML(w, flat) {
-  const a = authorOf(w), op = S.opened?.[w.id], fav = !!S.favs?.[w.id];
-  const who = (flat ? `${esc(a.name)}${w.date ? ' · ' + esc(w.date) : ''} · ` : (w.date ? esc(w.date) + ' · ' : '')) + (workLang(w) === 'la' ? 'Latin · ' : '');
-  return `<div class="item" data-w="${w.id}"><button type="button" class="star${fav ? ' on' : ''}" data-star="${w.id}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" aria-pressed="${fav}">${FLAME}</button><span class="t"><b>${esc(w.title)}</b><br><small>${who}imported ${new Date(w.created).toLocaleDateString('en-GB')} · ${w.words.toLocaleString('en')} words${w.edition ? ' · ' + esc(w.edition) : ''}${op ? ' · opened ' + new Date(op).toLocaleDateString('en-GB') : ''}</small></span><button type="button" data-iopen="${w.tid}">Open</button><button type="button" data-iedit="${w.tid}">Edit</button><button type="button" class="danger" data-idel="${w.tid}">Delete</button></div>`;
-}
-// author row: name, below it the dates; the number of works and a download icon in columns of their own
-function authorHTML(a, ws, open) {
-  const inst = a.works.filter(w => S.libInst[w.id] || w.imported).length;
-  const todo = S.catalog ? ws.filter(w => !w.imported && !S.libInst[w.id] && !DL.has('work:' + w.id)) : [];
-  const all = todo.length ? `<button type="button" class="dlall" data-all="${a.id}" title="Download ${todo.length === 1 ? 'the work' : `all ${todo.length} works`} (${mb(todo.reduce((x, w) => x + w.bytes, 0))})" aria-label="Download ${todo.length === 1 ? 'the work' : `all ${todo.length} works`}">${DLICON}</button>` : '';
-  const n = ws.length < a.works.length ? `${ws.length} of ${a.works.length}` : `${a.works.length} work${a.works.length > 1 ? 's' : ''}`;
-  const sub = [a.date ? esc(a.date) : '', inst ? `<span class="ok">${inst} on this device</span>` : ''].filter(Boolean).join(' · ');
-  return `<details class="auth" data-a="${a.id}"${open ? ' open' : ''}><summary><span class="t"><b>${esc(a.name)}</b>${sub ? `<small>${sub}</small>` : ''}</span><span class="wn">${n}</span><span class="dlc">${all}</span></summary><div class="works">${open ? ws.map(w => workRowHTML(w)).join('') : ''}</div></details>`;
-}
 function sortedWorks() {        // flat list for the sorts by title, date and recently opened
   const v = libView(), q = fold(S.libQ), d = v.dir;
   const ws = libAuthors().flatMap(a => a.works.filter(w => workPasses(w, q)));
@@ -222,75 +196,6 @@ function sortedWorks() {        // flat list for the sorts by title, date and re
       return d * (a - b); },
   }[v.sort];
   return ws.sort(cmp);
-}
-function renderLibList() {
-  const el = $('#libList'); if (!el) return;
-  const st = el.scrollTop, q = fold(S.libQ), v = libView();
-  S.libLimit ??= 250;
-  let html = '', n = 0, nw = 0;
-  if (v.sort === 'author') {
-    const as = libAuthors().slice().sort((x, y) => v.dir * x.name.localeCompare(y.name));
-    for (const a of as) {
-      const ws = libFilter(a); if (!ws.length) continue;
-      n++; nw += ws.length;
-      html += authorHTML(a, ws, S.libOpen.has(a.id) || (q && !fold(a.name).includes(q)));
-    }
-  } else {
-    const ws = sortedWorks(); nw = ws.length;
-    html = ws.slice(0, S.libLimit).map(w => workRowHTML(w, true)).join('')
-      + (ws.length > S.libLimit ? `<div class="row" style="justify-content:center"><button type="button" data-more="1">Show more (${ws.length - S.libLimit} further)</button></div>` : '');
-  }
-  const cnt = `${nw.toLocaleString('en')} work${nw === 1 ? '' : 's'}`;
-  $('#libCount').textContent = nw ? cnt + (v.sort === 'author' ? ` by ${n} author${n === 1 ? '' : 's'}` : '') : '';
-  const sh = $('#libShowN'); if (sh) sh.textContent = nw ? `Show ${cnt}` : 'No works match';
-  const empty = v.view === 'fav' && !Object.keys(S.favs || {}).length ? 'No favourites yet – tap the flame next to a work to add it.'
-    : v.view === 'mine' && !Object.keys(S.libInst || {}).length ? 'Nothing downloaded yet.'
-    : `Nothing found${S.libQ ? ' for “' + esc(S.libQ) + '”' : ''} with these filters.`;
-  el.innerHTML = html || `<p class="hint">${empty}</p>`;
-  el.scrollTop = st;
-}
-function renderLibControls() {
-  const c = $('#libCtl'); if (c) c.innerHTML = libControlsHTML();
-  const so = $('#libSort'); if (so) so.innerHTML = sortBarHTML();
-  const tb = $('#libTabs'); if (tb) tb.innerHTML = libTabsHTML();
-  filterIcon();
-}
-// the filter icon is highlighted while any filter is on; the active filters show as chips while the panel is closed
-function filterIcon() {
-  const b = $('#libFilterBtn'); if (!b) return;
-  const open = !$('#libCtl').hidden;
-  b.classList.toggle('active', !!filtersOn(libView())); b.classList.toggle('open', open);
-  b.setAttribute('aria-expanded', open);
-  const ac = $('#libActive'); if (ac) { ac.innerHTML = open ? '' : libActiveHTML(); ac.hidden = !ac.innerHTML; }
-  document.body.classList.toggle('libsheet', open);
-}
-async function libraryDialog() {
-  S.libOpen ??= new Set(); S.libQ ??= '';
-  S.lib = S.lib || (await setting('libView')) || null; libView();
-  S.opened = (await setting('opened')) || {};
-  S.favs = (await setting('favs')) || {};
-  const [cat, inst] = await Promise.all([fetchCatalog(), libWorks()]);
-  S.impWorks = (await getAll('texts')).map(impWork);
-  S.libInst = Object.fromEntries(inst.map(w => [w.id, w]));
-  const tot = inst.reduce((a, w) => a + (w.size || 0), 0);
-  dialog(`${dlgHead('Library')}
-    <div class="libtabs" id="libTabs" role="tablist">${libTabsHTML()}</div>
-    <div class="libtop"><input type="search" id="libSearch" placeholder="Search authors and works (English, Latin or Greek)…" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(S.libQ)}">
-      <button type="button" id="libFilterBtn" title="Filters" aria-label="Filters" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5.5h12M6 18.5h12"/><rect x="3" y="4" width="3.2" height="16" rx="1.6"/><rect x="17.8" y="4" width="3.2" height="16" rx="1.6"/><path d="M9 9.2h6M9 12h4.6M9 14.8h3" stroke-width="1.3"/></g></svg></button></div>
-    <div id="libActive" class="libactive" hidden></div>
-    <div id="libCtl" class="libctl" hidden>${libControlsHTML()}</div>
-    <div class="libbar"><span class="libcount" id="libCount"></span><span class="libsort" id="libSort">${sortBarHTML()}</span></div>
-    <div class="list lib" id="libList"></div>
-    ${!cat ? '<p class="hint">The catalogue could not be loaded (offline?). Downloaded works are listed below.</p>' : S.catOnline ? '' : '<p class="hint">Offline – showing the last known catalogue; downloads need a connection.</p>'}
-    <small class="libfoot">${inst.length} on this device${tot ? ` · ≈ ${mb(tot)}` : ''}${S.impWorks.length ? ` · ${S.impWorks.length} imported` : ''} ${info(`${cat ? `${cat.authors.length} authors and ${Object.keys(S.catWork).length.toLocaleString('en')} works are available. ` : ''}Texts: Perseus Digital Library and Open Greek and Latin (☰ → Acknowledgements). Dates follow the TLG canon: author dates by century; a work is dated by its author.`)}</small>`,
-    [['import', 'Import text …']]).then(r => { document.body.classList.remove('libsheet'); $('#dlg').classList.remove('libdlg'); S.libScroll = $('#libList')?.scrollTop || 0;
-      if (r.action === 'import') importDialog(null, true); });
-  // the library takes the whole height: the list gets all the room, the short summary shares the line with "Import text …"
-  $('#dlg').classList.add('libdlg');
-  const ft = $('#dlgForm .libfoot'), row = $('#dlgForm > .row'); if (ft && row) row.prepend(ft);
-  filterIcon();
-  renderLibList();
-  if (S.libScroll) $('#libList').scrollTop = S.libScroll;
 }
 async function downloadWork(key) {
   const id = key.slice(5), w = S.catWork?.[id];
@@ -307,116 +212,19 @@ async function downloadWork(key) {
     if (S.libInst) S.libInst[id] = await libGet('works', id);
     if (S.text?.work?.id === id) await openText(S.text.id, false);
   } catch (e) { DL.delete(key); toast(`${w?.title || id}: download failed (${e.message})`, 4000); paintDL(key, 'Failed'); }
-  if ($('#libList')) renderLibList();
+  if ($('#libBody')) lmRender();
 }
-function wireLibrary() {
-  document.addEventListener('input', ev => {
-    if (ev.target.id !== 'libSearch') return;
-    clearTimeout(wireLibrary.t); wireLibrary.t = setTimeout(() => { S.libQ = ev.target.value.trim(); S.libLimit = 250; renderLibList(); }, 150);
-  });
-  // century slider: the two handles cannot cross; the list follows while dragging
-  document.addEventListener('input', ev => {
-    if (ev.target.id !== 'centFrom' && ev.target.id !== 'centTo') return;
-    const v = libView(), f = $('#centFrom'), t = $('#centTo');
-    if (+f.value > +t.value) { if (ev.target === f) f.value = t.value; else t.value = f.value; }
-    v.from = +f.value; v.to = +t.value;
-    const sl = f.closest('.cslider'), pct = y => ((y - YMIN) / (YMAX - YMIN) * 100).toFixed(2) + '%';
-    sl.style.setProperty('--a', pct(v.from)); sl.style.setProperty('--b', pct(v.to));
-    $('#centLabel').textContent = rangeLabel(v); $('#eraLab').innerHTML = eraLabelsHTML(v);
-    clearTimeout(wireLibrary.ts); wireLibrary.ts = setTimeout(() => { saveLibView(); filterIcon(); S.libLimit = 250; renderLibList(); }, 120);
-  });
-  document.addEventListener('change', ev => {
-    if (ev.target.id === 'centFrom' || ev.target.id === 'centTo') renderLibControls();
-    else if (ev.target.id === 'libUndated' || ev.target.id === 'libSortSel') {
-      const v = libView();
-      if (ev.target.id === 'libUndated') v.undated = ev.target.checked;
-      else { v.sort = ev.target.value; v.dir = SORTS.find(s => s[0] === v.sort)[2]; }
-      S.libLimit = 250; saveLibView(); renderLibControls(); $('#libList').scrollTop = 0; renderLibList();
-    }
-  });
-  document.addEventListener('toggle', ev => {
-    const d = ev.target; if (!d.matches?.('#libList details.auth')) return;
-    const id = d.dataset.a;
-    if (d.open) { S.libOpen.add(id); const a = libAuthors().find(x => x.id === id); d.querySelector('.works').innerHTML = libFilter(a).map(w => workRowHTML(w)).join(''); }
-    else S.libOpen.delete(id);
-  }, true);
-  document.addEventListener('click', async ev => {
-    if (ev.target.closest('#libFilterBtn')) { $('#libCtl').hidden = !$('#libCtl').hidden; filterIcon(); return; }
-    if (ev.target.closest('#libCtl [data-fdone]')) { $('#libCtl').hidden = true; filterIcon(); return; }
-    if (ev.target.closest('#libNote [data-notex]')) { $('#libNote').remove(); setting('persistNoteOff', true); return; }
-    const f = ev.target.closest('#libCtl [data-f]'), sg = ev.target.closest('#libCtl [data-seg]'), rs = ev.target.closest('[data-freset]'),
-      dr = ev.target.closest('#libSort [data-dir]'), tb = ev.target.closest('#libTabs [data-view]'), un = ev.target.closest('#libActive [data-unf]');
-    if (f || sg || rs || dr || tb || un) {
-      const v = libView();
-      if (f) { const arr = v[f.dataset.f], x = f.dataset.val, i = arr.indexOf(x); i < 0 ? arr.push(x) : arr.splice(i, 1); }
-      if (sg) v[sg.dataset.seg] = sg.dataset.val ? [sg.dataset.val] : [];
-      if (tb) v.view = tb.dataset.view;
-      if (un) {
-        const k = un.dataset.unf;
-        if (k === 'date') Object.assign(v, { from: YMIN, to: YMAX });
-        else if (k === 'undated') v.undated = true;
-        else v[k] = v[k].filter(x => x !== un.dataset.val);
-      }
-      if (dr) v.dir = -v.dir;
-      if (rs) Object.assign(v, { langs: [], src: [], form: [], from: YMIN, to: YMAX, undated: true });
-      S.libLimit = 250; saveLibView(); renderLibControls(); $('#libList').scrollTop = 0; renderLibList(); return;
-    }
-    if (ev.target.closest('#libList [data-more]')) { S.libLimit += 500; renderLibList(); return; }
-    const star = ev.target.closest('#libList [data-star]');
-    if (star) {                                   // favourite on/off (kept in the backup)
-      const id = star.dataset.star; S.favs ??= {};
-      if (S.favs[id]) delete S.favs[id]; else S.favs[id] = Date.now();
-      await setting('favs', S.favs);
-      const on = !!S.favs[id]; star.classList.toggle('on', on); star.setAttribute('aria-pressed', on); star.title = on ? 'Remove from favourites' : 'Add to favourites';
-      const tb = $('#libTabs'); if (tb) tb.innerHTML = libTabsHTML();
-      if (libView().view === 'fav' && !on) renderLibList();
-      return;
-    }
-    const all = ev.target.closest('#libList [data-all]');
-    if (all) {
-      ev.preventDefault();
-      const a = libAuthors().find(x => x.id === all.dataset.all);
-      navigator.storage?.persist?.().catch(() => { });
-      for (const w of libFilter(a)) if (!S.libInst[w.id]) { DL.set('work:' + w.id, -1); }
-      S.libOpen.add(a.id); renderLibList(); runDownloads(); return;
-    }
-    const io = ev.target.closest('#libList [data-iopen]');
-    if (io) { S.libScroll = $('#libList').scrollTop; $('#dlg').close(); return openText(+io.dataset.iopen); }
-    const ie = ev.target.closest('#libList [data-iedit]');
-    if (ie) { S.libScroll = $('#libList').scrollTop; await importDialog(await get('texts', +ie.dataset.iedit)); return libraryDialog(); }
-    const id = ev.target.closest('#libList [data-idel]');
-    if (id) {
-      const t = await get('texts', +id.dataset.idel); S.libScroll = $('#libList').scrollTop;
-      const c = await dialog(`<h3>Delete ${esc(t.title)}?</h3><p>The imported text and all its glosses are deleted from this device.</p>`, [['cancel', 'Cancel'], ['ok', 'Delete']]);
-      if (c.action === 'ok') {
-        for (const g of await req2p(tx('glosses').objectStore('glosses').index('textId').getAll(t.id))) await del('glosses', g.id);
-        await del('texts', t.id); if (S.text?.id === t.id) await openText(null);
-      }
-      return libraryDialog();
-    }
-    const op = ev.target.closest('#libList [data-lopen]');
-    if (op) { S.libScroll = $('#libList').scrollTop; $('#dlg').close(); return openWork(op.dataset.lopen); }
-    const dl = ev.target.closest('#libList [data-ldel]');
-    if (dl) {
-      const w = S.libInst[dl.dataset.ldel]; S.libScroll = $('#libList').scrollTop;
-      const c = await dialog(`<h3>Delete ${esc(w.title)}?</h3><p>The text is removed from this device. Your glosses and markers in it are kept and reappear if you download it again.</p>`, [['cancel', 'Cancel'], ['ok', 'Delete']]);
-      if (c.action === 'ok') await deleteWork(w.id);
-      return libraryDialog();
-    }
-  });
-}
-
 // ---------------------------------------------------------------- navigation between texts and books
 function titleBar() {
   const t = S.text, w = t?.work, tt = $('#textTitle');
   // wide: "Author › Work › Book 14 › 3.2" in one line; narrow: the work small above, "14 › 3.2" below
   const multi = w && w.books.length > 1;
-  tt.innerHTML = (!t ? '<span class="tw">no text</span>' : w
+  tt.innerHTML = (!t ? '<span class="tw">Library</span>' : w
     ? `<span class="tw"><span class="ta">${esc(w.author)} › </span>${esc(w.title)}</span><span class="tl2">${multi ? `<span class="tb"><span class="sep">› </span><span class="tbf">${esc(w.books[t.bi])}</span><span class="tbs">${esc(stripCommon(w.books)[t.bi])}</span></span>` : ''}<span class="ts" id="titleSec"></span></span>`
     : `<span class="tw">${esc(t.title)}</span><span class="tl2"><span class="ts" id="titleSec"></span></span>`);
   S.secShown = null; updateSecTitle(); secRoom();
   const ex = $('#menu [data-m="export"]'); if (ex) ex.disabled = !t;      // nothing to export without a text
-  tt.title = t ? (w ? `${w.author} › ${w.title} › ${w.books[t.bi]}` : t.title) + ' – tap to choose another text or book' : 'Choose a text';
+  tt.title = t ? (w ? `${w.author} › ${w.title} › ${w.books[t.bi]}` : t.title) + ' – tap for its page in the Library' : 'Library';
   markIcon();
 }
 // the section number gets the room of the widest reference of the book, so that the buttons beside the title
@@ -532,17 +340,31 @@ async function goTo(q) {
 }
 // ---- find in this work: a word form (accents, case, j/v ignored) or a lemma (all its forms)
 const foldForm = s => (isGreek(s) ? s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/ς/g, 'σ') : s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/j/g, 'i').replace(/v/g, 'u')).replace(/[ʼ’'᾽]/g, '');
-async function findInWork(q, mode, progress) {
-  const t = S.text, w = t?.work; q = q.trim(); if (!q || !t) return [];
-  const parts = w ? w.books.map((_, bi) => bi) : [null];
+// works by key: a library work by its id, an imported text as "imp:<id>"; the open one is curKey()
+const curKey = () => S.text ? (S.text.work ? S.text.work.id : 'imp:' + S.text.id) : '';
+const textIdOf = (key, bi) => key.startsWith('imp:') ? +key.slice(4) : `w:${key}:${bi ?? 0}`;
+// one part of a work (open or not): its tokens and blocks (annotations applied)
+async function workPart(key, bi) {
+  const t = S.text;
+  if (t && curKey() === key && (bi == null || !t.work || bi === t.bi)) return { toks: S.tokens, blocks: t.blocks };
+  if (key.startsWith('imp:')) { const x = await get('texts', +key.slice(4)); return x ? { toks: x.blocks ? tokenizeBlocks(x.blocks) : tokenize(x.text || ''), blocks: x.blocks } : null; }
+  const w = await libGet('works', key), b = await libGet('books', key + '|' + (bi ?? 0)); if (!w || !b) return null;
+  const toks = tokenizeBlocks(b.blocks); if (b.ann && w.annL) applyAnnotation({ ann: b.ann, work: w, blocks: b.blocks }, toks);
+  return { toks, blocks: b.blocks };
+}
+async function workParts(key) {             // the part indices of a work on this device ([null] for an imported text)
+  if (key.startsWith('imp:')) return [null];
+  const w = await libGet('works', key); return w ? w.books.map((_, bi) => bi) : [];
+}
+async function findInWork(q, mode, progress, key = curKey()) {
+  q = q.trim(); if (!q || !key) return [];
+  const parts = await workParts(key);
   const out = [], fq = foldForm(q), star = /\*/.test(q), rx = star ? new RegExp('^' + fq.split('*').map(x => x.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$') : null;
   const lk = gkey(q), memo = S.lemMemo ??= new Map();
   const lemmaOf = async f => { let r = memo.get(f); if (!r) { const A = await analyses(f); r = new Set(A.lemmas.map(x => gkey(x.lemma))); memo.set(f, r); } return r; };
   for (const [n, bi] of parts.entries()) {
     progress?.(n / parts.length);
-    let toks, blocks;
-    if (bi == null || bi === t.bi) { toks = S.tokens; blocks = t.blocks; }
-    else { const b = await libGet('books', w.id + '|' + bi); if (!b) continue; blocks = b.blocks; toks = tokenizeBlocks(blocks); if (b.ann && w.annL) applyAnnotation({ ann: b.ann, work: w, blocks }, toks); }
+    const P = await workPart(key, bi); if (!P) continue; const { toks, blocks } = P;
     const words = [], at = []; toks.forEach((x, p) => { if (x.t === 'w') { words.push(x); at.push(p); } }); const refs = refsOf(toks, blocks);
     let ri = -1;
     for (let k = 0; k < words.length; k++) {
@@ -570,19 +392,6 @@ function sentenceAt(toks, p, tk) {
   for (let q = a; q <= b; q++) { const x = toks[q]; if (x.t === 'w') h += x === tk ? `<b>${esc(x.s)}</b>` : esc(x.s); else if (x.t === 'p') h += esc(x.s); else if (x.t === 'b') h += ' '; }
   return h.replace(/\s+/g, ' ').trim() + (m >= 30 ? ' …' : '');
 }
-// ---- the navigation menu (tap the title): a sticky title with the search of the work; below it the outline of the
-// work (parts › sections), or – after a search – the outline cut down to the parts and sections with hits
-async function navHTML() {
-  const t = S.text, w = t?.work;
-  if (!t) return `<div class="dlghead navhead"><h3>Texts</h3></div><p class="hint">No text open – get texts from the Library, or import your own (☰ → Library → Import text …).</p>`;
-  const F = navFindNow();
-  return `<div class="dlghead navhead"><h3>${w ? `${esc(w.author)} · ${esc(w.title)} <span class="gk">${w.greek && w.greek !== w.title ? esc(w.greek) : ''}</span>` : esc(t.title)}</h3>
-    <div class="navsearch"><input type="search" id="navFind" class="nofocus" value="${esc(F?.q || '')}" placeholder="Find in this ${w ? 'work' : 'text'} …" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Find in this ${w ? 'work' : 'text'}">
-      <span class="seg" role="group">${[['form', 'Form'], ['lemma', 'Lemma']].map(([v, l]) => `<button type="button" data-findmode="${v}" class="${(S.findMode || 'form') === v ? 'on' : ''}" title="${v === 'form' ? 'This word form (accents ignored, * = any letters)' : 'All forms of this dictionary headword'}">${l}</button>`).join('')}</span></div></div>
-    <div id="navOutline" class="outline">${F ? resultsHTML(F) : await outlineHTML()}</div>`
-    + (w && !F ? `<p class="hint" style="font-size:12px;margin:.3rem 0 0">${esc(w.edition || '')}</p>` : '');
-}
-const navFindNow = () => { const t = S.text, F = S.navFind; return t && F && F.key === (t.work ? t.work.id : t.id) ? F : null; };
 // ---- outline of the open work: parts › chapters › sections (any depth); only the path to the reading position is unfolded
 function refTree(list) {
   const root = { id: '', kids: [], map: new Map() }, numeric = list.length > 60 && list.every(r => /^\d+$/.test(r.s));
@@ -604,38 +413,6 @@ function refTree(list) {
 }
 const firstRef = n => n.ref || (n.kids[0] && firstRef(n.kids[0]));
 function treeHas(n, r) { return n.ref === r || n.kids.some(k => treeHas(k, r)); }
-function outlineNodes(nodes, part, cr, depth) {
-  let h = '';
-  for (const n of nodes) {
-    const key = part + '|' + n.id, kids = n.kids.length, onPath = cr && treeHas(n, cr);
-    const open = kids && (S.navOpen.has(key) || (onPath && !S.navShut.has(key)));
-    const r = firstRef(n), title = r ? r.lab + (r.more ? ' …' : '') : '';
-    h += `<div class="olrow d${Math.min(depth, 4)}${n.ref && n.ref === cr ? ' on' : ''}${onPath ? ' path' : ''}">`
-      + (kids ? `<button type="button" class="olt" data-olt="${esc(key)}" aria-expanded="${!!open}" aria-label="${open ? 'Fold' : 'Unfold'}">${open ? '▾' : '▸'}</button>` : '<span class="olt"></span>')
-      + `<button type="button" class="olj" data-sec="${esc(r?.s || '')}" data-secpart="${part}"><span class="oln">${esc(n.seg)}</span><span class="olx">${esc(title)}</span>${kids && !open ? `<span class="olc">${kids}</span>` : ''}</button></div>`;
-    if (open) h += outlineNodes(n.kids, part, cr, depth + 1);
-  }
-  return h;
-}
-async function outlineHTML() {
-  const t = S.text, w = t?.work; if (!t) return '';
-  const cr = curRef(), cur = w ? t.bi : '';
-  if (!w || w.books.length < 2) {
-    const tree = refTree(S.refs || []);
-    return tree.kids.length ? outlineNodes(tree.kids, cur, cr, 0) : '<p class="hint" style="font-size:13px">This text has no numbered sections.</p>';
-  }
-  const marks = new Set((await getAll('settings', IDBKeyRange.bound(`mk|w:${w.id}:`, `mk|w:${w.id}:\uffff`))).map(r => +r.k.split(':').pop()));
-  let h = '';
-  for (let bi = 0; bi < w.books.length; bi++) {
-    const key = 'part|' + bi, here = bi === t.bi, open = S.navOpen.has(key) || (here && !S.navShut.has(key));
-    h += `<div class="olrow d0 part${here ? ' path' : ''}"><button type="button" class="olt" data-olt="${key}" aria-expanded="${open}">${open ? '▾' : '▸'}</button>`
-      + `<button type="button" class="olj" ${here ? `data-sec="" data-secpart="${bi}"` : `data-openpart="${bi}"`}><span class="olx">${esc(w.books[bi])}</span>${marks.has(bi) ? '<svg class="bm" width="8" height="11" viewBox="0 0 8 11" aria-hidden="true"><path d="M0 0h8v11L4 8 0 11z"/></svg>' : ''}${here ? '<span class="olc">open now</span>' : ''}</button></div>`;
-    if (open) { const tree = refTree(await partRefs(bi)); h += tree.kids.length ? outlineNodes(tree.kids, bi, here ? cr : null, 1) : '<p class="hint" style="font-size:13px;margin:.2rem 0 .4rem 2.4rem">No numbered sections.</p>'; }
-  }
-  return h;
-}
-// the hits, grouped like the outline: by part (a work in several parts) or by chapter (the first number of the reference;
-// line numbers: by hundreds); a group unfolds into its hits, one line of context each
 function findGroup(r, multi) {
   if (multi) return String(r.bi);
   const m = String(r.ref || '').match(/^([^.,:]+)[.,:]/); if (m) return m[1];
@@ -643,35 +420,12 @@ function findGroup(r, multi) {
   return r.ref || '–';
 }
 function findGroups(F) {
-  const w = S.text?.work, multi = !!(w && w.books.length > 1), g = new Map();
-  F.res.forEach((r, k) => { const key = findGroup(r, multi); let x = g.get(key); if (!x) g.set(key, x = { key, label: multi ? w.books[r.bi] : key, hits: [] }); x.hits.push(k); });
+  const multi = F.books.length > 1, g = new Map();
+  F.res.forEach((r, k) => { const key = findGroup(r, multi); let x = g.get(key); if (!x) g.set(key, x = { key, label: multi ? F.books[r.bi] : key, hits: [] }); x.hits.push(k); });
   return [...g.values()];
 }
-function resultsHTML(F) {
-  const w = S.text?.work, multi = !!(w && w.books.length > 1), what = `<b class="gk">${esc(F.q)}</b> <small>(${F.mode === 'lemma' ? 'lemma' : 'form'})</small>`;
-  if (F.busy) return `<div class="fhead"><span>${what} · searching … ${Math.round(F.p * 100)} %</span></div>`;
-  if (!F.res.length) return `<div class="fhead"><span>${what} · not found</span><button type="button" data-fclear="1">Outline</button></div>`
-    + (F.mode === 'lemma' ? '<p class="hint" style="font-size:13px">Not found as a lemma – try the form, or check the spelling of the dictionary headword.</p>' : '');
-  const G = findGroups(F);
-  F.open ??= new Set(F.res.length <= 30 ? G.map(x => x.key) : [(G.find(x => multi && x.key === String(S.text.bi)) || G[0]).key]);   // few hits: all open; else the part being read
-  const n = F.res.length, cnt = `${n >= 2000 ? 'more than 2,000' : n.toLocaleString('en')} place${n === 1 ? '' : 's'}`;
-  let h = `<div class="fhead"><span>${what} · ${cnt}</span><button type="button" data-fexp="1"${F.exp ? ' class="on"' : ''}>Export</button><button type="button" data-fclear="1" title="Back to the outline of the ${w ? 'work' : 'text'}">Outline</button></div>`
-    + (F.exp ? `<div class="fexp">${F.save ? F.save : [['pdf', 'PDF'], ['html', 'HTML'], ['docx', 'Word']].map(([v, l]) => `<button type="button" data-fx="${v}">${l}</button>`).join('')}</div>` : '');
-  for (const g of G) {
-    const open = F.open.has(g.key);
-    h += `<div class="olrow d0 fgrp${multi ? ' part' : ''}"><button type="button" class="olt" data-fgrp="${esc(g.key)}" aria-expanded="${open}">${open ? '▾' : '▸'}</button>`
-      + `<button type="button" class="olj" data-fgrp="${esc(g.key)}"><span class="olx">${esc(g.label)}</span><span class="olc">${g.hits.length}</span></button></div>`;
-    if (!open) continue;
-    const lim = F.lim?.[g.key] || 200;
-    h += `<div class="fres">${g.hits.slice(0, lim).map(k => { const r = F.res[k]; return `<button type="button" class="fr${F.sel === k ? ' on' : ''}" data-fres="${k}"><span class="frl">${esc(r.ref || '')}</span><span class="frc">${r.ctx}</span></button>`; }).join('')}`
-      + (g.hits.length > lim ? `<button type="button" class="fmore" data-fmore="${esc(g.key)}">Show more (${(g.hits.length - lim).toLocaleString('en')})</button>` : '') + '</div>';
-  }
-  return h;
-}
-// the export of a search: work, search and number of places; per part or chapter the hits, each with its reference and sentence
 function findDoc(F) {
-  const t = S.text, w = t?.work, G = findGroups(F);
-  const title = w ? `${w.author} – ${w.title}` : t.title;
+  const G = findGroups(F), title = F.title;
   const head = `${F.mode === 'lemma' ? 'All forms of' : 'The form'} “${F.q}” · ${F.res.length.toLocaleString('en')} place${F.res.length === 1 ? '' : 's'}`;
   return { title, head, groups: G.map(g => ({ label: g.label, hits: g.hits.map(k => F.res[k]) })), name: `${title} – ${F.q}`.replace(/[\\/:*?"<>|…]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 90) };
 }
@@ -694,76 +448,6 @@ async function findDocx(D) {
     ['_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'],
     ['word/document.xml', doc]];
   return zipFiles(files.map(([n, x]) => [n, new TextEncoder().encode(x)]));
-}
-// text navigation: the menu stays open – a part or section chosen opens in the text behind it and is marked in the menu
-async function navDialog() {
-  S.navOpen = new Set(); S.navShut = new Set();
-  const p = dialog(`<div id="navBody">${await navHTML()}</div>`, []);
-  $('#dlg').classList.add('navdlg');
-  requestAnimationFrame(() => $('#navOutline .olrow.on, #navOutline .fr.on')?.scrollIntoView({ block: 'center' }));
-  await p; $('#dlg').classList.remove('navdlg');
-  if (S.navFind?.href) { URL.revokeObjectURL(S.navFind.href); S.navFind.href = null; S.navFind.save = null; }
-}
-// the menu's list again (after a choice), where it was scrolled to
-async function navRefresh() {
-  const ol = $('#navOutline'); if (!ol || !$('#dlg').open) return;
-  const d = $('#dlg'), y = d.scrollTop, F = navFindNow();
-  ol.innerHTML = F ? resultsHTML(F) : await outlineHTML(); d.scrollTop = y;
-}
-function wireNav() {
-  const later = () => new Promise(r => setTimeout(r, 160));          // (the text has scrolled to the place: its section is known)
-  document.addEventListener('click', async ev => {
-    const body = ev.target.closest('#navBody'); if (!body) return;
-    const b = ev.target.closest('button'); if (!b) return;
-    const d = b.dataset, F = S.navFind;
-    if (d.openpart != null) { S.navShut.delete('part|' + d.openpart); S.navOpen.add('part|' + d.openpart); await openText(`w:${S.text.work.id}:${+d.openpart}`); await later(); return navRefresh(); }
-    if (d.olt) {
-      const k = d.olt, isOpen = b.getAttribute('aria-expanded') === 'true';
-      if (isOpen) { S.navOpen.delete(k); S.navShut.add(k); } else { S.navShut.delete(k); S.navOpen.add(k); }
-      return navRefresh();
-    }
-    if (d.sec != null) { await goPlace(d.secpart === '' ? null : +d.secpart, d.sec || null, null); await later(); return navRefresh(); }
-    if (d.findmode) { S.findMode = d.findmode; body.querySelectorAll('[data-findmode]').forEach(x => x.classList.toggle('on', x === b)); if ($('#navFind')?.value.trim()) runFind(); return; }
-    if (d.fclear != null) { S.navFind = null; const i = $('#navFind'); if (i) i.value = ''; return navRefresh(); }
-    if (d.fgrp != null) { F.open.has(d.fgrp) ? F.open.delete(d.fgrp) : F.open.add(d.fgrp); return navRefresh(); }
-    if (d.fmore != null) { (F.lim ??= {})[d.fmore] = (F.lim[d.fmore] || 200) + 300; return navRefresh(); }
-    if (d.fres != null) { const r = F.res[+d.fres]; F.sel = +d.fres; navRefresh(); await goPlace(r.bi, null, r.i); return; }
-    if (d.fexp != null) { F.exp = !F.exp; F.save = null; return navRefresh(); }
-    if (d.fx) {
-      const D = findDoc(F);
-      if (d.fx === 'pdf') return printHTML(findDocHTML(D), FIND_CSS);
-      const blob = d.fx === 'html' ? new Blob([`<!doctype html><html lang="grc"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(D.title)}</title><style>${await fontFacesInline()}body{margin:2.5em auto;max-width:46em;padding:0 1.5em;background:#fff}${FIND_CSS}</style></head><body>${findDocHTML(D)}</body></html>`], { type: 'text/html' }) : await findDocx(D);
-      const name = D.name + (d.fx === 'html' ? '.html' : '.docx');
-      if (F.href) URL.revokeObjectURL(F.href);
-      F.href = URL.createObjectURL(blob);             // saved by a tap on the link (on the iPad a download has to start from a tap)
-      F.save = `<a class="btn acc" href="${F.href}" download="${esc(name)}">Save ${esc(name)}</a><button type="button" data-fexp="1" class="mx" aria-label="Cancel">✕</button>`;
-      return navRefresh();
-    }
-  });
-  document.addEventListener('keydown', ev => {
-    if (ev.key !== 'Enter' || ev.isComposing || ev.target.id !== 'navFind') return;
-    ev.preventDefault(); ev.stopPropagation(); runFind();
-  }, true);
-  // the field emptied (its ✕, or deleted): the outline again
-  document.addEventListener('input', ev => { if (ev.target.id === 'navFind' && !ev.target.value.trim() && S.navFind) { S.navFind = null; navRefresh(); } });
-  async function runFind() {
-    const q = ($('#navFind')?.value || '').trim(); if (!q) return;
-    $('#navFind').blur();
-    const t = S.text, key = t.work ? t.work.id : t.id;
-    const F = S.navFind = { key, q, mode: S.findMode || 'form', res: [], busy: true, p: 0 };
-    const out = () => { if (S.navFind === F) navRefresh(); };
-    out(); $('#dlg').scrollTop = 0;
-    let last = 0;
-    F.res = await findInWork(q, F.mode, p => { F.p = p; if (Date.now() - last > 150) { last = Date.now(); out(); } });
-    F.busy = false; out();
-  }
-}
-async function navChoose(v) {
-  const t = S.text;
-  if ($('#dlg').open) $('#dlg').close();
-  if (v.startsWith('book:')) await openText(`w:${t.work.id}:${+v.slice(5)}`);
-  else if (v.startsWith('work:')) await openWork(v.slice(5));
-  else if (v.startsWith('text:')) await openText(+v.slice(5));
 }
 function stepBook(d) {
   const t = S.text, w = t?.work; if (!w) return;
@@ -811,7 +495,10 @@ function saveReadPos() { if (S.text) { setting('pos|' + S.text.id, Math.round($(
 async function touchRecent() {
   const t = S.text; if (!t) return;
   const key = t.work ? t.work.id : 'imp:' + t.id, sec = curRef()?.s || '';
+  // a line of text from where the reader is (Scriptorium): the first words at the top of the pane (read before anything is awaited)
+  let line = ''; const tw = topWord();
+  if (tw != null) { let n = 0; for (const x of S.tokens) { if (x.t === 'w' && x.i < tw) continue; if (x.t === 'b' || x.t === 'r') { if (n) line += ' '; continue; } if (x.t === 'w') { if (++n > 12) break; line += x.s; } else if (n) line += x.s; } }
   const r = (S.recent ??= (await setting('recent')) || []).filter(x => x.key !== key);
-  r.unshift({ key, id: t.id, sec, t: Date.now(), title: t.work ? t.work.title : t.title, author: t.work?.author || '', part: t.work && t.work.books.length > 1 ? t.work.books[t.bi] : '' });
-  S.recent = r.slice(0, 8); clearTimeout(S.recT); S.recT = setTimeout(() => setting('recent', S.recent), 300);
+  r.unshift({ key, id: t.id, sec, t: Date.now(), title: t.work ? t.work.title : t.title, author: t.work?.author || '', part: t.work && t.work.books.length > 1 ? t.work.books[t.bi] : '', line: line.replace(/\s+/g, ' ').trim() });
+  S.recent = r.slice(0, 60); clearTimeout(S.recT); S.recT = setTimeout(() => setting('recent', S.recent), 300);
 }

@@ -269,8 +269,6 @@ function wire() {
   wireDictDrag();
   document.addEventListener('click', e => { const b = e.target.closest('#dlg [data-get]'); if (b) { if (b.closest('summary')) e.preventDefault(); queueDownload(b.dataset.get); } });
   wireLibrary();
-  document.addEventListener('click', ev => { const b = ev.target.closest('#navBody [data-nav]'); if (b) navChoose(b.dataset.nav); });
-  wireNav();
   document.addEventListener('selectionchange', () => {
     clearTimeout(S.selT);
     S.selT = setTimeout(() => { S.sel = dictSelection(); if (S.sel) S.lastSel = S.sel.text; updateFab(); }, 60);

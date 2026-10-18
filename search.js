@@ -3,7 +3,7 @@
    (see core.js for the order of the scripts) */
 'use strict';
 // ---------------------------------------------------------------- settings (Settings → Search)
-const SC_DEF = { sugg: true, n: 7, tr: true, loose: true, tog: false, typo: true, dist: 1, dicts: 'on', groups: [] };
+const SC_DEF = { sugg: true, n: 7, tr: true, loose: true, tog: false, typo: true, dist: 1, dicts: 'on', groups: [], libWords: true };
 // the groups of the results page; more kinds of data (places, people, encyclopedias …) add a group here
 const SEARCH_GROUPS = [];
 async function loadSearchCfg() {
@@ -537,6 +537,7 @@ function searchSettingsHTML() {
     + scSec('Typo tolerance', scSw('typo', 'Similar words when nothing matches exactly')
       + scLine('How far off', scSeg('dist', [[1, '1 letter'], [2, '2 letters']]), '2 letters only for words of 6 letters or more'))
     + scSec('Results page', `<div class="scgroups">${scGroupsHTML()}</div><small class="hint rhint">the order of the groups; more kinds of data will appear here</small>`)
+    + scSec('Library', scSw('libWords', 'Find words in the texts too', 'the Library’s search also lists the works on this device in which the word occurs'))
     + scSec('Dictionaries searched', scLine('Which dictionaries', scSeg('dicts', [['on', 'Switched on'], ['all', 'All installed']])))
     + scSec('Index of all texts', `<div class="srow1 swr"><span id="scIdx">…<small class="hint">built once; new texts are added when you search</small></span><button type="button" data-scidx="1">Rebuild</button></div>`);
 }
