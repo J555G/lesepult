@@ -483,6 +483,16 @@ async function lmRunFind(q, mode) {
 }
 
 // ---------------------------------------------------------------- what is tapped
+// was the tap on the text itself (its letters' boxes, a few pixels around them), not on the empty part beside it?
+function onText(ev, el) {
+  if (!el) return false;
+  const r = document.createRange(), w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);   // (the text itself, not the boxes around it)
+  for (let n = w.nextNode(); n; n = w.nextNode()) {
+    if (!n.textContent.trim()) continue; r.selectNodeContents(n);
+    if ([...r.getClientRects()].some(q => q.width && ev.clientX >= q.left - 3 && ev.clientX <= q.right + 3 && ev.clientY >= q.top - 3 && ev.clientY <= q.bottom + 3)) return true;
+  }
+  return false;
+}
 function wireLibrary() {
   wireDateLine();
   const later = () => new Promise(r => setTimeout(r, 160));          // (the text has scrolled to the place: its section is known)
@@ -563,7 +573,7 @@ function wireLibrary() {
     if (d.lwmore) { S.lwN = (S.lwN || 5) + 10; lmWords(); return; }
     if (d.lww) { const k = d.lww, lem = d.lem; S.findMode = 'lemma'; S.navFind = null; await lmGo(k); const i = $('#navFind'); if (i) i.value = lem; return lmRunFind(lem, 'lemma'); }
     // a work: its page
-    if (b.classList.contains('lrow') && d.lw && !S.scrEdit) { if (S.trashImp?.[d.lw] || !ev.target.closest('.lrow .t>*')) return; return lmGo(d.lw); }   // (only the title and the lines beneath it open it; the empty part of the row does not)
+    if (b.classList.contains('lrow') && d.lw && !S.scrEdit) { if (S.trashImp?.[d.lw] || !onText(ev, b.querySelector('.t'))) return; return lmGo(d.lw); }   // (only the title and the lines beneath it open it; the empty part of the row does not)
     if (b.classList.contains('lrow')) return;
     // the page of a work
     const key = S.lmPage; if (!key) return;

@@ -1784,3 +1784,5 @@ body:not(.nofade) dialog .creset:is(:active,.fxon){color:inherit;border-color:va
 body:not(.nofade) #btnSplit{transition:color .333s ease}
 body:not(.nofade) #btnSplit:is(:active,.fxon){color:var(--acc);transition:color .111s ease}
 dialog .olrest[data-olnone]{cursor:default}
+/* ☰ keeps its accent while the menu is open */
+#top .menuwrap:has(#menu:not([hidden])) #btnMenu{color:var(--acc)}
