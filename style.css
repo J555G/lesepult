@@ -1789,3 +1789,5 @@ dialog .olrest[data-olnone]{cursor:default}
 body:not(.nofade) #toast{opacity:0;transition:opacity .333s ease}
 body:not(.nofade) #toast.in{opacity:1;transition:opacity .111s ease}
 .chip.on.pre{border-style:dashed}
+dialog .annall{display:flex;justify-content:flex-end;margin:.2rem 0 .4rem}
+dialog .annall button{font-size:12.5px;padding:.3rem .65rem}

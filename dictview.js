@@ -498,7 +498,7 @@ async function renderList() {
 async function saveListGloss(ta) {
   const k = ta.dataset.k, t = cleanGloss(ta.value);
   if ((S.lemmaGloss[k] || '') === t) return;
-  await setDefaultGloss(k, t);
+  lemmaNameSet(k, ta.closest('.lrow')?.dataset.lemma); await setDefaultGloss(k, t);
   const n = $('#listBody .ln'); if (n) n.textContent = `${vocabRows().length} lemmata · ${vocabRows().filter(r => !S.lemmaGloss[r.key]).length} without gloss`;
   renderText();
 }

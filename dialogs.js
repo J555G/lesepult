@@ -878,9 +878,12 @@ async function annotDialog() {
   S.annot = L;
   const r = await dialog(`${dlgHead('Annotations')}
     <p class="hint small">What you have added to each text – glosses, the marker, chosen readings, places on the map. It stays when a text is removed or erased.</p>
-    <div class="list plain annlist">${L.length ? L.map((x, i) => `<div class="item annrow" data-ai="${i}"><span class="t"><b>${esc(x.title)}</b><small>${[esc(x.author), x.state, sum(x)].filter(Boolean).join(' · ')}</small></span><button type="button" class="danger" data-annask="${i}">Delete</button></div>`).join('') : '<p class="hint">No annotations yet.</p>'}</div>`,
+    ${L.some(x => x.g) ? '<div class="annall"><button type="button" data-v="expall">Export all glosses …</button></div>' : ''}
+    <div class="list plain annlist">${L.length ? L.map((x, i) => `<div class="item annrow" data-ai="${i}"><span class="t"><b>${esc(x.title)}</b><small>${[esc(x.author), x.state, sum(x)].filter(Boolean).join(' · ')}</small></span>${x.g ? `<button type="button" data-v="exp${i}">Export …</button>` : ''}<button type="button" class="danger" data-annask="${i}">Delete</button></div>`).join('') : '<p class="hint">No annotations yet.</p>'}</div>`,
     [['back', 'Back']]);
   if (r.action === 'back') return pultDialog();
+  if (r.action === 'expall') { await glossExportDialog(null, 'All glosses'); return annotDialog(); }
+  if (r.action?.startsWith('exp')) { const x = L[+r.action.slice(3)]; await glossExportDialog([x.key], x.title); return annotDialog(); }
 }
 document.addEventListener('click', async ev => {
   const a = ev.target.closest?.('#dlg [data-annask]'), ok = ev.target.closest?.('#dlg [data-anndel]'), no = ev.target.closest?.('#dlg [data-annno]');

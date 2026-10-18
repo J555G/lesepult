@@ -418,7 +418,8 @@ function splitIcon() {   // an open book: the fold sits where the split is, the 
   for (const r of await getAll('settings', IDBKeyRange.bound('lg|', 'lg|\uffff'))) S.lemmaGloss[r.k.slice(3)] = r.v;
   await loadDicts();
   if (navigator.onLine) setTimeout(() => updCheck().catch(() => { }), 5000);
-  setTimeout(() => housekeep().catch(() => { }), 20000);                           // what can no longer be used: removed, silently          // updates of the packages: looked for at each start (shown in Instruments)
+  setTimeout(() => housekeep().catch(() => { }), 20000);
+  setTimeout(() => glossMigrate().catch(() => { }), 30000);                         // older glosses: their word, reference and context, once                           // what can no longer be used: removed, silently          // updates of the packages: looked for at each start (shown in Instruments)
   setGlossVisible((await setting('showGloss')) !== false);
   S.gramBtn = true; applyTopButtons();          // (the Grammar button is always shown)
   setGram(!!(await setting('showGram')));

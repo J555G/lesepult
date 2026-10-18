@@ -260,8 +260,8 @@ async function setDefaultGloss(k, text) {
 async function saveSpanGloss(s0, e0, text) {     // create, update or (empty text) delete the gloss of a word/phrase
   const g = spanGloss(s0, e0);
   if (!text) { if (g) { await del('glosses', g.id); S.glosses = S.glosses.filter(x => x !== g); } return; }
-  if (g) { g.t = text; await put('glosses', g); }
-  else { const n = { textId: S.text.id, s: s0, e: e0, t: text, created: Date.now() }; n.id = await put('glosses', n); S.glosses.push(n); }
+  if (g) { g.t = text; if (g.w == null) await glossStamp(g).catch(() => { }); await put('glosses', g); }
+  else { const n = { textId: S.text.id, s: s0, e: e0, t: text, created: Date.now() }; await glossStamp(n).catch(() => { }); n.id = await put('glosses', n); S.glosses.push(n); }
 }
 // add = true: the text is appended to an existing gloss (used for selections from the dictionary)
 async function addGloss(text, asDefault = false, add = false) {
@@ -270,7 +270,7 @@ async function addGloss(text, asDefault = false, add = false) {
   if (asDefault) {
     // from a selection in the dictionary pane: the lemma whose entry is shown there (also after following a link)
     const l = (add && S.view?.pick) || targetLemma(); if (!l) return toast('A default gloss needs a single word with a known lemma.');
-    const k = gkey(l);
+    const k = gkey(l); lemmaNameSet(k, l);
     await setDefaultGloss(k, add ? joinGloss(S.lemmaGloss[k], text) : text);
     renderText(); fillGlossBox(); return note(`Default gloss for ${l} ${add && S.lemmaGloss[k] !== text ? 'extended' : 'set'}`);
   }
