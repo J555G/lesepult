@@ -80,7 +80,7 @@ async function downloadMapPkg(p, onp, signal) {
       for (let k = 0; k < 3 && !b; k++) {
         try { const r = await fetch(from(g), { cache: 'reload', signal }); if (!r.ok) throw new Error(g + ': ' + r.status); b = await r.blob(); }
         catch (e) { if (k === 2 || e.name === 'AbortError') throw e; await new Promise(res => setTimeout(res, 1500 * (k + 1))); }
-        if (b && names.length > 1) await tmp.put(tk, new Response(b));
+        if (b && names.length > 1) await tmp.put(tk, new Response(b, { headers: { 'x-pult-at': String(Date.now()) } }));
       }
       pieces.push(b); done += b.size; onp?.(Math.min(1, done / p.bytes));
     }

@@ -124,23 +124,38 @@ async function saveText(title, text, choices) {
   if (choices) for (const [f, lemma] of Object.entries(choices)) await put('choices', { f: canon(f), lemma });
   await openText(id); toast('Text saved');
 }
-// remove everything that is no longer needed: databases of removed dictionaries, the pre-v3 database, old app caches
-async function cleanStorage() {
-  const before = (await navigator.storage?.estimate?.().catch(() => null))?.usage;
-  let removed = [];
-  const dbs = await listDBs();
-  if (dbs) for (const { name } of dbs) {
-    if (name === OLD_DB || (name.startsWith(DICT_DB) && !S.installed[name.slice(DICT_DB.length)])) {
-      await new Promise(res => { const r = indexedDB.deleteDatabase(name); r.onsuccess = r.onerror = r.onblocked = () => res(); });
-      removed.push(name);
-    }
-  }
-  try {   // keep only the newest app cache (the service worker uses that one)
-    const keys = (await caches.keys()).filter(k => k.startsWith('lesepult-')).sort((a, b) => parseInt(b.split('-v')[1]) - parseInt(a.split('-v')[1]));
-    for (const k of keys.slice(1)) { await caches.delete(k); removed.push(k); }
-  } catch (_) { }
-  const after = (await navigator.storage?.estimate?.().catch(() => null))?.usage;
-  toast(removed.length ? `Removed ${removed.length} unused item(s)` + (before && after ? ` · ${(before / 1e6).toFixed(0)} → ${(after / 1e6).toFixed(0)} MB` : '') : 'Nothing to clean up.', 4000);
+// housekeeping, silently, a while after each start: what can no longer be used is removed – databases of removed
+// dictionaries, the pre-v3 database, old app caches, pieces of map downloads left for a week, the search index's
+// entries of deleted texts, the place index without its package, deleted works and previous versions after 7 days
+async function housekeep() {
+  const step = async f => { try { await f(); } catch (_) { } };
+  await step(async () => { const dbs = await listDBs(); if (!S.installed) await loadDicts();
+    if (dbs) for (const { name } of dbs) if (name === OLD_DB || (name.startsWith(DICT_DB) && !S.installed[name.slice(DICT_DB.length)]))
+      await new Promise(res => { const r = indexedDB.deleteDatabase(name); r.onsuccess = r.onerror = r.onblocked = () => res(); }); });
+  await step(async () => { const keys = (await caches.keys()).filter(k => k.startsWith('lesepult-')).sort((a, b) => parseInt(b.split('-v')[1]) - parseInt(a.split('-v')[1]));
+    for (const k of keys.slice(1)) await caches.delete(k); });
+  await step(async () => {                                            // (not while a map is being downloaded)
+    if ([...DL.keys()].some(id => id.startsWith('map:')) || !(await caches.has('pult-dl-parts'))) return;
+    const tmp = await caches.open('pult-dl-parts');
+    for (const rq of await tmp.keys()) { const r = await tmp.match(rq), at = +(r?.headers.get('x-pult-at') || 0); if (Date.now() - at > 7 * 864e5) await tmp.delete(rq); }
+  });
+  await step(async () => { if (typeof searchDB !== 'function' || !(await listDBs())?.some(x => x.name === 'pult-search')) return;
+    const db = await searchDB(), live = new Set((await allParts()).map(p => p.k));
+    const gone = (await req2p(db.transaction('part').objectStore('part').getAllKeys())).filter(k => k !== '#meta' && !live.has(k));
+    if (!gone.length) return;
+    const G = new Set(gone);
+    await new Promise((res, rej) => { const t = db.transaction(['lem', 'part'], 'readwrite'), os = t.objectStore('lem');
+      for (const k of gone) t.objectStore('part').delete(k);
+      os.openCursor().onsuccess = e => { const c = e.target.result; if (!c) return;
+        const r = c.value, ks = Object.keys(r.p).filter(k => G.has(k));
+        if (ks.length) { for (const k of ks) delete r.p[k]; Object.keys(r.p).length ? c.update(r) : c.delete(); }
+        c.continue(); };
+      t.oncomplete = res; t.onerror = () => rej(t.error); }); });
+  await step(async () => { if (typeof mapInstalled !== 'function' || (await mapInstalled()).places) return;
+    if (!(await listDBs())?.some(x => /place/i.test(x.name))) return;
+    if (await placeIndexInfo()) await dropPlaceIndex(); });
+  await step(async () => { if (typeof trashLoad === 'function') await trashLoad(); });
+  await step(async () => { if (typeof revPrevLoad === 'function') await revPrevLoad(); });
 }
 // Frisk and Bailly may not be published: they live in a PRIVATE GitHub repository, read with a personal
 // access token that is stored only on this device (☰ → Instruments → Private dictionaries).
@@ -397,7 +412,6 @@ async function dictsDialog() {
   const r = await dialog(pagedHTML('inst', 'Instruments', rows, { dict: dictBody, tools: toolBody, ...(mapBody ? { maps: mapBody } : {}), src: srcBody },
     (man ? '' : '<p class="hint small">The website could not be reached (offline?) – downloads are not available right now. Everything installed works offline.</p>')
     + `<div class="iupd" id="instUpd">${updRow}</div>`), []);
-  if (r.action === 'pult') return pultDialog();
   if (r.action === 'priv') {
     const q = await dialog(`<h3>Private repository</h3><p class="hint small">Dictionaries that may not be published can be downloaded from a private GitHub repository. ${info('<b>Repository:</b> owner and name of the private repository. <b>Token:</b> a GitHub fine-grained personal access token with read access to its contents. Both are kept on this device only.')}</p>
       <div class="privf"><label>GitHub repository<input type="text" name="privRepo" value="${esc(privCfgNow.repo)}" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="owner/repository"></label>
@@ -791,9 +805,8 @@ async function pultDialog() {
   const r = await dialog(`${dlgHead('This Pult')}
     <p class="hint small">Everything is stored only on this device. ${info('A backup contains your imported texts, glosses, default glosses, chosen readings, lemma choices, highlights, markers, favourites, colours and display settings. Library texts and dictionaries are not included – they can be downloaded again.')}</p>
     <div class="list plain pultlist">${rows.map(([k, v]) => `<div class="item"><span class="t">${k}</span><span class="pv">${v}</span></div>`).join('')}</div>`,
-    [['link', 'Export backup', { href, name }], ['file', 'Import backup …', 'fileBackup'], ['clean', 'Clean up storage']]);
+    [['link', 'Export backup', { href, name }], ['file', 'Import backup …', 'fileBackup']]);
   setTimeout(() => URL.revokeObjectURL(href), 60000);
-  if (r.action === 'clean') { await cleanStorage(); return pultDialog(); }
 }
 const backupDialog = pultDialog;
 async function restoreBackup(file) {
