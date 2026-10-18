@@ -1741,6 +1741,10 @@ dialog .annlist .annrow small{color:var(--mut);font-size:12px}
 dialog .annlist .annrow button{flex:none;font-size:12.5px;padding:.3rem .65rem}
 dialog .dlpop{background:none;border:0;box-shadow:none;padding:0}
 dialog .dlpop button{background:var(--card)}
-/* a tapped download icon: the accent at once, then fading back over 1/3 s */
-dialog .dli{transition:color .333s ease,border-color .333s ease}
-dialog .dli:active,dialog .dli.held{color:var(--acc);border-color:var(--acc);transition:none}
+/* small icon buttons (download icons, ⋯, ⓘ, ↺, sort direction, text size, the filter icon): pressed, the accent comes in
+   over 1/9 s and fades back over 1/3 s */
+dialog :is(.dli,.lwm,.lwi,.fti,.ftreset,.greset,.creset,.mtreset,.dirb,.tzi,#libFilterBtn){transition:color .333s ease,border-color .333s ease}
+dialog :is(.dli,.lwm,.lwi,.fti,.ftreset,.greset,.creset,.mtreset,.dirb,.tzi,#libFilterBtn:not(.active)):is(:active,.held){color:var(--acc);border-color:var(--acc);transition:color .111s ease,border-color .111s ease}
+/* ⋯ without a box; its menu's buttons smaller */
+dialog .lwm{border:0!important;background:none!important;box-shadow:none}
+dialog .lwmenu button{font-size:12.5px;padding:.32rem .6rem}

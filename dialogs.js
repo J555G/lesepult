@@ -599,9 +599,19 @@ function dlIcon(id, { have = false, rev = false, size = 0, upd = 'Download revis
   return `<button type="button" class="dli" data-get="${esc(id)}" title="Download${size ? ' (' + mbs(size) + ')' : ''}" aria-label="Download"${off ? ' disabled' : ''}>${DLARROW}</button>`;
 }
 function dlPopClose() { document.querySelectorAll('.dlpop').forEach(x => x.remove()); document.querySelectorAll('.dli.open').forEach(x => x.classList.remove('open')); clearTimeout(dlPopClose.t); }
-document.addEventListener('click', ev => {                         // (the accent of a tapped icon: held, then fading – only
-  const b = ev.target.closest?.('.dli'); if (!b) return;           //  when the tap really counted, not when the finger slid off)
-  b.classList.add('held'); requestAnimationFrame(() => requestAnimationFrame(() => b.classList.remove('held')));   // (shown for one frame, then fading)
+// the accent of a tapped icon button: coming in over 1/9 s, then fading (only when the tap really counted, not when the
+// finger slid off) – the buttons of the fade (style.css) 
+const FADE_BTNS = '.dli,.lwm,.lwi,.fti,.ftreset,.greset,.creset,.mtreset,.dirb,.tzi,#libFilterBtn';
+document.addEventListener('click', ev => {
+  const b0 = ev.target.closest?.(FADE_BTNS); if (!b0) return;
+  // (many of these redraw their part of the page when tapped: the button drawn anew, found by its data-…, keeps the accent)
+  const a = [...b0.attributes].find(x => x.name.startsWith('data-')), sel = a ? `[${a.name}="${CSS.escape(a.value)}"]` : null, t0 = performance.now();
+  const step = () => {
+    const b = sel && !b0.isConnected ? document.querySelector(sel) : b0; if (b) b.classList.add('held');
+    if (performance.now() - t0 < 111) return requestAnimationFrame(step);
+    setTimeout(() => { (sel && !b0.isConnected ? document.querySelector(sel) : b0)?.classList.remove('held'); }, 0);
+  };
+  step();
 }, true);
 // the buttons to the left of an icon (tapped again, or after 5 s: gone)
 function dlPopAt(b, html) {
