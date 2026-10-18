@@ -69,7 +69,7 @@ function ftDraw(L) {
   }
   // the periods: a pill, its ends grow into knobs while it is touched (or under the mouse)
   root.querySelector('.ftranges').innerHTML = P.map(([p, q], k) => `<div class="ftp${p === q ? ' pt' : ''}${st.hot === k ? ' on' : ''}">`
-    + (p === q ? '' : `<i class="ftr" style="left:${pc(p)};width:${((q - p) / span * 100).toFixed(2)}%"></i>`)
+    + (p === q ? '' : `<i class="ftr" style="left:calc(${pc(p)} - 3px);width:calc(${((q - p) / span * 100).toFixed(2)}% + 6px)"></i>`)
     + `<i class="fth" style="left:${pc(p)}"></i>${p === q ? '' : `<i class="fth" style="left:${pc(q)}"></i>`}</div>`).join('');
   root.querySelector('.ftlab').innerHTML = st.lab ? `<span style="left:${pc(Math.max(a, Math.min(b, st.lab.y)))}">${esc(st.lab.t)}</span>` : '';
   root.querySelector('.ftx').hidden = !P.length;
@@ -94,7 +94,9 @@ function wireDateLine() {
     if (best) return best;
     const k = P.findIndex(([a, b]) => a < b && y >= a && y <= b); return k >= 0 ? { k, e: 'm' } : null;
   };
-  const opened = (Lk, y0) => { const [a, b] = FTC[Lk].view(), [lo, hi] = ftLim(), h = Math.max(2 * FT_STEP, ftSnap(Math.min(100, (b - a) / 4) / 2)); return [Math.max(lo, ftSnap(y0) - h), Math.min(hi, ftSnap(y0) + h)]; };
+  // a new period: a fifth of the visible line, around the place (within the line's range)
+  const opened = (Lk, y0) => { const [a, b] = FTC[Lk].view(), [lo, hi] = ftLim(), w = Math.max(2 * FT_STEP, Math.round((b - a) / 5 / FT_STEP) * FT_STEP);
+    let s = Math.round((y0 - w / 2) / FT_STEP) * FT_STEP; s = Math.max(lo, Math.min(hi - w, s)); return [s, Math.min(hi, s + w)]; };
   document.addEventListener('pointerdown', ev => {
     const t = ev.target.closest?.('.ftl'); if (!t || ev.target.closest('button')) return;
     if (ptrs.size && t.dataset.ftl !== L) return;
@@ -163,14 +165,14 @@ function wireDateLine() {
     if (!d) { ftDraw(L); return; }
     if (d.pan) {
       if (d.moved) { c.viewDone(); ftDraw(L); return; }
-      // a tap twice (touch): the default view; a tap on the empty line: a period of a century – only while there is none
+      // a tap twice (touch): the default view; a tap on the empty line: a period – only while there is none
       const now = Date.now();
       if (d.type !== 'mouse' && lastTap && lastTap.L === L && now - lastTap.t < 320 && Math.abs(lastTap.x - d.x0) < 30) {
         if (lastTap.made) c.per().splice(c.per().indexOf(lastTap.made), 1);
         lastTap = null; c.set([...homeView(L)]); changed(L, true); c.viewDone(); return;
       }
       lastTap = { L, t: now, x: d.x0, made: null };
-      if (!c.per().length) { const r = [ftSnap(d.y - 50), ftSnap(d.y + 50)]; c.per().push(r); lastTap.made = r; changed(L, true); return; }
+      if (!c.per().length) { const r = opened(L, d.y); c.per().push(r); lastTap.made = r; changed(L, true); return; }
       ftDraw(L); return;
     }
     lastTap = d.moved ? null : { L, t: Date.now(), x: d.x0, made: null };
@@ -192,20 +194,40 @@ function wireDateLine() {
     const i = ev.target.closest?.('[data-ftinfo]'); if (i) toast(FT_HELP, 7000, i);
   });
 }
-// ---- years typed in Settings: "-500", "500 BC", "500 v. Chr.", "AD 120", "120 AD", "120 n. Chr.", "120"; centuries
-// ("5th c. BC", "5th century BC", "5. Jh. v. Chr.") as their first year (end = false) or their last (end = true).
-// (BCE and CE are not taken.) A wrong entry: undefined; an empty one: null.
+// ---- years typed in Settings (the range of the line). Years: "500", "-500", "−500", "+120", "2.000", "2,000"; with
+// "BC", "B.C.", "v. Chr.", "vor Christus", "a. Chr. (n.)", "ante Christum", "a.C.", "av. J.-C." or "AD", "A.D.", "n. Chr.",
+// "nach Christus", "p. Chr. (n.)", "post Christum", "d.C.", "apr. J.-C." before or after; "c.", "ca.", "circa", "um" before.
+// Centuries ("5th c. BC", "5th cent.", "5th century", "5 c.", "V c.", "5. Jh. v. Chr.", "5. Jhdt.", "V. Jahrhundert",
+// "s. V a.C.", "saec. V") and millennia ("2nd millennium BC", "2. Jt. v. Chr.", "2. Jahrtausend") as their first year
+// (end = false) or their last (end = true). BCE, CE, B.C.E., C.E., v. u. Z. and u. Z. are not taken.
+// A wrong entry: undefined; an empty one: null.
+const FT_BC = /(?<![a-z])(?:b\.? ?c\.?|v\.? ?chr(?:\.|isti|istus)?(?: ?g(?:eb)?\.?)?|vor chr(?:\.|isti|istus)?(?: ?geb(?:\.|urt)?)?|a\.? ?chr\.?(?: ?n\.?)?|ante christum(?: natum)?|a\.? ?c\.?|av\.? ?j\.? ?-? ?c\.?)(?![a-z])/;
+const FT_AD = /(?<![a-z])(?:a\.? ?d\.?|n\.? ?chr(?:\.|isti|istus)?(?: ?g(?:eb)?\.?)?|nach chr(?:\.|isti|istus)?(?: ?geb(?:\.|urt)?)?|p\.? ?chr\.?(?: ?n\.?)?|post christum(?: natum)?|d\.? ?c\.?|apr?\.? ?j\.? ?-? ?c\.?)(?![a-z])/;
+const FT_NO = /(?<![a-z])(?:b\.? ?c\.? ?e\.?|c\.? ?e\.?|v\.? ?u\.? ?z\.?|u\.? ?z\.?)(?![a-z])/;
+function ftRoman(r) { const V = { i: 1, v: 5, x: 10, l: 50 }; if (!/^[ivxl]+$/.test(r)) return null; let n = 0; for (let i = 0; i < r.length; i++) { const a = V[r[i]], b = V[r[i + 1]] || 0; n += a < b ? -a : a; } return n || null; }
 function ftParseYear(s, end) {
-  s = String(s || '').trim().replace(/\s+/g, ' '); if (!s) return null;
-  if (/(?<![a-z])(b\.?c\.?e|c\.?e)(?![a-z])/i.test(s)) return undefined;
-  const bc = /(?<![a-z])(b\.?c|v\.? ?chr)(?![a-z])/i.test(s), ad = /(?<![a-z])(a\.?d|n\.? ?chr)(?![a-z])/i.test(s);
-  if (bc && ad) return undefined;
-  const cm = s.match(/^(\d{1,2})\s*(?:\.|st|nd|rd|th)?\s*(?:c\b\.?|cent\.?|century|jh\.?|jahrhundert)/i);
-  if (cm) { const n = +cm[1]; if (!n) return undefined; return bc ? (end ? -(n - 1) * 100 - 1 : -n * 100) : (end ? n * 100 : (n - 1) * 100 + 1); }
-  const m = s.match(/^(?:a\.?d\.? ?)?(-?\d{1,4})(?=\s|$|[a-z])/i); if (!m) return undefined;
-  const rest = s.slice(m[0].length).replace(/(?<![a-z])(b\.?c|v\.? ?chr|a\.?d|n\.? ?chr)(?![a-z])\.?/ig, '').trim(); if (rest) return undefined;
-  let y = +m[1]; if (bc) { if (y < 0) return undefined; y = -y; }
-  return y;
+  s = String(s || '').toLowerCase().replace(/[−–—]/g, '-').replace(/\s+/g, ' ').trim(); if (!s) return null;
+  if (FT_NO.test(s)) return undefined;
+  s = s.replace(/^(?:circa|ca\.?|c\.|um)\s*(?=[-+\d])/, '');
+  const bcM = s.match(FT_BC), adM = s.match(FT_AD);
+  if (bcM && adM) return undefined;
+  const bc = !!bcM; if (bcM || adM) s = s.replace(bcM ? FT_BC : FT_AD, ' ').replace(/\s+/g, ' ').trim();
+  const num = x => /^\d+$/.test(x) ? +x : ftRoman(x);
+  // a century or a millennium: the number, then the word (or the word, then the number)
+  const UNIT = '(c|cent|century|centuries|jh|jhd|jhdt|jahrhundert|s|sec|saec|saeculum|siècle|siecle|secolo|siglo|mill|millennium|jt|jtd|jts|jtsd|jahrtausend|millénaire)';
+  let m = s.match(new RegExp(`^(\\d{1,2}|[ivxl]+)\\.?\\s?(?:st|nd|rd|th|er|e|ème)?\\.?\\s?${UNIT}\\.?$`)) || s.match(new RegExp(`^${UNIT}\\.?\\s?(\\d{1,2}|[ivxl]+)\\.?$`));
+  if (m) {
+    const [n, u] = /^\d|^[ivxl]+$/.test(m[1]) && num(m[1]) != null ? [num(m[1]), m[2]] : [num(m[2]), m[1]];
+    if (!n) return undefined;
+    const k = /^(mill|jt|jahrtausend)/.test(u) ? 1000 : 100;
+    return bc ? (end ? -(n - 1) * k - 1 : -n * k) : (end ? n * k : (n - 1) * k + 1);
+  }
+  // a year
+  m = s.match(/^([-+])?\s?(\d{1,2}[.,' ]\d{3}|\d{1,4})$/); if (!m) return undefined;
+  let y = +m[2].replace(/[.,' ]/g, '');
+  if (m[1] === '-') { if (bcM || adM) return undefined; y = -y; }
+  else if (m[1] === '+' && bc) return undefined;
+  return bc ? -y : y;
 }
 // ---- the filter panel: language and form side by side (labels above them on phones), the date beneath
 function libControlsHTML() {

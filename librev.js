@@ -331,6 +331,10 @@ function wireRevisions() {
     const note = sec.querySelector('.ftnote'); note.hidden = before === JSON.stringify([v.ftView0, v.ftDefs]);
     S.ftView = null; saveLibView(); ftDraw('def');
   });
+  document.addEventListener('keydown', ev => {                      // Enter (or the keyboard's Go): taken, the dialog stays
+    if (ev.key !== 'Enter' || ev.target.dataset?.ftlim == null) return;
+    ev.preventDefault(); ev.stopPropagation(); ev.target.blur();
+  }, true);
   document.addEventListener('change', ev => {
     if (ev.target.dataset?.fteras == null) return;
     S.lib.ftEras = ev.target.checked; saveLibView(); ftRender();

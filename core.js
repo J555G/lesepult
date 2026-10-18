@@ -42,11 +42,15 @@ function stripSecondAccent(f) {  // enclitic accent: αἴτιός -> αἴτι�
 }
 // a short message: at the bottom; high: higher up; an element: just above it (e.g. the time slider of the map)
 function toast(msg, ms = 2500, high = false) {
-  const t = $('#toast'), r = high instanceof Element ? high.getBoundingClientRect() : null, at = r?.height ? r : null;
+  let t = $('#toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.hidden = true; }      // (a dialog redrawn may have taken it)
+  const dl = [...document.querySelectorAll('dialog[open]')].pop();
+  if (t.parentElement !== (dl || document.body)) (dl || document.body).append(t);   // (over an open dialog: inside it, else behind it)
+  const r = high instanceof Element ? high.getBoundingClientRect() : null, at = r?.height ? r : null;
   t.textContent = msg; t.classList.toggle('high', !!high && !r);
   t.style.bottom = at ? `${Math.round(innerHeight - at.top + 8)}px` : ''; t.style.left = at ? `${Math.round((at.left + at.right) / 2)}px` : '';
-  t.style.width = at ? 'max-content' : ''; t.style.maxWidth = at ? `${Math.round(at.width - 16)}px` : '';
-  t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, ms);
+  t.style.width = at ? 'max-content' : ''; t.style.maxWidth = at ? `${Math.round(Math.min(innerWidth - 24, Math.max(at.width - 16, 300)))}px` : '';
+  t.hidden = false;
+  if (at) { const w = t.getBoundingClientRect().width / 2, cx = (at.left + at.right) / 2; t.style.left = `${Math.round(Math.max(12 + w, Math.min(innerWidth - 12 - w, cx)))}px`; }   // (inside the window) clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, ms);
 }
 
 // ---------------------------------------------------------------- IndexedDB

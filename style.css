@@ -1678,8 +1678,7 @@ dialog .ftaxis i.l span{left:0;transform:none}dialog .ftaxis i.r span{left:auto;
 /* the periods fade out where they run past the ends of the view */
 dialog .ftclip{position:absolute;left:-9px;right:-9px;top:0;height:16px;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 9px,#000 calc(100% - 9px),transparent);mask-image:linear-gradient(90deg,transparent 0,#000 9px,#000 calc(100% - 9px),transparent)}
 dialog .ftranges{position:absolute;top:0;bottom:0;left:9px;right:9px}
-dialog .ftp{--pc:color-mix(in srgb,var(--acc) 60%,var(--card))}
-dialog .ftp.on{--pc:var(--acc)}
+dialog .ftp{--pc:var(--acc)}
 dialog .ftr{position:absolute;top:4.5px;height:6px;border-radius:3px;background:var(--pc)}
 dialog .fth{position:absolute;top:3px;width:9px;height:9px;margin-left:-4.5px;border-radius:50%;background:var(--pc);transform:scale(.6667);transition:transform .15s}
 dialog .ftp.on .fth{transform:scale(1)}
@@ -1702,3 +1701,7 @@ dialog .ftsetl>span{display:block;margin-bottom:.35rem}
 dialog .ftsetl small.hint{display:block;font-size:12px}
 dialog .ftrestore{display:flex;justify-content:flex-end;padding-top:.3rem}
 dialog .ftrestore button{font-size:13px;padding:.3rem .7rem}
+
+/* long presses select text only in the text and the dictionary (and in fields) */
+body,dialog{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#textPane,#dictPane,input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
