@@ -378,7 +378,7 @@ async function dTool(t) {
   M.map.getCanvas().style.cursor = !t || t === 'edit' ? '' : 'crosshair';
   $('#mapDraw')?.querySelectorAll('[data-dtool]').forEach(b => b.classList.toggle('on', b.dataset.dtool === t));
   if (t !== 'edit') { M.dSel = null; $('#mapCard').hidden = true; applyLayers(); }
-  if (t && M.dm.hinted !== t) { M.dm.hinted = t; note(D_HINT[t], 3000, true); }
+  if (t && M.dm.hinted !== t) { M.dm.hinted = t; note(D_HINT[t], 3000, document.querySelector('.mdraw') || true); }
   dInfo(); dHandles();
 }
 async function dFinish() {
