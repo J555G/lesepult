@@ -735,10 +735,6 @@ dialog .navh{font:600 13px var(--ui);color:var(--mut);margin:.5rem 0 .3rem;displ
 dialog .navh small{font-weight:400}
 dialog .navh .opart{font-size:12.5px;padding:.2rem .6rem}
 dialog .navsec{margin:.2rem 0 .5rem}
-dialog .navrec{display:flex;flex-direction:column;gap:.3rem}
-dialog .recrow{display:flex;justify-content:space-between;align-items:baseline;gap:.6rem;text-align:left;padding:.4rem .6rem;font:15px var(--greek)}
-dialog .recrow small{font:12px var(--ui);color:var(--mut)}
-dialog .recrow>small{flex:none;color:var(--acc)}
 dialog .navgo{display:flex;gap:.4rem;align-items:center;margin:.3rem 0 .5rem;flex-wrap:wrap}
 dialog .navgo input{flex:1 1 12rem;min-width:0;border:1px solid var(--line);border-radius:8px;padding:.45rem .6rem;background:var(--bg);color:var(--fg);font:16px var(--greek)}
 dialog .navgo .seg button{padding:.35rem .7rem;font-size:13px}
@@ -747,7 +743,7 @@ dialog .secs{display:flex;flex-direction:column;gap:.25rem;max-height:34vh;overf
 dialog .secs .sg{display:flex;flex-wrap:wrap;gap:.25rem;align-items:center}
 dialog .secs .sgk{font:700 13px var(--ui);color:var(--fg);min-width:2.6rem;margin-right:.15rem}
 dialog .secs button{min-width:34px;min-height:32px;padding:.15rem .4rem;font:14px var(--greek)}
-dialog .fres{display:flex;flex-direction:column;max-height:40vh;overflow:auto;border-top:1px solid var(--line)}
+dialog .fres{display:flex;flex-direction:column;border-bottom:1px solid var(--line)}
 dialog .fr{display:flex;gap:.6rem;align-items:baseline;text-align:left;border:0;border-bottom:1px solid var(--line);border-radius:0;background:none;padding:.4rem .2rem;font:15px/1.4 var(--greek)}
 dialog .fr .frl{flex:none;min-width:4.5rem;font:12px var(--ui);color:var(--acc)}
 dialog .fr .frc b{color:var(--acc);background:var(--hl)}
@@ -758,14 +754,6 @@ dialog .secs .sgk{flex:none}
 dialog .secs .sgi{display:flex;flex-wrap:wrap;gap:.25rem;flex:1;min-width:0}
 dialog .secs .sgi:empty{display:none}
 /* navigation menu: the other texts below a divider, without a heading */
-dialog .navbottom{margin-top:.9rem;padding-top:.5rem;border-top:2px solid var(--line)}
-dialog .navbottom .navrec{margin-bottom:.4rem}
-dialog .recrow .fl{color:var(--acc);display:inline-flex;vertical-align:-3px}
-dialog .recrow .fl svg{width:12px;height:16px}
-dialog .recrow .fl .fo,dialog .recrow .fl .fi{fill:currentColor}
-dialog details.alltexts{margin-top:.5rem}
-dialog details.alltexts>summary{cursor:pointer;font:14px var(--ui);padding:.4rem 0;color:var(--fg)}
-dialog details.alltexts>summary small{color:var(--mut)}
 /* phones: the parts folded into one line, one chapter unfolded at a time */
 dialog details.partsfold{margin:.2rem 0 .4rem}
 dialog details.partsfold>summary{cursor:pointer;font:600 15px var(--greek);padding:.45rem .6rem;border:1px solid var(--line);border-radius:8px;list-style-position:inside}
@@ -1444,3 +1432,23 @@ dialog .pkmore .dask button{font-size:12.5px;padding:.3rem .65rem}
 .minfo .mscale i{display:block;height:5px;border:1.5px solid currentColor;border-top:0;box-sizing:border-box;filter:drop-shadow(0 0 1px var(--halo)) drop-shadow(0 0 2px var(--halo))}
 .minfo .mscale b{font-weight:500}
 .minfo .mzoom{font-variant-numeric:tabular-nums}
+
+/* ---- text navigation (v211): sticky title with the search of the work; no Close button; results as a cut-down outline */
+dialog .navhead{display:grid;grid-template-columns:1fr auto;align-items:center;row-gap:.45rem}
+dialog .navhead h3{grid-column:1;grid-row:1}
+dialog .navhead .dlgx{grid-column:2;grid-row:1}
+dialog .navsearch{grid-column:1/-1;display:flex;gap:.4rem;align-items:center}
+dialog .navsearch input{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:.42rem .6rem;background:var(--bg);color:var(--fg);font:16px var(--greek)}
+dialog .navsearch .seg button{padding:.35rem .7rem;font-size:13px}
+dialog .fhead{display:flex;align-items:center;gap:.4rem;padding:.45rem .1rem;font:13.5px var(--ui);color:var(--mut);border-bottom:1px solid var(--line)}
+dialog .fhead>span{flex:1;min-width:0}
+dialog .fhead b.gk{font:600 15px var(--greek);color:var(--fg)}
+dialog .fhead button{flex:none;font-size:12.5px;padding:.25rem .6rem}
+dialog .fhead button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+dialog .fexp{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;padding:.45rem .1rem;border-bottom:1px solid var(--line)}
+dialog .fexp a.btn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+dialog .fres .fr{padding-left:2.4rem}
+dialog .fres .fr:last-child{border-bottom:0}
+dialog .fres .fr.on{background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--fg)}
+dialog .fres .fr.on .frc{color:var(--fg)}
+dialog .fmore{align-self:center;margin:.4rem 0;font-size:12.5px}

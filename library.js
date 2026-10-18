@@ -543,7 +543,7 @@ async function findInWork(q, mode, progress) {
     let toks, blocks;
     if (bi == null || bi === t.bi) { toks = S.tokens; blocks = t.blocks; }
     else { const b = await libGet('books', w.id + '|' + bi); if (!b) continue; blocks = b.blocks; toks = tokenizeBlocks(blocks); if (b.ann && w.annL) applyAnnotation({ ann: b.ann, work: w, blocks }, toks); }
-    const words = toks.filter(x => x.t === 'w'), refs = refsOf(toks, blocks);
+    const words = [], at = []; toks.forEach((x, p) => { if (x.t === 'w') { words.push(x); at.push(p); } }); const refs = refsOf(toks, blocks);
     let ri = -1;
     for (let k = 0; k < words.length; k++) {
       const tk = words[k]; let hit = false;
@@ -552,53 +552,37 @@ async function findInWork(q, mode, progress) {
       if (!hit) continue;
       while (ri + 1 < refs.length && refs[ri + 1].i <= tk.i) ri++;
       const ctx = words.slice(Math.max(0, k - 6), k + 7).map(x => x === tk ? `<b>${esc(x.s)}</b>` : esc(x.s)).join(' ');
-      out.push({ bi, i: tk.i, ref: ri >= 0 ? refs[ri].s : '', ctx });
+      out.push({ bi, i: tk.i, ref: ri >= 0 ? refs[ri].s : '', ctx, sent: sentenceAt(toks, at[k], tk) });
       if (out.length >= 2000) return out;
     }
   }
   progress?.(1);
   return out;
 }
-// ---- the navigation menu (tap the title): recently read · go to · parts and their sections · find · other texts
-async function navHTML(keepOpen = null) {
+// the sentence around a word (for the export of a search): from the end of the sentence before to the end of its own
+// (. ; · ! ?), at most 30 words on either side; a paragraph is a limit, a verse line is not; the word in <b>
+const SENT_END = /[.;·;!?]/;
+function sentenceAt(toks, p, tk) {
+  const stop = x => x.t === 'b' && x.k !== 'l' && x.k !== 'L';
+  let a = p, n = 0; while (a > 0 && n < 30) { const x = toks[a - 1]; if (stop(x) || (x.t === 'p' && SENT_END.test(x.s))) break; if (x.t === 'w') n++; a--; }
+  let b = p, m = 0; while (b < toks.length - 1 && m < 30) { const x = toks[b + 1]; if (stop(x)) break; b++; if (x.t === 'w') m++; if (x.t === 'p' && SENT_END.test(x.s)) break; }
+  let h = a > 0 && !stop(toks[a - 1]) && n >= 30 ? '… ' : '';
+  for (let q = a; q <= b; q++) { const x = toks[q]; if (x.t === 'w') h += x === tk ? `<b>${esc(x.s)}</b>` : esc(x.s); else if (x.t === 'p') h += esc(x.s); else if (x.t === 'b') h += ' '; }
+  return h.replace(/\s+/g, ' ').trim() + (m >= 30 ? ' …' : '');
+}
+// ---- the navigation menu (tap the title): a sticky title with the search of the work; below it the outline of the
+// work (parts › sections), or – after a search – the outline cut down to the parts and sections with hits
+async function navHTML() {
   const t = S.text, w = t?.work;
-  const [works, texts] = await Promise.all([libWorks(), getAll('texts')]);
-  const isOpen = (id, dflt) => keepOpen ? keepOpen.has(id) || (dflt && !keepOpen.size) : dflt;
-  S.recent ??= (await setting('recent')) || [];
-  let html = '';
-  const cur = t ? (t.work ? t.work.id : 'imp:' + t.id) : null, rec = S.recent.filter(x => x.key !== cur).slice(0, 5);
-  if (t) {
-    html += `<h3>${w ? `${esc(w.author)} · ${esc(w.title)} <span class="gk">${w.greek && w.greek !== w.title ? esc(w.greek) : ''}</span>` : esc(t.title)}</h3>
-      <div class="navgo"><input type="text" id="navGo" class="nofocus" placeholder="Go to … (e.g. ${esc(navExample())})" autocomplete="off" autocapitalize="off" spellcheck="false"><button type="button" data-navgo="1">Go</button></div>`;
-    html += `<div id="navOutline" class="outline">${await outlineHTML()}</div>`;
-    const F = S.navFind?.key === (w ? w.id : t.id) ? S.navFind : null;
-    html += `<div class="navsec"><div class="navh">Find in this ${w ? 'work' : 'text'}</div>
-      <div class="navgo"><input type="search" id="navFind" class="nofocus" value="${esc(F?.q || '')}" placeholder="A word form (accents ignored, * = any letters) or a lemma" autocomplete="off" autocapitalize="off" spellcheck="false">
-      <span class="seg" role="group">${[['form', 'Form'], ['lemma', 'Lemma']].map(([v, l]) => `<button type="button" data-findmode="${v}" class="${(S.findMode || 'form') === v ? 'on' : ''}">${l}</button>`).join('')}</span><button type="button" data-findgo="1">Find</button></div>
-      <div id="navRes">${F ? resultsHTML(F) : ''}</div></div>`;
-    if (w) html += `<p class="hint" style="font-size:12px;margin:.3rem 0 0">${esc(w.edition || '')}</p>`;
-  }
-  const by = {};
-  for (const x of works) (by[x.authorId] ??= { id: x.authorId, name: x.author, works: [] }).works.push(x);
-  const authors = Object.values(by).sort((a, b) => a.name.localeCompare(b.name));
-  const recRow = (key, title, author, where, fav) => `<button type="button" class="recrow" data-rec="${esc(key)}"><span>${fav ? `<span class="fl">${FLAME}</span> ` : ''}<b>${esc(title)}</b>${author ? ` <small>${esc(author)}</small>` : ''}</span><small>${esc(where || '')}</small></button>`;
-  const where = x => [x.part, x.sec].filter(Boolean).join(' › ');
-  S.favs = (await setting('favs')) || {};
-  const byId = Object.fromEntries(works.map(x => [x.id, x])), tById = Object.fromEntries(texts.map(x => ['imp:' + x.id, x]));
-  const favs = Object.keys(S.favs).filter(k => k !== cur && (byId[k] || tById[k])).sort((a, b) => S.favs[b] - S.favs[a]);
-  html += '<div class="navbottom">';
-  if (rec.length) html += `<details class="alltexts" data-k="recent"${isOpen('recent', false) ? ' open' : ''}><summary>Recently read <small>${rec.length}</small></summary><div class="navrec">${rec.map(x => recRow(x.key, x.title, x.author, where(x))).join('')}</div></details>`;
-  if (favs.length) html += `<details class="alltexts" data-k="favs"${isOpen('favs', false) ? ' open' : ''}><summary>Favourites <small>${favs.length}</small></summary><div class="navrec">${favs.map(k => { const x = byId[k] || tById[k], r = S.recent.find(y => y.key === k);
-    return recRow(k, x.title, x.author || '', r ? where(r) : '', true); }).join('')}</div></details>`;
-  html += `<details class="alltexts" data-k="alltexts"${isOpen('alltexts', false) ? ' open' : ''}><summary>All texts on this device <small>${works.length + texts.length}</small></summary><div class="list nav">` + authors.map(a => `<details data-k="${a.id}"${isOpen(a.id, false) ? ' open' : ''}><summary><b>${esc(a.name)}</b> <small>${a.works.length}</small></summary>${a.works.sort((x, y) => x.title.localeCompare(y.title)).map(x => `<div class="item"><span class="t">${esc(x.title)} <span class="gk">${x.greek && x.greek !== x.title ? esc(x.greek) : ''}</span> <small>${x.books.length > 1 ? x.books.length + ' parts' : ''}</small></span><button type="button" data-nav="work:${x.id}"${x.id === w?.id ? ' class="on"' : ''}>Open</button></div>`).join('')}</details>`).join('')
-    + (texts.length ? `<details data-k="mytexts"${isOpen('mytexts', false) ? ' open' : ''}><summary><b>Imported texts</b> <small>${texts.length}</small></summary>${texts.map(x => `<div class="item"><span class="t">${esc(x.title)}</span><button type="button" data-nav="text:${x.id}"${x.id === t?.id ? ' class="on"' : ''}>Open</button></div>`).join('')}</details>` : '')
-    + (!authors.length && !texts.length ? '<p class="hint">Nothing here yet – get texts from the Library, or import your own (☰ → Library → Import text …).</p>' : '') + '</div></details></div>';
-  return html;
+  if (!t) return `<div class="dlghead navhead"><h3>Texts</h3></div><p class="hint">No text open – get texts from the Library, or import your own (☰ → Library → Import text …).</p>`;
+  const F = navFindNow();
+  return `<div class="dlghead navhead"><h3>${w ? `${esc(w.author)} · ${esc(w.title)} <span class="gk">${w.greek && w.greek !== w.title ? esc(w.greek) : ''}</span>` : esc(t.title)}</h3>
+    <div class="navsearch"><input type="search" id="navFind" class="nofocus" value="${esc(F?.q || '')}" placeholder="Find in this ${w ? 'work' : 'text'} …" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Find in this ${w ? 'work' : 'text'}">
+      <span class="seg" role="group">${[['form', 'Form'], ['lemma', 'Lemma']].map(([v, l]) => `<button type="button" data-findmode="${v}" class="${(S.findMode || 'form') === v ? 'on' : ''}" title="${v === 'form' ? 'This word form (accents ignored, * = any letters)' : 'All forms of this dictionary headword'}">${l}</button>`).join('')}</span></div></div>
+    <div id="navOutline" class="outline">${F ? resultsHTML(F) : await outlineHTML()}</div>`
+    + (w && !F ? `<p class="hint" style="font-size:12px;margin:.3rem 0 0">${esc(w.edition || '')}</p>` : '');
 }
-function navExample() {
-  const r = S.refs || [], w = S.text?.work, x = r[Math.min(r.length - 1, 5)]?.s || '1';
-  return w && w.books.length > 1 ? `${x} or ${stripCommon(w.books)[Math.min(1, w.books.length - 1)]} ${x}` : x;
-}
+const navFindNow = () => { const t = S.text, F = S.navFind; return t && F && F.key === (t.work ? t.work.id : t.id) ? F : null; };
 // ---- outline of the open work: parts › chapters › sections (any depth); only the path to the reading position is unfolded
 function refTree(list) {
   const root = { id: '', kids: [], map: new Map() }, numeric = list.length > 60 && list.every(r => /^\d+$/.test(r.s));
@@ -650,60 +634,125 @@ async function outlineHTML() {
   }
   return h;
 }
-function resultsHTML(F) {
-  const w = S.text?.work, short = w ? stripCommon(w.books) : [];
-  if (F.busy) return `<p class="hint" style="font-size:13px">Searching … ${Math.round(F.p * 100)} %</p>`;
-  if (!F.res.length) return `<p class="hint" style="font-size:13px">Not found${F.mode === 'lemma' ? ' (as a lemma – try the form, or check the spelling of the dictionary headword)' : ''}.</p>`;
-  const shown = F.res.slice(0, F.lim || 200);
-  return `<p class="hint" style="font-size:13px;margin:.2rem 0">${F.res.length >= 2000 ? 'More than 2,000' : F.res.length.toLocaleString('en')} place${F.res.length === 1 ? '' : 's'}</p><div class="fres">${shown.map((r, k) => `<button type="button" class="fr" data-fres="${k}"><span class="frl">${w && w.books.length > 1 ? esc(short[r.bi]) + (r.ref ? ' · ' : '') : ''}${esc(r.ref)}</span><span class="frc">${r.ctx}</span></button>`).join('')}</div>`
-    + (F.res.length > shown.length ? `<div class="row" style="justify-content:center"><button type="button" data-fmore="1">Show more</button></div>` : '');
+// the hits, grouped like the outline: by part (a work in several parts) or by chapter (the first number of the reference;
+// line numbers: by hundreds); a group unfolds into its hits, one line of context each
+function findGroup(r, multi) {
+  if (multi) return String(r.bi);
+  const m = String(r.ref || '').match(/^([^.,:]+)[.,:]/); if (m) return m[1];
+  const n = parseInt(r.ref, 10); if (!isNaN(n) && /^\d+$/.test(r.ref)) { const lo = Math.floor((n - 1) / 100) * 100 + 1; return `${lo}–${lo + 99}`; }
+  return r.ref || '–';
 }
-// text navigation: the menu closes when a place is chosen
+function findGroups(F) {
+  const w = S.text?.work, multi = !!(w && w.books.length > 1), g = new Map();
+  F.res.forEach((r, k) => { const key = findGroup(r, multi); let x = g.get(key); if (!x) g.set(key, x = { key, label: multi ? w.books[r.bi] : key, hits: [] }); x.hits.push(k); });
+  return [...g.values()];
+}
+function resultsHTML(F) {
+  const w = S.text?.work, multi = !!(w && w.books.length > 1), what = `<b class="gk">${esc(F.q)}</b> <small>(${F.mode === 'lemma' ? 'lemma' : 'form'})</small>`;
+  if (F.busy) return `<div class="fhead"><span>${what} · searching … ${Math.round(F.p * 100)} %</span></div>`;
+  if (!F.res.length) return `<div class="fhead"><span>${what} · not found</span><button type="button" data-fclear="1">Outline</button></div>`
+    + (F.mode === 'lemma' ? '<p class="hint" style="font-size:13px">Not found as a lemma – try the form, or check the spelling of the dictionary headword.</p>' : '');
+  const G = findGroups(F);
+  F.open ??= new Set(F.res.length <= 30 ? G.map(x => x.key) : [(G.find(x => multi && x.key === String(S.text.bi)) || G[0]).key]);   // few hits: all open; else the part being read
+  const n = F.res.length, cnt = `${n >= 2000 ? 'more than 2,000' : n.toLocaleString('en')} place${n === 1 ? '' : 's'}`;
+  let h = `<div class="fhead"><span>${what} · ${cnt}</span><button type="button" data-fexp="1"${F.exp ? ' class="on"' : ''}>Export</button><button type="button" data-fclear="1" title="Back to the outline of the ${w ? 'work' : 'text'}">Outline</button></div>`
+    + (F.exp ? `<div class="fexp">${F.save ? F.save : [['pdf', 'PDF'], ['html', 'HTML'], ['docx', 'Word']].map(([v, l]) => `<button type="button" data-fx="${v}">${l}</button>`).join('')}</div>` : '');
+  for (const g of G) {
+    const open = F.open.has(g.key);
+    h += `<div class="olrow d0 fgrp${multi ? ' part' : ''}"><button type="button" class="olt" data-fgrp="${esc(g.key)}" aria-expanded="${open}">${open ? '▾' : '▸'}</button>`
+      + `<button type="button" class="olj" data-fgrp="${esc(g.key)}"><span class="olx">${esc(g.label)}</span><span class="olc">${g.hits.length}</span></button></div>`;
+    if (!open) continue;
+    const lim = F.lim?.[g.key] || 200;
+    h += `<div class="fres">${g.hits.slice(0, lim).map(k => { const r = F.res[k]; return `<button type="button" class="fr${F.sel === k ? ' on' : ''}" data-fres="${k}"><span class="frl">${esc(r.ref || '')}</span><span class="frc">${r.ctx}</span></button>`; }).join('')}`
+      + (g.hits.length > lim ? `<button type="button" class="fmore" data-fmore="${esc(g.key)}">Show more (${(g.hits.length - lim).toLocaleString('en')})</button>` : '') + '</div>';
+  }
+  return h;
+}
+// the export of a search: work, search and number of places; per part or chapter the hits, each with its reference and sentence
+function findDoc(F) {
+  const t = S.text, w = t?.work, G = findGroups(F);
+  const title = w ? `${w.author} – ${w.title}` : t.title;
+  const head = `${F.mode === 'lemma' ? 'All forms of' : 'The form'} “${F.q}” · ${F.res.length.toLocaleString('en')} place${F.res.length === 1 ? '' : 's'}`;
+  return { title, head, groups: G.map(g => ({ label: g.label, hits: g.hits.map(k => F.res[k]) })), name: `${title} – ${F.q}`.replace(/[\\/:*?"<>|…]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 90) };
+}
+const FIND_CSS = `body{font:12pt/1.45 'Gentium Book Plus','Gentium Plus',serif;color:#111}h1{font:600 15pt Arial,sans-serif;margin:0 0 .2em}p.sub{font:10pt Arial,sans-serif;color:#555;margin:0 0 1.2em}
+h2{font:600 12pt Arial,sans-serif;margin:1.2em 0 .4em;border-bottom:1px solid #ccc;padding-bottom:.15em}.hit{display:flex;gap:.8em;margin:.25em 0;break-inside:avoid}.hit .r{flex:none;min-width:4.5em;font:9.5pt Arial,sans-serif;color:#666;padding-top:.15em}.hit b{font-weight:700}`;
+function findDocHTML(D) {
+  return `<h1>${esc(D.title)}</h1><p class="sub">${esc(D.head)}</p>` + D.groups.map(g => `<h2>${esc(g.label)} <small>(${g.hits.length})</small></h2>` + g.hits.map(r => `<div class="hit"><span class="r">${esc(r.ref || '')}</span><span>${r.sent || r.ctx}</span></div>`).join('')).join('');
+}
+async function findDocx(D) {
+  const runs = h => h.split(/(<b>.*?<\/b>)/).map(p => { const b = /^<b>/.test(p), txt = p.replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&'); return wRun(txt, { font: 'Gentium Book Plus', sz: 24, b }); }).join('');
+  let body = wP(wRun(D.title, { font: 'Arial', sz: 28, b: true }), { after: 60 }) + wP(wRun(D.head, { font: 'Arial', sz: 20, c: '#555555' }), { after: 240 });
+  for (const g of D.groups) {
+    body += wP(wRun(`${g.label} (${g.hits.length})`, { font: 'Arial', sz: 22, b: true }), { before: 200, after: 80 });
+    for (const r of g.hits) body += wP(wRun((r.ref || '') + '\t', { font: 'Arial', sz: 18, c: '#666666' }) + runs(r.sent || r.ctx), { after: 60 });
+  }
+  const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+  const files = [
+    ['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'],
+    ['_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'],
+    ['word/document.xml', doc]];
+  return zipFiles(files.map(([n, x]) => [n, new TextEncoder().encode(x)]));
+}
+// text navigation: the menu stays open – a part or section chosen opens in the text behind it and is marked in the menu
 async function navDialog() {
   S.navOpen = new Set(); S.navShut = new Set();
-  const p = dialog(`<div id="navBody">${await navHTML()}</div>`, [['cancel', 'Close']]);
+  const p = dialog(`<div id="navBody">${await navHTML()}</div>`, []);
   $('#dlg').classList.add('navdlg');
-  requestAnimationFrame(() => $('#navOutline .olrow.on')?.scrollIntoView({ block: 'center' }));
+  requestAnimationFrame(() => $('#navOutline .olrow.on, #navOutline .fr.on')?.scrollIntoView({ block: 'center' }));
   await p; $('#dlg').classList.remove('navdlg');
+  if (S.navFind?.href) { URL.revokeObjectURL(S.navFind.href); S.navFind.href = null; S.navFind.save = null; }
+}
+// the menu's list again (after a choice), where it was scrolled to
+async function navRefresh() {
+  const ol = $('#navOutline'); if (!ol || !$('#dlg').open) return;
+  const d = $('#dlg'), y = d.scrollTop, F = navFindNow();
+  ol.innerHTML = F ? resultsHTML(F) : await outlineHTML(); d.scrollTop = y;
 }
 function wireNav() {
-  const close = () => { if ($('#dlg').open) $('#dlg').close(); };
+  const later = () => new Promise(r => setTimeout(r, 160));          // (the text has scrolled to the place: its section is known)
   document.addEventListener('click', async ev => {
     const body = ev.target.closest('#navBody'); if (!body) return;
     const b = ev.target.closest('button'); if (!b) return;
-    const d = b.dataset;
-    if (d.openpart != null) { close(); return openText(`w:${S.text.work.id}:${+d.openpart}`); }
+    const d = b.dataset, F = S.navFind;
+    if (d.openpart != null) { S.navShut.delete('part|' + d.openpart); S.navOpen.add('part|' + d.openpart); await openText(`w:${S.text.work.id}:${+d.openpart}`); await later(); return navRefresh(); }
     if (d.olt) {
       const k = d.olt, isOpen = b.getAttribute('aria-expanded') === 'true';
       if (isOpen) { S.navOpen.delete(k); S.navShut.add(k); } else { S.navShut.delete(k); S.navOpen.add(k); }
-      const ol = $('#navOutline'), y = $('#dlg').scrollTop; ol.innerHTML = await outlineHTML(); $('#dlg').scrollTop = y; return;
+      return navRefresh();
     }
-    if (d.sec != null) { close(); return goPlace(d.secpart === '' ? null : +d.secpart, d.sec || null, null); }
-    if (d.navgo) return runGo();
-    if (d.rec) { const x = S.recent.find(r => r.key === d.rec); close();
-      if (x) return openText(x.id);
-      return d.rec.startsWith('imp:') ? openText(+d.rec.slice(4)) : openWork(d.rec); }
-    if (d.findmode) { S.findMode = d.findmode; body.querySelectorAll('[data-findmode]').forEach(x => x.classList.toggle('on', x === b)); return; }
-    if (d.findgo) return runFind();
-    if (d.fmore) { S.navFind.lim = (S.navFind.lim || 200) + 300; $('#navRes').innerHTML = resultsHTML(S.navFind); return; }
-    if (d.fres != null) { const r = S.navFind.res[+d.fres]; close(); return goPlace(r.bi, null, r.i); }
+    if (d.sec != null) { await goPlace(d.secpart === '' ? null : +d.secpart, d.sec || null, null); await later(); return navRefresh(); }
+    if (d.findmode) { S.findMode = d.findmode; body.querySelectorAll('[data-findmode]').forEach(x => x.classList.toggle('on', x === b)); if ($('#navFind')?.value.trim()) runFind(); return; }
+    if (d.fclear != null) { S.navFind = null; const i = $('#navFind'); if (i) i.value = ''; return navRefresh(); }
+    if (d.fgrp != null) { F.open.has(d.fgrp) ? F.open.delete(d.fgrp) : F.open.add(d.fgrp); return navRefresh(); }
+    if (d.fmore != null) { (F.lim ??= {})[d.fmore] = (F.lim[d.fmore] || 200) + 300; return navRefresh(); }
+    if (d.fres != null) { const r = F.res[+d.fres]; F.sel = +d.fres; navRefresh(); await goPlace(r.bi, null, r.i); return; }
+    if (d.fexp != null) { F.exp = !F.exp; F.save = null; return navRefresh(); }
+    if (d.fx) {
+      const D = findDoc(F);
+      if (d.fx === 'pdf') return printHTML(findDocHTML(D), FIND_CSS);
+      const blob = d.fx === 'html' ? new Blob([`<!doctype html><html lang="grc"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(D.title)}</title><style>${await fontFacesInline()}body{margin:2.5em auto;max-width:46em;padding:0 1.5em;background:#fff}${FIND_CSS}</style></head><body>${findDocHTML(D)}</body></html>`], { type: 'text/html' }) : await findDocx(D);
+      const name = D.name + (d.fx === 'html' ? '.html' : '.docx');
+      if (F.href) URL.revokeObjectURL(F.href);
+      F.href = URL.createObjectURL(blob);             // saved by a tap on the link (on the iPad a download has to start from a tap)
+      F.save = `<a class="btn acc" href="${F.href}" download="${esc(name)}">Save ${esc(name)}</a><button type="button" data-fexp="1" class="mx" aria-label="Cancel">✕</button>`;
+      return navRefresh();
+    }
   });
   document.addEventListener('keydown', ev => {
-    if (ev.key !== 'Enter' || ev.isComposing) return;
-    if (ev.target.id === 'navGo') { ev.preventDefault(); ev.stopPropagation(); runGo(); }
-    if (ev.target.id === 'navFind') { ev.preventDefault(); ev.stopPropagation(); runFind(); }
+    if (ev.key !== 'Enter' || ev.isComposing || ev.target.id !== 'navFind') return;
+    ev.preventDefault(); ev.stopPropagation(); runFind();
   }, true);
-  async function runGo() {
-    const q = $('#navGo')?.value || '';
-    const was = $('#dlg').open; if (was) $('#dlg').close();
-    if (!(await goTo(q))) toast(`“${q}” – no such place in this ${S.text?.work ? 'work' : 'text'}.`);
-  }
+  // the field emptied (its ✕, or deleted): the outline again
+  document.addEventListener('input', ev => { if (ev.target.id === 'navFind' && !ev.target.value.trim() && S.navFind) { S.navFind = null; navRefresh(); } });
   async function runFind() {
     const q = ($('#navFind')?.value || '').trim(); if (!q) return;
+    $('#navFind').blur();
     const t = S.text, key = t.work ? t.work.id : t.id;
     const F = S.navFind = { key, q, mode: S.findMode || 'form', res: [], busy: true, p: 0 };
-    const out = () => { const r = $('#navRes'); if (r && S.navFind === F) r.innerHTML = resultsHTML(F); };
-    out();
+    const out = () => { if (S.navFind === F) navRefresh(); };
+    out(); $('#dlg').scrollTop = 0;
     let last = 0;
     F.res = await findInWork(q, F.mode, p => { F.p = p; if (Date.now() - last > 150) { last = Date.now(); out(); } });
     F.busy = false; out();
