@@ -534,8 +534,8 @@ function findDoc(F) {
   const head = `${F.mode === 'lemma' ? 'All forms of' : 'The form'} “${F.q}” · ${F.res.length.toLocaleString('en')} place${F.res.length === 1 ? '' : 's'}`;
   return { title, head, groups: G.map(g => ({ label: g.label, hits: g.hits.map(k => F.res[k]) })), name: `${title} – ${F.q}`.replace(/[\\/:*?"<>|…]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 90) };
 }
-const FIND_CSS = `body{font:12pt/1.45 'Gentium Book Plus','Gentium Plus',serif;color:#111}h1{font:600 15pt Arial,sans-serif;margin:0 0 .2em}p.sub{font:10pt Arial,sans-serif;color:#555;margin:0 0 1.2em}
-h2{font:600 12pt Arial,sans-serif;margin:1.2em 0 .4em;border-bottom:1px solid #ccc;padding-bottom:.15em}.hit{display:flex;gap:.8em;margin:.25em 0;break-inside:avoid}.hit .r{flex:none;min-width:4.5em;font:9.5pt Arial,sans-serif;color:#666;padding-top:.15em}.hit b{font-weight:700}`;
+const FIND_CSS = `body{font:12pt/1.45 'Gentium Book Plus','Gentium Plus',serif;color:#111}h1{font:600 15pt 'Source Sans 3',Arial,sans-serif;margin:0 0 .2em}p.sub{font:10pt 'Source Sans 3',Arial,sans-serif;color:#555;margin:0 0 1.2em}
+h2{font:600 12pt 'Source Sans 3',Arial,sans-serif;margin:1.2em 0 .4em;border-bottom:1px solid #ccc;padding-bottom:.15em}.hit{display:flex;gap:.8em;margin:.25em 0;break-inside:avoid}.hit .r{flex:none;min-width:4.5em;font:9.5pt 'Source Sans 3',Arial,sans-serif;color:#666;padding-top:.15em}.hit b{font-weight:700}`;
 function findDocHTML(D) {
   return `<h1>${esc(D.title)}</h1><p class="sub">${esc(D.head)}</p>` + D.groups.map(g => `<h2>${esc(g.label)} <small>(${g.hits.length})</small></h2>` + g.hits.map(r => `<div class="hit"><span class="r">${esc(r.ref || '')}</span><span>${r.sent || r.ctx}</span></div>`).join('')).join('');
 }

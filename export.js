@@ -82,14 +82,14 @@ function exportPickPaint() {
 }
 const EXPORT_CSS = `
 .xt{font-family:'Gentium Book Plus','Gentium Plus','Times New Roman',serif;font-size:13pt;line-height:1.5;color:#111;position:relative;padding-left:3.2em}
-.xt h1{font:600 12pt/1.3 -apple-system,'Segoe UI',Arial,sans-serif;color:#555;margin:0 0 1.2em -3.2em}
-.xt .b{margin:0 0 .8em}.xt .b.k-h{text-align:center;font-weight:700}.xt .b.k-s{font:600 10pt Arial,sans-serif;letter-spacing:.04em;color:#7a2e2e;margin:.9em 0 .1em}
+.xt h1{font:600 12pt/1.3 'Source Sans 3',Arial,sans-serif;color:#555;margin:0 0 1.2em -3.2em}
+.xt .b{margin:0 0 .8em}.xt .b.k-h{text-align:center;font-weight:700}.xt .b.k-s{font:600 10pt 'Source Sans 3',Arial,sans-serif;letter-spacing:.04em;color:#7a2e2e;margin:.9em 0 .1em}
 .xt .b.k-L{margin:0}
-.xt .rf{position:absolute;left:0;width:2.8em;font:8pt/2.4 Arial,sans-serif;color:#888;white-space:nowrap}
+.xt .rf{position:absolute;left:0;width:2.8em;font:8pt/2.4 'Source Sans 3',Arial,sans-serif;color:#888;white-space:nowrap}
 .xt .w{display:inline-flex;flex-direction:column;align-items:flex-start;vertical-align:top}
 .xt .g{display:block;white-space:nowrap}
-.xt .gm{display:block;font:7.5pt/1.2 Arial,sans-serif;color:#777;max-width:11em}
-.xt .gl{display:block;font:8.5pt/1.25 Arial,sans-serif;color:#2e5a7a;max-width:14em}
+.xt .gm{display:block;font:7.5pt/1.2 'Source Sans 3',Arial,sans-serif;color:#777;max-width:11em}
+.xt .gl{display:block;font:8.5pt/1.25 'Source Sans 3',Arial,sans-serif;color:#2e5a7a;max-width:14em}
 .xt .gl .dg{color:#777;font-style:italic}
 .xt .gl span{display:block}`;
 function exportHTML(blocks, o) {

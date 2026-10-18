@@ -62,7 +62,7 @@ async function libraryDialog() { return libMenu(''); }
 async function navDialog() { return libMenu(curKey()); }
 async function libMenu(page) {
   await libPrep();
-  S.lmPage = page; S.navOpen = new Set(); S.navShut = new Set(); S.scrEdit = false; S.lwAsk = null; S.lmPT = new Map(); S.lmRev = null; S.revDone = null;
+  S.lmPage = page; S.lwInfo = false; S.navOpen = new Set(); S.navShut = new Set(); S.scrEdit = false; S.lwAsk = null; S.lmPT = new Map(); S.lmRev = null; S.revDone = null;
   if (S.dlgScroll) { delete S.dlgScroll['']; delete S.dlgScroll.Library; }
   if (!S.menuEntry) { history.pushState({ pultMenu: 1 }, ''); S.menuEntry = true; }      // the back gesture: page → overview → closed
   const p = dialog(`<div id="libBody">${page ? await lmWorkHTML(page) : lmOverviewHTML()}</div>`, []);
@@ -77,7 +77,7 @@ async function libMenu(page) {
 async function lmGo(page) {
   const d = $('#dlg');
   if (!S.lmPage) S.lmOvY = d.scrollTop;
-  S.lmPage = page; S.navOpen = new Set(); S.navShut = new Set(); S.lwAsk = null; S.lwMenu = null; S.lmRev = null; S.revDone = null;
+  S.lmPage = page; S.lwInfo = false; S.navOpen = new Set(); S.navShut = new Set(); S.lwAsk = null; S.lwMenu = null; S.lmRev = null; S.revDone = null;
   await lmRender(false);
   if (!page) d.scrollTop = S.lmOvY || 0;
   else { d.scrollTop = 0; requestAnimationFrame(() => $('#navOutline .olrow.on')?.scrollIntoView({ block: 'center' })); }
