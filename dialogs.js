@@ -599,6 +599,10 @@ function dlIcon(id, { have = false, rev = false, size = 0, upd = 'Download revis
   return `<button type="button" class="dli" data-get="${esc(id)}" title="Download${size ? ' (' + mbs(size) + ')' : ''}" aria-label="Download"${off ? ' disabled' : ''}>${DLARROW}</button>`;
 }
 function dlPopClose() { document.querySelectorAll('.dlpop').forEach(x => x.remove()); document.querySelectorAll('.dli.open').forEach(x => x.classList.remove('open')); clearTimeout(dlPopClose.t); }
+document.addEventListener('pointerup', ev => {                     // (the accent of a tapped icon: held, then fading)
+  const b = ev.target.closest?.('.dli'); if (!b) return;
+  b.classList.add('held'); clearTimeout(b._held); b._held = setTimeout(() => b.classList.remove('held'), 500);
+});
 // the buttons to the left of an icon (tapped again, or after 5 s: gone)
 function dlPopAt(b, html) {
   const open = b.classList.contains('open'); dlPopClose(); if (open) return;
