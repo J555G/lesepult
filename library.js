@@ -271,15 +271,18 @@ function refsOf(toks, blocks) {
   list.forEach((r, j) => { const end = list[j + 1]?.i ?? Infinity; r.lab = ws.slice(r.i, r.i + 7).filter(x => x.i < end).map(x => x.s).join(' '); r.more = (list[j + 1]?.i ?? ws.length) - r.i > 7; });
   return list;
 }
-function topWord() {                // the first word at the top of the text pane
+function topWord(lastOfLine = false) {   // the first word at the top of the text pane (lastOfLine: the last word of that line)
   const ws = drawnWords(), pane = $('#textPane').getBoundingClientRect(); if (!ws.length) return null;
   let lo = 0, hi = ws.length - 1;
   while (lo < hi) { const m = (lo + hi) >> 1; if (ws[m].getBoundingClientRect().bottom <= pane.top + 60) lo = m + 1; else hi = m; }   // the line a jump puts at the top
+  if (lastOfLine) { const t = ws[lo].getBoundingClientRect().top; while (lo + 1 < ws.length && Math.abs(ws[lo + 1].getBoundingClientRect().top - t) < 4) lo++; }
   return +ws[lo].dataset.i;
 }
+// the section you are in: the last one that begins on the top line or before it (a section starting in the middle of
+// the top line already counts – as after a jump to it from the outline)
 function curRef() {
   const R = S.refs; if (!R?.length) return null;
-  const w = topWord(); if (w == null) return R[0];
+  const w = topWord(true); if (w == null) return R[0];
   let lo = 0, hi = R.length - 1, k = -1;
   while (lo <= hi) { const m = (lo + hi) >> 1; if (R[m].i <= w) { k = m; lo = m + 1; } else hi = m - 1; }
   return R[Math.max(0, k)];
