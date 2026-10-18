@@ -268,7 +268,7 @@ function wire() {
   addEventListener('resize', () => { if (!$('#fabBar').hidden) updateFab(); });
   wireDictDrag();
   document.addEventListener('click', e => { const b = e.target.closest('#dlg [data-get]'); if (b) { if (b.closest('summary')) e.preventDefault(); queueDownload(b.dataset.get); } });
-  wireLibrary();
+  wireLibrary(); wireRevisions();
   document.addEventListener('selectionchange', () => {
     clearTimeout(S.selT);
     S.selT = setTimeout(() => { S.sel = dictSelection(); if (S.sel) S.lastSel = S.sel.text; updateFab(); }, 60);
@@ -427,7 +427,7 @@ function splitIcon() {   // an open book: the fold sits where the split is, the 
   await loadSearchCfg(); srchLangBtn();
   const cur = await setting('currentText');
   if (cur != null) await openText(cur);
-  if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! <button id="btnFirstSync">Download the free dictionaries</button> (Greek: Pape, LSJ and morphology; Latin: Lewis &amp; Short, Georges and Collatinus – about 60 MB). More dictionaries: ☰ → Instruments → Dictionaries. Then get a text via ☰ → Library, or import your own via ☰ → Library → Import text …</p>';
+  if (!S.dicts.length) $('#dictBody').innerHTML = '<p class="hint">Welcome! <button id="btnFirstSync">Download the free dictionaries</button> (Greek: Pape, LSJ and morphology; Latin: Lewis &amp; Short, Georges and Collatinus – about 60 MB). More dictionaries: ☰ → Instruments → Dictionaries. Then get a text in the Library (top left), or import your own there (+ Import)</p>';
   $('#btnFirstSync')?.addEventListener('click', () => syncPackages());
   navigator.storage?.persist?.().catch(() => { });
 })();

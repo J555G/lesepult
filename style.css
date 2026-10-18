@@ -1540,3 +1540,20 @@ dialog .libbar[hidden]{display:none}
 @media (max-width:370px){dialog .lmtabs [data-view]{padding:.45rem .32rem .4rem;font-size:12.5px}}
 dialog .list.lib .lrow>.star{order:0}dialog .list.lib .lrow>.t{order:1;flex:1 1 auto}dialog .list.lib .lrow>.lr{order:2;margin-left:auto}
 dialog .lwact .lwoff{font-size:12px;color:var(--mut)}
+/* revisions (v213) */
+.w>.gl .grv{text-decoration:underline wavy color-mix(in srgb,#d08030 70%,transparent);text-decoration-thickness:1px;text-underline-offset:3px}
+dialog .rvsum{font-size:14px;margin:.2rem 0 .4rem}
+dialog .rvsum ul{margin:.35rem 0 0;padding-left:1.2rem;color:var(--mut);font-size:13px}
+dialog .rvbtn{margin-top:.6rem}
+dialog .rvdone{font-size:14px;margin:.3rem 0 .8rem}
+dialog .rvpart{font:600 13px var(--ui);margin:.7rem 0 .2rem;color:var(--fg)}
+dialog .rvh{display:flex;gap:.7rem;align-items:baseline;padding:.35rem 0;border-bottom:1px solid var(--line)}
+dialog .rvh .rvr{flex:none;min-width:3.6rem;font:12px var(--ui);color:var(--acc)}
+dialog .rvh .rvt{flex:1;min-width:0;font-size:15px;line-height:1.45}
+dialog .rvh .rvt small{font:12px var(--ui);color:var(--mut)}
+dialog .rvh del{color:#c0392b;text-decoration:line-through;text-decoration-thickness:1.5px}
+dialog .rvh ins{color:#2e8b57;text-decoration:none;background:color-mix(in srgb,#2e8b57 14%,transparent);border-radius:3px;padding:0 .1rem}
+dialog .rvg button[data-revok1]{flex:none;font-size:12px;padding:.2rem .55rem}
+dialog .rvg .rvr.linkb{text-align:left;padding:0}
+dialog details.rvann{margin:.8rem 0}
+dialog details.rvann>summary{cursor:pointer;font:600 13px var(--ui);color:var(--mut);padding:.3rem 0}

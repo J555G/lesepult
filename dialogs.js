@@ -40,7 +40,7 @@ function dialog(inner, buttons = [['ok', 'OK']], defaultAction = null) {
 // a control with its ⓘ on the same line (the explanation opens below both)
 const withInfo = (ctl, t) => `<span class="cinl">${ctl}${info(t)}</span>`;
 const info = t => `<button type="button" class="info" data-info aria-label="Explanation" aria-expanded="false">ⓘ</button><span class="infot" hidden>${t}</span>`;
-// ☰ → Library → Import text …: paste a text or load a file (.txt, .odt, .docx), with its details; imported texts are listed in the Library
+// Library → + Import: paste a text or load a file (.txt, .odt, .docx), with its details; imported texts are listed in the Library
 const LANG_OPTS = [['', 'Detect'], ['grc', 'Greek'], ['la', 'Latin']];
 function detectLang(t) { const g = (t.match(/[Ͱ-Ͽἀ-῿]/g) || []).length, l = (t.match(/[A-Za-z]/g) || []).length; return g >= l ? 'grc' : 'la'; }
 // "c. 380 BC" -> -380, "4th c. BC" -> -350, "2nd century AD" -> 150, "1453" -> 1453
@@ -435,11 +435,13 @@ async function settingsDialog(focus) {
     + rsec('scolours', 'Colourisation', chipGroupsHTML('pos') + '<small class="hint rhint">hold a word to choose its colour</small>', `<button type="button" class="creset" data-posreset="1" aria-label="Reset colours" title="Reset colours"><span class="rr">R</span><span class="rg">e</span><span class="ry">s</span><span class="rb">e</span><span class="rr">t</span>${RST}</button>`)
     + rsec('slat', 'Latin', swRow(SW('data-set="latQuant"', S.latQuant && coll, !coll), 'Mark vowel lengths (ā, ĕ …)', coll ? '' : 'needs Collatinus (Instruments → Analysis)', !coll))
     + (hasMap ? rsec('splaces', 'Places', swRow(SW('data-mapset="mark"', M.cfg.mark !== false), 'Mark place names in the text', 'a dotted line beneath names found on the map')) : '');
+  await libSettingsPrep();
   if (want) openAt('set', want);
   const rows = [{ k: 'read', title: 'Reading', sub: `text ${Math.round((S.tz || 1) * 100)} % · glosses, grammar line, colourisation` },
     { k: 'search', title: 'Search', sub: 'suggestions · Greek in Latin letters · typo tolerance · index of all texts' },
+    { k: 'lib', title: 'Library', sub: 'revision notices · rejected revisions' },
     ...(hasMap ? [{ k: 'map', title: 'Map', sub: 'places in texts · period · significance · engine' }] : [])];
-  const dlgP = dialog(pagedHTML('set', 'Settings', rows, { read: reading, search: searchSettingsHTML(), ...(hasMap ? { map: `<div class="mapset">${settingsHTML()}</div>` } : {}) },
+  const dlgP = dialog(pagedHTML('set', 'Settings', rows, { read: reading, search: searchSettingsHTML(), lib: libSettingsHTML(), ...(hasMap ? { map: `<div class="mapset">${settingsHTML()}</div>` } : {}) },
       `<div class="srow1 sapp"><b>Appearance</b>${seg('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']])}</div>`)
     + `<p class="sver">Pult · version ${ver} · published ${PULT_DATE}</p>`, []);
   syncGramRows($('#dlgForm')); scIdxInfo();

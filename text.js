@@ -69,7 +69,7 @@ function textHTML(n0, n1, gl, covered) {
       html += s0.split(/\n\s*\n/).map(p => punctHTML(p).replace(/\n/g, '<br>')).join('</div><div class="para">');
       continue;
     }
-    let gs = (gl[tk.i] || []).map(g => `<span data-g="${g.id}"${g.e > g.s ? ` title="gloss for ${g.e - g.s + 1} words"` : ''}>${g.e > g.s ? '⟨' : ''}${glossHTML(g.t)}${g.e > g.s ? '⟩' : ''}</span>`).join('');
+    let gs = (gl[tk.i] || []).map(g => `<span data-g="${g.id}"${g.rv ? ' class="grv"' : ''}${g.rv ? ' title="Its word was changed by a revision – please check this gloss (Library → the work)"' : g.e > g.s ? ` title="gloss for ${g.e - g.s + 1} words"` : ''}>${g.e > g.s ? '⟨' : ''}${glossHTML(g.t)}${g.e > g.s ? '⟩' : ''}</span>`).join('');
     // the lemma's default gloss: only where the word has no gloss of its own, or always (Settings → Glosses)
     if (!covered.has(tk.i)) gs = dgHTML(tk);
     else if (S.glossMode === 'both' && tk.lemma) { const dg = S.lemmaGloss[gkey(tk.lemma)]; if (dg && !(gl[tk.i] || []).some(g => g.t === dg)) gs += dgHTML(tk); }
@@ -102,7 +102,7 @@ function renderText() {
   const same = S.text && S.renderedText === S.text.id && S.wordEls?.length;   // the same text drawn again: keep the position
   const anchor = same ? textAnchor() : null;
   if (S.TW) { S.TW.io?.disconnect(); S.TW = null; }
-  if (!S.text) { body.innerHTML = '<p class="hint">No text yet. Open the menu ☰ (top left) → Library to download texts, or to import your own (Import text …).</p>'; return; }
+  if (!S.text) { body.innerHTML = '<p class="hint">No text yet. Tap <b>Library</b> (top left) to download texts in Bibliotheca, or + Import to import your own.</p>'; return; }
   const [gl, covered] = glossMaps();
   const nWords = S.tokens.reduce((n, t) => n + (t.t === 'w'), 0);
   const chunks = nWords > LONG_TEXT ? textChunks() : null;

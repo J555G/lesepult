@@ -31,7 +31,7 @@ async function libPrep() {
   const inst = await libWorks();
   S.libInst = Object.fromEntries(inst.map(w => [w.id, w]));
   S.impWorks = (await getAll('texts')).map(impWork);
-  await lmTraces();
+  await lmTraces(); await revPrevLoad(); await revFlagsLoad();
   if (!S.catOnline) fetchCatalog().then(() => { if ($('#libBody')) lmRender(); }).catch(() => { });
 }
 // your traces in the works: glosses (counted), markers, words whose analysis you chose
@@ -62,7 +62,7 @@ async function libraryDialog() { return libMenu(''); }
 async function navDialog() { return libMenu(curKey()); }
 async function libMenu(page) {
   await libPrep();
-  S.lmPage = page; S.navOpen = new Set(); S.navShut = new Set(); S.scrEdit = false; S.lwAsk = null; S.lmPT = new Map();
+  S.lmPage = page; S.navOpen = new Set(); S.navShut = new Set(); S.scrEdit = false; S.lwAsk = null; S.lmPT = new Map(); S.lmRev = null; S.revDone = null;
   if (S.dlgScroll) { delete S.dlgScroll['']; delete S.dlgScroll.Library; }
   if (!S.menuEntry) { history.pushState({ pultMenu: 1 }, ''); S.menuEntry = true; }      // the back gesture: page → overview → closed
   const p = dialog(`<div id="libBody">${page ? await lmWorkHTML(page) : lmOverviewHTML()}</div>`, []);
@@ -77,7 +77,7 @@ async function libMenu(page) {
 async function lmGo(page) {
   const d = $('#dlg');
   if (!S.lmPage) S.lmOvY = d.scrollTop;
-  S.lmPage = page; S.navOpen = new Set(); S.navShut = new Set(); S.lwAsk = null;
+  S.lmPage = page; S.navOpen = new Set(); S.navShut = new Set(); S.lwAsk = null; S.lmRev = null; S.revDone = null;
   await lmRender(false);
   if (!page) d.scrollTop = S.lmOvY || 0;
   else { d.scrollTop = 0; requestAnimationFrame(() => $('#navOutline .olrow.on')?.scrollIntoView({ block: 'center' })); }
@@ -94,10 +94,11 @@ async function lmRender(keep = true) {
 }
 addEventListener('popstate', () => {
   if (!$('#dlg').open || !$('#libBody')) return;
-  if (S.lmPage) { lmGo(''); history.pushState({ pultMenu: 1 }, ''); S.menuEntry = true; } else $('#dlg').close();
+  if (S.lmRev) { S.lmRev = null; S.revDone = null; lmRender(false); history.pushState({ pultMenu: 1 }, ''); S.menuEntry = true; }
+  else if (S.lmPage) { lmGo(''); history.pushState({ pultMenu: 1 }, ''); S.menuEntry = true; } else $('#dlg').close();
 });
 document.addEventListener('DOMContentLoaded', () => {
-  $('#dlg').addEventListener('cancel', ev => { if ($('#libBody') && S.lmPage) { ev.preventDefault(); lmGo(''); } });   // Android back, Esc
+  $('#dlg').addEventListener('cancel', ev => { if (!$('#libBody')) return; if (S.lmRev) { ev.preventDefault(); S.lmRev = null; S.revDone = null; lmRender(false); } else if (S.lmPage) { ev.preventDefault(); lmGo(''); } });   // Android back, Esc
 });
 
 // ---------------------------------------------------------------- the overview
@@ -245,6 +246,7 @@ async function lmWords() {
 // ---------------------------------------------------------------- the page of a work
 async function lmWorkHTML(key) {
   const W = workInfo(key); if (!W) { S.lmPage = ''; return lmOverviewHTML(); }
+  if (S.lmRev) return revPageHTML(key);                              // Library › Work › Revision (librev.js)
   const a = authorOf(W), cur = curKey() === key, fav = !!S.favs?.[key], dk = 'work:' + key, off = lmOffline();
   const F = navFindFor(key), r = (S.recent || []).find(x => x.key === key);
   let h = `<div class="dlghead lmhead lwhead"><h3><button type="button" class="crumb" data-lmback="1" title="Back to the Library">Library</button><span class="csep" aria-hidden="true">›</span><span class="ccur">${esc(W.title)}</span></h3>`
@@ -265,7 +267,7 @@ async function lmWorkHTML(key) {
     if (W.inst) act += `<button type="button" class="linkb danger lwdel" data-lwdel="1">${W.imported ? 'Delete' : 'Delete from device'}</button>`;
   }
   h += `<div class="lwact">${act}</div>`;
-  if (S.revOn && revAvail(key)) h += `<p class="lwrev">Revision available · <button type="button" class="linkb" data-revshow="${esc(key)}">see the changes</button></p>`;
+  if (revAvail(key)) h += `<p class="lwrev">Revision available · <button type="button" class="linkb" data-revshow="${esc(key)}">see the changes</button></p>`;
   if (typeof revBackHTML === 'function') h += revBackHTML(key);
   if (W.inst) h += `<div id="navOutline" class="outline">${F ? resultsHTML(F) : await outlineHTML(key)}</div>`;
   else h += `<div class="outline lwparts">${(W.books || []).map(b => `<div class="olrow d0 part off"><span class="olt"></span><span class="olj"><span class="olx">${esc(b)}</span></span></div>`).join('')}</div><p class="hint small">Download the work to read it.</p>`;
