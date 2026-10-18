@@ -236,9 +236,17 @@ document.addEventListener('click', async ev => {
   }
 }, true);
 document.addEventListener('click', async ev => {                    // Recently removed: all of them (shown) erased
-  const b = ev.target.closest?.('#libList [data-trashall]'); if (!b) return;
+  const b = ev.target.closest?.('#libList [data-trashall], #dlg .dlask [data-trashall]'); if (!b) return;
   ev.preventDefault(); ev.stopPropagation();
-  for (const id of b.dataset.trashall.split('\n')) await workPurge(id);
+  const ids = b.dataset.trashall.split('\n'), imp = ids.filter(id => id.startsWith('imp:')).length;
+  if (imp && !b.dataset.sure) {                                    // imported texts cannot be downloaded again: asked first
+    document.querySelectorAll('#dlg .dlask').forEach(x => x.remove());
+    const n = ids.length - imp, pl = (k, s) => `${k} ${s}${k === 1 ? '' : 's'}`;
+    b.closest('details').insertAdjacentHTML('afterend', `<div class="dlask"><span>Erase ${[n ? pl(n, 'work') : '', pl(imp, 'imported text')].filter(Boolean).join(' and ')}?</span><button type="button" class="danger" data-trashall="${esc(b.dataset.trashall)}" data-sure="1">Erase</button><button type="button" data-dlgo="1">Cancel</button></div>`);
+    return;
+  }
+  b.closest('.dlask')?.remove();
+  for (const id of ids) await workPurge(id);
   renderLibList();
 }, true);
 // Armarium: the works deleted in the last 7 days (most recent first), folded beneath the shelf

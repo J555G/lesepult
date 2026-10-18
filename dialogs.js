@@ -811,7 +811,7 @@ async function pultDialog() {
   const rows = [
     ['Imported texts', n(data.texts.length)],
     ['Library texts on this device', `${n(works.length)}${wsize ? ` · ≈ ${mb(wsize)}` : ''}`],
-    ['Glosses', `${n(data.glosses.length)}${glossTexts ? ` in ${n(glossTexts)} text${glossTexts === 1 ? '' : 's'}` : ''}`],
+    ['Glosses', `${n(data.glosses.length)}${glossTexts ? ` in ${n(glossTexts)} text${glossTexts === 1 ? '' : 's'}` : ''}`, 'annot'],
     ['Default glosses', n(Object.keys(data.lemmaGlosses || {}).length)],
     ['Readings chosen for single words', n(Object.keys(data.readings).length)],
     ['Lemmata chosen for forms (everywhere)', n(data.choices.length)],
@@ -822,11 +822,63 @@ async function pultDialog() {
     ['Storage', [use, prot].filter(Boolean).join(' · ') || '–']];
   const r = await dialog(`${dlgHead('This Pult')}
     <p class="hint small">Everything is stored only on this device. ${info('A backup contains your imported texts, glosses, default glosses, chosen readings, lemma choices, highlights, markers, favourites, colours and display settings. Library texts and dictionaries are not included – they can be downloaded again.')}</p>
-    <div class="list plain pultlist">${rows.map(([k, v]) => `<div class="item"><span class="t">${k}</span><span class="pv">${v}</span></div>`).join('')}</div>`,
+    <div class="list plain pultlist">${rows.map(([k, v, go]) => go ? `<button type="button" class="item pgo" data-v="${go}"><span class="t">${k}</span><span class="pv">${v}</span><i aria-hidden="true">›</i></button>` : `<div class="item"><span class="t">${k}</span><span class="pv">${v}</span></div>`).join('')}</div>`,
     [['link', 'Export backup', { href, name }], ['file', 'Import backup …', 'fileBackup']]);
   setTimeout(() => URL.revokeObjectURL(href), 60000);
+  if (r.action === 'annot') return annotDialog();
 }
 const backupDialog = pultDialog;
+// ☰ → This Pult → Annotations: every text with something of yours in it – glosses, the marker, chosen readings, map
+// places – whether it is on this device, removed (in the bin), erased or not downloaded; each can be deleted here
+async function annotData() {
+  const A = new Map(), at = k => { let x = A.get(k); if (!x) A.set(k, x = { key: k, g: 0, mk: 0, an: 0, pl: 0, tids: new Set() }); return x; };
+  for (const g of await getAll('glosses')) { const k = keyOfText(g.textId); if (k) { const x = at(k); x.g++; x.tids.add(String(g.textId)); } }
+  const keys = p => req2p(tx('settings').objectStore('settings').getAllKeys(IDBKeyRange.bound(p, p + '\uffff')));
+  for (const k of await keys('mk|')) { const t = k.slice(3), w = keyOfText(t); if (w) { at(w).mk++; at(w).tids.add(t); } }
+  for (const [p, f] of [['an|', 'an'], ['pl|', 'pl']]) for (const k of await keys(p)) { const t = k.split('|')[1], w = keyOfText(t); if (w) { at(w)[f]++; at(w).tids.add(t); } }
+  for (const k of await keys('plw|')) at(k.split('|')[1]).pl++;
+  const gone = Object.fromEntries((await getAll('settings', IDBKeyRange.bound('gone|', 'gone|\uffff'))).map(r => [r.k.slice(5), r.v]));
+  const inst = Object.fromEntries((await libWorks()).map(w => [w.id, w])), imp = Object.fromEntries((await getAll('texts')).map(t => ['imp:' + t.id, t]));
+  await cachedCatalog().catch(() => { }); await trashLoad();
+  for (const x of A.values()) {
+    const k = x.key, w = inst[k] || S.catWork?.[k], t = imp[k] || S.trashImp?.[k] && { title: S.trashImp[k].title, author: S.trashImp[k].author }, gn = gone[k];
+    x.title = k.startsWith('imp:') ? (t?.title || gn?.title || 'A text no longer on this device') : (w?.title || k);
+    x.author = k.startsWith('imp:') ? (t?.author || gn?.author || '') : (w?.author || '');
+    x.state = k.startsWith('imp:') ? (imp[k] ? 'on this device' : S.trash?.[k] ? 'removed' : 'erased') : (inst[k] ? 'on this device' : S.trash?.[k] ? 'removed' : 'not on this device');
+  }
+  return [...A.values()].sort((a, b) => a.title.localeCompare(b.title));
+}
+async function annotDialog() {
+  const L = await annotData(), n = x => x.toLocaleString('en');
+  const sum = x => [x.g ? `${n(x.g)} gloss${x.g === 1 ? '' : 'es'}` : '', x.mk ? 'marker' : '', x.an ? `${n(x.an)} reading${x.an === 1 ? '' : 's'}` : '', x.pl ? `${n(x.pl)} place${x.pl === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · ');
+  S.annot = L;
+  const r = await dialog(`${dlgHead('Annotations')}
+    <p class="hint small">What you have added to each text – glosses, the marker, chosen readings, places on the map. It stays when a text is removed or erased.</p>
+    <div class="list plain annlist">${L.length ? L.map((x, i) => `<div class="item annrow" data-ai="${i}"><span class="t"><b>${esc(x.title)}</b><small>${[esc(x.author), x.state, sum(x)].filter(Boolean).join(' · ')}</small></span><button type="button" class="danger" data-annask="${i}">Delete</button></div>`).join('') : '<p class="hint">No annotations yet.</p>'}</div>`,
+    [['back', 'Back']]);
+  if (r.action === 'back') return pultDialog();
+}
+document.addEventListener('click', async ev => {
+  const a = ev.target.closest?.('#dlg [data-annask]'), ok = ev.target.closest?.('#dlg [data-anndel]'), no = ev.target.closest?.('#dlg [data-annno]');
+  if (!a && !ok && !no) return;
+  ev.preventDefault(); ev.stopPropagation();
+  if (no) return no.closest('.dlask').remove();
+  if (a) {
+    document.querySelectorAll('#dlg .dlask').forEach(x => x.remove());
+    const x = S.annot[+a.dataset.annask];
+    a.closest('.annrow').insertAdjacentHTML('afterend', `<div class="dlask"><span>Delete everything you added to “${esc(x.title)}”?</span><button type="button" class="danger" data-anndel="${a.dataset.annask}">Delete</button><button type="button" data-annno="1">Cancel</button></div>`);
+    return;
+  }
+  const x = S.annot[+ok.dataset.anndel]; ok.closest('.dlask').remove();
+  for (const g of await getAll('glosses')) if (keyOfText(g.textId) === x.key) await del('glosses', g.id);
+  const keys = p => req2p(tx('settings').objectStore('settings').getAllKeys(IDBKeyRange.bound(p, p + '\uffff')));
+  for (const t of x.tids) { await del('settings', 'mk|' + t); for (const p of [`an|${t}|`, `pl|${t}|`]) for (const k of await keys(p)) await del('settings', k); }
+  for (const k of await keys(`plw|${x.key}|`)) await del('settings', k);
+  await del('settings', 'gone|' + x.key);
+  if (S.text && keyOfText(S.text.id) === x.key) await openText(S.text.id, false);
+  const row = document.querySelector(`#dlg .annrow[data-ai="${ok.dataset.anndel}"]`); row?.remove();
+  toast('Deleted', 1800);
+});
 async function restoreBackup(file) {
   const data = JSON.parse(await file.text());
   if (data.format !== 'greekdict-backup-1') return toast('Not a backup file.');
