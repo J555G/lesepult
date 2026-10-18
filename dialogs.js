@@ -595,18 +595,32 @@ function dlIcon(id, { have = false, rev = false, size = 0, upd = 'Download revis
   if (DL.has(id)) return `<button type="button" class="dli busy${p < 0 ? ' wait' : p >= 0.9 ? ' inst' : ''}" data-dl="${esc(id)}" data-lbl="${esc(DLARROW)}" style="--p:${Math.round(Math.max(0, p) * 100)}%" title="Tap to stop" aria-label="Downloading – tap to stop">${DLARROW}</button>`;
   if (x?.err && !have) return `<button type="button" class="dli fail" data-get="${esc(id)}" title="${esc(x.err)} – tap to try again" aria-label="Try again">↻</button>`;
   if (have) return `<button type="button" class="dli done" data-dlon="${esc(id)}" data-upd="${rev ? esc(upd) : ''}" title="On this device${rev ? ' – ' + esc(upd.toLowerCase().replace('download ', '')) + ' available' : ''}" aria-label="On this device">${DLARROW}${rev ? '<sup class="drev">rev.</sup>' : ''}</button>`;
-  if (rst) return `<button type="button" class="dli rst" data-get="${esc(id)}" title="Restore – kept on this device until ${new Date(rst + 7 * 864e5).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}" aria-label="Restore">${RSTARROW}</button>`;
+  if (rst) return `<button type="button" class="dli rst" data-dlrst="${esc(id)}" title="Restore – kept on this device until ${new Date(rst + 7 * 864e5).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}" aria-label="Restore">${RSTARROW}</button>`;
   return `<button type="button" class="dli" data-get="${esc(id)}" title="Download${size ? ' (' + mbs(size) + ')' : ''}" aria-label="Download"${off ? ' disabled' : ''}>${DLARROW}</button>`;
 }
 function dlPopClose() { document.querySelectorAll('.dlpop').forEach(x => x.remove()); document.querySelectorAll('.dli.open').forEach(x => x.classList.remove('open')); clearTimeout(dlPopClose.t); }
-function dlPop(b) {
+// the buttons to the left of an icon (tapped again, or after 5 s: gone)
+function dlPopAt(b, html) {
   const open = b.classList.contains('open'); dlPopClose(); if (open) return;
-  const id = b.dataset.dlon, row = b.closest('.lrow,.pkrow,.lwl,.item') || b.parentElement;
+  const row = b.closest('.lrow,.pkrow,.lwl,.item') || b.parentElement;
   const rr = row.getBoundingClientRect(), br = b.getBoundingClientRect();
   row.classList.add('dlhost'); b.classList.add('open');
-  row.insertAdjacentHTML('beforeend', `<span class="dlpop" style="right:${Math.round(rr.right - br.left + 6)}px;top:${Math.round(br.top - rr.top + br.height / 2)}px">${b.dataset.upd ? `<button type="button" data-dlupd="${esc(id)}"${S.net === false ? ' disabled' : ''}>${esc(b.dataset.upd)}</button>` : ''}<button type="button" class="danger" data-dldel="${esc(id)}">Delete</button></span>`);
+  row.insertAdjacentHTML('beforeend', `<span class="dlpop" style="right:${Math.round(rr.right - br.left + 6)}px;top:${Math.round(br.top - rr.top + br.height / 2)}px">${html}</span>`);
   dlPopClose.t = setTimeout(dlPopClose, 5000);
 }
+function dlPop(b) {
+  const id = b.dataset.dlon;
+  dlPopAt(b, `${b.dataset.upd ? `<button type="button" data-dlupd="${esc(id)}"${S.net === false ? ' disabled' : ''}>${esc(b.dataset.upd)}</button>` : ''}<button type="button" class="danger" data-dldel="${esc(id)}">Delete</button>`);
+}
+// a deleted work (kept 7 days): Restore, or Delete now (for good)
+document.addEventListener('click', async ev => {
+  const r = ev.target.closest?.('[data-dlrst]');
+  if (r) { ev.preventDefault(); ev.stopPropagation(); const id = r.dataset.dlrst; return dlPopAt(r, `<button type="button" data-dlrestore="${esc(id)}">Restore</button><button type="button" class="danger" data-dlpurge="${esc(id)}">Delete now</button>`); }
+  const go = ev.target.closest?.('[data-dlrestore],[data-dlpurge]'); if (!go) return;
+  ev.preventDefault(); ev.stopPropagation(); dlPopClose();
+  if (go.dataset.dlrestore) return queueDownload(go.dataset.dlrestore);
+  await workPurge(go.dataset.dlpurge.slice(5)); if ($('#libBody')) lmRender();
+}, true);
 document.addEventListener('click', async ev => {
   const on = ev.target.closest?.('[data-dlon]'); if (on) { ev.preventDefault(); ev.stopPropagation(); return dlPop(on); }
   const up = ev.target.closest?.('[data-dlupd]'), dl = ev.target.closest?.('[data-dldel]');

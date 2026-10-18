@@ -41,6 +41,8 @@ async function trashWork(id) {
   await deleteWork(id); if (S.libInst) delete S.libInst[id]; S.partRefCache = {};
   (S.trash ??= {})[id] = Date.now();
 }
+// a deleted work removed for good (no longer restorable)
+async function workPurge(id) { await del('settings', 'trash|' + id); if (S.trash) delete S.trash[id]; }
 async function workRestore(id) {
   const T = await setting('trash|' + id); if (!T) return false;
   await revWrite(T.work, T.books); await del('settings', 'trash|' + id);

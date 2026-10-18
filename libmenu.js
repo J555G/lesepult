@@ -233,11 +233,17 @@ document.addEventListener('click', async ev => {
     return authPaint(a.works[0]?.id);
   }
 }, true);
+document.addEventListener('click', async ev => {                    // Recently deleted: all of them (shown) removed for good
+  const b = ev.target.closest?.('#libList [data-trashall]'); if (!b) return;
+  ev.preventDefault(); ev.stopPropagation();
+  for (const id of b.dataset.trashall.split('\n')) await workPurge(id);
+  renderLibList();
+}, true);
 // Armarium: the works deleted in the last 7 days (most recent first), folded beneath the shelf
 function trashGroupHTML() {
   const q = fold(S.libQ), ws = Object.entries(S.trash || {}).sort((x, y) => y[1] - x[1]).map(([id]) => S.catWork?.[id]).filter(w => w && !S.libInst[w.id] && workPasses(w, q, true));
   if (!ws.length) return '';
-  return `<details class="auth trashg"${S.trashOpen ? ' open' : ''}><summary><span class="t"><b>Recently deleted</b><small>${ws.length} work${ws.length === 1 ? '' : 's'} · kept 7 days</small></span></summary><div class="works">${ws.map(w => lmRowHTML(w, true)).join('')}</div></details>`;
+  return `<details class="auth trashg"${S.trashOpen ? ' open' : ''}><summary><span class="t"><b>Recently deleted</b><small>${ws.length} work${ws.length === 1 ? '' : 's'} · kept 7 days</small></span><button type="button" class="linkb trashall" data-trashall="${esc(ws.map(w => w.id).join('\n'))}">Delete all now</button></summary><div class="works">${ws.map(w => lmRowHTML(w, true)).join('')}</div></details>`;
 }
 function renderLibList() {
   const el = $('#libList'); if (!el) return;
