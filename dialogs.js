@@ -396,7 +396,7 @@ async function dictsDialog() {
   const updRow = await updRowHTML();
   const r = await dialog(pagedHTML('inst', 'Instruments', rows, { dict: dictBody, tools: toolBody, ...(mapBody ? { maps: mapBody } : {}), src: srcBody },
     (man ? '' : '<p class="hint small">The website could not be reached (offline?) – downloads are not available right now. Everything installed works offline.</p>')
-    + `<div class="ifoot"><button type="button" data-v="pult">Storage and clean-up …</button></div><div class="iupd" id="instUpd">${updRow}</div>`), []);
+    + `<div class="iupd" id="instUpd">${updRow}</div>`), []);
   if (r.action === 'pult') return pultDialog();
   if (r.action === 'priv') {
     const q = await dialog(`<h3>Private repository</h3><p class="hint small">Dictionaries that may not be published can be downloaded from a private GitHub repository. ${info('<b>Repository:</b> owner and name of the private repository. <b>Token:</b> a GitHub fine-grained personal access token with read access to its contents. Both are kept on this device only.')}</p>
