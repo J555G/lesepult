@@ -164,6 +164,58 @@ async function fetchManifest() {
   S.manifest = man;
   return man;
 }
+// ---- updates (Instruments, a row at the bottom): dictionaries, analysis and map packages with a newer version on the
+// website. Checked when the app starts (online) and by the button; "Download all" (or a choice) goes to the download queue.
+async function updCheck() {
+  if (!S.installed) await loadDicts();
+  const list = []; let ok = false;
+  const man = await fetchManifest();
+  if (man) { ok = true; for (const p of man.packages) { const d = S.installed[p.id]; if (d && d.version !== p.version) list.push({ id: p.id, name: p.name, bytes: p.bytes || 0, v: p.version }); } }
+  if (typeof mapManifest === 'function') {
+    const mm = await mapManifest(), inst = await mapInstalled();
+    if (mm) for (const p of mm.packages) if (inst[p.id] && inst[p.id] !== p.v) list.push({ id: 'map:' + p.id, name: p.name, bytes: p.bytes || 0, v: p.v });
+  }
+  return S.upd = { list, ok, at: Date.now() };
+}
+// what is still to be updated (meanwhile installed or downloading: not)
+async function updPending() {
+  if (!S.upd) return [];
+  const inst = typeof mapInstalled === 'function' ? await mapInstalled() : {};
+  return S.upd.list.filter(u => !DL.has(u.id) && (u.id.startsWith('map:') ? inst[u.id.slice(4)] && inst[u.id.slice(4)] !== u.v : S.installed[u.id] && S.installed[u.id].version !== u.v));
+}
+async function updRowHTML() {
+  const q = S.updQ, btn = l => `<button type="button" data-updchk="1"${S.updBusy ? ' disabled' : ''}>${l}</button>`;
+  if (q) {                                                          // downloading: how far
+    const left = q.filter(id => DL.has(id)).length, bad = q.filter(id => DLX.get(id)?.err).length;
+    return btn('Look for updates') + `<span class="updsum">${left ? `Downloading updates · ${q.length - left} of ${q.length}` : bad ? `${q.length - bad} of ${q.length} updates downloaded · ${bad} failed` : 'Updates downloaded'}</span>`;
+  }
+  if (S.updBusy) return btn('Looking …');
+  if (S.updMsg) return btn(S.updMsg);
+  const P = await updPending(); if (!P.length) return btn('Look for updates');
+  const mbT = P.reduce((a, u) => a + u.bytes, 0);
+  return btn('Look for updates') + `<span class="updsum">${P.length} update${P.length === 1 ? '' : 's'} · ${mbs(mbT)}</span><button type="button" data-updall="1">Download all</button><button type="button" class="linkb${S.updPick ? ' on' : ''}" data-updpick="1">Choose …</button>`
+    + (S.updPick ? `<div class="updpick">${P.map(u => `<label class="srow1"><input type="checkbox" data-updsel="${esc(u.id)}" checked><span>${esc(u.name)}<small class="hint">${mbs(u.bytes)}</small></span></label>`).join('')}<button type="button" data-updgo="1">Download selected</button></div>` : '');
+}
+async function updPaint() { const r = $('#instUpd'); if (r) r.innerHTML = await updRowHTML(); }
+function updQueue(ids) {
+  if (!ids.length) return;
+  S.updQ = ids; S.updPick = false;
+  for (const id of ids) queueDownload(id);
+  updPaint();
+}
+document.addEventListener('click', async ev => {
+  const b = ev.target.closest?.('#instUpd button'); if (!b) return;
+  const d = b.dataset;
+  if (d.updchk) {
+    S.updQ = null; S.updPick = false; S.updBusy = true; S.updMsg = ''; await updPaint();
+    const u = await updCheck(); S.updBusy = false;
+    if (!(await updPending()).length) { S.updMsg = u.ok ? 'Up to date' : 'No connection'; clearTimeout(updPaint.t); updPaint.t = setTimeout(() => { S.updMsg = ''; updPaint(); }, 2500); }
+    return updPaint();
+  }
+  if (d.updall) return updQueue((await updPending()).map(u => u.id));
+  if (d.updpick) { S.updPick = !S.updPick; return updPaint(); }
+  if (d.updgo) return updQueue([...document.querySelectorAll('#instUpd [data-updsel]:checked')].map(x => x.dataset.updsel));
+});
 // ---- shared parts of the two big dialogs (Instruments, Settings): a switch, a sticky title, a package row
 const SW = (attrs, on, dis) => `<label class="tsw"><input type="checkbox" ${attrs}${on ? ' checked' : ''}${dis ? ' disabled' : ''}><i></i></label>`;
 const dlgHead = t => `<div class="dlghead"><h3>${t}</h3></div>`;
@@ -289,7 +341,6 @@ async function dictsDialog() {
   const dictBody = Object.entries(LANGS).map(([lang, name]) => { const ins = dictRows(lang), av = avail(lang, isDict);
       return `<div class="navh2">${name}</div><div class="list plain dictlist">${ins + av || '<p class="hint small">None available.</p>'}</div>`; }).join('')
     + `<p class="hint small">⠿ drag to reorder · ▸/▾ folded or open when a word is looked up</p>`
-    + `<div class="srow1"><span>Private repository: ${privState}</span><button type="button" data-v="priv">Set up …</button></div>`
     + `<div class="srow1">${SW('id="optSrcCol"', S.srcColors)}<span>Colour marks of the Eulexis editors in Pape and LSJ ${info(`<span class="legend">${Object.entries(FONT_MEANING).map(([c, t]) => `<span class="fc" data-c="${c}">■</span> ${esc(t)}`).join('<br>')}</span>`)}</span></div>`;
   // 2. analysis, by language: which instrument is used (one per language), add-ons, what can be downloaded
   const useRow = (lang, d, sub) => pkRow({ id: d.id, sw: `<label class="trad"><input type="radio" name="use-${lang}" data-uselang="${lang}" value="${d.id}"${!S.dictPrefs.off.includes(d.id) && langTools(lang).find(x => !S.dictPrefs.off.includes(x.id)) === d ? ' checked' : ''}><i></i></label>`,
@@ -314,11 +365,16 @@ async function dictsDialog() {
       return `<div class="navh2">${name}</div><div class="list plain">${tLang[lang].join('')}${tLang[lang].length ? none(lang) : ''}${av}${tLang[lang].length || av ? '' : '<p class="hint small">None available.</p>'}</div>`
         + (addons[lang] ? `<div class="navh3">Add-ons</div><div class="list plain">${addons[lang]}</div>` : ''); }).join('')
     + `<p class="hint small">The language of each word follows from its alphabet.</p>`;
+  // 4. other sources: the private repository, packages from files
+  const srcBody = `<div class="srow1"><span>Private repository: ${privState}<small class="hint">dictionaries that may not be published, from a private GitHub repository</small></span><button type="button" data-v="priv">Set up …</button></div>`
+    + `<div class="srow1"><span>Packages from files<small class="hint">dictionary and analysis packages saved on this device</small></span><label class="btn" for="fileDict">Import packages …</label></div>`;
+  const srcSub = `private repository ${privCfgNow.token ? (S.privErr ? 'not reachable' : 'connected') : 'not connected'} · packages from files`;
   // 3. the map
   const mapBody = typeof mapSectionHTML === 'function' ? await mapSectionHTML() : '';
   const rows = [{ k: 'dict', title: 'Dictionaries', sub: Object.entries(LANGS).map(([l, n]) => `${n} ${nD(l)}`).join(' · ') },
     { k: 'tools', title: 'Analysis', sub: Object.entries(LANGS).map(([l, n]) => `${n}: ${esc(usedName(l))}`).join(' · ') },
-    ...(mapBody ? [{ k: 'maps', title: 'Map', sub: await mapSummary() }] : [])];
+    ...(mapBody ? [{ k: 'maps', title: 'Map', sub: await mapSummary() }] : []),
+    { k: 'src', title: 'Other sources', sub: srcSub }];
   // after a delete: the summaries on the overview and the choice of analysis follow the new state
   S.instAfterDel = () => {
     const f = $('#dlgForm'); if (!f) return;
@@ -336,9 +392,11 @@ async function dictsDialog() {
       }
     }
   };
-  const r = await dialog(pagedHTML('inst', 'Instruments', rows, { dict: dictBody, tools: toolBody, ...(mapBody ? { maps: mapBody } : {}) },
+  S.updMsg = ''; S.updPick = false; if (S.updQ && !S.updQ.some(id => DL.has(id))) S.updQ = null;
+  const updRow = await updRowHTML();
+  const r = await dialog(pagedHTML('inst', 'Instruments', rows, { dict: dictBody, tools: toolBody, ...(mapBody ? { maps: mapBody } : {}), src: srcBody },
     (man ? '' : '<p class="hint small">The website could not be reached (offline?) – downloads are not available right now. Everything installed works offline.</p>')
-    + `<div class="ifoot"><button type="button" data-v="pult">Storage and clean-up …</button><label class="btn" for="fileDict">Import packages …</label></div>`), []);
+    + `<div class="ifoot"><button type="button" data-v="pult">Storage and clean-up …</button></div><div class="iupd" id="instUpd">${updRow}</div>`), []);
   if (r.action === 'pult') return pultDialog();
   if (r.action === 'priv') {
     const q = await dialog(`<h3>Private repository</h3><p class="hint small">Dictionaries that may not be published can be downloaded from a private GitHub repository. ${info('<b>Repository:</b> owner and name of the private repository. <b>Token:</b> a GitHub fine-grained personal access token with read access to its contents. Both are kept on this device only.')}</p>
@@ -491,6 +549,7 @@ function dlButtonHTML(id, label) {
 }
 // every button of this download, wherever it is shown: its state
 function paintDL(id, text) {
+  if (S.updQ?.includes(id)) { clearTimeout(paintDL.ut); paintDL.ut = setTimeout(updPaint, 150); }
   for (const b of document.querySelectorAll(`#dlg [data-get="${id}"], #dlg [data-dl="${id}"]`)) {
     const p = DL.get(id), x = DLX.get(id), icon = b.classList.contains('lmdl') || b.classList.contains('dli');
     if (b.dataset.lbl == null) b.dataset.lbl = icon ? b.innerHTML : b.textContent;
