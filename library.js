@@ -99,8 +99,8 @@ const ERAS = [['Bronze Age', -3300, -1200], ['Early Iron Age', -1200, -800], ['A
 // when the filters are reset (or none)
 const ftLim = () => [S.lib?.ftMin ?? YMIN, S.lib?.ftMax ?? YMAX];
 const ftView0 = () => { const [lo, hi] = ftLim(), v = S.lib?.ftView0; return v ? [Math.max(lo, v[0]), Math.min(hi, v[1])] : [lo, hi]; };
-const ftDef = () => S.lib?.ftDef ? [[...S.lib.ftDef]] : [];
-const filtersAtDefault = v => !v.langs.length && !v.src.length && !v.form.length && v.undated && JSON.stringify(v.periods) === JSON.stringify(ftDef());
+const ftDef = () => (S.lib?.ftDefs || []).map(r => [...r]);
+const filtersAtDefault = v => !v.langs.length && !v.form.length && v.undated && JSON.stringify(v.periods) === JSON.stringify(ftDef());
 // favourites: a small flame (outline = not a favourite, filled = favourite)
 const FLAME = '<svg class="flame" width="15" height="20" viewBox="6.4 0.8 11.2 15.2" aria-hidden="true"><g transform="translate(12 0) scale(.82 1) translate(-12 0)" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"><path class="fo" vector-effect="non-scaling-stroke" d="M12 15.2c-3.6-.6-5.6-2.6-5.4-5.4.1-1.6.9-2.6 1.6-3.6.1 1.4.6 2.3 1.3 2.7-.4-2.4.2-5 1.5-7.4.4 2.4 1.4 3.6 2.4 4.6.4-1.4 1-2.4 2-3.2-.3 1.8 0 3.2.8 4.4.5-.6.8-1.4.9-2.4 1 1.4 1.4 3 1.2 4.6-.3 3.1-2.4 5.2-6.3 5.7z"/><path class="fi" vector-effect="non-scaling-stroke" d="M12 15c-1.6-.4-2.4-1.4-2.3-2.8 0-.8.4-1.4.8-1.9.1.7.4 1.1.7 1.2-.1-1.2.3-2.4.9-3.4.3 1 .9 1.7 1.4 2.4.6.8.8 1.6.6 2.4-.2 1.1-1 1.8-2.1 2.1z"/></g></svg>';
 function libView() {
@@ -109,6 +109,8 @@ function libView() {
   delete S.lib.mine; delete S.lib.fav;
   S.lib = Object.assign({ view: 'all', langs: [], src: [], form: [], periods: [], undated: true, sort: 'author', dir: 1 }, S.lib);
   if (!SORTS.some(x => x[0] === S.lib.sort)) S.lib.sort = S.lib.sort === 'date' ? 'adate' : 'author';      // (sorts of before v214)
+  if ('ftDef' in S.lib) { S.lib.ftDefs = S.lib.ftDef ? [S.lib.ftDef] : []; delete S.lib.ftDef; }            // (one default period, v217)
+  S.lib.src = [];                                                                                      // (the source is no longer a filter, v219)
   if (S.lib.from != null || S.lib.to != null) {                                                      // the century slider of before v214: one period
     if ((S.lib.from ?? YMIN) > YMIN || (S.lib.to ?? YMAX) < YMAX) S.lib.periods = [[S.lib.from ?? YMIN, S.lib.to ?? YMAX]];
     delete S.lib.from; delete S.lib.to;
@@ -117,7 +119,7 @@ function libView() {
 }
 const workLang = w => (w.lang === 'lat' || w.lang === 'la') ? 'la' : 'grc';
 // the tabs (all / favourites / on this device) are views, not filters
-const filtersOn = v => v.langs.length || v.src.length || v.form.length || v.periods.length || !v.undated;
+const filtersOn = v => v.langs.length || v.form.length || v.periods.length || !v.undated;
 function saveLibView() { setting('libView', S.lib); }
 const authorOf = w => S.catAuthor?.[w.id] || { name: w.author || 'Unknown author', id: w.authorId, period: null, year: w.year ?? null, date: w.date || '' };
 // imported texts as works of the library (source "Imported")
@@ -131,7 +133,6 @@ function workPasses(w, q) {
   if (v.view === 'mine' && !S.libInst[w.id] && !w.imported) return false;
   if (v.view === 'fav' && !S.favs?.[w.id]) return false;
   if (v.langs.length && !v.langs.includes(workLang(w))) return false;
-  if (v.src.length && !v.src.includes(w.source)) return false;
   if (v.form.length && w.verse != null && !v.form.includes(w.verse ? 'verse' : 'prose')) return false;
   if (a.year == null) { if (!v.undated) return false; }
   else if (v.periods.length && !v.periods.some(([x, y]) => a.year >= x - (x === y ? 25 : 0) && a.year <= y + (x === y ? 25 : 0))) return false;   // (a single year: ± 25)
@@ -168,150 +169,6 @@ function libSources() {
 }
 const yPct = y => ((y - YMIN) / (YMAX - YMIN) * 100);
 const eraOf = y => (ERAS.find(([, a, b]) => y >= a && y < b) || ERAS[ERAS.length - 1])[0];
-// ---- the filters: language, source, form, and the date as a time line like the map's: it scrolls and zooms, in steps of
-// ten years, the eras named above it; several periods at once (a tap on the line adds one, holding a period splits it,
-// pulling two ends together joins them)
-const FT_STEP = 10, FT_MAX = 6;
-const ftView = () => S.ftView ??= ftView0();
-const ftPct = y => { const [a, b] = ftView(); return (y - a) / (b - a) * 100; };
-const ftSnap = y => { const [lo, hi] = ftLim(); return Math.max(lo, Math.min(hi, Math.round(y / FT_STEP) * FT_STEP)); };
-function ftLabel([a, b]) {
-  const bc = y => y < 0 ? -y : y;
-  if (a === b) return `c. ${a < 0 ? -a + ' BC' : 'AD ' + a}`;
-  return a < 0 && b <= 0 ? `${bc(a)}–${bc(b)} BC` : a >= 0 ? `AD ${a}–${b}` : `${bc(a)} BC – AD ${b}`;
-}
-function ftAxisHTML() {
-  const [a, b] = ftView(), span = b - a, W = $('#libTrack')?.clientWidth || 300;
-  const step = [10, 20, 25, 50, 100, 200, 250, 500].find(s => span / s <= W / 46) || 1000;
-  let h = '';
-  for (let y = Math.ceil(a / step) * step; y <= b; y += step) { const pc = ftPct(y); h += `<i${pc < 6 ? ' class="l"' : pc > 94 ? ' class="r"' : ''} style="left:${pc.toFixed(2)}%"><span>${y === 0 ? 'BC | AD' : Math.abs(y)}</span></i>`; }
-  return h;
-}
-function ftErasHTML() {
-  const [a, b] = ftView(); let h = '';
-  for (const [n, x, y] of ERAS) {
-    const lo = Math.max(a, x), hi = Math.min(b, y); if (hi <= lo) continue;
-    const w = (hi - lo) / (b - a) * 100; if (w < 7) continue;
-    h += `<span style="left:${ftPct(lo).toFixed(2)}%;width:${w.toFixed(2)}%">${esc(n)}</span>`;
-  }
-  return h + ERAS.slice(1).map(([, x]) => x > a && x < b ? `<b style="left:${ftPct(x).toFixed(2)}%"></b>` : '').join('');
-}
-function ftRangesHTML() {
-  return libView().periods.map(([a, b], k) => `<div class="ftr${a === b ? ' pt' : ''}" style="left:${ftPct(a).toFixed(2)}%;width:${Math.max(0, ftPct(b) - ftPct(a)).toFixed(2)}%"></div>`
-    + `<div class="fth" data-k="${k}" data-e="0" style="left:${ftPct(a).toFixed(2)}%"></div>` + (a !== b ? `<div class="fth" data-k="${k}" data-e="1" style="left:${ftPct(b).toFixed(2)}%"></div>` : '')).join('');
-}
-function ftRender() {
-  const v = libView();
-  const ax = $('#libAxis'); if (ax) ax.innerHTML = ftAxisHTML();
-  const er = $('#libEras'); if (er) er.innerHTML = ftErasHTML();
-  const rg = $('#libRanges'); if (rg) rg.innerHTML = ftRangesHTML();
-  const lb = $('#libDates'); if (lb) lb.innerHTML = v.periods.length ? v.periods.map(ftLabel).map(esc).join(' · ') : '<small>any date – tap the line to choose a period</small>';
-  const cl = $('#libCtl .ftclear'); if (cl) cl.hidden = !v.periods.length;
-}
-function libControlsHTML() {
-  const v = libView();
-  return `<button type="button" class="ftreset" data-freset="1" title="Reset the filters" aria-label="Reset the filters"${filtersAtDefault(v) ? ' disabled' : ''}>↺</button>
-    <div class="fgrid">
-      <span class="fl">Language</span>${seg('langs', [['', 'All'], ['grc', 'Greek'], ['la', 'Latin']])}
-      <span class="fl">Source</span><div class="fchips">${libSources().map(x => chip('src', x, x)).join('')}</div>
-      <span class="fl">Form</span>${seg('form', [['', 'All'], ['prose', 'Prose'], ['verse', 'Verse']])}
-      <span class="fl">Date</span><div class="fdate"><span class="crange" id="libDates"></span><button type="button" class="ftclear" data-ftclear="1" title="Remove all periods"${v.periods.length ? '' : ' hidden'}>✕ all periods</button>
-        <label class="undl"><input type="checkbox" id="libUndated"${v.undated ? ' checked' : ''}> include undated</label></div>
-    </div>
-    <div class="ftl" id="libTl"><div class="fteras" id="libEras"></div><div class="fttrack" id="libTrack"><div class="ftaxis" id="libAxis"></div><div class="ftclip"><div id="libRanges"></div></div></div></div>
-    <p class="hint small fthint">Tap the line for a period and pull its ends; hold a period to split it, hold a single date to open it into a period, pull two ends together to join them. Pinch or wheel to zoom, drag to move.</p>`;
-}
-// what is filtered, as small removable chips (while the filter panel is closed)
-function libActiveHTML() {
-  const v = libView(), out = [];
-  const x = (label, f, val = '') => out.push(`<button type="button" class="chip2 on" data-unf="${f}" data-val="${esc(val)}" title="Remove this filter">${esc(label)} <span aria-hidden="true">×</span></button>`);
-  for (const l of v.langs) x(l === 'la' ? 'Latin' : 'Greek', 'langs', l);
-  for (const s of v.src) x(s, 'src', s);
-  for (const f of v.form) x(f === 'verse' ? 'Verse' : 'Prose', 'form', f);
-  v.periods.forEach((p, k) => x(ftLabel(p), 'date', String(k)));
-  if (!v.undated) x('Dated works only', 'undated');
-  return out.join('');
-}
-// the time line's touches: a period's end pulled (snapping onto another end), a period moved, held (split), the line
-// tapped (a new period), two fingers or the wheel (zoom), dragged (move)
-function wireDateLine() {
-  const ptrs = new Map(); let drag = null, pinch = null, lp = 0;
-  const tr = () => $('#libTrack');
-  const yRaw = x => { const r = tr().getBoundingClientRect(), [a, b] = ftView(); return a + (x - r.left) / r.width * (b - a); };
-  const xAt = y => { const r = tr().getBoundingClientRect(); return r.left + ftPct(y) / 100 * r.width; };
-  const setView = (a, b) => { const [lo, hi] = ftLim(), span = Math.max(60, Math.min(hi - lo, b - a)); a = Math.max(lo, Math.min(hi - span, a)); S.ftView = [a, a + span]; ftRender(); };
-  const changed = fin => { ftRender(); if (fin) { normPeriods(); ftRender(); saveLibView(); filterIcon(); S.libLimit = 250; renderLibList(); const r = $('#libCtl .ftreset'); if (r) r.disabled = filtersAtDefault(libView()); } };
-  const normPeriods = () => { const v = libView(); let R = v.periods.map(([a, b]) => [Math.min(a, b), Math.max(a, b)]).sort((x, y) => x[0] - y[0]); const out = [];
-    for (const r of R) { const l = out[out.length - 1]; if (l && r[0] <= l[1]) l[1] = Math.max(l[1], r[1]); else out.push(r); } v.periods = out; };
-  // the whole line with the era names above it takes the touches (as the map's time slider)
-  document.addEventListener('pointerdown', ev => {
-    const t = ev.target.closest?.('#libTl'); if (!t || !tr()) return;
-    ev.preventDefault(); ptrs.set(ev.pointerId, ev.clientX); t.setPointerCapture(ev.pointerId);
-    if (ptrs.size === 2) { clearTimeout(lp); drag = null; const [x1, x2] = [...ptrs.values()], v = ftView(); pinch = { d0: Math.max(10, Math.abs(x1 - x2)), span0: v[1] - v[0], ym: yRaw((x1 + x2) / 2) }; return; }
-    if (ptrs.size > 2) return;
-    const R = libView().periods, reach = ev.pointerType === 'mouse' ? 14 : 30, y = ftSnap(yRaw(ev.clientX));
-    let best = null; R.forEach(([a, b], k) => { const rc = a === b ? reach : Math.min(reach, (xAt(b) - xAt(a)) / 3); for (const [e, v] of [[0, a], [1, b]]) { const d = Math.abs(xAt(v) - ev.clientX); if (d <= rc && (!best || d < best.d)) best = { k, e, d }; } });
-    if (best) drag = { k: best.k, e: best.e, x0: ev.clientX };
-    else { const k = R.findIndex(([a, b]) => a < b && y >= a && y <= b); drag = k >= 0 ? { k, e: 'm', x0: ev.clientX, y0: y, r0: [...R[k]] } : { pan: true, x0: ev.clientX, v0: [...ftView()], y }; }
-    clearTimeout(lp); lp = setTimeout(() => {                         // holding a period: it splits in two; holding a single date: it opens into a period
-      if (!drag || drag.moved || drag.pan) return;
-      const v = libView(), r = v.periods[drag.k], [a, b] = ftView(), g = Math.max(FT_STEP, ftSnap((b - a) / 60) - ftSnap(0));
-      if (drag.e !== 'm') {
-        if (!r || r[0] !== r[1]) return;
-        const [lo, hi] = ftLim(), h = Math.max(2 * FT_STEP, ftSnap(Math.min(100, (b - a) / 4) / 2));
-        r[0] = Math.max(lo, r[0] - h); r[1] = Math.min(hi, r[1] + h);
-        navigator.vibrate?.(15); drag = null; changed(true); return;
-      }
-      if (v.periods.length >= FT_MAX || r[1] - r[0] < 6 * FT_STEP) return;
-      v.periods.splice(drag.k, 1, [r[0], Math.max(r[0], drag.y0 - g)], [Math.min(r[1], drag.y0 + g), r[1]]);
-      navigator.vibrate?.(15); drag = null; changed(true);
-    }, 550);
-  });
-  document.addEventListener('pointermove', ev => {
-    if (!ptrs.has(ev.pointerId) || !tr()) return;
-    ptrs.set(ev.pointerId, ev.clientX);
-    if (pinch && ptrs.size >= 2) { const [x1, x2] = [...ptrs.values()], r = tr().getBoundingClientRect(), span = pinch.span0 * pinch.d0 / Math.max(10, Math.abs(x1 - x2)), f = ((x1 + x2) / 2 - r.left) / r.width; setView(pinch.ym - f * span, pinch.ym - f * span + span); return; }
-    if (!drag) return;
-    if (Math.abs(ev.clientX - drag.x0) > 4) drag.moved = true; if (!drag.moved) return;
-    if (drag.pan) { const r = tr().getBoundingClientRect(), d = (ev.clientX - drag.x0) / r.width * (drag.v0[1] - drag.v0[0]); setView(drag.v0[0] - d, drag.v0[1] - d); return; }
-    const v = libView(), r = v.periods[drag.k]; if (!r) return;
-    // pulled past the end of the line: the line moves along, a little with each movement
-    const tb = tr().getBoundingClientRect(), vw = ftView(), sh = (vw[1] - vw[0]) * 0.02;
-    if (ev.clientX > tb.right) setView(vw[0] + sh, vw[1] + sh); else if (ev.clientX < tb.left) setView(vw[0] - sh, vw[1] - sh);
-    const y = ftSnap(yRaw(Math.max(tb.left, Math.min(tb.right, ev.clientX)))), [lo, hi] = ftLim();
-    if (drag.e === 'm') { const w = drag.r0[1] - drag.r0[0], a = Math.max(lo, Math.min(hi - w, drag.r0[0] + y - drag.y0)); r[0] = a; r[1] = a + w; }
-    else {
-      // an end near another end (of its own period or the next) snaps onto it: they join when let go
-      const near = ev.pointerType === 'mouse' ? 10 : 16, x = xAt(y); let yy = y, bd = near + 1;
-      v.periods.forEach(([a, b], k) => [[0, a], [1, b]].forEach(([e, val]) => { if (k === drag.k && (e === drag.e || r[0] === r[1])) return; const d = Math.abs(xAt(val) - x); if (d <= near && d < bd) { bd = d; yy = val; } }));
-      if (r[0] === r[1]) r[0] = r[1] = yy; else { r[drag.e] = yy; if (r[0] > r[1]) { r.reverse(); drag.e = 1 - drag.e; } }
-    }
-    changed(false);
-  });
-  const up = ev => {
-    if (!ptrs.has(ev.pointerId)) return;
-    ptrs.delete(ev.pointerId); clearTimeout(lp);
-    if (pinch) { if (ptrs.size < 2) pinch = null; drag = null; return; }
-    const d = drag; drag = null; if (!d) return;
-    // a tap on the empty line: a period of a century – only while there is none (afterwards: split by holding)
-    if (d.pan) { if (!d.moved && !libView().periods.length) { libView().periods.push([ftSnap(d.y - 50), ftSnap(d.y + 50)]); changed(true); } return; }
-    changed(true);
-  };
-  document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up);
-  document.addEventListener('wheel', ev => {
-    const t = ev.target.closest?.('#libTl'); if (!t || !tr()) return;
-    ev.preventDefault();
-    const r = tr().getBoundingClientRect(), [a, b] = ftView(), span = b - a;
-    if (Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) { const d = ev.deltaX / r.width * span; setView(a + d, b + d); return; }
-    const y = yRaw(ev.clientX), f = (ev.clientX - r.left) / r.width, ns = span * Math.exp(ev.deltaY * 0.0015);
-    setView(y - f * ns, y - f * ns + ns);
-  }, { passive: false });
-  document.addEventListener('dblclick', ev => { if (ev.target.closest?.('#libTl')) { S.ftView = ftView0(); ftRender(); } });
-  document.addEventListener('click', ev => {
-    if (!ev.target.closest?.('#libCtl [data-ftclear]')) return;
-    libView().periods = []; changed(true);
-  });
-}
 const DLICON = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/></g></svg>';
 function sortedWorks() {        // a flat list (sort by title; Favourites): by title, or by author (name or date)
   const v = libView(), q = fold(S.libQ), d = v.dir;

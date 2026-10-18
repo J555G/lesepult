@@ -310,27 +310,39 @@ function wireRevisions() {
     }
     if (d.revgo != null) { await lmGoPlace(key, d.revgo === '' ? null : +d.revgo, null, +d.i); return; }
   });
-  // Settings → Library → Date filter
-  document.addEventListener('change', async ev => {
-    const k = ev.target.dataset?.ftset; if (!k) return;
-    const kind = k.slice(0, -1), i = +k.slice(-1), y = parseYear(ev.target.value), v = S.lib;
-    const pair = kind === 'lim' ? [...ftLim()] : kind === 'view' ? [...ftView0()] : (v.ftDef ? [...v.ftDef] : [null, null]);
-    if (kind === 'def' && y == null) { v.ftDef = null; ev.target.closest('.mtlim').querySelectorAll('input').forEach(x => x.value = ''); saveLibView(); return; }
-    if (y == null || y === undefined || y < -4000 || y > 2100) { toast('A year between 4000 BC and AD 2100, e.g. “500 BC” or “AD 120”.'); ev.target.value = pair[i] == null ? '' : fmtY(pair[i]); return; }
-    pair[i] = y; if (pair[0] == null) pair[0] = pair[1]; if (pair[1] == null) pair[1] = pair[0];
-    if (pair[0] > pair[1]) { toast('The first year must come before the second.'); ev.target.value = fmtY(i ? pair[0] : pair[1]); return; }
-    if (kind === 'lim') { if (pair[1] - pair[0] < 100) { toast('The line needs at least a century.'); return; } v.ftMin = pair[0]; v.ftMax = pair[1]; }
-    else if (kind === 'view') v.ftView0 = pair; else v.ftDef = pair;
-    S.ftView = null; saveLibView();
-    ev.target.closest('.mtlim').querySelectorAll('input').forEach((x, j) => { x.value = fmtY(pair[j]); });
+  // Settings → Library → Date filter: the range of the line (typed); the default view and periods on a line of their own
+  document.addEventListener('change', ev => {
+    const k = ev.target.dataset?.ftlim; if (k == null) return;
+    const sec = ev.target.closest('.ftset'), ins = sec.querySelectorAll('[data-ftlim]'), err = sec.querySelector('.fterr'), v = S.lib;
+    const ys = [...ins].map((x, i) => ftParseYear(x.value, !!i)), [lo0, hi0] = [YMIN, YMAX];
+    const bad = m => { err.textContent = m; err.hidden = false; ev.target.classList.add('bad'); };
+    ins.forEach(x => x.classList.remove('bad')); err.hidden = true;
+    const y0 = ys[0] === null ? lo0 : ys[0], y1 = ys[1] === null ? hi0 : ys[1];
+    if (ys[+k] === undefined) return bad('Not a year: e.g. “500 BC”, “-500”, “AD 120”, “120” or “5th c. BC”.');
+    if (y0 < -4000 || y1 > 2100) return bad('The line reaches from 4000 BC to AD 2100 at most.');
+    if (y1 - y0 < 100) return bad('The latest date must come at least a century after the earliest.');
+    v.ftMin = Math.round(y0 / FT_STEP) * FT_STEP; v.ftMax = Math.round(y1 / FT_STEP) * FT_STEP;
+    ins[0].value = fmtY(v.ftMin); ins[1].value = fmtY(v.ftMax);
+    // the default view and periods: cut to the new range
+    const before = JSON.stringify([v.ftView0, v.ftDefs]);
+    if (v.ftView0) { const a = Math.max(v.ftMin, v.ftView0[0]), b = Math.min(v.ftMax, v.ftView0[1]); v.ftView0 = b - a >= 60 ? [a, b] : null; }
+    v.ftDefs = (v.ftDefs || []).map(([a, b]) => [Math.max(v.ftMin, a), Math.min(v.ftMax, b)]).filter(([a, b]) => a <= b);
+    v.periods = v.periods.map(([a, b]) => [Math.max(v.ftMin, a), Math.min(v.ftMax, b)]).filter(([a, b]) => a <= b);
+    const note = sec.querySelector('.ftnote'); note.hidden = before === JSON.stringify([v.ftView0, v.ftDefs]);
+    S.ftView = null; saveLibView(); ftDraw('def');
+  });
+  document.addEventListener('change', ev => {
+    if (ev.target.dataset?.fteras == null) return;
+    S.lib.ftEras = ev.target.checked; saveLibView(); ftRender();
   });
   document.addEventListener('click', ev => {
-    const b = ev.target.closest?.('#dlg [data-ftsetreset]'); if (!b) return;
-    const k = b.dataset.ftsetreset, v = S.lib;
-    if (k === 'lim') { delete v.ftMin; delete v.ftMax; } else if (k === 'view') delete v.ftView0; else v.ftDef = null;
+    if (!ev.target.closest?.('#dlg [data-ftrestore]')) return;
+    const v = S.lib; delete v.ftMin; delete v.ftMax; delete v.ftView0; v.ftDefs = []; v.ftEras = true;
     S.ftView = null; saveLibView();
-    const vals = k === 'lim' ? ftLim() : k === 'view' ? ftView0() : [null, null];
-    b.closest('.mtlim').querySelectorAll('input').forEach((x, j) => { x.value = vals[j] == null ? '' : fmtY(vals[j]); });
+    const sec = ev.target.closest('.ftset'), ins = sec.querySelectorAll('[data-ftlim]');
+    ins[0].value = fmtY(YMIN); ins[1].value = fmtY(YMAX); ins.forEach(x => x.classList.remove('bad'));
+    sec.querySelector('.fterr').hidden = sec.querySelector('.ftnote').hidden = true;
+    sec.querySelector('[data-fteras]').checked = true; ftRender();
   });
   // Settings → Library
   document.addEventListener('change', async ev => {
@@ -352,12 +364,15 @@ async function libSettingsPrep() {
 }
 function libSettingsHTML() {
   const rej = Object.keys(S.revRej || {});
-  // the date filter's line: its range, the view it opens with, the period set when the filters are reset
-  const yrs = (k, vals, hint) => `<div class="mline"><span>${hint}</span><div class="mtlim">${vals.map((v, i) => `<input type="text" data-ftset="${k}${i}" value="${esc(v == null ? '' : fmtY(v))}" autocomplete="off" class="nofocus" aria-label="${i ? 'To' : 'From'}"${k === 'def' ? ' placeholder="none"' : ''}>${i ? '' : '<span>–</span>'}`).join('')}<button type="button" class="mtreset" data-ftsetreset="${k}" title="Standard" aria-label="Standard">↺</button></div></div>`;
-  const def = S.lib?.ftDef;
-  return `<section class="rsec"><div class="rhd"><span>Date filter</span></div>
-      ${yrs('lim', ftLim(), 'Range of the line')}${yrs('view', ftView0(), 'Default view')}${yrs('def', def ? def : [null, null], 'Default period')}
-      <small class="hint rhint">The default period is set when the filters are reset (↺); leave it empty for none. Years as “500 BC”, “AD 120”.</small></section>
+  // the date filter: the range of the line, the default view and periods (on a line like the Library's), the era names
+  const [lo, hi] = ftLim();
+  return `<section class="rsec ftset"><div class="rhd"><span>Date filter</span></div>
+      <div class="mline"><span>Range of the line<small class="hint">its earliest and latest dates</small></span><div class="mtlim"><input type="text" data-ftlim="0" value="${esc(fmtY(lo))}" placeholder="e.g. 2000 BC" autocomplete="off" class="nofocus" aria-label="Earliest date"><span>–</span><input type="text" data-ftlim="1" value="${esc(fmtY(hi))}" placeholder="e.g. AD 1500" autocomplete="off" class="nofocus" aria-label="Latest date"></div></div>
+      <small class="fterr" role="alert" hidden></small>
+      <div class="ftsetl"><span>Default view and periods<small class="hint">the Library opens with this view; the periods (or none) are set when the filters are reset ↺</small></span>${ftLineHTML('def')}</div>
+      <small class="ftnote" hidden>The default view and periods were cut to the new range.</small>
+      <label class="srow1 swr"><span>Era names<small class="hint">above the line</small></span>${SW('data-fteras="1"', S.lib?.ftEras !== false)}</label>
+      <div class="ftrestore"><button type="button" data-ftrestore="1">Restore defaults</button></div></section>
     <section class="rsec"><div class="rhd"><span>Revisions</span></div>
       <label class="srow1 swr"><span>Show revision notices<small class="hint">a faint “rev.” beside works for which a corrected version is available</small></span>${SW('data-revon="1"', S.revOn !== false)}</label></section>
     <section class="rsec"><div class="rhd"><span>Rejected revisions</span></div><div data-revrejlist="1">${rej.length ? rej.map(k => { const w = S.catWork?.[k]; return `<div class="srow1 swr rvrej"><span>${esc(w ? w.title : k)}${w ? `<small class="hint">${esc(w.author)}</small>` : ''}</span><button type="button" data-revunrej="${esc(k)}">Reconsider</button></div>`; }).join('') : '<p class="hint small">No rejected revisions.</p>'}</div>

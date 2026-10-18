@@ -1594,18 +1594,6 @@ dialog.lmdlg .libctl:not([hidden]){position:relative;inset:auto;z-index:auto;mar
 dialog .ftreset{position:absolute;top:.4rem;right:.45rem;width:30px;height:26px;padding:0;font-size:15px;line-height:1;color:var(--mut)}
 dialog .ftreset:disabled{opacity:.3}
 dialog.lmdlg .fgrid{margin-right:2.2rem}
-dialog .ftl{margin:.25rem 0 0;user-select:none;-webkit-user-select:none}
-dialog .fteras{position:relative;height:16px;margin:0 6px}
-dialog .fteras span{position:absolute;top:0;font:11px/16px var(--ui);color:var(--mut);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 2px}
-dialog .fteras b{position:absolute;top:3px;width:1px;height:12px;background:var(--line)}
-dialog .fttrack{position:relative;height:34px;margin:0 6px;touch-action:none;cursor:pointer}
-dialog .fttrack::before{content:"";position:absolute;left:0;right:0;top:9px;height:3px;border-radius:2px;background:var(--line)}
-dialog .ftaxis i{position:absolute;top:6px;width:1px;height:9px;background:var(--mut);opacity:.6}
-dialog .ftaxis i span{position:absolute;top:10px;left:50%;transform:translateX(-50%);font:10px var(--ui);color:var(--mut);white-space:nowrap}
-dialog .ftaxis i.l span{left:0;transform:none}dialog .ftaxis i.r span{left:auto;right:0;transform:none}
-dialog .ftr{position:absolute;top:7px;height:7px;border-radius:4px;background:var(--acc);opacity:.55}
-dialog .ftr.pt{width:0!important}
-dialog .fth{position:absolute;top:2px;width:16px;height:16px;margin-left:-8px;border-radius:50%;background:var(--acc);border:2px solid var(--card);box-sizing:border-box;box-shadow:0 1px 3px rgba(0,0,0,.35);cursor:ew-resize}
 dialog .fdate .crange small{font-weight:400;color:var(--mut)}
 @media (max-width:600px){dialog.lmdlg .fgrid{margin-right:2rem}}
 /* work page: one line (flame first, ⓘ unfolds the rest); Continue reading, and ⋯ with Download / Delete / revision / Edit */
@@ -1660,9 +1648,57 @@ dialog .lwinfo .lwmenu{margin-top:.45rem}
 dialog .libbar .linkb{margin-right:auto;margin-left:.5rem}
 dialog .dlall{color:var(--dla);border-color:var(--line)}dialog .dlall:active{color:var(--acc);border-color:var(--acc)}
 /* the Library's date line (v217): the whole line (with the era names) takes the touches; periods fade out at its ends */
-dialog .ftl{padding:2px 0 6px;touch-action:none}
-dialog .ftclip{position:absolute;inset:0 -9px;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 14px,#000 calc(100% - 14px),transparent);mask-image:linear-gradient(90deg,transparent 0,#000 14px,#000 calc(100% - 14px),transparent)}
-dialog .ftclip>#libRanges{position:absolute;top:0;bottom:0;left:9px;right:9px}
-dialog .fthint{margin:.1rem 0 0}
-dialog .ftclear{font-size:12px;padding:.12rem .5rem;margin-left:.4rem;color:var(--mut)}
-dialog .ftclear[hidden]{display:none}
+
+/* ---- the Library's date line (v219): language and form side by side, the date beneath; the line tight, its periods pills */
+dialog .fgrid2{display:flex;flex-wrap:wrap;gap:.45rem 1.6rem;padding-right:2rem}
+dialog .fgr{display:flex;align-items:center;gap:.6rem}
+dialog .fgr .fl,dialog .fdrow .fl{font-size:12px;color:var(--mut);min-width:3.6rem}
+dialog .fgr .seg{width:auto}
+dialog .fdrow{display:flex;align-items:center;gap:.4rem;margin-top:.55rem}
+dialog .fdrow .fl{min-width:0}
+dialog .fdrow .chip2{margin-left:auto}
+dialog .fti{border:0;background:none;padding:0 .2rem;font-size:14px;line-height:1;color:var(--mut);cursor:help}
+@media (max-width:600px){
+  dialog .fgrid2{gap:.45rem 1rem}
+  dialog .fgr{flex-direction:column;align-items:flex-start;gap:.2rem}
+  dialog .fgr .seg button{font-size:13px;padding:.3rem .55rem;min-width:0}
+}
+dialog .ftl{position:relative;padding:0 24px 0 0;margin-top:.15rem;user-select:none;-webkit-user-select:none;touch-action:none}
+dialog .ftl::after{content:"";position:absolute;left:0;right:24px;top:-4px;bottom:-8px}
+dialog .fteras{position:relative;height:14px;margin:0 6px}
+dialog .fteras[hidden]{display:none}
+dialog .fteras span{position:absolute;top:0;font:10.5px/14px var(--ui);color:var(--mut);text-align:center;white-space:nowrap;overflow:hidden;padding:0 2px;box-sizing:border-box}
+dialog .fteras span.on{color:var(--acc);font-weight:600}
+dialog .fteras b{position:absolute;top:3px;width:1px;height:10px;background:var(--line)}
+dialog .fttrack{position:relative;height:24px;margin:0 6px;cursor:pointer}
+dialog .fttrack::before{content:"";position:absolute;left:0;right:0;top:6px;height:3px;border-radius:2px;background:var(--line)}
+dialog .ftaxis i{position:absolute;top:4px;width:1px;height:7px;background:var(--mut);opacity:.6}
+dialog .ftaxis i span{position:absolute;top:8px;left:50%;transform:translateX(-50%);font:9.5px var(--ui);color:var(--mut);white-space:nowrap}
+dialog .ftaxis i.l span{left:0;transform:none}dialog .ftaxis i.r span{left:auto;right:0;transform:none}
+/* the periods fade out where they run past the ends of the view */
+dialog .ftclip{position:absolute;left:-9px;right:-9px;top:0;height:16px;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 9px,#000 calc(100% - 9px),transparent);mask-image:linear-gradient(90deg,transparent 0,#000 9px,#000 calc(100% - 9px),transparent)}
+dialog .ftranges{position:absolute;top:0;bottom:0;left:9px;right:9px}
+dialog .ftp{--pc:color-mix(in srgb,var(--acc) 60%,var(--card))}
+dialog .ftp.on{--pc:var(--acc)}
+dialog .ftr{position:absolute;top:4.5px;height:6px;border-radius:3px;background:var(--pc)}
+dialog .fth{position:absolute;top:3px;width:9px;height:9px;margin-left:-4.5px;border-radius:50%;background:var(--pc);transform:scale(.6667);transition:transform .15s}
+dialog .ftp.on .fth{transform:scale(1)}
+dialog .ftlab{position:absolute;left:0;right:0;top:0;height:0;pointer-events:none}
+dialog .ftlab span{position:absolute;bottom:2px;transform:translateX(-50%);font:600 11px/14px var(--ui);color:var(--acc);background:var(--card);padding:0 4px;border-radius:4px;white-space:nowrap}
+dialog .ftx{position:absolute;right:0;top:auto;bottom:6px;width:22px;height:22px;padding:0;border:0;background:none;color:var(--mut);font-size:13px;line-height:1}
+dialog .fteras[hidden]+.fttrack{margin-top:14px}
+dialog .ftx[hidden]{display:none}
+dialog .ftreset{position:absolute;top:.4rem;right:.45rem;width:30px;height:26px;padding:0;font-size:15px;line-height:1;color:var(--mut)}
+dialog .ftreset:disabled{opacity:.3}
+/* Settings → Library → Date filter */
+dialog .ftset .mtlim input{width:6.6rem;font-family:var(--ui);font-size:14px;padding:.3rem .4rem}
+dialog .ftset .mtlim{display:flex;align-items:center;gap:.3rem}
+dialog .ftset input.bad{border-color:#c0392b}
+dialog .fterr{display:block;color:#c0392b;font-size:12.5px;margin:-.1rem 0 .3rem}
+dialog .fterr[hidden],dialog .ftnote[hidden]{display:none}
+dialog .ftnote{display:block;color:var(--mut);font-size:12.5px;margin:.2rem 0}
+dialog .ftsetl{padding:.45rem 0 .3rem}
+dialog .ftsetl>span{display:block;margin-bottom:.35rem}
+dialog .ftsetl small.hint{display:block;font-size:12px}
+dialog .ftrestore{display:flex;justify-content:flex-end;padding-top:.3rem}
+dialog .ftrestore button{font-size:13px;padding:.3rem .7rem}

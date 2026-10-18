@@ -192,6 +192,7 @@ function showPage(k, { fromPop = false } = {}) {
   h3.innerHTML = crumbs(h3.dataset.root, k ? titles[k] : '');
   S.menuPage[menu] = k; setting('menuPage', S.menuPage);
   d.scrollTop = k ? 0 : (S.menuRootY || 0);
+  if (k === 'lib' && typeof ftDraw === 'function') requestAnimationFrame(() => ftDraw('def'));
 }
 document.addEventListener('click', ev => {
   const o = ev.target.closest?.('#dlg [data-pg-open]'); if (o) return showPage(o.dataset.pgOpen);

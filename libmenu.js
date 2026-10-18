@@ -430,13 +430,14 @@ function wireLibrary() {
       if (Date.now() < (S.lpUntil || 0)) return;                  // (the long press showed the hint: no switch)
       const v = libView(); v.view = d.view; S.libLimit = 250; S.scrEdit = false; saveLibView(); return lmRender(false).then(() => { $('#dlg').scrollTop = 0; });
     }
-    const f = b.closest('#libCtl [data-f]'), sg = b.closest('#libCtl [data-seg]'), rs = d.freset != null ? b : null, dr = b.closest('#libSort [data-dir]'), un = b.closest('#libActive [data-unf]');
-    if (f || sg || rs || dr || un) {
+    const f = b.closest('#libCtl [data-f]'), sg = b.closest('#libCtl [data-seg]'), rs = d.freset != null ? b : null, dr = b.closest('#libSort [data-dir]'), un = b.closest('#libActive [data-unf]'), uc = b.closest('#libCtl [data-undch]');
+    if (f || sg || rs || dr || un || uc) {
       const v = libView();
       if (f) { const arr = v[f.dataset.f], x = f.dataset.val, i = arr.indexOf(x); i < 0 ? arr.push(x) : arr.splice(i, 1); }
       if (sg) v[sg.dataset.seg] = sg.dataset.val ? [sg.dataset.val] : [];
       if (un) { const k = un.dataset.unf; if (k === 'date') v.periods.splice(+un.dataset.val, 1); else if (k === 'undated') v.undated = true; else v[k] = v[k].filter(x => x !== un.dataset.val); }
       if (dr) v.dir = -v.dir;
+      if (uc) v.undated = !v.undated;
       if (rs) { Object.assign(v, { langs: [], src: [], form: [], periods: ftDef(), undated: true }); S.ftView = ftView0(); }
       S.libLimit = 250; saveLibView(); renderLibControls(); renderLibList(); return;
     }
