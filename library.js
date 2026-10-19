@@ -153,6 +153,12 @@ function impWork(t) {
   return { id: 'imp:' + t.id, tid: t.id, title: t.title, greek: '', author: t.author || '', authorId: 'imp|' + (t.author || ''), source: 'Imported', lang: lang === 'la' ? 'lat' : 'grc',
     words: ((t.text || '').match(new RegExp(WORD_TOKEN.source, 'g')) || []).length, verse: null, books: [t.title], imported: true, year: t.year ?? null, date: t.date || '', edition: t.edition || '', notes: t.notes || '', created: t.created };
 }
+// the Library's search in Latin letters, also as Greek (for the Greek titles): logos → λογος (e, o also η, ω)
+function libQGreek(q) {
+  if (!q || isGreek(q) || S.sc?.tr === false || typeof latinToGreek !== 'function') return null;
+  if (libQGreek.q !== q) { libQGreek.q = q; const g = foldG(gkey(latinToGreek(q))); libQGreek.g = g.length >= 2 ? g : null; }
+  return libQGreek.g;
+}
 function workPasses(w, q, anyView = false) {           // (anyView: the filters and the search only, not the tab)
   const v = libView(), a = authorOf(w);
   if (!anyView && v.view === 'mine' && !S.libInst[w.id] && !w.imported) return false;
@@ -161,7 +167,7 @@ function workPasses(w, q, anyView = false) {           // (anyView: the filters 
   if (v.form.length && w.verse != null && !v.form.includes(w.verse ? 'verse' : 'prose')) return false;
   if (a.year == null) { if (!v.undated) return false; }
   else if (v.periods.length && !v.periods.some(([x, y]) => a.year >= x - (x === y ? 25 : 0) && a.year <= y + (x === y ? 25 : 0))) return false;   // (a single year: ± 25)
-  if (q && !fold(a.name).includes(q) && !fold(w.title + ' ' + (w.greek || '') + ' ' + w.id).includes(q)) return false;
+  if (q && !fold(a.name).includes(q) && !fold(w.title + ' ' + (w.greek || '') + ' ' + w.id).includes(q) && !(w.greek && libQGreek(q) && foldG(gkey(w.greek)).includes(libQGreek(q)))) return false;
   return true;
 }
 function libAuthors() {
@@ -372,7 +378,12 @@ async function workParts(key) {             // the part indices of a work on thi
 async function findInWork(q, mode, progress, key = curKey()) {
   q = q.trim(); if (!q || !key) return [];
   const parts = await workParts(key);
-  const out = [], fq = foldForm(q), star = /\*/.test(q), rx = star ? new RegExp('^' + fq.split('*').map(x => x.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$') : null;
+  const out = [], fq = foldForm(q), star = /\*/.test(q), mkRx = s => new RegExp('^' + s.split('*').map(x => x.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$'), rx = star ? mkRx(fq) : null;
+  // Latin letters (with Settings → Search → Greek in Latin letters on): searched as typed and also as Greek (logos → λογος;
+  // e and o also η and ω)
+  const tr = !isGreek(q) && S.sc?.tr !== false && typeof latinToGreek === 'function' ? keyKeepWild(latinToGreek(q), gkey) : null;
+  const gq = tr ? foldG(tr) : null, grx = gq && star ? mkRx(gq) : null, glk = tr ? tr.replace(/[*?]/g, '') : null;
+  const greekHit = s => { if (!gq || !isGreek(s)) return false; const f = foldG(gkey(s)); return grx ? grx.test(f) : f === gq; };
   const lk = gkey(q), memo = S.lemMemo ??= new Map();
   const lemmaOf = async f => { let r = memo.get(f); if (!r) { const A = await analyses(f); r = new Set(A.lemmas.map(x => gkey(x.lemma))); memo.set(f, r); } return r; };
   for (const [n, bi] of parts.entries()) {
@@ -382,8 +393,8 @@ async function findInWork(q, mode, progress, key = curKey()) {
     let ri = -1;
     for (let k = 0; k < words.length; k++) {
       const tk = words[k]; let hit = false;
-      if (mode === 'lemma') hit = tk.ctx ? gkey(tk.ctx.l) === lk : (await lemmaOf(tk.s)).has(lk);
-      else { const f = foldForm(tk.s); hit = rx ? rx.test(f) : f === fq; }
+      if (mode === 'lemma') { const ls = tk.ctx ? new Set([gkey(tk.ctx.l)]) : await lemmaOf(tk.s); hit = ls.has(lk) || (glk != null && [...ls].some(l => foldG(l) === foldG(glk))); }
+      else { const f = foldForm(tk.s); hit = (rx ? rx.test(f) : f === fq) || greekHit(tk.s); }
       if (!hit) continue;
       while (ri + 1 < refs.length && refs[ri + 1].i <= tk.i) ri++;
       const ctx = words.slice(Math.max(0, k - 6), k + 7).map(x => x === tk ? `<b>${esc(x.s)}</b>` : esc(x.s)).join(' ');

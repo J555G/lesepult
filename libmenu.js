@@ -457,7 +457,8 @@ async function lmGoPlace(key, bi, ref, word = null) {
 
 // ---- the search in a work: results as the outline cut down to the parts or chapters with hits
 function resultsHTML(F) {
-  const multi = F.books.length > 1, what = `<b class="gk">${esc(F.q)}</b> <small>(${F.mode === 'lemma' ? 'lemma' : 'form'})</small>`;
+  const trq = !isGreek(F.q) && S.sc?.tr !== false && typeof latinToGreek === 'function' ? finalS(latinToGreek(F.q)) : '';   // (Latin letters: also as Greek)
+  const multi = F.books.length > 1, what = `<b class="gk">${esc(F.q)}</b>${trq ? ` <small>and</small> <b class="gk">${esc(trq)}</b>` : ''} <small>(${F.mode === 'lemma' ? 'lemma' : 'form'})</small>`;
   if (F.busy) return `<div class="fhead"><span>${what} · searching … ${Math.round(F.p * 100)} %</span></div>`;
   if (!F.res.length) return `<div class="fhead"><span>${what} · not found</span><button type="button" data-fclear="1">Outline</button></div>`
     + (F.mode === 'lemma' ? '<p class="hint" style="font-size:13px">Not found as a lemma – try the form, or check the spelling of the dictionary headword.</p>' : '');
