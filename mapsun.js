@@ -344,7 +344,7 @@ async function mapOptsClick(b) {
   if (b.id === 'mapProjBtn') { await viewToggle('globe'); const on = viewOn('globe'); iconAnim(b, on ? 0 : 1, projIconSVG); b.title = on ? 'Globe' : 'Flat map'; b.setAttribute('aria-label', b.title); return true; }
   if (b.id === 'map3dBtn') { await viewToggle('t3d'); const on = viewOn('t3d'); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); iconAnim(b, on ? 1 : 0, hillIconSVG); return true; }
   if (b.id === 'mapCompBtn') { M.cfg.compass = M.cfg.compass === false; await saveMapCfg(); b.classList.toggle('on', M.cfg.compass); b.setAttribute('aria-pressed', M.cfg.compass); compassUpd(); return true; }
-  if (b.id === 'mapNorth' || d.mnorth) { M.map?.easeTo({ bearing: 0, pitch: viewOn('t3d') ? M.map.getPitch() : 0, duration: 500 }); return true; }
+  if (b.id === 'mapNorth' || d.mnorth) { M.map?.easeTo({ bearing: 0, duration: 500 }); return true; }
   if (b.id === 'mapSunBtn') { await sdOpen(!M.sdOpen); return true; }
   if (d.suntg) {                                                   // the night shade, the twilight glow, the atmosphere: each on or off
     M.cfg[d.suntg] = M.cfg[d.suntg] === false; await saveMapCfg(); b.classList.toggle('on', M.cfg[d.suntg]); b.setAttribute('aria-pressed', M.cfg[d.suntg]);

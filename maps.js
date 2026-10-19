@@ -689,7 +689,7 @@ async function showMap1() {
     M.colors = mapColors();
     const v = (await setting('mpos|last')) || { c: [24, 38], z: 4 };
     M.step = 'map'; try {
-      M.map = new maplibregl.Map({ container: 'mapCanvas', style: mapStyle(M.colors), center: v.c, zoom: v.z, attributionControl: false, dragRotate: true, pitchWithRotate: true, maxPitch: M.cfg.t3d !== false ? 70 : 0, maxZoom: 16, minZoom: 0 });
+      M.map = new maplibregl.Map({ container: 'mapCanvas', style: mapStyle(M.colors), center: v.c, zoom: v.z, attributionControl: false, dragRotate: true, pitchWithRotate: true, maxPitch: 70, maxZoom: 16, minZoom: 0 });
     } catch (e) { M.map = null; return mapFailed(e.message || String(e)); }
     // problems are shown instead of an empty map: errors while loading, the graphics memory lost (phones)
     M.map.on('error', e => { M.lastErr = e?.error?.message || String(e?.error || e); console.warn('map:', M.lastErr); });
@@ -1065,8 +1065,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ---------------------------------------------------------------- the view: a globe or the flat map (Mercator), and 3D terrain (v295)
-// Both on by default; two buttons on the map switch them (M.cfg.globe, M.cfg.t3d). 3D: the relief packages raise the
-// ground, and the map can be tilted (two fingers up or down; with a mouse, the right button), turned off: flat and north up.
+// Both on by default; switched in the Globe menu (M.cfg.globe, M.cfg.t3d). 3D: the elevation raises the ground. The map can
+// always be tilted (two fingers up or down; with a mouse, the right button), with or without 3D; switching changes no view.
 const viewOn = k => M.cfg?.[k] !== false;
 const T3D = () => ({ source: 'terrdem', exaggeration: 1.5 });
 async function viewToggle(k) {
@@ -1074,9 +1074,8 @@ async function viewToggle(k) {
   const m = M.map, on = viewOn(k);
   if (m && k === 'globe') m.setProjection({ type: on ? 'globe' : 'mercator' });
   if (m && k === 't3d') {
-    m.setMaxPitch(on ? 70 : 0);
     if (on) { if (m.getSource('terrdem')) m.setTerrain(T3D()); }       // (the camera stays as it is: tilt it yourself)
-    else { m.setTerrain(null); m.easeTo({ pitch: 0, duration: 400 }); }
+    else m.setTerrain(null);                                         // (the camera stays: a flat map can be tilted too)
   }
   drawLabels();
 }
