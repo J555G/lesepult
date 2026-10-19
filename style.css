@@ -225,7 +225,7 @@ body.hlmode #dictBody .gw{cursor:text}
 @media (max-width:900px){#top button{height:31px}}
 
 dialog .dictrow{gap:.4rem}
-dialog .dictrow button{padding:.25rem .5rem;font-size:12px}
+dialog .dictrow button:not(.dli){padding:.25rem .5rem;font-size:12px}
 dialog .dictrow input[type=checkbox]{width:1.15rem;height:1.15rem}
 
 dialog .dictrow .grip{cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;font-size:20px;line-height:1;color:var(--mut);padding:.3rem .35rem}
