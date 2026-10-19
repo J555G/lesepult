@@ -1954,12 +1954,12 @@ dialog .sortpair button{transition:border-color .15s}
 /* the icon buttons of the Globe menu (v301): fine lines; off: grey, on: bright (the compass's north and the chapel red) */
 .mpop .mvb{--mvbg:var(--bg);padding:.45rem .2rem}
 .mpop .mvb svg{width:26px;height:26px}
-.mpop .mvb .hroof{fill:var(--mut)}
+.mpop .mvb .hroof{fill:#d23a2a}
 .mpop .mvb.on .hroof{fill:#d23a2a}
 
 .mpop .mvb.on .cn{fill:#d23a2a;stroke:#d23a2a}
 .mpop #mapProjBtn{color:var(--fg);border-color:var(--mut)}
-.mpop .mvb .hwall{fill:var(--mvbg);stroke:currentColor;stroke-width:.5}
+.mpop .mvb .hwall{fill:#f6f3ec;stroke:currentColor;stroke-width:.5}
 .mpop .mvb.on .hwall{fill:#f6f3ec}
 .mpop .mvb .htower{fill:var(--mvbg);stroke:currentColor;stroke-width:.45;stroke-linejoin:round}
 .mpop .mvb.on .htower{fill:#6f8f80}
