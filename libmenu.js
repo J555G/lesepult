@@ -519,10 +519,9 @@ function wireLibrary() {
     if (ev.target.id === 'navFind' && !ev.target.value.trim() && S.navFind) { S.navFind = null; lmRender(); }   // the field emptied: the outline again
   });
   document.addEventListener('change', ev => {
-    if (ev.target.id === 'libUndated' || ev.target.id === 'libSortSel') {
+    if (ev.target.id === 'libUndated') {
       const v = libView();
-      if (ev.target.id === 'libUndated') v.undated = ev.target.checked;
-      else { v.sort = ev.target.value; v.dir = SORTS.find(s => s[0] === v.sort)[2]; }
+      v.undated = ev.target.checked;
       S.libLimit = 250; saveLibView(); renderLibControls(); renderLibList();
     }
   });
@@ -559,13 +558,19 @@ function wireLibrary() {
       const v = libView(); (S.libTabY ??= {})[v.view] = $('#dlg').scrollTop;      // (each tab keeps its own place in the list)
       v.view = d.view; S.libLimit = 250; S.scrEdit = false; saveLibView(); return lmRender(false).then(() => { const y = S.libTabY[d.view] || 0, go = () => { $('#dlg').scrollTop = y; }; go(); requestAnimationFrame(go); });
     }
-    const f = b.closest('#libCtl [data-f]'), sg = b.closest('#libCtl [data-seg]'), rs = d.freset != null ? b : null, dr = b.closest('#libSort [data-dir]'), un = b.closest('#libActive [data-unf]'), uc = b.closest('#libCtl [data-undch]');
+    const f = b.closest('#libCtl [data-f]'), sg = b.closest('#libCtl [data-seg]'), rs = d.freset != null ? b : null, dr = b.closest('#libSort [data-sortk],#libSort [data-sorto]'), un = b.closest('#libActive [data-unf]'), uc = b.closest('#libCtl [data-undch]');
     if (f || sg || rs || dr || un || uc) {
       const v = libView();
       if (f) { const arr = v[f.dataset.f], x = f.dataset.val, i = arr.indexOf(x); i < 0 ? arr.push(x) : arr.splice(i, 1); }
       if (sg) v[sg.dataset.seg] = sg.dataset.val ? [sg.dataset.val] : [];
       if (un) { const k = un.dataset.unf; if (k === 'date') v.periods.splice(+un.dataset.val, 1); else if (k === 'undated') v.undated = true; else v[k] = v[k].filter(x => x !== un.dataset.val); }
-      if (dr) v.dir = -v.dir;
+      if (dr) {                                                    // Author | Title; Α/Ω | BC/AD (the lit one again: reversed)
+        const [, key, ord] = SORTS.find(x => x[0] === v.sort);
+        if (dr.dataset.sortk) v.sort = sortOf(dr.dataset.sortk, ord);
+        else if (dr.dataset.sorto === ord) v.dirs[ord] = -v.dirs[ord];
+        else v.sort = sortOf(key, dr.dataset.sorto);
+        v.dir = v.dirs[SORTS.find(x => x[0] === v.sort)[2]];
+      }
       if (uc) v.undated = !v.undated;
       if (rs) { Object.assign(v, { langs: [], src: [], form: [], periods: ftDef(), undated: true }); S.ftView = ftView0(); }
       S.libLimit = 250; saveLibView(); renderLibControls(); renderLibList(); return;

@@ -1849,3 +1849,10 @@ dialog[open]{overflow-x:hidden}
 @media (max-width:350px){dialog .lmtabs [data-view]{padding:.45rem .22rem .4rem;font-size:12.5px}dialog .lmtabs .lmimp{padding:.12rem .35rem}}
 @media (max-width:600px){dialog .dlghead{margin:-.85rem -.8rem .2rem;padding-left:.8rem;top:-.85rem}}   /* (narrow: the sticky title as wide as the dialog, no wider) */
 @media (max-width:600px){dialog .sver{margin:.8rem -.8rem -.85rem;bottom:-.85rem}}
+/* the Library's sorting (v285): two joined pairs like the Greek/Latin button – Author | Title, Α/Ω | BC/AD; the one in use full, the other faint */
+dialog .sortpair{display:inline-flex;align-items:stretch;height:28px;background:var(--card);border:1px solid var(--line);border-radius:8px;overflow:hidden;flex:none}
+dialog .sortpair button{border:0;border-radius:0;background:none;color:var(--fg);padding:0 .5rem;margin:0;min-width:0;display:inline-flex;align-items:center;justify-content:center;font-size:13px;line-height:1;opacity:.3;transition:opacity .15s;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+dialog .sortpair button.on{opacity:1}
+dialog .sortpair .sorto{padding:0 .4rem}
+dialog .sortpair svg{display:block;pointer-events:none}
+dialog .sortpair path{fill:currentColor}

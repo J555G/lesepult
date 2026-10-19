@@ -623,7 +623,7 @@ function dlIcon(id, { have = false, rev = false, size = 0, upd = 'Download revis
 function dlPopClose() { document.querySelectorAll('.dlpop').forEach(x => x.remove()); document.querySelectorAll('.dli.open').forEach(x => x.classList.remove('open')); clearTimeout(dlPopClose.t); }
 // the fade of a tapped button: its colour (the accent, or its own) comes in over 1/9 s and goes back over 1/3 s – only when
 // the tap really counted, not when the finger slid off; Settings → Appearance → Fades switches it off (body.nofade)
-const FADE_BTNS = ['.dli,.lwm,.lwi,.fti,.ftreset,.greset,.creset,.mtreset,.dirb,.tzi,#libFilterBtn',     // small icon buttons
+const FADE_BTNS = ['.dli,.lwm,.lwi,.fti,.ftreset,.greset,.creset,.mtreset,.dirb,.sortk,.sorto,.tzi,#libFilterBtn',     // small icon buttons
   '#btnMenu,#btnSplit,#tabEntry,#tabList,#tabMap',                                                            // top bar
   'dialog .seg button,dialog .chip2,dialog .chip',                                                  // choices
   'dialog .pgrow,dialog .annrow',                                                                    // rows (not the Library's)
