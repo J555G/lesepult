@@ -1951,3 +1951,11 @@ dialog .sortpair button{transition:border-color .15s}
 .mpop .seg.mimg{display:flex;margin:0 0 .3rem}
 .mpop .seg.mimg button{flex:1;padding:.32rem .3rem;font-size:13px}
 .mnorth .svg,.mnorth svg{transition:transform .08s linear}
+/* the icon buttons of the Globe menu (v301): fine lines; off: grey, on: bright (the compass's north and the chapel red) */
+.mpop .mvb{--mvbg:var(--bg);padding:.45rem .2rem}
+.mpop .mvb svg{width:26px;height:26px}
+.mpop .mvb .hroof{fill:var(--mut)}
+.mpop .mvb.on .hroof{fill:#d23a2a}
+.mpop .mvb .cn{fill:none}
+.mpop .mvb.on .cn{fill:#d23a2a;stroke:#d23a2a}
+.mpop #mapProjBtn{color:var(--fg);border-color:var(--mut)}
