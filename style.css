@@ -1819,3 +1819,8 @@ body:not(.nofade) dialog .minib:not(.on):is(:active,.fxon){color:var(--acc);bord
 body:not(.nofade) dialog .minib.danger:is(:active,.fxon){color:#c0392b;border-color:#c0392b}
 dialog .libbar .libsort{margin-left:auto}
 dialog .lsh .scrof{font-weight:400;color:var(--mut);font-size:12px;margin-left:.4rem}
+/* Find in this work with the conversion: a search without hits greyed; the found-by tag */
+dialog .fhead .fz{color:var(--mut);opacity:.6;font-weight:400}
+dialog .frl .frv{display:inline-block;margin-left:.3rem;font:600 9.5px/1 var(--ui);color:var(--mut);border:1px solid var(--line);border-radius:4px;padding:.1rem .2rem;vertical-align:middle}
+dialog .libqg{font-size:12px;color:var(--mut);margin:.25rem 0 0 .2rem}
+dialog .libqg[hidden]{display:none}

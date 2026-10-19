@@ -119,7 +119,7 @@ function lmOverviewHTML() {
   return `<div class="dlghead lmhead"><h3>Library</h3></div>
     <div class="lmtabs" id="libTabs" role="tablist">${lmTabsHTML()}</div>
     <div class="libtop"><input type="search" id="libSearch" placeholder="Search authors and works (English, Latin or Greek) …" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(S.libQ)}"><button type="button" id="libFilterBtn" title="Filters" aria-label="Filters" aria-expanded="false">${FILTER_ICON}</button></div>
-    ${off}<div id="libActive" class="libactive" hidden></div>
+    <div id="libQG" class="libqg" hidden></div>${off}<div id="libActive" class="libactive" hidden></div>
     <div id="libCtl" class="libctl"${S.libCtlOpen ? '' : ' hidden'}>${libControlsHTML()}</div>
     <div class="libbar"${scr ? ' hidden' : ''}><span class="libcount" id="libCount"></span><span class="libsort" id="libSort">${sortBarHTML()}</span>${v.view === 'fav' && Object.keys(S.favs || {}).length ? `<button type="button" class="minib${S.favEdit ? ' on' : ''}" data-favedit="1">${S.favEdit ? 'Done' : 'Edit'}</button>` : ''}</div>
     <div id="libWords"></div>
@@ -292,6 +292,7 @@ function renderLibList() {
   el.innerHTML = (html || `<p class="hint">${empty}</p>`) + tg;
   const f = $('#dlg .libfoot'); if (f) f.innerHTML = libFootHTML();                 // (the counts follow removals and downloads)
   const tb = $('#libTabs'); if (tb) tb.innerHTML = lmTabsHTML();
+  libQGNote();
 }
 
 // ---------------------------------------------------------------- Scriptorium: recently read · annotated
@@ -458,9 +459,13 @@ async function lmGoPlace(key, bi, ref, word = null) {
 // ---- the search in a work: results as the outline cut down to the parts or chapters with hits
 function resultsHTML(F) {
   const trq = !isGreek(F.q) && S.sc?.tr !== false && typeof latinToGreek === 'function' ? finalS(latinToGreek(F.q)) : '';   // (Latin letters: also as Greek)
-  const multi = F.books.length > 1, what = `<b class="gk">${esc(F.q)}</b>${trq ? ` <small>and</small> <b class="gk">${esc(trq)}</b>` : ''} <small>(${F.mode === 'lemma' ? 'lemma' : 'form'})</small>`;
-  if (F.busy) return `<div class="fhead"><span>${what} · searching … ${Math.round(F.p * 100)} %</span></div>`;
-  if (!F.res.length) return `<div class="fhead"><span>${what} · not found</span><button type="button" data-fclear="1">Outline</button></div>`
+  // (with the conversion: each search named with its count – one without hits greyed; both empty: "neither … nor …")
+  const nL = trq ? F.res.filter(r => r.via === 'lat').length : 0, nG = trq ? F.res.filter(r => r.via === 'grc').length : 0, both = nL && nG;
+  const cnt1 = (s, n, gk) => `<b class="${gk ? 'gk' : ''}${n ? '' : ' fz'}">${esc(s)}</b>${F.busy ? '' : ` <small class="${n ? '' : 'fz'}">${n.toLocaleString('en')}</small>`}`;
+  const kind = `<small>(${F.mode === 'lemma' ? 'lemma' : 'form'})</small>`;
+  const multi = F.books.length > 1, what = trq ? `${cnt1(F.q, nL, isGreek(F.q))} · ${cnt1(trq, nG, true)} ${kind}` : `<b class="gk">${esc(F.q)}</b> ${kind}`;
+  if (F.busy) return `<div class="fhead"><span>${trq ? `<b>${esc(F.q)}</b> · <b class="gk">${esc(trq)}</b> ${kind}` : what} · searching … ${Math.round(F.p * 100)} %</span></div>`;
+  if (!F.res.length) return `<div class="fhead"><span>${trq ? `Not found: neither <b>${esc(F.q)}</b> nor <b class="gk">${esc(trq)}</b> ${kind}` : `${what} · not found`}</span><button type="button" data-fclear="1">Outline</button></div>`
     + (F.mode === 'lemma' ? '<p class="hint" style="font-size:13px">Not found as a lemma – try the form, or check the spelling of the dictionary headword.</p>' : '');
   const G = findGroups(F);
   F.open ??= new Set(F.res.length <= 30 ? G.map(x => x.key) : [(G.find(x => multi && curKey() === F.key && x.key === String(S.text.bi)) || G[0]).key]);
@@ -473,7 +478,7 @@ function resultsHTML(F) {
       + `<button type="button" class="olj" data-fgrp="${esc(g.key)}"><span class="olx">${esc(g.label)}</span><span class="olc">${g.hits.length}</span></button></div>`;
     if (!open) continue;
     const lim = F.lim?.[g.key] || 200;
-    h += `<div class="fres">${g.hits.slice(0, lim).map(k => { const r = F.res[k]; return `<button type="button" class="fr${F.sel === k ? ' on' : ''}" data-fres="${k}"><span class="frl">${esc(r.ref || '')}</span><span class="frc">${r.ctx}</span></button>`; }).join('')}`
+    h += `<div class="fres">${g.hits.slice(0, lim).map(k => { const r = F.res[k]; return `<button type="button" class="fr${F.sel === k ? ' on' : ''}" data-fres="${k}"><span class="frl">${esc(r.ref || '')}${both ? `<span class="frv">${r.via === 'grc' ? 'grc' : 'lat'}</span>` : ''}</span><span class="frc">${r.ctx}</span></button>`; }).join('')}`
       + (g.hits.length > lim ? `<button type="button" class="fmore" data-fmore="${esc(g.key)}">Show more (${(g.hits.length - lim).toLocaleString('en')})</button>` : '') + '</div>';
   }
   return h;
@@ -489,6 +494,12 @@ async function lmRunFind(q, mode) {
   F.busy = false; out();
 }
 
+// beneath the Library's search field: what the Latin letters are also searched as
+function libQGNote() {
+  const el = $('#libQG'); if (!el) return;
+  const g = S.libQ && libQGreek(fold(S.libQ));
+  el.innerHTML = g ? `also searched as Greek: <span class="gk">${esc(finalS(g))}</span>` : ''; el.hidden = !g;
+}
 // ---------------------------------------------------------------- what is tapped
 // was the tap on the text itself (its letters' boxes, a few pixels around them), not on the empty part beside it?
 function onText(ev, el) {
@@ -504,7 +515,7 @@ function wireLibrary() {
   wireDateLine();
   const later = () => new Promise(r => setTimeout(r, 160));          // (the text has scrolled to the place: its section is known)
   document.addEventListener('input', ev => {
-    if (ev.target.id === 'libSearch') { clearTimeout(wireLibrary.t); wireLibrary.t = setTimeout(() => { S.libQ = ev.target.value.trim(); S.libLimit = 250; S.lwN = 0; renderLibList(); lmWords(); }, 150); }
+    if (ev.target.id === 'libSearch') { clearTimeout(wireLibrary.t); wireLibrary.t = setTimeout(() => { S.libQ = ev.target.value.trim(); S.libLimit = 250; S.lwN = 0; renderLibList(); lmWords(); libQGNote(); }, 150); }
     if (ev.target.id === 'navFind' && !ev.target.value.trim() && S.navFind) { S.navFind = null; lmRender(); }   // the field emptied: the outline again
   });
   document.addEventListener('change', ev => {

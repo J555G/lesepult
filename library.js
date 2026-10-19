@@ -394,11 +394,12 @@ async function findInWork(q, mode, progress, key = curKey()) {
     for (let k = 0; k < words.length; k++) {
       const tk = words[k]; let hit = false;
       if (mode === 'lemma') { const ls = tk.ctx ? new Set([gkey(tk.ctx.l)]) : await lemmaOf(tk.s); hit = ls.has(lk) || (glk != null && [...ls].some(l => foldG(l) === foldG(glk))); }
-      else { const f = foldForm(tk.s); hit = (rx ? rx.test(f) : f === fq) || greekHit(tk.s); }
+      else { const f = foldForm(tk.s); hit = (rx ? rx.test(f) : f === fq) ? 'lat' : greekHit(tk.s) ? 'grc' : false; }
       if (!hit) continue;
+      const via = tr ? (hit === 'grc' || (mode === 'lemma' && isGreek(tk.s)) ? 'grc' : 'lat') : null;   // (which of the two searches found it)
       while (ri + 1 < refs.length && refs[ri + 1].i <= tk.i) ri++;
       const ctx = words.slice(Math.max(0, k - 6), k + 7).map(x => x === tk ? `<b>${esc(x.s)}</b>` : esc(x.s)).join(' ');
-      out.push({ bi, i: tk.i, ref: ri >= 0 ? refs[ri].s : '', ctx, sent: sentenceAt(toks, at[k], tk) });
+      out.push({ bi, i: tk.i, ref: ri >= 0 ? refs[ri].s : '', ctx, sent: sentenceAt(toks, at[k], tk), via });
       if (out.length >= 2000) return out;
     }
   }
