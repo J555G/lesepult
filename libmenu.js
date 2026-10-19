@@ -8,7 +8,26 @@
 const LTABS = [['all', 'Bibliotheca', 'Catalogue of available works'], ['mine', 'Armarium', 'Works stored locally'], ['scr', 'Scriptorium', 'Recently read and annotated'], ['fav', 'Favourites', '']];
 const BMARK = '<svg class="bm" width="8" height="11" viewBox="0 0 8 11" aria-hidden="true"><path d="M0 0h8v11L4 8 0 11z"/></svg>';
 const GMARK = '<svg class="gm" width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 10.5 2.6 8 8.4 2.2a1 1 0 0 1 1.4 0l.4.4a1 1 0 0 1 0 1.4L4.4 9.8z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>';
-const FILTER_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5.5h12M6 18.5h12"/><rect x="3" y="4" width="3.2" height="16" rx="1.6"/><rect x="17.8" y="4" width="3.2" height="16" rx="1.6"/><path d="M9 9.2h6M9 12h4.6M9 14.8h3" stroke-width="1.3"/></g></svg>';
+// the filter icon: a sieve seen obliquely (after an engraving), its mesh finer the more the list is narrowed:
+// no filter and no search, an empty rim; then 1 to 7 pairs of crossed lines, one more each time the list halves
+function sieveIcon(n, uid = 'lf') {
+  const cx = 12, cy = 9, rx = 10.6, ry = 7, h = 4.2, f = cy + h, k = ry / rx, R = rx * 1.45;
+  let d = '';
+  for (const s of [1, -1]) for (let i = 1; i <= n; i++) {
+    const o = (i - (n + 1) / 2) * (2 * rx / (n + 1)) * Math.SQRT2;          // offset across, in the circle's plane
+    const ux = Math.SQRT1_2, uy = s * Math.SQRT1_2;                         // the line's direction (45°, either way)
+    const x0 = cx - uy * o * Math.SQRT1_2 - ux * R, y0 = f + (ux * o * Math.SQRT1_2 - uy * R) * k;
+    const x1 = cx - uy * o * Math.SQRT1_2 + ux * R, y1 = f + (ux * o * Math.SQRT1_2 + uy * R) * k;
+    d += `M${x0.toFixed(2)} ${y0.toFixed(2)}L${x1.toFixed(2)} ${y1.toFixed(2)}`;
+  }
+  const E = (y) => `<ellipse cx="${cx}" cy="${y}" rx="${rx}" ry="${ry}"/>`;
+  return `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><defs><clipPath id="sa${uid}">${E(cy)}</clipPath><clipPath id="sb${uid}">${E(f)}</clipPath></defs>`
+    + `<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">`
+    + (n ? `<g clip-path="url(#sa${uid})"><g clip-path="url(#sb${uid})"><path d="${d}" stroke-width=".7"/></g></g>` : '')
+    + `<g clip-path="url(#sa${uid})"><path d="M${cx - rx} ${f}A${rx} ${ry} 0 0 1 ${cx + rx} ${f}" stroke-width="1"/></g>`      // the floor's far edge, inside
+    + `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" stroke-width="1"/>`
+    + `<path d="M${cx - rx} ${cy}V${f}A${rx} ${ry} 0 0 0 ${cx + rx} ${f}V${cy}" stroke-width="1"/></g></svg>`;
+}
 const SCR_N = 7;                         // Scriptorium: rows shown at first in each section
 
 // ---------------------------------------------------------------- data
@@ -118,7 +137,7 @@ function lmOverviewHTML() {
   const off = lmOffline() ? `<p class="lmoff">Offline${S.catalog ? (at ? ` · catalogue of ${at}` : '') + ' · downloads need a connection' : ' · no catalogue yet – the works on this device are listed'}</p>` : '';
   return `<div class="dlghead lmhead"><h3>Library</h3></div>
     <div class="lmtabs" id="libTabs" role="tablist">${lmTabsHTML()}</div>
-    <div class="libtop"><input type="search" id="libSearch" placeholder="Search authors and works (English, Latin or Greek) …" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(S.libQ)}"><button type="button" id="libFilterBtn" title="Filters" aria-label="Filters" aria-expanded="false">${FILTER_ICON}</button></div>
+    <div class="libtop"><input type="search" id="libSearch" placeholder="Search authors and works (English, Latin or Greek) …" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(S.libQ)}"><button type="button" id="libFilterBtn" title="Filters" aria-label="Filters" aria-expanded="false">${sieveIcon(0)}</button></div>
     <div id="libQG" class="libqg" hidden></div>${off}<div id="libActive" class="libactive" hidden></div>
     <div id="libCtl" class="libctl"${S.libCtlOpen ? '' : ' hidden'}>${libControlsHTML()}</div>
     <div class="libbar"${scr ? ' hidden' : ''}><span class="libcount" id="libCount"></span><span class="libsort" id="libSort">${sortBarHTML()}</span>${v.view === 'fav' && Object.keys(S.favs || {}).length ? `<button type="button" class="minib${S.favEdit ? ' on' : ''}" data-favedit="1">${S.favEdit ? 'Done' : 'Edit'}</button>` : ''}</div>
@@ -127,8 +146,22 @@ function lmOverviewHTML() {
     <small class="libfoot">${libFootHTML()}</small>`;
 }
 // the filter icon is highlighted while any filter is on; the active filters show as chips while the panel is closed
+function sieveStep() {
+  const v = libView(), q = fold(S.libQ);
+  if (!filtersOn(v) && !q) return 0;
+  const inTab = w => v.view === 'mine' ? S.libInst[w.id] || w.imported : v.view === 'fav' ? S.favs?.[w.id] : true;
+  let total = 0, shown = 0;
+  for (const a of libAuthors()) for (const w of a.works) if (inTab(w)) { total++; if (workPasses(w, q, v.view === 'scr')) shown++; }
+  return !shown ? 7 : Math.min(7, 1 + Math.floor(Math.log2(total / shown) + 1e-9));
+}
+function sieveUpd() {
+  const b = $('#libFilterBtn'); if (!b) return;
+  const n = sieveStep(); if (b.dataset.n === String(n)) return;
+  b.dataset.n = n; b.innerHTML = sieveIcon(n);
+}
 function filterIcon() {
   const b = $('#libFilterBtn'); if (!b) return;
+  sieveUpd();
   const open = !$('#libCtl').hidden;
   b.classList.toggle('active', !!filtersOn(libView())); b.classList.toggle('open', open);
   b.setAttribute('aria-expanded', open);
@@ -262,6 +295,7 @@ function trashGroupHTML() {
 function renderLibList() {
   const el = $('#libList'); if (!el) return;
   const q = fold(S.libQ), v = libView();
+  sieveUpd();
   if (v.view === 'scr') { el.innerHTML = scrHTML(); return; }
   S.libLimit ??= 250;
   let html = '', n = 0, nw = 0;

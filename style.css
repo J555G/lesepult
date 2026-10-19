@@ -396,7 +396,7 @@ dialog .list.lib{max-height:46vh}
 @media (max-width:600px){dialog .frow .fl{width:100%}}
 dialog .libtop #libFilterBtn{flex:none;line-height:0;padding:.45rem .6rem;color:var(--mut)}
 dialog .libtop #libFilterBtn.open{color:var(--fg);border-color:var(--mut)}
-dialog .libtop #libFilterBtn.active{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+dialog .libtop #libFilterBtn svg{display:block}   /* (a filter on: the sieve's mesh shows it, v288) */
 dialog .libctl[hidden]{display:none}
 dialog .sortb.dirb{padding:.22rem .55rem;font-size:14px}
 /* century slider with two handles; period names faintly underneath */
