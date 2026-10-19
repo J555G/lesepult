@@ -419,10 +419,12 @@ function outlineNodes(nodes, part, cr, depth, list, T) {
     const open = kids && (S.navOpen.has(key) || (onPath && !S.navShut.has(key)));
     const r = firstRef(n), title = r ? r.lab + (r.more ? ' …' : '') : '';
     const m = T ? rangeHas(T, ...nodeRange(n, list)) : {};
+    // the bookmark once only: on the deepest row visible (an unfolded row leaves it to the row beneath that holds it)
+    if (m.mk && open && n.kids.some(k => rangeHas(T, ...nodeRange(k, list)).mk)) m.mk = false;
     h += `<div class="olrow d${Math.min(depth, 4)}${n.ref && n.ref === cr ? ' on' : ''}${onPath ? ' path' : ''}">`
       + (kids ? `<button type="button" class="olt" data-olt="${esc(key)}" aria-expanded="${!!open}" aria-label="${open ? 'Fold' : 'Unfold'}">${open ? '▾' : '▸'}</button>` : '<span class="olt"></span>')
       + `<button type="button" class="olj" data-sec="${esc(r?.s || '')}" data-secpart="${part}"><span class="oln">${esc(n.seg)}</span><span class="olx">${esc(title)}</span></button>`
-      + `<button type="button" class="olrest" ${kids ? `data-olt="${esc(key)}" aria-expanded="${!!open}"` : `data-olnone="${esc(key)}"`} tabindex="-1" aria-hidden="true"><span class="olm">${marksHTML(m)}</span>${kids && !open ? `<span class="olc">${kids}</span>` : ''}</button></div>`;
+      + `<button type="button" class="olrest" ${kids ? `data-olt="${esc(key)}" aria-expanded="${!!open}"` : `data-olnone="${esc(key)}"`} tabindex="-1" aria-hidden="true"><span class="olm">${marksHTML(m)}</span></button></div>`;
     if (open) h += outlineNodes(n.kids, part, cr, depth + 1, list, T);
   }
   return h;
@@ -437,7 +439,7 @@ async function outlineHTML(key) {
   let h = '';
   for (let bi = 0; bi < W.books.length; bi++) {
     const k = 'part|' + bi, here = cur && bi === t.bi, open = S.navOpen.has(k) || (here && !S.navShut.has(k));
-    const T = await partTraces(key, bi), m = { mk: T.mk != null, gl: T.gl.length > 0 };
+    const T = await partTraces(key, bi), m = { mk: T.mk != null && !open, gl: T.gl.length > 0 };   // (an unfolded part: its bookmark on the row beneath)
     h += `<div class="olrow d0 part${here ? ' path' : ''}"><button type="button" class="olt" data-olt="${k}" aria-expanded="${open}">${open ? '▾' : '▸'}</button>`
       + `<button type="button" class="olj" data-sec="" data-secpart="${bi}"><span class="olx">${esc(W.books[bi])}</span></button>`
       + `<button type="button" class="olrest" data-olt="${k}" aria-expanded="${open}" tabindex="-1" aria-hidden="true"><span class="olm">${marksHTML(m)}</span></button></div>`;
