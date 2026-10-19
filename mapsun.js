@@ -3,8 +3,10 @@
 // sunlight. The other button beside it (Layers) keeps places, political, built world, names and your own drawings.
 // Sunlight: day and night on the map – the night side darkened smoothly through twilight (from sunset to the sun 18°
 // below the horizon, as wide as it really is at each place and season), and the relief lit from where the sun stands over the middle of the map. “Now” follows the real
-// sun; “Animate” lets the days run (one day in 5 s … 60 s); the sundial in the menu sets the hour by hand.
-// Settings (mapCfg): sun, sunMode ('now' | 'anim' | 'set'), sunSpeed (seconds per day), sunFmt ('modern' | 'roman' | 'greek').
+// sun; “Animate” lets the days run (one day in 5 s … 60 s), “Year” the year (in 7 s … 77 s, the hour kept); the sundial sets the hour
+// by hand, the zodiac wheel beside it the day of the year.
+// Settings (mapCfg): sun, sunMode ('now' | 'anim' | 'year' | 'set'), sunSpeed (seconds per day), sunYear (seconds per year),
+// sunFmt ('modern' | 'roman' | 'greek').
 
 // ---------------------------------------------------------------- the sun's position
 const RAD = Math.PI / 180;
@@ -15,7 +17,7 @@ function sunPos(ms) {
   const ra = Math.atan2(Math.cos(e) * Math.sin(L), Math.cos(L)), dec = Math.asin(Math.sin(e) * Math.sin(L));
   const gmst = ((18.697374558 + 24.06570982441908 * d) % 24 + 24) % 24;
   let lon = (ra / RAD / 15 - gmst) * 15; lon = ((lon + 540) % 360) - 180;
-  return { dec, lon };                                               // the point beneath the sun (dec: radians, lon: degrees)
+  return { dec, lon, ecl: ((L / RAD) % 360 + 360) % 360 };         // the point beneath the sun (dec: radians, lon: degrees); its place on the ecliptic (degrees)
 }
 // height and direction of the sun at a place (degrees; azimuth clockwise from north)
 function sunAt(s, lon, lat) {
@@ -113,6 +115,14 @@ function sunClock() {
       M.sunRaf = requestAnimationFrame(step); };
     M.sunRaf = requestAnimationFrame(step);
   }
+  if (mode === 'year' && !M.sunPause) {                             // whole days at a time: the hour stays (the sun's own hour
+    let last = performance.now(), acc = 0;                           // wanders by up to a quarter of an hour over the year, as it does)
+    const step = now => { const dt = now - last; last = now; acc += dt;
+      if (!M.sunDrag) { M.sunYd = (M.sunYd || 0) + dt / 1000 * 365.2422 / (M.cfg.sunYear || 20); const k = Math.floor(M.sunYd); if (k) { M.sunYd -= k; M.sunT = sunTime() + k * 864e5; } }
+      if (acc > 50) { acc = 0; sunApply(); }
+      M.sunRaf = requestAnimationFrame(step); };
+    M.sunRaf = requestAnimationFrame(step);
+  }
   sunApply();
 }
 async function sunSet(patch) {
@@ -136,10 +146,47 @@ function sunHour() {                                                 // sun time
   const half = cosH <= -1 ? 12 : cosH >= 1 ? 0 : Math.acos(cosH) / RAD / 15;     // half the day, in hours
   return { lst, rise: 12 - half, set: 12 + half, alt: sunAt(s, c.lng, c.lat).alt };
 }
+// the twelve signs (the tropical zodiac: the Ram from the spring equinox): English, Latin, Greek, Greek after ἐν, and the sign
+// itself, drawn in a box of 12 (−6 … 6)
+const ZOD = [
+  ['Aries', 'Aries', 'Κριός', 'Κριῷ', 'M0 5.5V-1.5C0-4.5-1.6-5.6-3-5.4-4.8-5.1-5.3-2.6-3.8-1.6M0-1.5C0-4.5 1.6-5.6 3-5.4 4.8-5.1 5.3-2.6 3.8-1.6'],
+  ['Taurus', 'Taurus', 'Ταῦρος', 'Ταύρῳ', 'M-5-5.2C-4.4-1.6-2.4-.9 0-.9 2.4-.9 4.4-1.6 5-5.2M0-.9a3 3 0 1 0 .01 0z'],
+  ['Gemini', 'Gemini', 'Δίδυμοι', 'Διδύμοις', 'M-4.8-5Q0-3.2 4.8-5M-4.8 5Q0 3.2 4.8 5M-2-3.9V3.9M2-3.9V3.9'],
+  ['Cancer', 'Cancer', 'Καρκίνος', 'Καρκίνῳ', 'M-2.4-.6a1.7 1.7 0 1 0 .01 0zM-2.4-.6C.2-3.8 3.6-3.7 5.2-1.6M2.4.6a1.7 1.7 0 1 0-.01 0zM2.4.6C-.2 3.8-3.6 3.7-5.2 1.6'],
+  ['Leo', 'Leo', 'Λέων', 'Λέοντι', 'M-3 4.4a1.7 1.7 0 1 0 .01 0zM-1.6 3.4C-3.2-.4-2.6-5.2.8-5.2 4-5.2 4.4-2 2.6.4 1 2.6 1.4 5.4 4.8 4.4'],
+  ['Virgo', 'Virgo', 'Παρθένος', 'Παρθένῳ', 'M-5.2-3.6V4M-5.2-2.4C-5.2-4.4-2.4-4.4-2.4-2.4V4M-2.4-2.4C-2.4-4.4.4-4.4.4-2.4V2.6C.4 5 3.6 5 4 2.6 4.4.4 2.4.4 1.8 1.8 1.2 3.4 2 5.4 3.4 5.8'],
+  ['Libra', 'Libra', 'Ζυγός', 'Ζυγῷ', 'M-5.4 4.4H5.4M-5.4 1.6H-2.2A3.2 3.2 0 1 1 2.2 1.6H5.4'],
+  ['Scorpio', 'Scorpius', 'Σκορπίος', 'Σκορπίῳ', 'M-5.2-3.6V3.6M-5.2-2.4C-5.2-4.4-2.4-4.4-2.4-2.4V3.6M-2.4-2.4C-2.4-4.4.4-4.4.4-2.4V3C.4 4.8 2.6 5 4.8 3.4M3.4 2.2 4.8 3.4 4.2 5.1'],
+  ['Sagittarius', 'Sagittarius', 'Τοξότης', 'Τοξότῃ', 'M-4.6 4.6 4.6-4.6M.4-4.6H4.6V-.4M-3.6-.6.6 3.6'],
+  ['Capricorn', 'Capricornus', 'Αἰγόκερως', 'Αἰγοκέρωτι', 'M-5.4-4.4-3.4 3.4-1.4-4.4C-.6-5.4.6-4.4.6-2V2.2C.6 4.6 2 5.6 3.6 5 5.2 4.4 5.2 2 3.8 1.4 2.4.8.6 2.4.6 4C.4 5.2-.4 5.8-1.4 5.8'],
+  ['Aquarius', 'Aquarius', 'Ὑδροχόος', 'Ὑδροχόῳ', 'M-5.4-.6-2.7-3 0-.6 2.7-3 5.4-.6M-5.4 3.4-2.7 1 0 3.4 2.7 1 5.4 3.4'],
+  ['Pisces', 'Pisces', 'Ἰχθύες', 'Ἰχθύσι', 'M-4.4-5.2C-1.2-2.4-1.2 2.4-4.4 5.2M4.4-5.2C1.2-2.4 1.2 2.4 4.4 5.2M-2.6 0H2.6']];
+const RO_MON = ['Ian.', 'Feb.', 'Mart.', 'Apr.', 'Mai.', 'Iun.', 'Iul.', 'Aug.', 'Sept.', 'Oct.', 'Nov.', 'Dec.'];
+const roNum = n => ['', 'X', 'XX', 'XXX'][Math.floor(n / 10)] + ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'][n % 10];
+const grNum = n => (['', 'ι', 'κ', 'λ'][Math.floor(n / 10)] + ['', 'α', 'β', 'γ', 'δ', 'ε', 'ϛ', 'ζ', 'η', 'θ'][n % 10]) + 'ʹ';
+// the Roman date: counted (both ends included) to the next Kalends, Nones or Ides – the Nones on the 7th in March, May,
+// July and October, else on the 5th; the Ides eight days later
+function romanDate(d) {
+  const m = d.getUTCMonth(), day = d.getUTCDate(), non = [2, 4, 6, 9].includes(m) ? 7 : 5, id = non + 8;
+  const ad = (n, w, mm) => n === 2 ? `prid. ${w} ${RO_MON[mm]}` : `a. d. ${roNum(n)} ${w} ${RO_MON[mm]}`;
+  if (day === 1) return `Kal. ${RO_MON[m]}`;
+  if (day < non) return ad(non - day + 1, 'Non.', m); if (day === non) return `Non. ${RO_MON[m]}`;
+  if (day < id) return ad(id - day + 1, 'Id.', m); if (day === id) return `Id. ${RO_MON[m]}`;
+  return ad(new Date(Date.UTC(d.getUTCFullYear(), m + 1, 0)).getUTCDate() - day + 2, 'Kal.', (m + 1) % 12);
+}
+// the day as it is in the middle of the map (its own sun time decides when the day begins), in the chosen manner;
+// the Greek gives the sun's place: in which sign, in which degree of it
+function sunDate(fmt) {
+  const t = sunTime(), { lst } = sunHour(), utc = (t / 36e5 % 24 + 24) % 24; let dh = lst - utc; if (dh > 12) dh -= 24; if (dh <= -12) dh += 24;
+  const d = new Date(t + dh * 36e5);
+  if (fmt === 'roman') return romanDate(d);
+  if (fmt === 'greek') { const e = sunPos(t).ecl; return `ἐν ${ZOD[Math.floor(e / 30)][3]} μοίρᾳ ${grNum(Math.floor(e % 30) + 1)}`; }
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+}
 function sunLabel() {
   const { lst, rise, set } = sunHour(), fmt = M.cfg.sunFmt || 'modern';
   const hm = `${String(Math.floor(lst)).padStart(2, '0')}:${String(Math.floor(lst % 1 * 60)).padStart(2, '0')}`;
-  const date = new Date(sunTime()).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const date = sunDate(fmt);
   if (fmt === 'modern' || set - rise <= 0 || set - rise >= 24) return { main: hm, sub: date };
   if (lst >= rise && lst < set) { const n = Math.min(11, Math.floor((lst - rise) / ((set - rise) / 12)));
     return { main: fmt === 'roman' ? (n ? `hora ${RO_NUM[n]}` : 'hora prima') : `ὥρα ${GR_NUM[n]}`, sub: date }; }
@@ -155,7 +202,8 @@ function skyAt(alt, eve) {
   if (alt >= K[0][0]) return K[0].slice(1); if (alt <= K[K.length - 1][0]) return K[K.length - 1].slice(1);
   for (let i = 0; i < K.length - 1; i++) if (alt <= K[i][0] && alt >= K[i + 1][0]) { const t = (K[i][0] - alt) / (K[i][0] - K[i + 1][0]); return [hexMix(K[i][1], K[i + 1][1], t), hexMix(K[i][2], K[i + 1][2], t)]; }
 }
-const SD = { H: 198, cx: 92, cy: 82, R: 64, P: 50 };                 // the panel's height, the dial's centre, ring and plate radii
+const SD = { H: 198, cx: 92, cy: 82, R: 64, P: 50, ZR: 48, ZI: 33, ZW: 540 };   // the panel's height, the dial's centre, ring and plate radii;
+                                                                    // the zodiac wheel's radii, and the least width of the panel that shows it
 const sdAng = h => -(h - 12) / 24 * 2 * Math.PI;                       // (anticlockwise; noon at the top)
 const sdXY = (h, r) => [SD.cx + Math.sin(sdAng(h)) * r, SD.cy - Math.cos(sdAng(h)) * r];
 const OWL = '<g class="sdowl"><g class="owlw"><ellipse cx="-6" cy="2" rx="4" ry="7" transform="rotate(25 -6 2)"/><ellipse cx="6" cy="2" rx="4" ry="7" transform="rotate(-25 6 2)"/></g>'
@@ -179,14 +227,31 @@ function sdPanelHTML() {
     <g id="sdOwlPos" transform="translate(${SD.cx} ${SD.cy - 22})">${OWL}</g>
     <g clip-path="url(#sdAbove)"><g class="sdhpos"><circle r="22" fill="url(#sdGlow)" id="sdGlowC"/><circle r="8.5" class="sdsun"/></g></g>
     <g clip-path="url(#sdBelow)"><g class="sdhpos"><circle r="8" class="sdmoon"/><circle r="6.6" cx="3.4" cy="-2.2" class="sdmoonc"/></g></g><g class="sdhpos"><circle r="16" class="sdgrab"/></g>
+    ${zodWheelHTML()}
     <text id="sdLab" class="sdlab" x="${SD.cx}" y="${SD.H - 12}" text-anchor="middle"></text></svg>
     <div class="sdctl" id="sunCtl"></div><button type="button" class="sdx" data-sdclose="1" aria-label="Close" title="Close">×</button></div>`;
 }
+// the zodiac wheel: the signs anticlockwise, as in the sky; the wheel turns so that the sun's place stands at the top, under
+// the pointer (turned clockwise, the year goes on)
+const zXY = (a, r) => [(Math.sin(a * RAD) * r).toFixed(2), (-Math.cos(a * RAD) * r).toFixed(2)];
+function zodWheelHTML() {
+  const { ZR: R, ZI: I } = SD, rm = (R + I) / 2;
+  const div = Array.from({ length: 12 }, (_, i) => { const [a, b] = zXY(-30 * i, I), [c, d] = zXY(-30 * i, R); return `<line x1="${a}" y1="${b}" x2="${c}" y2="${d}"/>`; }).join('');
+  const dec = Array.from({ length: 36 }, (_, k) => k % 3 ? (() => { const [a, b] = zXY(-10 * k, R - 3), [c, d] = zXY(-10 * k, R); return `<line x1="${a}" y1="${b}" x2="${c}" y2="${d}"/>`; })() : '').join('');
+  const gl = ZOD.map((z, i) => { const a = -(30 * i + 15), [x, y] = zXY(a, rm); return `<path class="sdzg" data-z="${i}" transform="translate(${x} ${y}) rotate(${a}) scale(.9)" d="${z[4]}"/>`; }).join('');
+  return `<g id="sdZod" class="sdzod"><circle r="${R + 4}" class="sdrim"/><circle r="${R}" class="sdzband"/>
+      <g id="sdZodRot"><g class="sdzdiv">${div}</g><g class="sdzdec">${dec}</g>${gl}</g>
+      <circle r="${I}" fill="url(#sdStone)" class="sdplate"/><text id="sdZName" class="sdzname" y="4" text-anchor="middle"></text>
+      <path class="sdzptr" d="M-4.5 ${-(R + 12)}h9L0 ${-(R + 3)}z"/></g>
+    <text id="sdZLab" class="sdlab sdzlab" y="${SD.H - 12}" text-anchor="middle"></text>`;
+}
 function sdCtlHTML() {
-  const mode = M.cfg.sunMode || 'now', spd = M.cfg.sunSpeed || 20;
+  const mode = M.cfg.sunMode || 'now', spd = M.cfg.sunSpeed || 20, yr = M.cfg.sunYear || 20;
+  const play = `<button type="button" class="mico2" data-sunplay="1" aria-label="${M.sunPause ? 'Play' : 'Pause'}">${M.sunPause ? '▶' : '❚❚'}</button>`;
   return `<label class="sdrow">${SW('data-sunsw="1" aria-label="Day and night on the map"', sunOn())}<span>Day and night</span></label>`
-    + `<div class="seg" role="group">${[['now', 'Now'], ['anim', 'Animate']].map(([v, l]) => `<button type="button" data-sunmode="${v}" class="${mode === v ? 'on' : ''}">${l}</button>`).join('')}</div>`
-    + (mode === 'anim' ? `<div class="msun"><button type="button" class="mico2" data-sunplay="1" aria-label="${M.sunPause ? 'Play' : 'Pause'}">${M.sunPause ? '▶' : '❚❚'}</button><input type="range" min="0" max="100" value="${spdToV(spd)}" data-sunspeed="1" aria-label="Speed"><output>${spdLabel(spd)}</output></div>` : '')
+    + `<div class="seg" role="group">${[['now', 'Now'], ['anim', 'Animate'], ['year', 'Year']].map(([v, l]) => `<button type="button" data-sunmode="${v}" class="${mode === v ? 'on' : ''}">${l}</button>`).join('')}</div>`
+    + (mode === 'anim' ? `<div class="msun">${play}<input type="range" min="0" max="100" value="${spdToV(spd)}" data-sunspeed="1" aria-label="Speed"><output>${spdLabel(spd)}</output></div>` : '')
+    + (mode === 'year' ? `<div class="msun">${play}<input type="range" min="0" max="100" value="${yrToV(yr)}" data-sunyear="1" aria-label="Speed"><output>${yrLabel(yr)}</output></div>` : '')
     + `<div class="seg" role="group">${[['modern', 'Modern'], ['roman', 'Roman'], ['greek', 'Greek']].map(([v, l]) => `<button type="button" data-sunfmt="${v}" class="${(M.cfg.sunFmt || 'modern') === v ? 'on' : ''}">${l}</button>`).join('')}</div>`
     + `<div class="sdtg">${[['sunNight', 'Night'], ['sunAtm', 'Air']].map(([k, l]) => `<button type="button" data-suntg="${k}" class="${M.cfg[k] !== false ? 'on' : ''}" aria-pressed="${M.cfg[k] !== false}">${l}</button>`).join('')}</div>`
     + `<small class="sdsub" id="sdSub"></small>`;
@@ -228,25 +293,52 @@ function sundialPaint() {
   // the owl: lands when the handle enters the night, flies off when it leaves
   if (M.sdOwl !== !day) { M.sdOwl = !day; const o = $('#sdOwlPos .sdowl'); o.classList.remove('land', 'away'); void o.getBoundingClientRect(); o.classList.add(day ? 'away' : 'land'); }
   const l = sunLabel(); $('#sdLab').textContent = l.main; const sub = $('#sdSub'); if (sub) sub.textContent = l.sub;
+  // the zodiac wheel, where there is room: at the right, beside the controls
+  const zw = W >= SD.ZW; $('#sunPanel')?.classList.toggle('zw', zw);
+  if (zw) { const zx = W - SD.ZR - 16, e = sunPos(sunTime()).ecl, i = Math.floor(e / 30), fmt = M.cfg.sunFmt || 'modern';
+    M.zc = { x: zx, y: SD.cy };
+    $('#sdZod').setAttribute('transform', `translate(${zx.toFixed(1)} ${SD.cy})`); $('#sdZodRot').setAttribute('transform', `rotate(${e.toFixed(2)})`);
+    svg.querySelectorAll('.sdzg').forEach(p => p.classList.toggle('cur', +p.dataset.z === i));
+    $('#sdZName').textContent = ZOD[i][fmt === 'greek' ? 2 : fmt === 'roman' ? 1 : 0];
+    const zl = $('#sdZLab'); zl.textContent = l.sub; let tw = 0; try { tw = zl.getComputedTextLength(); } catch (_) {}
+    zl.setAttribute('x', Math.min(zx, W - 8 - tw / 2).toFixed(1)); }     // (a long date kept inside the panel)
 }
 // a finger (or the mouse) on the dial sets the hour; the day stays
 document.addEventListener('pointerdown', ev => {
   const svg = ev.target.closest?.('#sunSvg'); if (!svg) return;
   const near = e => { const r = svg.getBoundingClientRect(), x = e.clientX - r.left - SD.cx, y = e.clientY - r.top - SD.cy; return { x, y, d: Math.hypot(x, y) }; };
+  const mode = M.cfg.sunMode || 'now', zc = $('#sunPanel')?.classList.contains('zw') && M.zc;
+  if (zc) { const r = svg.getBoundingClientRect(), za = e => Math.atan2(e.clientX - r.left - zc.x, -(e.clientY - r.top - zc.y)) / RAD;
+    if (Math.hypot(ev.clientX - r.left - zc.x, ev.clientY - r.top - zc.y) <= SD.ZR + 12) {   // the wheel: the day of the year (the hour kept)
+      ev.preventDefault(); svg.setPointerCapture?.(ev.pointerId);
+      if (mode === 'now' || mode === 'anim') { M.cfg.sunMode = 'set'; saveMapCfg(); sunClock(); $('#sunCtl').innerHTML = sdCtlHTML(); }
+      const T0 = sunTime(), e0 = sunPos(T0).ecl; let prev = za(ev), turn = 0; M.sunDrag = true;
+      const mv = e => { const a = za(e); turn += ((a - prev) % 360 + 540) % 360 - 180; prev = a;
+        let t = T0 + turn / 360 * 365.2422 * 864e5;
+        for (let k = 0; k < 3; k++) t += (((e0 + turn - sunPos(t).ecl) % 360 + 540) % 360 - 180) / 0.98565 * 864e5;
+        M.sunT = T0 + Math.round((t - T0) / 864e5) * 864e5; sunApply(); };
+      const up = () => { M.sunDrag = false; removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); };
+      addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+      return; } }
   if (near(ev).d > SD.R + 22) return;                                   // (only on and around the dial)
   ev.preventDefault(); svg.setPointerCapture?.(ev.pointerId);
   const setT = e => { const { x, y } = near(e), h = ((12 - Math.atan2(x, -y) / (2 * Math.PI) * 24) % 24 + 24) % 24, { lst } = sunHour();
     let dh = h - lst; if (dh > 12) dh -= 24; if (dh < -12) dh += 24; M.sunT = sunTime() + dh * 36e5; sunApply(); };
-  if ((M.cfg.sunMode || 'now') !== 'set') { M.cfg.sunMode = 'set'; saveMapCfg(); sunClock(); $('#sunCtl').innerHTML = sdCtlHTML(); }
-  setT(ev);
-  const mv = e => setT(e), up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); };
+  if (mode !== 'set' && mode !== 'year') { M.cfg.sunMode = 'set'; saveMapCfg(); sunClock(); $('#sunCtl').innerHTML = sdCtlHTML(); }
+  M.sunDrag = true; setT(ev);                                           // (the year, running, waits while the hour is set)
+  const mv = e => setT(e), up = () => { M.sunDrag = false; removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); };
   addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);
 });
 document.addEventListener('change', ev => { if (ev.target.closest?.('[data-sunsw]')) sunSet({ sun: ev.target.checked }).then(() => { const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML(); sundialPaint(); }); });
 // the speed: one day in 60 s … 5 s (a logarithmic slider)
 const spdToV = s => Math.round(Math.log(60 / s) / Math.log(12) * 100), vToSpd = v => 60 / 12 ** (v / 100);
 const spdLabel = s => `a day in ${s >= 9.95 ? Math.round(s) : s.toFixed(1)} s`;
+// the year: one year in 77 s … 7 s
+const yrToV = s => Math.round(Math.log(77 / s) / Math.log(11) * 100), vToYr = v => 77 / 11 ** (v / 100);
+const yrLabel = s => `a year in ${Math.round(s)} s`;
 document.addEventListener('input', ev => {
+  const y = ev.target.closest?.('input[data-sunyear]');
+  if (y) { M.cfg.sunYear = vToYr(+y.value); y.nextElementSibling.textContent = yrLabel(M.cfg.sunYear); clearTimeout(M.sunSpdT); M.sunSpdT = setTimeout(saveMapCfg, 400); return; }
   const r = ev.target.closest?.('input[data-sunspeed]'); if (!r) return;
   M.cfg.sunSpeed = vToSpd(+r.value); r.nextElementSibling.textContent = spdLabel(M.cfg.sunSpeed);
   clearTimeout(M.sunSpdT); M.sunSpdT = setTimeout(saveMapCfg, 400);
