@@ -3,7 +3,7 @@
   {
    "id": "base",
    "name": "Base map",
-   "desc": "Land, lakes and rivers of the whole globe (Natural Earth, public domain) and the map engine (MapLibre GL JS)",
+   "desc": "The whole globe as NASA’s Blue Marble (April, to zoom 6), its land, lakes and rivers (Natural Earth, public domain), and the map engine (MapLibre GL JS)",
    "files": [
     "base/land.json",
     "base/lakes.json",
@@ -13,10 +13,11 @@
     "base/lib/maplibre-gl.css",
     "base/lib5/maplibre-gl.js",
     "base/lib5/maplibre-gl.css",
-    "base/lib/pmtiles.js"
+    "base/lib/pmtiles.js",
+    "base/bluemarble.pmtiles"
    ],
-   "bytes": 5599967,
-   "v": "45214f4384b5",
+   "bytes": 21372081,
+   "v": "aaaafcf0dd9a",
    "url": "https://j555g.github.io/lesepult-maps/"
   },
   {
