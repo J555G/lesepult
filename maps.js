@@ -677,7 +677,7 @@ async function showMap1() {
   if (!M.map) {
     box.innerHTML = `<div id="mapCanvas"></div><div class="mlabels" id="mapLabels"></div>
       <div class="mtop"><button type="button" class="mscope" id="mapScope"></button><button type="button" class="mcheck" id="mapCheck" hidden></button></div>
-      <div class="mctl"><button type="button" class="mico" id="mapLayersBtn" title="Layers" aria-label="Layers">${LAYERS_ICON}</button><button type="button" class="mico" id="mapTimeBtn" title="Period filter" aria-label="Period filter">${CLOCK_ICON}</button><button type="button" class="mico" id="mapDrawBtn" title="Draw on the map" aria-label="Draw on the map">${PEN_ICON}</button><button type="button" class="mico" id="mapSaveBtn" title="Saved maps and export" aria-label="Saved maps and export">${SAVE_ICON}</button>${viewBtnsHTML()}</div>
+      <div class="mctl"><button type="button" class="mico" id="mapSaveBtn" title="Saved maps and export" aria-label="Saved maps and export">${SAVE_ICON}</button><button type="button" class="mico" id="mapDrawBtn" title="Draw on the map" aria-label="Draw on the map">${PEN_ICON}</button><button type="button" class="mico" id="mapTimeBtn" title="Period filter" aria-label="Period filter">${CLOCK_ICON}</button><button type="button" class="mico" id="mapLayersBtn" title="Layers" aria-label="Layers">${LAYERS_ICON}</button><button type="button" class="mico" id="mapOptsBtn" title="Map: base map, relief, view, sunlight" aria-label="Map options">${MAPOPT_ICON}</button></div><button type="button" class="mico mnorth" id="mapNorth" title="North up" aria-label="North up" hidden>${COMPASS_ICON}</button>
       <div class="mhandles" id="mapHandles"></div>
       <div class="mtime" id="mapTime" hidden>${timeBarHTML()}</div><div class="mdraw" id="mapDraw" hidden></div>
       <div class="minfo" id="mapInfo" hidden><span class="mscale" id="mapScale"><i></i><b></b></span><span class="mzoom" id="mapZoom"></span></div>
@@ -688,12 +688,13 @@ async function showMap1() {
     M.colors = mapColors();
     const v = (await setting('mpos|last')) || { c: [24, 38], z: 4 };
     M.step = 'map'; try {
-      M.map = new maplibregl.Map({ container: 'mapCanvas', style: mapStyle(M.colors), center: v.c, zoom: v.z, attributionControl: false, dragRotate: M.cfg.t3d !== false, pitchWithRotate: true, maxPitch: M.cfg.t3d !== false ? 70 : 0, maxZoom: 16, minZoom: 0 });
+      M.map = new maplibregl.Map({ container: 'mapCanvas', style: mapStyle(M.colors), center: v.c, zoom: v.z, attributionControl: false, dragRotate: true, pitchWithRotate: true, maxPitch: M.cfg.t3d !== false ? 70 : 0, maxZoom: 16, minZoom: 0 });
     } catch (e) { M.map = null; return mapFailed(e.message || String(e)); }
     // problems are shown instead of an empty map: errors while loading, the graphics memory lost (phones)
     M.map.on('error', e => { M.lastErr = e?.error?.message || String(e?.error || e); console.warn('map:', M.lastErr); });
     M.map.getCanvas().addEventListener('webglcontextlost', () => { if (!M.failing) mapFailed('The graphics memory of the device was needed elsewhere.'); });
-    M.map.touchZoomRotate.disableRotation();
+    M.map.on('rotate', compassUpd);
+    M.map.on('style.load', () => setTimeout(sunApply, 0));         // (a new style: the sun's light again)                                // (turning: two fingers, or the right mouse button)
     // the credits of the map are in ☰ → Acknowledgements (and on exported maps)
     M.map.on('move', () => { if (!M.lblRaf) M.lblRaf = requestAnimationFrame(() => { M.lblRaf = 0; drawLabels(); mapInfo(); }); });
     M.map.on('idle', () => { if (M.cfg.pfOn === false || relOn('relContours')) drawLabels(); });
@@ -714,7 +715,7 @@ async function showMap1() {
     M.map.on('mouseleave', 'pl', () => { M.map.getCanvas().style.cursor = ''; });
     M.step = 'loading the map'; const ok = await Promise.race([new Promise(r => M.map.once('load', () => r(true))), new Promise(r => setTimeout(() => r(false), 20000))]);
     if (!ok) return mapFailed('The map did not finish loading.' + (M.lastErr ? ' Last error: ' + M.lastErr : ''));
-    imgCredit();
+    imgCredit(); compassUpd(); sunClock();
     wireMapUI(); wireTime(); wireDraw(); mapInfo();
   } else M.map.resize();
   M.step = 'places'; renderTime();
@@ -939,7 +940,7 @@ function wireMapUI() {
       else for (const [i, h] of M.hits) if (i !== s0.i && exKey(h.name) === exKey(s0.name)) await setting(`pl|${t.id}|${i}`, Object.assign({ name: h.name }, v));
       $('#mapAlso').innerHTML = ''; M.workCache = null; M.anyCache = null; await placesForText(); await refreshMapData(); note('Applied.'); return;
     }
-    if (await drawUIClick(b) || await layerClick(b) || await savedClick(b)) return;
+    if (await mapOptsClick(b) || await drawUIClick(b) || await layerClick(b) || await savedClick(b)) return;
     if (b.id === 'mapScope') return scopePop();
     if (b.id === 'mapLayersBtn') return layersPop();
     if (b.id === 'mapSaveBtn') return savePop();
@@ -1079,10 +1080,9 @@ async function viewToggle(k) {
   if (m && k === 'globe') m.setProjection({ type: on ? 'globe' : 'mercator' });
   if (m && k === 't3d') {
     m.setMaxPitch(on ? 70 : 0);
-    if (on) { m.dragRotate.enable(); if (m.getSource('terrdem')) m.setTerrain(T3D()); if (m.getZoom() >= 4 && m.getPitch() < 5) m.easeTo({ pitch: 50, duration: 600 }); }
-    else { m.dragRotate.disable(); m.setTerrain(null); m.easeTo({ pitch: 0, bearing: 0, duration: 400 }); }
+    if (on) { if (m.getSource('terrdem')) m.setTerrain(T3D()); if (m.getZoom() >= 4 && m.getPitch() < 5) m.easeTo({ pitch: 50, duration: 600 }); }
+    else { m.setTerrain(null); m.easeTo({ pitch: 0, duration: 400 }); }
   }
-  const b = $(k === 'globe' ? '#mapGlobeBtn' : '#map3dBtn'); if (b) b.outerHTML = viewBtnsHTML().split('</button>')[k === 'globe' ? 0 : 1] + '</button>';
   drawLabels();
 }
 // a point on the screen – on the globe, places on its far side are left out (moved far off the screen)

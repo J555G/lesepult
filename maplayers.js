@@ -178,6 +178,7 @@ function layerStyle(st, C) {
     'circle-opacity': 0.85, 'circle-stroke-opacity': 0.85 } });
   imgStyle(st, C);                                                  // the imagery (mapimg.js), beneath the relief shading
   reliefStyle(st, C);                                               // relief, contour lines, sea depth (maprelief.js)
+  sunStyle(st);                                                     // day and night (mapsun.js)
   applyLayersTo(st.layers);
   return st;
 }
@@ -503,10 +504,6 @@ function layersHTML() {
   return grp('lplaces', 'Places', on('peoples', c.pfOn === false), tgl('peoples', 'Peoples among the places of the text')
       + `<div class="navh">All places <small>(shown while “Places from” is switched off)</small></div><div class="macts" style="margin:.1rem 0 .3rem"><button type="button" data-mcatall="1">All</button><button type="button" data-mcatall="0">None</button></div><div class="mcats">`
       + SITE_CATS.map(([k, lb, , c1, c2]) => `<button type="button" class="mtg${c.cats?.[k] ? ' on' : ''}" data-mcat="${k}"><span class="ck"></span><i class="dot" style="--c:${dark ? c2 : c1}"></i>${lb}</button>`).join('') + '</div>')
-    + grp('lland', 'Landscape', on('rivers', 'lakes'), imgMenuHTML()
-      + ((c.img === 'none') && (c.basemap || 'hd') === 'hd' && !M.pkFiles?.has('landscape/landscape.pmtiles') ? '<p class="hint small">Needs the download <b>Landscape – detailed</b>.</p><button type="button" data-mapdl="1">Open Instruments → Map</button>' : '')
-      + tgl('rivers', 'Rivers', c.rivers !== false) + tgl('lakes', 'Lakes', c.lakes !== false)
-      + reliefMenuHTML())
     + grp('lpol', 'Political', on(!!(anc && c.empires), !!(anc && c.provinces !== false), !!(anc && c.regArea), 'borders'), (anc ? tgl('empires', 'Empires and kingdoms at the date') + tgl('provinces', 'Roman provinces at the date', c.provinces !== false) + tgl('regArea', 'Areas of regions and peoples') : need) + tgl('borders', 'Modern borders'))
     + grp('lbuilt', 'Built world', on(...(built || it ? ['roads'] : []), ...(built ? ['urban', 'aqueducts', 'walls', 'canals'] : [])),
         (built || it ? tgl('roads', it ? 'Roman roads (Itiner-e)' : 'Roads (Barrington Atlas)') : '') + (built ? tgl('aqueducts', 'Aqueducts') + tgl('walls', 'Frontier walls (Hadrian’s Wall, limes …)') + tgl('canals', 'Canals') + tgl('urban', 'City outlines') : needB))
@@ -552,13 +549,14 @@ function rightPop(k, title, html) {
   pop.dataset.k = k; pop.classList.add('mlayers', 'right');
   pop.innerHTML = `<div class="mph"><span class="navh">${title}</span></div>${html}`;   // closed by its button or another menu
   pop.hidden = false; pop.scrollTop = M.cfg.popScroll?.[k] || 0;
-  if (!pop._sw) { pop._sw = true; pop.addEventListener('scroll', () => { const kk = pop.dataset.k; if (kk !== 'layers' && kk !== 'settings') return; clearTimeout(pop._st); pop._st = setTimeout(() => { (M.cfg.popScroll ??= {})[kk] = pop.scrollTop; saveMapCfg(); }, 300); }); }
+  if (!pop._sw) { pop._sw = true; pop.addEventListener('scroll', () => { const kk = pop.dataset.k; if (kk !== 'layers' && kk !== 'settings' && kk !== 'mapopts') return; clearTimeout(pop._st); pop._st = setTimeout(() => { (M.cfg.popScroll ??= {})[kk] = pop.scrollTop; saveMapCfg(); }, 300); }); }
 }
 function layersPop() { rightPop('layers', 'Layers', layersHTML()); }
 // after a change: the counts in the group headings are brought up to date (scroll position kept)
 function refreshLayersPop() {
-  const pop = $('#mapPop'); if (pop.hidden || pop.dataset.k !== 'layers') return;
-  const y = pop.scrollTop; pop.innerHTML = `<div class="mph"><span class="navh">Layers</span></div>${layersHTML()}`; pop.scrollTop = y;
+  const pop = $('#mapPop'); if (pop.hidden || !['layers', 'mapopts'].includes(pop.dataset.k)) return;
+  const m = pop.dataset.k === 'mapopts', y = pop.scrollTop; pop.innerHTML = `<div class="mph"><span class="navh">${m ? 'Map' : 'Layers'}</span></div>${m ? mapOptsHTML() : layersHTML()}`; pop.scrollTop = y;
+  if (m) sundialPaint();
 }
 // hold the map button: the map settings as one menu (like the colours and the grammar line)
 async function mapSettingsDialog() { await mapCfg(); await dialog(`<h3>Map settings</h3><div class="mapset">${settingsHTML()}</div>`, [['cancel', 'Close']]); }
@@ -634,7 +632,7 @@ document.addEventListener('input', ev => {
 // a tap outside a menu of the map closes it (the buttons that open the menus toggle them themselves)
 document.addEventListener('pointerdown', ev => {
   const pop = document.getElementById('mapPop'); if (!pop || pop.hidden) return;
-  if (ev.target.closest('#mapPop, #mapScope, #mapLayersBtn, #mapSaveBtn, #mapDrawBtn, #mapCheck, #tabMap, dialog, #toast')) return;
+  if (ev.target.closest('#mapPop, #mapScope, #mapLayersBtn, #mapOptsBtn, #mapSaveBtn, #mapDrawBtn, #mapCheck, #tabMap, dialog, #toast')) return;
   if (['layers', 'save'].includes(pop.dataset.k)) return;               // these stay open while the map is moved
   pop.hidden = true;
 }, true);

@@ -1870,3 +1870,24 @@ dialog .sortpair button{transition:border-color .15s}
 #mapBody:has(.mtime:not([hidden])) .mcred{bottom:92px}
 .msel{font:13px var(--ui);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:.25rem .5rem;max-width:12rem}
 .mpop .seg.wrap{flex-wrap:wrap}
+/* the map menu (v297): the compass, the projection button, sunlight and the sundial */
+.mnorth{position:absolute;top:54px;right:8px;z-index:3}
+.mnorth svg{transition:transform .1s linear}
+.mpop .mproj{display:flex;align-items:center;gap:.5rem}
+.mpop .mproj .projic{flex:none;color:var(--fg)}
+.msun{display:flex;align-items:center;gap:.5rem;margin:.4rem 0}
+.msun input[type=range]{flex:1;min-width:0}
+.msun output{font:12px var(--ui);color:var(--mut);white-space:nowrap}
+.sdial{display:flex;flex-direction:column;align-items:center;margin:.5rem 0 .3rem}
+.sdial svg{width:150px;height:150px;touch-action:none;cursor:grab}
+.sdial svg line{stroke:var(--mut);stroke-width:1}
+.sdial .sdring{fill:none;stroke:var(--line);stroke-width:1}
+.sdial .sdin{fill:color-mix(in srgb,var(--fg) 4%,transparent);stroke:var(--line);stroke-width:.6}
+.sdial .sdday{fill:none;stroke:#e0a83a;stroke-width:3;stroke-linecap:round;opacity:.55}
+.sdial .sdshadow{stroke:var(--fg)!important;stroke-width:2!important;stroke-linecap:round}
+.sdial .sdg{fill:var(--fg)}
+.sdial .sdsun{fill:#f2b632;stroke:#fff6;stroke-width:1}
+.sdial .sdsun.down{fill:#5b6a8a}
+.sdlab{text-align:center;margin-top:.2rem}
+.sdlab b{display:block;font:600 17px var(--greek)}
+.sdlab small{font:11.5px var(--ui);color:var(--mut)}

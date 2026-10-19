@@ -79,16 +79,14 @@ function imgLayerProps() {
     'img-coast': { vis: v(c.coasts !== false) }, 'img-hdcoast': { vis: v(c.coasts !== false) },
     'img-lakes': { vis: v(c.lakes !== false) }, 'img-hdlakes': { vis: v(c.lakes !== false) } };
 }
-// the credits of what is shown, small in the corner of the map (the providers ask for them beside the map)
+// the credits of Sentinel-2 and Esri, small in the corner of the map (both ask for them beside the map; the rest: ☰ → Acknowledgements)
 function imgCredit() {
   const el = $('#mapCred'); if (!el) return;
   const on = imgOn() && imgOnline(), k = imgKind(), parts = [];
   if (imgOn()) {
-    if (!on || k === 'bm') parts.push('Blue Marble: NASA Earth Observatory');
     if (on && k === 's2') parts.push(`<a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless – s2maps.eu</a> by EOX IT Services GmbH (Contains modified Copernicus Sentinel data ${esc(on.s2year)})`);
     if (on && k === 'esri') parts.push('Esri, Maxar, Earthstar Geographics, and the GIS User Community' + (on.wbDate ? ` · Wayback ${esc(on.wbDate)}` : ''));
   }
-  if (M.rel?.online) parts.push('Elevation: <a href="https://mapterhorn.com/attribution" target="_blank" rel="noopener">Mapterhorn</a>');
   el.innerHTML = parts.join(' · '); el.hidden = !parts.length;
 }
 // online or offline again: the layers follow
