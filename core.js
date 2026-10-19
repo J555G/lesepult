@@ -152,3 +152,22 @@ const S = {
   posOn: false, posCfg: null, srcColors: true,
   lemmaGloss: {},        // lemma key -> default gloss (all texts)
 };
+
+// ---------------------------------------------------------------- the Apple Pencil's handwriting (Scribble) on the iPad
+// iPadOS treats a wide margin around every text field as a place to write in, and takes Pencil taps there for
+// handwriting – taps on buttons near a field (the Library's tabs, the sort buttons) went astray. A read-only field is
+// no place to write, so on the iPad the text fields stay read-only while not in use and unlock the moment they are
+// touched (before the system focuses them) or focused otherwise (Tab, by Pult itself); on leaving they lock again.
+const IS_IPAD = /iPad/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+if (IS_IPAD) {
+  const FIELD = 'input:is([type=text],[type=search],[type=number],[type=email],[type=url],[type=tel],:not([type])),textarea';
+  const lock = el => { if (el !== document.activeElement && !el.readOnly && !el.disabled) { el.readOnly = true; el.dataset.pl = '1'; } };
+  const unlock = el => { if (el?.dataset?.pl) { el.readOnly = false; delete el.dataset.pl; } };
+  const lockIn = root => { if (root.nodeType !== 1) return; if (root.matches(FIELD)) lock(root); root.querySelectorAll(FIELD).forEach(lock); };
+  document.addEventListener('pointerdown', e => unlock(e.target.closest?.(FIELD)), true);
+  document.addEventListener('touchstart', e => unlock(e.target.closest?.(FIELD)), { capture: true, passive: true });
+  document.addEventListener('focusin', e => unlock(e.target.closest?.(FIELD)), true);
+  document.addEventListener('focusout', e => { const el = e.target.closest?.(FIELD); if (el) setTimeout(() => lock(el), 0); }, true);
+  const start = () => { lockIn(document.body); new MutationObserver(ms => { for (const m of ms) m.addedNodes.forEach(lockIn); }).observe(document.body, { childList: true, subtree: true }); };
+  document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', start) : start();
+}
