@@ -439,11 +439,13 @@ async function outlineHTML(key) {
   let h = '';
   for (let bi = 0; bi < W.books.length; bi++) {
     const k = 'part|' + bi, here = cur && bi === t.bi, open = S.navOpen.has(k) || (here && !S.navShut.has(k));
-    const T = await partTraces(key, bi), m = { mk: T.mk != null && !open, gl: T.gl.length > 0 };   // (an unfolded part: its bookmark on the row beneath)
+    const T = await partTraces(key, bi), m = { mk: T.mk != null, gl: T.gl.length > 0 };
+    const list = open ? await refsFor(key, bi) : null, tree = open ? refTree(list) : null;
+    if (m.mk && open && tree.kids.some(k => rangeHas(T, ...nodeRange(k, list)).mk)) m.mk = false;   // (unfolded: the bookmark on the row beneath that holds it)
     h += `<div class="olrow d0 part${here ? ' path' : ''}"><button type="button" class="olt" data-olt="${k}" aria-expanded="${open}">${open ? '▾' : '▸'}</button>`
       + `<button type="button" class="olj" data-sec="" data-secpart="${bi}"><span class="olx">${esc(W.books[bi])}</span></button>`
       + `<button type="button" class="olrest" data-olt="${k}" aria-expanded="${open}" tabindex="-1" aria-hidden="true"><span class="olm">${marksHTML(m)}</span></button></div>`;
-    if (open) { const list = await refsFor(key, bi), tree = refTree(list); h += tree.kids.length ? outlineNodes(tree.kids, bi, here ? cr : null, 1, list, T) : '<p class="hint" style="font-size:13px;margin:.2rem 0 .4rem 2.4rem">No numbered sections.</p>'; }
+    if (open) { h += tree.kids.length ? outlineNodes(tree.kids, bi, here ? cr : null, 1, list, T) : '<p class="hint" style="font-size:13px;margin:.2rem 0 .4rem 2.4rem">No numbered sections.</p>'; }
   }
   return h;
 }
