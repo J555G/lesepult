@@ -151,7 +151,7 @@ function drawLabelsOwn(placed, W, H) {
   for (const p of M.own?.values() || []) {
     if (!dShown(p) || M.shown?.has(p.id)) continue;
     const o = dState(p); if (!o) continue;
-    const pt = M.map.project([p.lon, p.lat]); if (out(pt.x, pt.y)) continue;
+    const pt = mapPt([p.lon, p.lat]); if (out(pt.x, pt.y)) continue;
     ctx.font = '600 13px "Gentium Book Plus", serif';
     const w = ctx.measureText(p.t).width + 4, r = [pt.x + 7, pt.y - 15, pt.x + 7 + w, pt.y + 1];
     placed.push(r); M.lblHit.push([r, p.id]);
@@ -162,7 +162,7 @@ function drawLabelsOwn(placed, W, H) {
     const o = dState(x); if (!o) continue;
     const col = x.c || D_COLS[0];
     if (x.kind === 'text') {
-      const pt = M.map.project(x.co[0]); if (out(pt.x, pt.y)) continue;
+      const pt = mapPt(x.co[0]); if (out(pt.x, pt.y)) continue;
       const fs = D_TS[x.lw || 2]; ctx.font = `600 ${fs}px "Gentium Book Plus", serif`;
       const w = ctx.measureText(x.t || '').width + 4, r = [pt.x - w / 2, pt.y - fs / 2 - 2, pt.x + w / 2, pt.y + fs / 2 + 2];
       placed.push(r); M.dHit.push([r, x.id]);
@@ -171,13 +171,13 @@ function drawLabelsOwn(placed, W, H) {
     }
     if (x.t) {                                                   // the name of a line or area: in the middle
       const pts = x.co, c = x.kind === 'area' ? pts.reduce((a, q) => [a[0] + q[0] / pts.length, a[1] + q[1] / pts.length], [0, 0]) : pts[pts.length >> 1];
-      const pt = M.map.project(c);
+      const pt = mapPt(c);
       if (!out(pt.x, pt.y)) { ctx.font = 'italic 600 12.5px "Gentium Book Plus", serif'; const w = ctx.measureText(x.t).width + 4, r = x.kind === 'area' ? [pt.x - w / 2, pt.y - 8, pt.x + w / 2, pt.y + 8] : [pt.x + 6, pt.y - 16, pt.x + 6 + w, pt.y];
         placed.push(r); M.dHit.push([r, x.id]); h += put('dn', x.t, r[0], r[1], 12.5, col, o); }
     }
     if (M.cfg.dLen && M.cfg.dLen !== 'off' && x.co.length > 1) {   // the length at the end of a line (an area: its size)
       const area = x.kind === 'area', c = area ? x.co.reduce((a, q) => [a[0] + q[0] / x.co.length, a[1] + q[1] / x.co.length], [0, 0]) : x.co[x.co.length - 1];
-      const pt = M.map.project(c); if (out(pt.x, pt.y)) continue;
+      const pt = mapPt(c); if (out(pt.x, pt.y)) continue;
       const txt = area ? fmtArea(areaKm2(x.co)) : dLenShort(lenKm(x.co));
       h += put('dlen', txt, pt.x + (area ? -20 : 8), pt.y + (area && x.t ? 9 : 2), 11, col, o);
     }
@@ -192,10 +192,10 @@ function tapDrawing(pt, own) {
   const sd = (p, a, b) => { const dx = b.x - a.x, dy = b.y - a.y, l = dx * dx + dy * dy; let t = l ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / l : 0; t = Math.max(0, Math.min(1, t)); return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy); };
   const pip = (p, ps) => { let c = false; for (let i = 0, j = ps.length - 1; i < ps.length; j = i++) if ((ps[i].y > p.y) !== (ps[j].y > p.y) && p.x < (ps[j].x - ps[i].x) * (p.y - ps[i].y) / (ps[j].y - ps[i].y) + ps[i].x) c = !c; return c; };
   let best = null;
-  if (own) for (const p of M.own?.values() || []) { if (!dShown(p) || !dState(p)) continue; const q = M.map.project([p.lon, p.lat]), d = Math.hypot(q.x - pt.x, q.y - pt.y) - 4; if (d <= r && (!best || d < best.d)) best = { id: p.id, d }; }
+  if (own) for (const p of M.own?.values() || []) { if (!dShown(p) || !dState(p)) continue; const q = mapPt([p.lon, p.lat]), d = Math.hypot(q.x - pt.x, q.y - pt.y) - 4; if (d <= r && (!best || d < best.d)) best = { id: p.id, d }; }
   for (const x of M.draw?.values() || []) {
     if (x.kind === 'text' || !dShown(x) || !dState(x) || !x.co?.length) continue;
-    const ps = x.co.map(c => M.map.project(c)), seq = x.kind === 'area' ? [...ps, ps[0]] : ps;
+    const ps = x.co.map(c => mapPt(c)), seq = x.kind === 'area' ? [...ps, ps[0]] : ps;
     let d = Infinity; for (let i = 1; i < seq.length; i++) d = Math.min(d, sd(pt, seq[i - 1], seq[i]));
     if (x.kind === 'area' && pip(pt, ps)) d = Math.min(d, r * 0.9);     // inside an area counts, but nearer lines win
     if (d <= r && (!best || d < best.d)) best = { id: x.id, d };

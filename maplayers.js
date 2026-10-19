@@ -282,7 +282,7 @@ function moreLabels(placed, W, H) {
     for (const L of M.ancLab) {
       if (!kinds.has(L.k) || L.bb[2] < b.getWest() || L.bb[0] > b.getEast() || L.bb[3] < b.getSouth() || L.bb[1] > b.getNorth()) continue;
       const st = tState(L.y0, L.y1); if (!st.o) continue;
-      let p = M.map.project(L.a), q = M.map.project(L.b); if (p.x > q.x) [p, q] = [q, p];
+      let p = mapPt(L.a), q = mapPt(L.b); if (p.x > q.x) [p, q] = [q, p];
       const len = Math.hypot(q.x - p.x, q.y - p.y); if (len < 30) continue;
       items.push({ L, p, q, len, st });
     }
@@ -309,7 +309,7 @@ function moreLabels(placed, W, H) {
     for (const f of M.map.queryRenderedFeatures({ layers: ['sites'] })) {
       const id = f.properties.id; if (seen.has(id)) continue; seen.add(id);
       const p = M.P?.byId.get(id); if (!p) continue;
-      const pt = M.map.project([p.lon, p.lat]); if (pt.x < 0 || pt.x > W || pt.y < 0 || pt.y > H) continue;
+      const pt = mapPt([p.lon, p.lat]); if (pt.x < 0 || pt.x > W || pt.y < 0 || pt.y > H) continue;
       if ((p.w || 0) < minW) continue;
       cand.push({ p, pt, w: (p.w || 0) * 100 + Math.min(p.names.length, 20) });
     }
@@ -556,8 +556,7 @@ function settingsHTML() {
     + `<div class="navh">Significance of places</div><p class="hint small">Zoomed out, only the more significant places are shown, and their names come first. How much counts:</p>`
     + SIG_UI.map(([k, lb, a, b, st]) => { const v = (M.cfg.sigW?.[k] ?? SIG_DEF[k]); return `<label class="msig"><span>${lb}</span><input type="range" min="${a}" max="${b}" step="${st}" value="${v}" data-msig="${k}"><output>${v}</output></label>`; }).join('')
     + `<div class="macts"><button type="button" data-msigreset="1">Standard weights</button><button type="button" data-mcount="1">Count the places in all texts</button></div>${M.P && !M.P.hasConn ? '<p class="hint small">Update the download <b>Ancient places (Pleiades)</b> (Instruments → Map) for the links between places.</p>' : ''}`
-    + `<div class="navh">Map engine</div>` + line('MapLibre', `<div class="seg" role="group">${[['5', '5.24'], ['4', '4.7 (previous)']].map(([v, l]) => `<button type="button" data-mengine="${v}" class="${(M.engineSet || '5') === v ? 'on' : ''}">${l}</button>`).join('')}</div>`)
-    + `<p class="hint small">If the map does not appear or behaves oddly, use the previous engine. Takes effect when Pult is opened again.</p>`;
+    ;
 }
 function rightPop(k, title, html) {
   const pop = $('#mapPop'); if (!pop.hidden && pop.dataset.k === k) { pop.hidden = true; return; }
@@ -589,8 +588,6 @@ async function layerClick1(b) {
   const d = b.dataset;
   if (d.mfold) { const f = b.closest('.mfold'), on = !f.classList.contains('open'); f.classList.toggle('open', on); (M.cfg.fold ??= {})[d.mfold] = on; saveMapCfg(); return true; }
   if (d.mcount) { countDevice(b); return true; }
-  if (d.mengine) { M.engineSet = d.mengine; await setting('mapEngine', d.mengine); b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
-    if (d.mengine !== (M.engineDir === 'base/lib/' ? '4' : '5') && window.maplibregl) { const r = await dialog('<h3>Map engine</h3><p>Reload Pult now to use it?</p>', [['cancel', 'Later'], ['ok', 'Reload']], 'ok'); if (r.action === 'ok') location.reload(); } return true; }
   if (d.msigreset) { M.cfg.sigW = null; await saveMapCfg(); b.closest('.mfb').querySelectorAll('[data-msig]').forEach(x => { x.value = SIG_DEF[x.dataset.msig]; x.nextElementSibling.textContent = x.value; }); recomputeSig(); return true; }
   if (d.mcatall != null) { const on = d.mcatall === '1'; M.cfg.cats = Object.fromEntries(SITE_CATS.map(c => [c[0], on])); $('#mapPop .mcats')?.querySelectorAll('[data-mcat]').forEach(x => x.classList.toggle('on', on)); await saveMapCfg(); applyLayers(); return true; }
   if (d.mcat) { (M.cfg.cats ??= {})[d.mcat] = !M.cfg.cats[d.mcat]; b.classList.toggle('on', M.cfg.cats[d.mcat]);  await saveMapCfg(); applyLayers(); return true; }

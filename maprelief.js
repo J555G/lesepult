@@ -5,7 +5,7 @@
 // The map engine shades them (hillshade, in the colours of the theme), colours them by height (MapLibre 5: color-relief),
 // and maplibre-contour draws contour lines from them; the numbers of the contour lines are drawn with the other labels.
 // Sea depths: Natural Earth (relief/bathy.pmtiles, vector). Settings (mapCfg): relShade, relColor, relContours, relBathy.
-const REL_DEF = { relShade: true, relColor: false, relContours: false, relBathy: true };
+const REL_DEF = { relShade: true, relColor: false, relContours: true, relBathy: true };
 const engineMajor = () => parseInt((window.maplibregl?.getVersion?.() || window.maplibregl?.version || '4'), 10);
 const relOn = k => M.cfg?.[k] ?? REL_DEF[k];
 const relFiles = () => [...(M.pkFiles || [])].filter(f => /^relief\/.*\.pmtiles$/.test(f) && !/bathy\.pmtiles$/.test(f));
@@ -178,6 +178,8 @@ function reliefStyle(st, C) {
   }
   if (!M.relDem) return;
   st.sources.reldem = { type: 'raster-dem', tiles: [M.relDem.sharedDemProtocolUrl], encoding: 'terrarium', tileSize: 256, maxzoom: M.rel.maxz };
+  st.sources.terrdem = { type: 'raster-dem', tiles: [M.relDem.sharedDemProtocolUrl], encoding: 'terrarium', tileSize: 256, maxzoom: M.rel.maxz };   // (3D: its own source, as MapLibre advises)
+  if (viewOn('t3d')) st.terrain = T3D();
   const below = ['a-water', 'a-areas', 'a-emp', 'lakes'].map(at).find(k => k >= 0) ?? at('lakes');
   const ls = [];
   if (engineMajor() >= 5) {                                          // colours by height (MapLibre 5)
@@ -216,7 +218,7 @@ function contourLabels(placed, W, H) {
     const lines = f.geometry.type === 'MultiLineString' ? f.geometry.coordinates : [f.geometry.coordinates];
     for (const ln of lines) {
       if (ln.length < 4) continue;
-      const m = Math.floor(ln.length / 2), a = M.map.project(ln[m - 1]), b = M.map.project(ln[m + 1]);
+      const m = Math.floor(ln.length / 2), a = mapPt(ln[m - 1]), b = mapPt(ln[m + 1]);
       const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2; if (cx < 20 || cx > W - 20 || cy < 20 || cy > H - 20) continue;
       const key = `${f.properties.ele}|${Math.round(cx / 120)}|${Math.round(cy / 120)}`; if (seen.has(key)) continue; seen.add(key);
       let ang = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI; if (ang > 90) ang -= 180; if (ang < -90) ang += 180;

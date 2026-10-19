@@ -582,7 +582,7 @@ let mapLibP = null;
 // the map engine: MapLibre 5 (base/lib5) unless the reader chose the previous one (4.7, base/lib) in the map settings,
 // or the base map was downloaded before version 5 came with it
 const inCache = async f => !!(await (await caches.open(MAPCACHE)).match(new URL(MAPS + f, location.href).href));
-async function engineDir() { return (await setting('mapEngine')) !== '4' && await inCache('base/lib5/maplibre-gl.js') ? 'base/lib5/' : 'base/lib/'; }
+async function engineDir() { return await inCache('base/lib5/maplibre-gl.js') ? 'base/lib5/' : 'base/lib/'; }   // (MapLibre 5 only since v295; 4.7 if an old download lacks it)
 const addScript = src => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error(src.split('/').pop() + ' not available')); document.head.append(s); });
 function loadMapLib() {
   if (window.maplibregl) return Promise.resolve();
@@ -619,6 +619,12 @@ function mapColors() {
   return { sea: dark ? '#1d2a33' : '#cfdde6', land: dark ? '#2e2b25' : '#f2ecdc', coast: dark ? '#5d5547' : '#b9ae92', river: dark ? '#4f84aa' : '#5d93bd', border: dark ? '#77706a' : '#a59c8a', fg: v('--fg'), acc: v('--acc'), bg: v('--bg') };
 }
 function mapStyle(C) {
+  const st = mapStyle0(C);
+  st.projection = { type: viewOn('globe') ? 'globe' : 'mercator' };
+  st.sky = { 'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 5, 1, 7, 0] };   // (the globe's halo, fading as one zooms in)
+  return st;
+}
+function mapStyle0(C) {
   return layerStyle({
     version: 8, sources: {
       land: { type: 'geojson', data: MAPS + 'base/land.json' }, lakes: { type: 'geojson', data: MAPS + 'base/lakes.json' },
@@ -668,7 +674,7 @@ async function showMap1() {
   if (!M.map) {
     box.innerHTML = `<div id="mapCanvas"></div><div class="mlabels" id="mapLabels"></div>
       <div class="mtop"><button type="button" class="mscope" id="mapScope"></button><button type="button" class="mcheck" id="mapCheck" hidden></button></div>
-      <div class="mctl"><button type="button" class="mico" id="mapLayersBtn" title="Layers" aria-label="Layers">${LAYERS_ICON}</button><button type="button" class="mico" id="mapTimeBtn" title="Period filter" aria-label="Period filter">${CLOCK_ICON}</button><button type="button" class="mico" id="mapDrawBtn" title="Draw on the map" aria-label="Draw on the map">${PEN_ICON}</button><button type="button" class="mico" id="mapSaveBtn" title="Saved maps and export" aria-label="Saved maps and export">${SAVE_ICON}</button></div>
+      <div class="mctl"><button type="button" class="mico" id="mapLayersBtn" title="Layers" aria-label="Layers">${LAYERS_ICON}</button><button type="button" class="mico" id="mapTimeBtn" title="Period filter" aria-label="Period filter">${CLOCK_ICON}</button><button type="button" class="mico" id="mapDrawBtn" title="Draw on the map" aria-label="Draw on the map">${PEN_ICON}</button><button type="button" class="mico" id="mapSaveBtn" title="Saved maps and export" aria-label="Saved maps and export">${SAVE_ICON}</button>${viewBtnsHTML()}</div>
       <div class="mhandles" id="mapHandles"></div>
       <div class="mtime" id="mapTime" hidden>${timeBarHTML()}</div><div class="mdraw" id="mapDraw" hidden></div>
       <div class="minfo" id="mapInfo" hidden><span class="mscale" id="mapScale"><i></i><b></b></span><span class="mzoom" id="mapZoom"></span></div>
@@ -678,7 +684,7 @@ async function showMap1() {
     M.colors = mapColors();
     const v = (await setting('mpos|last')) || { c: [24, 38], z: 4 };
     M.step = 'map'; try {
-      M.map = new maplibregl.Map({ container: 'mapCanvas', style: mapStyle(M.colors), center: v.c, zoom: v.z, attributionControl: false, dragRotate: false, pitchWithRotate: false, maxZoom: 16, minZoom: 1 });
+      M.map = new maplibregl.Map({ container: 'mapCanvas', style: mapStyle(M.colors), center: v.c, zoom: v.z, attributionControl: false, dragRotate: M.cfg.t3d !== false, pitchWithRotate: true, maxPitch: M.cfg.t3d !== false ? 70 : 0, maxZoom: 16, minZoom: 0 });
     } catch (e) { M.map = null; return mapFailed(e.message || String(e)); }
     // problems are shown instead of an empty map: errors while loading, the graphics memory lost (phones)
     M.map.on('error', e => { M.lastErr = e?.error?.message || String(e?.error || e); console.warn('map:', M.lastErr); });
@@ -754,7 +760,7 @@ function tapPlace(pt) {
   for (const f of fs) {
     const id = f.properties.id; if (seen.has(id)) continue;
     const p = placeById(id); if (!p) continue;
-    const c = M.map.project([p.lon, p.lat]), d = Math.hypot(c.x - pt.x, c.y - pt.y); if (d > r * 1.2) continue;
+    const c = mapPt([p.lon, p.lat]), d = Math.hypot(c.x - pt.x, c.y - pt.y); if (d > r * 1.2) continue;
     // nearness, with the significance of the place (and places of the text) counting as if nearer
     const z = M.map.getZoom(), bonus = Math.max(0, Math.min(1, (10 - z) / 4));   // zoomed in, nearness alone decides
     seen.set(id, { id, p, d, eff: d - bonus * 2.4 * (p.w || 0) - (f.layer.id === 'pl' ? 8 : 0) });
@@ -789,7 +795,7 @@ function drawLabels() {
   const box = $('#mapLabels'); if (!box || !M.map || !M.shown) return;
   const W = box.clientWidth, H = box.clientHeight, placed = [], sel = M.sel?.p?.id;
   M.lblHit = [];
-  const items = [...M.shown.values()].map(x => ({ x, pt: M.map.project([x.p.lon, x.p.lat]), pri: (x.p.id === sel ? 1e6 : 0) + (isRegion(x.p) ? 50 : 0) + x.n }))
+  const items = [...M.shown.values()].map(x => ({ x, pt: mapPt([x.p.lon, x.p.lat]), pri: (x.p.id === sel ? 1e6 : 0) + (isRegion(x.p) ? 50 : 0) + x.n }))
     .filter(o => o.pt.x > -60 && o.pt.x < W + 60 && o.pt.y > -20 && o.pt.y < H + 20).sort((a, b) => b.pri - a.pri).slice(0, 220);
   let h = '';
   const ctx = (drawLabels.c ??= document.createElement('canvas').getContext('2d'));
@@ -932,6 +938,7 @@ function wireMapUI() {
     if (b.id === 'mapScope') return scopePop();
     if (b.id === 'mapLayersBtn') return layersPop();
     if (b.id === 'mapSaveBtn') return savePop();
+    if (b.id === 'mapGlobeBtn' || b.id === 'map3dBtn') return viewToggle(b.id === 'mapGlobeBtn' ? 'globe' : 't3d');
     if (d.mscopev) {                    // the menu stays open; "Selection" with nothing chosen opens its editor
       M.cfg.scope = d.mscopev; M.cfg.pfOn = true; await saveMapCfg();
       if (d.mscopev === 'sel' && !(M.cfg.sel || []).length) { selPop(); return; }
@@ -1048,3 +1055,35 @@ document.addEventListener('DOMContentLoaded', () => {
   b.addEventListener('click', () => { if (S.mapHeld) { S.mapHeld = false; return; } toggleMapTab(); });
   holdButton(b, v => S.mapHeld = v, () => settingsDialog('map'));   // hold: Settings → Map
 });
+
+// ---------------------------------------------------------------- the view: a globe or the flat map (Mercator), and 3D terrain (v295)
+// Both on by default; two buttons on the map switch them (M.cfg.globe, M.cfg.t3d). 3D: the relief packages raise the
+// ground, and the map can be tilted (two fingers up or down; with a mouse, the right button), turned off: flat and north up.
+const GLOBE_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="8.5"/><ellipse cx="12" cy="12" rx="3.6" ry="8.5"/><path d="M3.5 12h17M5.2 7.2h13.6M5.2 16.8h13.6" stroke-width="1.1"/></g></svg>';
+const T3D_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"><path d="M2.5 19.5h19l-3.2-4.2"/><path d="M3.5 19.5 9.5 9l3.2 4.6 2.3-2.8 4.5 8.7"/><path d="M8.2 11.3l1.3 1.2 1.2-1" stroke-width="1.1"/></g></svg>';
+const viewOn = k => M.cfg?.[k] !== false;
+function viewBtnsHTML() {
+  const b = (id, k, icon, on, off) => `<button type="button" class="mico${viewOn(k) ? ' on' : ''}" id="${id}" aria-pressed="${viewOn(k)}" title="${viewOn(k) ? on : off}" aria-label="${viewOn(k) ? on : off}">${icon}</button>`;
+  return b('mapGlobeBtn', 'globe', GLOBE_ICON, 'Globe – tap for the flat map', 'Flat map – tap for the globe') + b('map3dBtn', 't3d', T3D_ICON, '3D terrain – tap to turn off', '3D off – tap for terrain and tilting');
+}
+const T3D = () => ({ source: 'terrdem', exaggeration: 1.5 });
+async function viewToggle(k) {
+  M.cfg[k] = !viewOn(k); await saveMapCfg();
+  const m = M.map, on = viewOn(k);
+  if (m && k === 'globe') m.setProjection({ type: on ? 'globe' : 'mercator' });
+  if (m && k === 't3d') {
+    m.setMaxPitch(on ? 70 : 0);
+    if (on) { m.dragRotate.enable(); if (m.getSource('terrdem')) m.setTerrain(T3D()); if (m.getZoom() >= 4 && m.getPitch() < 5) m.easeTo({ pitch: 50, duration: 600 }); }
+    else { m.dragRotate.disable(); m.setTerrain(null); m.easeTo({ pitch: 0, bearing: 0, duration: 400 }); }
+  }
+  const b = $(k === 'globe' ? '#mapGlobeBtn' : '#map3dBtn'); if (b) b.outerHTML = viewBtnsHTML().split('</button>')[k === 'globe' ? 0 : 1] + '</button>';
+  drawLabels();
+}
+// a point on the screen – on the globe, places on its far side are left out (moved far off the screen)
+function mapPt(ll) {
+  const p = M.map.project(ll);
+  if (!viewOn('globe') || M.map.getZoom() > 6) return p;
+  const lon = ll.lng ?? ll[0], lat = ll.lat ?? ll[1], q = M.map.unproject(p);
+  if (Math.abs(q.lat - lat) > 0.3 || Math.abs(((q.lng - lon + 540) % 360) - 180) > 0.3) { p.x = -1e5; p.y = -1e5; }
+  return p;
+}
