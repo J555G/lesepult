@@ -1075,7 +1075,7 @@ async function viewToggle(k) {
   if (m && k === 'globe') m.setProjection({ type: on ? 'globe' : 'mercator' });
   if (m && k === 't3d') {
     m.setMaxPitch(on ? 70 : 0);
-    if (on) { if (m.getSource('terrdem')) m.setTerrain(T3D()); if (m.getZoom() >= 4 && m.getPitch() < 5) m.easeTo({ pitch: 50, duration: 600 }); }
+    if (on) { if (m.getSource('terrdem')) m.setTerrain(T3D()); }       // (the camera stays as it is: tilt it yourself)
     else { m.setTerrain(null); m.easeTo({ pitch: 0, duration: 400 }); }
   }
   drawLabels();
