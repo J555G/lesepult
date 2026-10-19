@@ -163,7 +163,7 @@ function wire() {
     const id = ev.target.dataset?.dictOn; if (!id) return;
     const off = new Set(S.dictPrefs.off); ev.target.checked ? off.delete(id) : off.add(id);
     S.dictPrefs.off = [...off]; if (!S.dictPrefs.order.length) S.dictPrefs.order = S.dicts.map(d => d.id);
-    await setting('dictPrefs', S.dictPrefs); await loadDicts(); bucketCache.clear(); if (S.view) renderView();
+    await setting('dictPrefs', S.dictPrefs); await loadDicts(); bucketCache.clear(); if (S.view) renderView(); srcColState();
     if (id === 'morph' || id === 'morphhints') { resetTokens(); renderText(); resolveTokens(); }
   });
   document.addEventListener('change', async ev => {

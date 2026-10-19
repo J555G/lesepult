@@ -1835,3 +1835,11 @@ dialog .dlang .avh[hidden],dialog .dlang .dnone[hidden]{display:none}
 dialog .dlang .avlist .pkrow .t b{font-weight:500;color:var(--mut)}
 dialog .dictrow .chev{flex:none;margin-left:.25rem}
 dialog .chsp{flex:none;width:calc(1.9rem + .25rem)}
+/* Instruments → Dictionaries: the Eulexis colour marks – switch on the right, the colours in two columns (one on a phone) */
+dialog .srccol>span{flex:1}
+dialog .srccol .legend{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 1rem;margin:.35rem 0 0}
+@media (max-width:600px){dialog .srccol .legend{grid-template-columns:1fr}}
+dialog .srccol.dis>span{color:var(--mut)}
+dialog .srccol.dis .tsw{opacity:.4}
+dialog .srccol{align-items:flex-start}
+dialog .srccol>.tsw{margin-top:.05rem}

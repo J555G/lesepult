@@ -362,7 +362,8 @@ async function dictsDialog() {
       return `<div class="dlang" data-lang="${lang}"><div class="navh2">${name}</div><div class="list plain dictlist">${ins}</div><p class="hint small dnone"${ins ? ' hidden' : ''}>None installed.</p>`
         + `<div class="navh3 avh"${av ? '' : ' hidden'}>Available</div><div class="list plain avlist">${av}</div></div>`; }).join('')
     + `<p class="hint small">⠿ drag to reorder · ▸/▾ folded or open when a word is looked up</p>`
-    + `<div class="srow1">${SW('id="optSrcCol"', S.srcColors)}<span>Colour marks of the Eulexis editors in Pape and LSJ ${info(`<span class="legend">${Object.entries(FONT_MEANING).map(([c, t]) => `<span class="fc" data-c="${c}">■</span> ${esc(t)}`).join('<br>')}</span>`)}</span></div>`;
+    // (the switch on the right; greyed while neither Pape nor LSJ is installed and switched on; the colours in two columns, one on a phone)
+    + `<div class="srow1 swr srccol${srcColUsable() ? '' : ' dis'}"><span>Colour marks of the Eulexis editors in Pape and LSJ ${info(`<span class="legend">${Object.entries(FONT_MEANING).map(([c, t]) => `<span><span class="fc" data-c="${c}">■</span> ${esc(t)}</span>`).join('')}</span>`)}</span>${SW('id="optSrcCol"', S.srcColors, !srcColUsable())}</div>`;
   // 2. analysis, by language: which instrument is used (one per language), add-ons, what can be downloaded
   const useRow = (lang, d, sub) => pkRow({ id: d.id, sw: `<label class="trad"><input type="radio" name="use-${lang}" data-uselang="${lang}" value="${d.id}"${!S.dictPrefs.off.includes(d.id) && langTools(lang).find(x => !S.dictPrefs.off.includes(x.id)) === d ? ' checked' : ''}><i></i></label>`,
     name: esc(d.name), desc: sub, right: getBtn(d.id), del: delD(d.id) });
@@ -686,11 +687,14 @@ async function dictDeleteRow(id, row) {
   const av = S.instAvailRow?.(id), blk = row?.closest('.dlang');
   if (blk && av) { row.remove(); blk.querySelector('.avlist').insertAdjacentHTML('afterbegin', av); dictListsTidy(blk); }   // (to "Available")
   else if (row && av) row.outerHTML = av; else row?.remove();
-  S.instAfterDel?.();
+  S.instAfterDel?.(); srcColState();
   note(name + ' deleted');
 }
 // a language's two lists after a move: "None installed" and the heading "Available" only when they apply
 function dictListsTidy(blk) { blk.querySelector('.dnone').hidden = !!blk.querySelector('.dictlist .pkrow'); blk.querySelector('.avh').hidden = !blk.querySelector('.avlist .pkrow'); }
+// the Eulexis colour marks need Pape or LSJ, installed and switched on
+const srcColUsable = () => ['pape', 'lsj'].some(id => S.installed?.[id] && !S.dictPrefs?.off?.includes(id));
+function srcColState() { const r = $('#dlg .srccol'); if (!r) return; const ok = srcColUsable(); r.classList.toggle('dis', !ok); const i = r.querySelector('#optSrcCol'); if (i) i.disabled = !ok; }
 function queueDownload(id) {
   if (DL.has(id)) return;
   navigator.storage?.persist?.().catch(() => { });
@@ -781,7 +785,7 @@ async function downloadDictPkg(id, signal) {
     document.querySelectorAll(`#dlg [data-get="${id}"]`).forEach(b => { const row = b.closest('.pkrow'), blk = row?.closest('.dlang');
       if (blk && html) { row.remove(); blk.querySelector('.dictlist').insertAdjacentHTML('beforeend', html); dictListsTidy(blk); }   // (to the installed ones)
       else if (row && html) row.outerHTML = html; });
-    S.instAfterDel?.();
+    S.instAfterDel?.(); srcColState();
   }
 }
 // ids: download exactly these packages; without ids: everything that is new or changed (first start)
