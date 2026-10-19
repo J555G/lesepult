@@ -595,6 +595,7 @@ async function layerClick1(b) {
     if (k === 'time') { timeFor(S.text); renderTime(); }
     applyLayers(); return true;
   }
+  if (b.id === 'mapTimeBtn' && M.sdOpen) { await sdOpen(false); if (M.cfg.time) return true; }   // (one panel at the foot of the map at a time)
   if (b.id === 'mapTimeBtn') { M.cfg.time = !M.cfg.time; await saveMapCfg(); timeFor(S.text); renderTime(); applyLayers(); $('#mapPop [data-mlay="time"]')?.classList.toggle('on', M.cfg.time); return true; }
   if (b.id === 'mapWDate' || d.mwdate) { if (b.closest('dialog')) $('#dlg').close(); setTimeout(workDateDialog, 50); return true; }
   if (d.mtview) { const [a, b] = tDefView(); setView(a, b); return true; }

@@ -1891,3 +1891,46 @@ dialog .sortpair button{transition:border-color .15s}
 .sdlab{text-align:center;margin-top:.2rem}
 .sdlab b{display:block;font:600 17px var(--greek)}
 .sdlab small{font:11.5px var(--ui);color:var(--mut)}
+/* the sundial panel (v298): at the foot of the map, the sky behind the dial */
+#mapBody.sdopen .mtime{display:none!important}
+#mapBody.sdopen .mcred{bottom:196px}
+.msdial{position:absolute;left:50%;transform:translateX(-50%);bottom:8px;width:calc(100% - 16px);max-width:560px;height:180px;z-index:4;border-radius:14px;overflow:hidden;border:1px solid color-mix(in srgb,var(--line) 70%,transparent);box-shadow:0 4px 18px rgba(0,0,0,.35)}
+.msdial .sdsvg{position:absolute;inset:0;width:100%;height:180px;display:block;touch-action:none;-webkit-user-select:none;user-select:none}
+.msdial .sdstars circle{fill:#fff;animation:sdtw 3.4s ease-in-out infinite alternate}
+@keyframes sdtw{from{opacity:1}to{opacity:.35}}
+.msdial .sdglint{stroke:#fff3c8;stroke-width:1.2;stroke-linecap:round;fill:none}
+.msdial .sdrim{fill:rgba(20,16,10,.28);stroke:rgba(255,255,255,.35);stroke-width:1}
+.msdial .sdplate{stroke:#8a7b60;stroke-width:1}
+.msdial .sdticks line{stroke:rgba(255,255,255,.75);stroke-width:1}
+.msdial .sdday{fill:none;stroke:#ffd166;stroke-width:2.2;stroke-linecap:round;opacity:.7}
+.msdial .sdshadow{stroke:#3b3125;stroke-width:3;stroke-linecap:round;transition:opacity .3s}
+.msdial .sdgnomon{fill:#6d5c42;stroke:#3b3125;stroke-width:.8}
+.msdial .sdsun{fill:#ffe27a;stroke:#fff6d0;stroke-width:1}
+.msdial .sdmoon{fill:#e8ecf4}
+.msdial .sdmoonc{fill:#2a3050;opacity:.55}
+.msdial .sdgrab{fill:transparent;cursor:grab}
+.msdial .sdlab{font:600 15px var(--greek);fill:#fff;paint-order:stroke;stroke:rgba(0,0,0,.55);stroke-width:3px}
+.msdial .sdctl{position:absolute;left:192px;right:34px;top:10px;bottom:10px;display:flex;flex-direction:column;gap:.4rem;align-items:flex-start;justify-content:center;font:13px var(--ui);color:#fff}
+.msdial .sdctl .seg{background:rgba(0,0,0,.28);border-color:rgba(255,255,255,.35)}
+.msdial .sdctl .seg button{background:transparent;color:#fff;font-size:12.5px;padding:.25rem .55rem;min-width:0}
+.msdial .sdctl .seg button.on{background:rgba(255,255,255,.88);color:#1b1a18}
+.msdial .sdrow{display:flex;align-items:center;gap:.45rem;text-shadow:0 0 4px rgba(0,0,0,.7)}
+.msdial .msun{margin:0;width:100%;max-width:240px}
+.msdial .msun output{color:#fff;text-shadow:0 0 3px #000}
+.msdial .msun .mico2{background:rgba(0,0,0,.3);color:#fff;border-color:rgba(255,255,255,.4)}
+.msdial .sdsub{color:#fff;opacity:.85;text-shadow:0 0 3px #000}
+.msdial .sdx{position:absolute;top:6px;right:6px;width:26px;height:26px;padding:0;border-radius:50%;background:rgba(0,0,0,.3);color:#fff;border:1px solid rgba(255,255,255,.4);font-size:16px;line-height:1}
+/* the owl: flies in at nightfall, away at daybreak */
+.msdial .sdowl{opacity:0;transform:translate(120px,-90px) scale(.5);transition:transform .9s cubic-bezier(.3,.7,.4,1),opacity .5s}
+.msdial .sdowl.land{opacity:1;transform:translate(0,0) scale(1)}
+.msdial .sdowl.away{opacity:0;transform:translate(-130px,-95px) scale(.5);transition:transform .9s cubic-bezier(.6,0,.8,.4),opacity .7s .2s}
+.msdial .sdowl .owlw{transform-box:fill-box;transform-origin:center;animation:owlflap .18s ease-in-out 5 alternate}
+.msdial .sdowl.away .owlw{animation:owlflap .18s ease-in-out 6 alternate}
+@keyframes owlflap{from{transform:scaleY(1)}to{transform:scaleY(.4) translateY(-3px)}}
+.msdial .owlb{fill:#6b5137;stroke:#2e2216;stroke-width:.6}
+.msdial .owlw ellipse{fill:#59432d;stroke:#2e2216;stroke-width:.6}
+.msdial .owle{fill:#ffd21f}
+.msdial .owlp{fill:#1a1208}
+.msdial .owlk{fill:#c9a24a}
+.msdial .owlf{stroke:#c9a24a;stroke-width:1;stroke-linecap:round}
+@media (max-width:420px){.msdial .sdctl{left:184px;right:6px}.msdial .sdctl .seg{flex-wrap:nowrap}.msdial .sdctl .seg button{padding:.22rem .36rem;font-size:11.5px}}
