@@ -123,7 +123,7 @@ function searchPlan(raw) {
     if (mode !== 'grc') T.push({ lang: 'la', key: keyKeepWild(raw, s => latkey(s).replace(/[^a-z]/g, '')), via: 'la' });
     if (mode !== 'la' && (S.sc?.tr !== false || mode === 'grc')) {
       const g = keyKeepWild(latinToGreek(raw), gkey);
-      if (g.replace(/[*?]/g, '')) T.push({ lang: 'grc', key: S.sc?.loose !== false ? foldG(g) : g, via: 'tr', fold: S.sc?.loose !== false, shown: g });
+      if (g.replace(/[*?]/g, '')) T.push({ lang: 'grc', key: foldG(g), via: 'tr', fold: true, shown: g });   // (e and o also η and ω: always)
     }
   }
   return { raw, T: T.filter(t => t.key.replace(/[*?]/g, '')), wild: hasWild(raw) };
@@ -531,8 +531,7 @@ function scGroupsHTML() {
 function searchSettingsHTML() {
   return scSec('Suggestions', scSw('sugg', 'Suggestions while typing', 'a list beneath the search field; Enter shows all results')
       + scLine('Lines in the list', scSeg('n', [[7, '7'], [14, '14'], [21, '21']])))
-    + scSec('Greek in Latin letters', scSw('tr', 'Find Greek words typed in Latin letters', 'logos → λόγος, psyche → ψυχή; betacode too (lo/gos)')
-      + scSw('loose', 'Plain e and o also find η and ω', 'otherwise only ē and ō (or ê and ô)')
+    + scSec('Greek in Latin letters', scSw('tr', 'Find Greek words typed in Latin letters', 'logos → λόγος, psyche → ψυχή; e and o also find η and ω; betacode too (lo/gos)')
       + scSw('tog', 'Greek/Latin button beside the search field', 'to search one language only'))
     + scSec('Typo tolerance', scSw('typo', 'Similar words when nothing matches exactly')
       + scLine('How far off', scSeg('dist', [[1, '1 letter'], [2, '2 letters']]), '2 letters only for words of 6 letters or more'))
