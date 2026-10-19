@@ -1964,3 +1964,6 @@ dialog .sortpair button{transition:border-color .15s}
 .mpop .mvb .htower{fill:var(--mvbg);stroke:currentColor;stroke-width:.45;stroke-linejoin:round}
 .mpop .mvb.on .htower{fill:#6f8f80}
 .mpop .mvb .cn{fill:color-mix(in srgb,var(--mut) 72%,#000)}
+.rivcols{display:inline-flex;align-items:center;gap:6px}
+.rivcols input[type=color]{width:30px;height:24px;padding:0;border:1px solid var(--line);border-radius:5px;background:none}
+.rivgrad{display:inline-block;width:70px;height:8px;border-radius:4px;background:linear-gradient(90deg,var(--a),var(--b))}

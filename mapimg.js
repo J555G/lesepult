@@ -83,6 +83,7 @@ function imgCredit() {
     if (on && k === 's2') parts.push(`<a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless – s2maps.eu</a> by EOX IT Services GmbH (Contains modified Copernicus Sentinel data ${esc(on.s2year)})`);
     if (on && k === 'esri') parts.push('Esri, Maxar, Earthstar Geographics, and the GIS User Community' + (on.wbDate ? ` · Wayback ${esc(on.wbDate)}` : ''));
   }
+  if (M.map?.getLayer('osm-rivers') && M.cfg.rivers !== false) parts.push('© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>');   // (its licence asks for it on the map)
   el.innerHTML = parts.join(' · '); el.hidden = !parts.length;
 }
 // online or offline again: the layers follow
@@ -104,4 +105,83 @@ document.addEventListener('change', async ev => {
   const i = ev.target.closest?.('input[data-esrikey]'); if (!i) return;
   M.esriKey = i.value.trim(); await setting('esriKey', M.esriKey);
   if (M.map && imgKind() === 'esri') imgNetChange();
+});
+
+// ---------------------------------------------------------------- rivers and lakes online (v304)
+// Online, the rivers, streams, canals and lakes come from OpenStreetMap (vector tiles of OpenFreeMap, OpenMapTiles
+// schema) at every zoom; offline those of the base map (Natural Earth; Landscape – detailed). OpenStreetMap records no
+// discharge, so the colours run from the strong end (rivers) to the weak end (streams, ditches) by kind.
+// Settings (mapCfg): rivW (width factor), rivC1 (strongest), rivC2 (weakest).
+const OFM = 'https://tiles.openfreemap.org/planet';
+const RIV_DEF = { rivW: 1, rivC1: '#2f74b5', rivC2: '#8cc3ea' };
+const rivCfg = k => M.cfg?.[k] ?? RIV_DEF[k];
+const osmRiv = () => isOnline() && M.cfg?.rivers !== false;
+function rivPaint() {
+  const c1 = rivCfg('rivC1'), c2 = rivCfg('rivC2'), w = +rivCfg('rivW'), mid = hexMix(c1, c2, 0.5);
+  const k = (r, c, s) => ['match', ['get', 'class'], 'river', r, 'canal', c, s];
+  return {
+    line: { 'line-color': k(c1, mid, c2), 'line-width': ['interpolate', ['exponential', 1.6], ['zoom'], 4, k(0.6 * w, 0.4 * w, 0.3 * w), 9, k(1.5 * w, 1 * w, 0.5 * w), 14, k(5 * w, 3 * w, 1.6 * w)] },
+    fill: { 'fill-color': hexMix(c1, c2, 0.35), 'fill-opacity': 0.8, 'fill-outline-color': c1 },
+  };
+}
+// a width (a number or a zoom interpolation) times f – zoom expressions must stay at the top, so the stops are scaled
+const scaleW = (e, f) => typeof e === 'number' ? e * f : Array.isArray(e) && e[0] === 'interpolate' ? e.map((v, i) => i >= 4 && i % 2 === 0 && typeof v === 'number' ? v * f : v) : e;
+function rivStyle(st) {                                              // (called by layerStyle)
+  const w = +rivCfg('rivW'), c1 = rivCfg('rivC1');
+  for (const l of st.layers) if (['rivers', 'hd-rivers'].includes(l.id)) { l.paint['line-color'] = c1; l.paint['line-width'] = scaleW(l.paint['line-width'], w); }   // (offline rivers: the same colour and width)
+  if (!osmRiv()) return;
+  st.sources.osm = { type: 'vector', url: OFM };
+  const at = id => st.layers.findIndex(l => l.id === id), p = rivPaint();
+  const k = [at('hd-rivers'), at('rivers')].find(i => i >= 0) ?? st.layers.length;
+  st.layers.splice(k + 1, 0,
+    { id: 'osm-lakes', type: 'fill', source: 'osm', 'source-layer': 'water', filter: ['!=', ['get', 'class'], 'ocean'], paint: p.fill },
+    { id: 'osm-rivers', type: 'line', source: 'osm', 'source-layer': 'waterway', filter: ['!=', ['get', 'brunnel'], 'tunnel'], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: p.line });
+}
+function rivLayerProps() {                                           // online: OpenStreetMap instead of the base map's waters
+  if (!osmRiv() && !M.map?.getLayer('osm-rivers')) return {};
+  const v = M.cfg.rivers !== false ? 'visible' : 'none', off = { vis: 'none' };
+  return { 'osm-rivers': { vis: v }, 'osm-lakes': { vis: v }, rivers: off, 'hd-rivers': off, lakes: off, 'hd-lakes': off, 'img-lakes': off, 'img-hdlakes': off };
+}
+function rivRepaint() {                                              // (a setting changed: the colours and widths at once)
+  const m = M.map; if (!m) return; const p = rivPaint(), w = +rivCfg('rivW');
+  if (m.getLayer('osm-rivers')) for (const [k, v] of Object.entries(p.line)) m.setPaintProperty('osm-rivers', k, v);
+  if (m.getLayer('osm-lakes')) for (const [k, v] of Object.entries(p.fill)) m.setPaintProperty('osm-lakes', k, v);
+  clearTimeout(M.rivT); M.rivT = setTimeout(() => { m.setStyle(mapStyle(M.colors)); m.once('styledata', () => setTimeout(refreshMapData, 50)); }, 900);   // (the offline rivers with the style)
+}
+// a tap on a river or lake: its name and kind
+const RIV_KIND = { river: 'River', canal: 'Canal', stream: 'Stream', drain: 'Drain', ditch: 'Ditch', lake: 'Lake', lagoon: 'Lagoon', reservoir: 'Reservoir', river_area: 'River', basin: 'Basin', pond: 'Pond', swimming_pool: 'Pool', dock: 'Dock' };
+function waterTap(pt) {
+  const ls = ['osm-rivers', 'osm-lakes'].filter(id => M.map?.getLayer(id) && M.map.getLayoutProperty(id, 'visibility') !== 'none'); if (!ls.length) return false;
+  const r = matchMedia('(pointer: coarse)').matches ? 10 : 5;
+  const fs = M.map.queryRenderedFeatures([[pt.x - r, pt.y - r], [pt.x + r, pt.y + r]], { layers: ls }), f = fs.find(x => x.properties.name) || fs.find(x => x.layer.id === 'osm-rivers');
+  if (!f) return false;
+  const p = f.properties, lake = f.layer.id === 'osm-lakes', kind = RIV_KIND[p.class] || (lake ? 'Water' : 'Waterway');
+  const names = [...new Set([p.name, p['name:latin'], p.name_en, p['name:el'], p['name:la']].filter(Boolean))];
+  const card = $('#mapCard'); M.sel = null; M.dSel = null;
+  card.innerHTML = `<div class="mch"><b>${esc(names[0] || kind)}</b><button type="button" class="mx" data-mclose="1" aria-label="Close">✕</button></div>
+    <div class="mcs">${esc(kind)}${p.intermittent ? ' · dries up at times' : ''}${p.brunnel === 'bridge' ? ' · on a bridge (aqueduct)' : ''}</div>
+    ${names.length > 1 ? `<div class="dnote">${names.slice(1).map(esc).join(' · ')}</div>` : ''}<p class="hint small">© OpenStreetMap contributors</p>`;
+  card.hidden = false; return true;
+}
+// Settings → Map: the look of the rivers (only while rivers are shown)
+function rivSettingsHTML() {
+  if (M.cfg.rivers === false) return '';
+  return `<div class="navh">Rivers and lakes</div>`
+    + `<label class="msig"><span>Width</span><input type="range" min="0.4" max="2.5" step="0.1" value="${rivCfg('rivW')}" data-rivw="1"><output>${(+rivCfg('rivW')).toFixed(1)}×</output></label>`
+    + `<div class="mline"><span>Colour<small class="hint">strongest (rivers) to weakest (streams)</small></span><span class="rivcols"><input type="color" data-rivc="rivC1" value="${rivCfg('rivC1')}" aria-label="Strongest"><i class="rivgrad" style="--a:${rivCfg('rivC1')};--b:${rivCfg('rivC2')}"></i><input type="color" data-rivc="rivC2" value="${rivCfg('rivC2')}" aria-label="Weakest"></span></div>`
+    + `<div class="macts"><button type="button" data-rivreset="1">Standard look</button></div>`;
+}
+document.addEventListener('input', async ev => {
+  const t = ev.target; if (!t.dataset?.rivw && !t.dataset?.rivc) return;
+  await mapCfg();
+  if (t.dataset.rivw) { M.cfg.rivW = +t.value; t.nextElementSibling.textContent = (+t.value).toFixed(1) + '×'; }
+  else { M.cfg[t.dataset.rivc] = t.value; const g = t.parentElement.querySelector('.rivgrad'); g.style.setProperty('--a', rivCfg('rivC1')); g.style.setProperty('--b', rivCfg('rivC2')); }
+  clearTimeout(M.rivSave); M.rivSave = setTimeout(saveMapCfg, 400); rivRepaint();
+});
+document.addEventListener('click', async ev => {
+  const b = ev.target.closest?.('[data-rivreset]'); if (!b) return;
+  await mapCfg(); Object.assign(M.cfg, { rivW: null, rivC1: null, rivC2: null }); await saveMapCfg();
+  const box = b.closest('.mapset') || b.parentElement.parentElement; const w = box.querySelector('[data-rivw]'); if (w) { w.value = 1; w.nextElementSibling.textContent = '1.0×'; }
+  box.querySelectorAll('[data-rivc]').forEach(i => { i.value = RIV_DEF[i.dataset.rivc]; }); const g = box.querySelector('.rivgrad'); g?.style.setProperty('--a', RIV_DEF.rivC1); g?.style.setProperty('--b', RIV_DEF.rivC2);
+  rivRepaint();
 });

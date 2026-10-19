@@ -709,7 +709,7 @@ async function showMap1() {
       if ($('#mapChoose') && !$('#mapChoose').hidden) { $('#mapChoose').hidden = true; return; }
       const id = tapPlace(e.point); if (id === 'choose') return; if (id != null) return selectPlace(id, { from: 'map' });
       const did = tapDrawing(e.point); if (did) return showDrawCard(did);
-      if (roadTap(e.point)) return;                                // a Roman road (Itiner-e): what is known of it
+      if (roadTap(e.point) || waterTap(e.point)) return;                                // a Roman road (Itiner-e): what is known of it
       closeCard(); });
     M.map.on('movestart', () => { const c = $('#mapChoose'); if (c) c.hidden = true; });
     M.map.on('mouseenter', 'pl', () => { M.map.getCanvas().style.cursor = 'pointer'; });

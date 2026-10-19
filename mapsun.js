@@ -369,7 +369,7 @@ function compassUpd() {
 document.addEventListener('change', async ev => {
   const k = ev.target.dataset?.mopt; if (!k) return;
   await mapCfg(); const v = ev.target.checked;
-  if (k === 'rivlak') { M.cfg.rivers = M.cfg.lakes = v; await saveMapCfg(); applyLayers(); return; }
+  if (k === 'rivlak') { M.cfg.rivers = M.cfg.lakes = v; await saveMapCfg(); if (v && isOnline() && M.map && !M.map.getSource('osm')) { M.map.setStyle(mapStyle(M.colors)); M.map.once('styledata', () => setTimeout(refreshMapData, 50)); } else applyLayers(); return; }
   M.cfg[k] = v; await saveMapCfg();
   if (k === 'elev') { if (!v && viewOn('t3d')) M.map?.setTerrain(null); if (M.map) { M.map.setStyle(mapStyle(M.colors)); M.map.once('styledata', () => setTimeout(refreshMapData, 50)); } refreshLayersPop(); return; }
   applyLayers();

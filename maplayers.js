@@ -177,6 +177,7 @@ function layerStyle(st, C) {
     'circle-stroke-color': C.bg, 'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 3, 0.4, 8, 1],
     'circle-opacity': 0.85, 'circle-stroke-opacity': 0.85 } });
   imgStyle(st, C);                                                  // the imagery (mapimg.js), beneath the relief shading
+  rivStyle(st);                                                     // rivers and lakes: OpenStreetMap online (mapimg.js)
   reliefStyle(st, C);                                               // relief, contour lines, sea depth (maprelief.js)
   sunStyle(st);                                                     // day and night (mapsun.js)
   applyLayersTo(st.layers);
@@ -209,7 +210,7 @@ function layerProps() {
       // zoomed out, the less significant places are fainter (fading in as one zooms in)
       paint: { 'circle-opacity': ['interpolate', ['linear'], ['zoom'], 3, tOpacity(['min', 0.9, ['+', 0.15, ['*', 0.085, ['get', 'w']]]]), 7, tOpacity(['min', 0.9, ['+', 0.55, ['*', 0.05, ['get', 'w']]]]), 9, tOpacity(0.9)],
         'circle-stroke-opacity': ['interpolate', ['linear'], ['zoom'], 3, tOpacity(['min', 0.9, ['+', 0.1, ['*', 0.085, ['get', 'w']]]]), 7, tOpacity(0.7), 9, tOpacity(0.9)] } },
-    ...drawLayerProps(), ...reliefLayerProps(), ...imgLayerProps(),                                           // your places and drawings (mapdraw.js)
+    ...drawLayerProps(), ...reliefLayerProps(), ...imgLayerProps(), ...rivLayerProps(),                                           // your places and drawings (mapdraw.js)
   };
 }
 function applyLayersTo(layers) {
@@ -522,6 +523,7 @@ function settingsHTML() {
   return `<div class="navh">Display</div>`
     + sw('scale', 'Reference distance', 'a scale bar, top right below the buttons')
     + sw('zoomShow', 'Zoom level', 'shown below it')
+    + rivSettingsHTML()
     + sw('imgDim', 'Dim the imagery in dark mode', 'satellite pictures and Blue Marble a little darker, so they do not glare')
     + `<div class="mline"><span>ArcGIS key<small class="hint">for Esri’s current imagery; free at developers.arcgis.com – kept on this device only</small></span><input type="text" data-esrikey="1" class="nofocus" value="${esc(M.esriKey || '')}" autocomplete="off" spellcheck="false" placeholder="none" aria-label="ArcGIS key"></div>`
     + line('Units of distance and height', seg('units', [['metric', 'Metric'], ['imperial', 'Imperial'], ['roman', 'Roman'], ['greek', 'Greek']]))
