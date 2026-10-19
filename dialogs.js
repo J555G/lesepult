@@ -493,7 +493,7 @@ async function setLangTool(lang, id) {
 // text size buttons: the letter A in the text's typeface, at the size it stands for (A++ too large for its box); 100 %: with a ↺
 const TZ_SIZE = { tz1: 11, tz2: 17, tz3: 21, tz4: 26, tz5: 62 };
 const tzBtn = (d, cls, label, extra = '') => `<button type="button" class="tzi ${cls}" data-tz="${d}" aria-label="${label}" title="${label}"><svg class="tzA" viewBox="0 0 40 40" aria-hidden="true"><text x="${cls === 'tz3' ? 17 : 20}" y="30" text-anchor="middle" font-size="${TZ_SIZE[cls]}">A</text></svg>${extra}</button>`;
-const PULT_DATE = '17 Oct 2026';     // the date this version was published (with the version number in sw.js)
+const PULT_DATE = '19 Oct 2026';     // the date this version was published (with the version number in sw.js)
 // focus: 'colours' | 'grammar' | 'map' – opened by holding that button: its section unfolded and in view
 async function settingsDialog(focus) {
   await loadDicts();
