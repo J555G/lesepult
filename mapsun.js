@@ -346,8 +346,11 @@ function mapOptsPop() { rightPop('mapopts', 'Globe', mapOptsHTML()); }
 async function mapOptsClick(b) {
   const d = b.dataset;
   if (b.id === 'mapOptsBtn') { mapOptsPop(); return true; }
-  if (b.id === 'mapProjBtn') { await viewToggle('globe'); const on = viewOn('globe'); iconAnim(b, on ? 0 : 1, projIconSVG); b.title = on ? 'Globe' : 'Flat map'; b.setAttribute('aria-label', b.title); return true; }
-  if (b.id === 'map3dBtn') { await viewToggle('t3d'); const on = viewOn('t3d'); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); iconAnim(b, on ? 1 : 0, hillIconSVG); return true; }
+  // the icon turns at once; the map follows a frame later (its change can hold the page for a moment)
+  if (b.id === 'mapProjBtn') { const on = !viewOn('globe'); iconAnim(b, on ? 0 : 1, projIconSVG); b.title = on ? 'Globe' : 'Flat map'; b.setAttribute('aria-label', b.title);
+    requestAnimationFrame(() => setTimeout(() => viewToggle('globe'), 0)); return true; }
+  if (b.id === 'map3dBtn') { const on = !viewOn('t3d'); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); iconAnim(b, on ? 1 : 0, hillIconSVG);
+    requestAnimationFrame(() => setTimeout(() => viewToggle('t3d'), 0)); return true; }
   if (b.id === 'mapCompBtn') { M.cfg.compass = M.cfg.compass === false; await saveMapCfg(); b.classList.toggle('on', M.cfg.compass); b.setAttribute('aria-pressed', M.cfg.compass); compassUpd(); return true; }
   if (b.id === 'mapNorth' || d.mnorth) { M.map?.easeTo({ bearing: 0, duration: 500 }); return true; }
   if (b.id === 'mapSunBtn') { await sdOpen(!M.sdOpen); return true; }
