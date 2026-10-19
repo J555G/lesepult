@@ -1843,3 +1843,8 @@ dialog .srccol.dis>span{color:var(--mut)}
 dialog .srccol.dis .tsw{opacity:.4}
 dialog .srccol{align-items:flex-start}
 dialog .srccol>.tsw{margin-top:.05rem}
+/* menus never pan sideways (on the iPad a few pixels too wide made them bounce) */
+dialog[open]{overflow-x:hidden}
+@media (max-width:350px){dialog .lmtabs [data-view]{padding:.45rem .22rem .4rem;font-size:12.5px}dialog .lmtabs .lmimp{padding:.12rem .35rem}}
+@media (max-width:600px){dialog .dlghead{margin:-.85rem -.8rem .2rem;padding-left:.8rem;top:-.85rem}}   /* (narrow: the sticky title as wide as the dialog, no wider) */
+@media (max-width:600px){dialog .sver{margin:.8rem -.8rem -.85rem;bottom:-.85rem}}
