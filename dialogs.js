@@ -131,7 +131,8 @@ async function saveText(title, text, choices) {
 // entries of deleted texts, the place index without its package, deleted works and previous versions after 7 days
 async function housekeep() {
   const step = async f => { try { await f(); } catch (_) { } };
-  await step(async () => { const dbs = await listDBs(); if (!S.installed) await loadDicts();
+  await step(async () => { if ([...DL.keys()].some(id => !id.startsWith('work:') && !id.startsWith('map:'))) return;   // (not while a dictionary is coming in: its database exists before it counts as installed)
+    const dbs = await listDBs(); if (!S.installed) await loadDicts();
     if (dbs) for (const { name } of dbs) if (name === OLD_DB || (name.startsWith(DICT_DB) && !S.installed[name.slice(DICT_DB.length)]))
       await new Promise(res => { const r = indexedDB.deleteDatabase(name); r.onsuccess = r.onerror = r.onblocked = () => res(); }); });
   await step(async () => { const keys = (await caches.keys()).filter(k => k.startsWith('lesepult-')).sort((a, b) => parseInt(b.split('-v')[1]) - parseInt(a.split('-v')[1]));
@@ -338,25 +339,28 @@ async function dictsDialog() {
   const delD = () => '';                       // (Delete: on the download icon)
   // after a delete: the row of a package becomes an available one in place
   S.instAvailRow = id => { const p = remote[id]; if (!p) return '';
-    return pkRow({ grip: p.kind === 'dictionary' ? spacer : '<span class="trsp"></span>', name: esc(p.name), desc: `${esc(p.title || '')}${p.title ? ' · ' : ''}${mbs(p.bytes)}${p.priv ? ' · private repository' : ''}`, right: getBtn(p.id), cls: 'avail' }); };
-  const spacer = '<span class="grip ph" aria-hidden="true">⠿</span><span class="swsp"></span>';      // (names in line with the installed ones)
+    return pkRow({ grip: p.kind === 'dictionary' ? spacer : '<span class="trsp"></span>', name: esc(p.name), desc: `${esc(p.title || '')}${p.title ? ' · ' : ''}${mbs(p.bytes)} download${p.priv ? ' · private repository' : ''}`, right: getBtn(p.id), cls: 'avail' }); };
+  const spacer = '<span class="grip ph" aria-hidden="true">⠿</span><span class="swsp"></span><span class="chsp"></span>';   // (names in line with the installed ones: ⠿, switch, ▸)      // (names in line with the installed ones)
   const srcOf = p => p.src || (['ls', 'georges', 'collatinus', 'morph-la', 'whitaker', 'morph-la-ww'].includes(p.id) ? 'la' : 'grc');
   const avail = (lang, kinds) => Object.values(remote).filter(p => !S.installed[p.id] && kinds(p) && srcOf(p) === lang)
-    .map(p => pkRow({ grip: kinds.spacer || '', name: esc(p.name), desc: `${esc(p.title || '')}${p.title ? ' · ' : ''}${mbs(p.bytes)}${p.priv ? ' · private repository' : ''}`, right: getBtn(p.id), cls: 'avail' })).join('');
+    .map(p => pkRow({ grip: kinds.spacer || '', name: esc(p.name), desc: `${esc(p.title || '')}${p.title ? ' · ' : ''}${mbs(p.bytes)} download${p.priv ? ' · private repository' : ''}`, right: getBtn(p.id), cls: 'avail' })).join('');
   // 1. dictionaries, by language: ⠿ to reorder, the switch to use, ▸/▾ folded or open when a word is looked up
   const dictRows = lang => S.dicts.filter(d => d.src === lang).map(dictRow).join('');
   function dictRow(d) { return pkRow({ id: d.id, cls: 'dictrow',
     grip: '<span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span>',
-    sw: SW(`data-dict-on="${d.id}" aria-label="Use ${esc(d.name)}"`, !S.dictPrefs.off.includes(d.id)),
-    name: esc(d.name), desc: `${esc(d.title || '')}${d.size ? ' · ' + mbs(d.size) : ''}`,
-    right: getBtn(d.id) + `<button type="button" class="chev${S.dictPrefs.open.includes(d.id) ? ' on' : ''}" data-dict-fold="${d.id}" title="${S.dictPrefs.open.includes(d.id) ? 'Open when a word is looked up' : 'Folded when a word is looked up'}" aria-label="Open or folded when a word is looked up">${S.dictPrefs.open.includes(d.id) ? '▾' : '▸'}</button>${getBtn(d.id)}`,
+    name: esc(d.name), desc: `${esc(d.title || '')}${d.size ? ' · ' + mbs(d.size) + ' on this device' : ''}`,
+    // ⠿ · switch · ▸/▾ (folded or open on lookup) on the left; on the right only the download icon
+    sw: SW(`data-dict-on="${d.id}" aria-label="Use ${esc(d.name)}"`, !S.dictPrefs.off.includes(d.id)) + `<button type="button" class="chev${S.dictPrefs.open.includes(d.id) ? ' on' : ''}" data-dict-fold="${d.id}" title="${S.dictPrefs.open.includes(d.id) ? 'Open when a word is looked up' : 'Folded when a word is looked up'}" aria-label="Open or folded when a word is looked up">${S.dictPrefs.open.includes(d.id) ? '▾' : '▸'}</button>`,
+    right: getBtn(d.id),
     del: delD(d.id) }); }
   const privState = privCfgNow.token ? (S.privErr ? '<span class="bad">' + esc(S.privErr) + '</span>' : '<span class="ok">connected</span>') : 'not connected';
   const nD = lang => S.dicts.filter(d => d.src === lang).length;
   // installed and available dictionaries of a language in one list (available ones last, with Download)
   const isDict = Object.assign(p => p.kind === 'dictionary', { spacer });
+  // per language: the installed dictionaries (⠿ to reorder), then those available for download
   const dictBody = Object.entries(LANGS).map(([lang, name]) => { const ins = dictRows(lang), av = avail(lang, isDict);
-      return `<div class="navh2">${name}</div><div class="list plain dictlist">${ins + av || '<p class="hint small">None available.</p>'}</div>`; }).join('')
+      return `<div class="dlang" data-lang="${lang}"><div class="navh2">${name}</div><div class="list plain dictlist">${ins}</div><p class="hint small dnone"${ins ? ' hidden' : ''}>None installed.</p>`
+        + `<div class="navh3 avh"${av ? '' : ' hidden'}>Available</div><div class="list plain avlist">${av}</div></div>`; }).join('')
     + `<p class="hint small">⠿ drag to reorder · ▸/▾ folded or open when a word is looked up</p>`
     + `<div class="srow1">${SW('id="optSrcCol"', S.srcColors)}<span>Colour marks of the Eulexis editors in Pape and LSJ ${info(`<span class="legend">${Object.entries(FONT_MEANING).map(([c, t]) => `<span class="fc" data-c="${c}">■</span> ${esc(t)}`).join('<br>')}</span>`)}</span></div>`;
   // 2. analysis, by language: which instrument is used (one per language), add-ons, what can be downloaded
@@ -679,11 +683,14 @@ async function dlDelete(id, row) {
 async function dictDeleteRow(id, row) {
   const name = S.installed[id]?.name || id;
   await deleteDict(id); await loadDicts(); bucketCache.clear(); if (S.view) renderView();
-  const av = S.instAvailRow?.(id);
-  if (row && av) row.outerHTML = av; else row?.remove();
+  const av = S.instAvailRow?.(id), blk = row?.closest('.dlang');
+  if (blk && av) { row.remove(); blk.querySelector('.avlist').insertAdjacentHTML('afterbegin', av); dictListsTidy(blk); }   // (to "Available")
+  else if (row && av) row.outerHTML = av; else row?.remove();
   S.instAfterDel?.();
   note(name + ' deleted');
 }
+// a language's two lists after a move: "None installed" and the heading "Available" only when they apply
+function dictListsTidy(blk) { blk.querySelector('.dnone').hidden = !!blk.querySelector('.dictlist .pkrow'); blk.querySelector('.avh').hidden = !blk.querySelector('.avlist .pkrow'); }
 function queueDownload(id) {
   if (DL.has(id)) return;
   navigator.storage?.persist?.().catch(() => { });
@@ -771,7 +778,9 @@ async function downloadDictPkg(id, signal) {
   // the open Instruments menu: the row becomes an installed one where it is, the summaries follow (no redraw of the menu)
   if ($('#dlg').open && $('#dlgForm .dlghead[data-menu="inst"]') && S.instRow) {
     const html = S.instRow(id);
-    document.querySelectorAll(`#dlg [data-get="${id}"]`).forEach(b => { const row = b.closest('.pkrow'); if (row && html) row.outerHTML = html; });
+    document.querySelectorAll(`#dlg [data-get="${id}"]`).forEach(b => { const row = b.closest('.pkrow'), blk = row?.closest('.dlang');
+      if (blk && html) { row.remove(); blk.querySelector('.dictlist').insertAdjacentHTML('beforeend', html); dictListsTidy(blk); }   // (to the installed ones)
+      else if (row && html) row.outerHTML = html; });
     S.instAfterDel?.();
   }
 }
