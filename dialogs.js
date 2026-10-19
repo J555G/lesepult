@@ -434,9 +434,9 @@ async function dictsDialog() {
 function wireDictDrag() {
   let drag = null;
   document.addEventListener('pointerdown', e => {
-    const grip = e.target.closest('#dlg .dictrow .grip'); if (!grip) return;
+    const grip = e.target.closest('#dlg .dictrow .grip, #dlg .scg .grip'); if (!grip) return;   // (dictionaries; the groups of the results page)
     e.preventDefault();
-    const row = grip.closest('.dictrow'), list = row.parentElement;
+    const row = grip.closest('.dictrow, .scg'), list = row.parentElement;
     const r = row.getBoundingClientRect();
     drag = { row, list, y0: e.clientY, off: e.clientY - r.top, id: e.pointerId };
     row.classList.add('dragging'); grip.setPointerCapture(e.pointerId);
@@ -446,7 +446,7 @@ function wireDictDrag() {
     const { row, list } = drag;
     row.style.transform = `translateY(${e.clientY - drag.y0}px)`;
     // move the row in the DOM when the pointer passes the middle of a neighbour
-    const others = [...list.querySelectorAll('.dictrow')].filter(x => x !== row);
+    const others = [...list.querySelectorAll(row.classList.contains('scg') ? '.scg' : '.dictrow')].filter(x => x !== row);
     const before = others.find(x => { const b = x.getBoundingClientRect(); return e.clientY < b.top + b.height / 2; });
     const oldTop = row.getBoundingClientRect().top;
     if (before && before.previousElementSibling !== row) list.insertBefore(row, before);
@@ -460,6 +460,11 @@ function wireDictDrag() {
     if (!drag || e.pointerId !== drag.id) return;
     const { row, list } = drag; drag = null;
     row.classList.remove('dragging'); row.style.transform = '';
+    if (row.classList.contains('scg')) {                            // Settings → Search → Results page: the groups' order
+      const order = [...list.querySelectorAll('.scg')].map(x => x.dataset.gid), G = S.sc.groups;
+      S.sc.groups = order.map(id => G.find(g => g[0] === id)).filter(Boolean);
+      list.innerHTML = scGroupsHTML(); return saveSearchCfg();
+    }
     S.dictPrefs.order = [...document.querySelectorAll('#dlg .dictrow')].map(x => x.dataset.id);    // all languages
     await setting('dictPrefs', S.dictPrefs); await loadDicts(); if (S.view) renderView();
   };

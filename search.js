@@ -526,7 +526,8 @@ const scSec = (title, body) => `<section class="rsec"><div class="rhd"><span>${t
 function scGroupsHTML() {
   const G = S.sc.groups;
   return G.map(([id, on], i) => { const g = SEARCH_GROUPS.find(x => x.id === id);
-    return `<div class="srow1 swr scg"><span>${g?.title || id}</span><button type="button" class="ico scmv" data-scmv="${i}:-1" aria-label="Up"${i ? '' : ' disabled'}>↑</button><button type="button" class="ico scmv" data-scmv="${i}:1" aria-label="Down"${i < G.length - 1 ? '' : ' disabled'}>↓</button>${SW(`data-scgrp="${i}"`, on)}</div>`; }).join('');
+    // ⠿ drag to reorder · the switch on the left · the name
+    return `<div class="srow1 swr scg" data-gid="${esc(id)}"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span>${SW(`data-scgrp="${i}"`, on)}<span>${g?.title || id}</span></div>`; }).join('');
 }
 function searchSettingsHTML() {
   return scSec('Suggestions', scSw('sugg', 'Suggestions while typing', 'a list beneath the search field; Enter shows all results')
@@ -535,7 +536,7 @@ function searchSettingsHTML() {
       + scSw('tog', 'Greek/Latin button beside the search field', 'to search one language only'))
     + scSec('Typo tolerance', scSw('typo', 'Similar words when nothing matches exactly')
       + scLine('How far off', scSeg('dist', [[1, '1 letter'], [2, '2 letters']]), '2 letters only for words of 6 letters or more'))
-    + scSec('Results page', `<div class="scgroups">${scGroupsHTML()}</div><small class="hint rhint">the order of the groups; more kinds of data will appear here</small>`)
+    + scSec('Results page', `<div class="scgroups">${scGroupsHTML()}</div><small class="hint rhint">⠿ drag to change the order of the groups; more kinds of data will appear here</small>`)
     + scSec('Library', scSw('libWords', 'Find words in the texts too', 'the Library’s search also lists the works on this device in which the word occurs'))
     + scSec('Dictionaries searched', scLine('Which dictionaries', scSeg('dicts', [['on', 'Switched on'], ['all', 'All installed']])))
     + scSec('Index of all texts', `<div class="srow1 swr"><span id="scIdx">…<small class="hint">built once; new texts are added when you search</small></span><button type="button" data-scidx="1">Rebuild</button></div>`);
@@ -561,9 +562,6 @@ function wireSearchSettings() {
       s.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === s));
       if (k === 'dicts') { HW.grc = HW.la = null; }
       return saveSearchCfg(); }
-    const m = ev.target.closest?.('#dlg [data-scmv]');
-    if (m) { const [i, d] = m.dataset.scmv.split(':').map(Number), G = S.sc.groups, j = i + d; if (j < 0 || j >= G.length) return;
-      [G[i], G[j]] = [G[j], G[i]]; $('#dlg .scgroups').innerHTML = scGroupsHTML(); return saveSearchCfg(); }
     if (ev.target.closest?.('#dlg [data-scidx]')) { const b = ev.target.closest('[data-scidx]'); b.disabled = true;
       const tick = setInterval(scIdxInfo, 700); scIdxInfo();
       try { await idxBuild({ full: true }); } finally { clearInterval(tick); b.disabled = false; scIdxInfo(); } }
