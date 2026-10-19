@@ -1,8 +1,8 @@
 // ================================================================ Pult · the map menu, the sun, the projection icon (v297)
 // The map menu (button at the top right): base map and imagery, relief, the view (globe or flat, 3D, north up) and
 // sunlight. The other button beside it (Layers) keeps places, political, built world, names and your own drawings.
-// Sunlight: day and night on the map – the night side darkened, with a soft twilight edge (the sun 0°, 6°, 12° and 18°
-// below the horizon), and the relief lit from where the sun stands over the middle of the map. “Now” follows the real
+// Sunlight: day and night on the map – the night side darkened smoothly through twilight (from sunset to the sun 18°
+// below the horizon, as wide as it really is at each place and season), and the relief lit from where the sun stands over the middle of the map. “Now” follows the real
 // sun; “Animate” lets the days run (one day in 5 s … 60 s); the sundial in the menu sets the hour by hand.
 // Settings (mapCfg): sun, sunMode ('now' | 'anim' | 'set'), sunSpeed (seconds per day), sunFmt ('modern' | 'roman' | 'greek').
 
@@ -48,19 +48,6 @@ function nightPolysAll(s, hs) {
     return rs.filter(r => r.length > 1).map(r => [[...r.map(([x, , b]) => [x, b]), ...r.slice().reverse().map(([x, a]) => [x, a]), [r[r.length - 1][0], r[r.length - 1][2]]]]); });
 }
 const nightPolys = (s, h) => nightPolysAll(s, [h])[0];
-// the line between day and night (the sun h degrees below the horizon), for the twilight glow: the edges of the night
-// polygons without their straight cuts at the poles and the date line
-const TW = [[1400, '#ffa060', 0.34, 2]];   // [width on the ground (km), colour, opacity, the sun's height (°)]
-function twilightFC(ms) {
-  const s = sunPos(ms), feats = [];
-  for (const [, , , h] of TW) for (const ring of nightPolys(s, h)) {
-    let line = [];
-    const put = l => { if (l.length > 1) feats.push({ h, l }); };
-    for (const [x, y] of ring[0]) { if (Math.abs(y) > 89 || (line.length && Math.abs(line[line.length - 1][0] - x) > 3)) { put(line); line = []; } if (Math.abs(y) <= 89) line.push([x, y]); }
-    put(line);
-  }
-  return { type: 'FeatureCollection', features: feats.map(f => ({ type: 'Feature', properties: { h: f.h }, geometry: { type: 'LineString', coordinates: f.l } })) };
-}
 // the night as a picture (one layer, a smooth darkening): 512 × 256 pixels over the map from 85° S to 85° N, rows in
 // Mercator spacing; each pixel as dark as the sun is low there – from sunset (0°) to the end of twilight (18° below)
 const NW = 512, NH = 256, NLAT = 85.0511;
@@ -87,13 +74,9 @@ const sunTime = () => (M.sunT ??= Date.now());
 function sunStyle(st) {                                             // (called by layerStyle)
   st.light = sunLight();
   if (!sunOn()) return;
-  nightPaint(sunTime()); st.sources.sunnight = { type: 'canvas', canvas: nightCanvas(), animate: true, coordinates: [[-180, NLAT], [180, NLAT], [180, -NLAT], [-180, -NLAT]] };
+  nightPaint(sunTime()); st.sources.sunnight = { type: 'canvas', canvas: nightCanvas(), animate: false, coordinates: [[-180, NLAT], [180, NLAT], [180, -NLAT], [-180, -NLAT]] };
   const k = st.layers.findIndex(l => l.id === 'pl-region');
-  st.sources.suntw = { type: 'geojson', data: twilightFC(sunTime()) };
-  st.layers.splice(k < 0 ? st.layers.length : k, 0,               // (the glow beneath the night: the night darkens its night side)
-    ...TW.map(([km, col, op, h], i) => { const w = km * 512 / 40075;     // (widths in km on the ground)
-      return { id: 'sun-twilight' + i, type: 'line', source: 'suntw', filter: ['==', ['get', 'h'], h], layout: { 'line-join': 'round', visibility: M.cfg.sunGlow !== false ? 'visible' : 'none' }, paint: { 'line-color': col, 'line-opacity': op,
-        'line-width': ['interpolate', ['exponential', 2], ['zoom'], 0, w, 10, w * 1024], 'line-blur': ['interpolate', ['exponential', 2], ['zoom'], 0, w * 0.6, 10, w * 614] } }; }),
+  st.layers.splice(k < 0 ? st.layers.length : k, 0,
     { id: 'sun-night', type: 'raster', source: 'sunnight', layout: { visibility: M.cfg.sunNight !== false ? 'visible' : 'none' }, paint: { 'raster-fade-duration': 0, 'raster-resampling': 'linear' } });
 }
 // the light of the globe's atmosphere (MapLibre takes it from the style's light): with day and night, where the sun
@@ -109,8 +92,8 @@ function sunApply() {
   const m = M.map; if (!m) return;
   try { m.setLight(sunLight()); } catch (_) {}
   if (sunOn()) {
-    if (m.getSource('sunnight')) nightPaint(sunTime());
-    m.getSource('suntw')?.setData(twilightFC(sunTime()));
+    const ns = m.getSource('sunnight');
+    if (ns) { nightPaint(sunTime()); ns.play(); requestAnimationFrame(() => requestAnimationFrame(() => ns.pause())); }   // (the picture read once, then the map rests)
     if (m.getLayer('rel-shade')) { const c = m.getCenter(), a = sunAt(sunPos(sunTime()), c.lng, c.lat);
       m.setPaintProperty('rel-shade', 'hillshade-illumination-anchor', 'map'); m.setPaintProperty('rel-shade', 'hillshade-illumination-direction', Math.round(a.az)); }
   } else if (m.getLayer('rel-shade')) { m.setPaintProperty('rel-shade', 'hillshade-illumination-anchor', 'viewport'); m.setPaintProperty('rel-shade', 'hillshade-illumination-direction', 335); }
@@ -205,7 +188,7 @@ function sdCtlHTML() {
     + `<div class="seg" role="group">${[['now', 'Now'], ['anim', 'Animate']].map(([v, l]) => `<button type="button" data-sunmode="${v}" class="${mode === v ? 'on' : ''}">${l}</button>`).join('')}</div>`
     + (mode === 'anim' ? `<div class="msun"><button type="button" class="mico2" data-sunplay="1" aria-label="${M.sunPause ? 'Play' : 'Pause'}">${M.sunPause ? '▶' : '❚❚'}</button><input type="range" min="0" max="100" value="${spdToV(spd)}" data-sunspeed="1" aria-label="Speed"><output>${spdLabel(spd)}</output></div>` : '')
     + `<div class="seg" role="group">${[['modern', 'Modern'], ['roman', 'Roman'], ['greek', 'Greek']].map(([v, l]) => `<button type="button" data-sunfmt="${v}" class="${(M.cfg.sunFmt || 'modern') === v ? 'on' : ''}">${l}</button>`).join('')}</div>`
-    + `<div class="sdtg">${[['sunNight', 'Night'], ['sunGlow', 'Glow'], ['sunAtm', 'Air']].map(([k, l]) => `<button type="button" data-suntg="${k}" class="${M.cfg[k] !== false ? 'on' : ''}" aria-pressed="${M.cfg[k] !== false}">${l}</button>`).join('')}</div>`
+    + `<div class="sdtg">${[['sunNight', 'Night'], ['sunAtm', 'Air']].map(([k, l]) => `<button type="button" data-suntg="${k}" class="${M.cfg[k] !== false ? 'on' : ''}" aria-pressed="${M.cfg[k] !== false}">${l}</button>`).join('')}</div>`
     + `<small class="sdsub" id="sdSub"></small>`;
 }
 async function sdOpen(open) {
@@ -373,11 +356,10 @@ async function mapOptsClick(b) {
   if (b.id === 'mapCompBtn') { M.cfg.compass = M.cfg.compass === false; await saveMapCfg(); b.classList.toggle('on', M.cfg.compass); b.setAttribute('aria-pressed', M.cfg.compass); compassUpd(); return true; }
   if (b.id === 'mapNorth' || d.mnorth) { M.map?.easeTo({ bearing: 0, duration: 500 }); return true; }
   if (b.id === 'mapSunBtn') { await sdOpen(!M.sdOpen); return true; }
-  if (d.suntg) {                                                   // the night shade, the twilight glow, the atmosphere: each on or off
+  if (d.suntg) {                                                   // the night shade, the atmosphere: each on or off
     M.cfg[d.suntg] = M.cfg[d.suntg] === false; await saveMapCfg(); b.classList.toggle('on', M.cfg[d.suntg]); b.setAttribute('aria-pressed', M.cfg[d.suntg]);
     const m = M.map, vis = k => M.cfg[k] !== false ? 'visible' : 'none';
     if (m?.getLayer('sun-night')) m.setLayoutProperty('sun-night', 'visibility', vis('sunNight'));
-    TW.forEach((_, i) => { if (m?.getLayer('sun-twilight' + i)) m.setLayoutProperty('sun-twilight' + i, 'visibility', vis('sunGlow')); });
     if (d.suntg === 'sunAtm' && m) m.setSky(mapStyle(M.colors).sky);
     return true; }
   if (d.sdclose) { await sdOpen(false); return true; }
