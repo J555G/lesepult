@@ -306,7 +306,13 @@ function hillIconSVG(t) {
   const rings = HILL.map((r, i) => `<path d="M${r.map(([x, y]) => `${x.toFixed(2)} ${(y - i * HILL_LIFT * t).toFixed(2)}`).join('L')}Z" class="hr${i}"/>`).join('');
   const top = HILL[HILL.length - 1], cx = top.reduce((s, p) => s + p[0], 0) / top.length, cy = top.reduce((s, p) => s + p[1], 0) / top.length - (HILL.length - 1) * HILL_LIFT * t - 0.5 * t;
   return `<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" class="hillic"><g fill="var(--mvbg, var(--bg))" stroke="currentColor" stroke-width=".85" stroke-linejoin="round">${rings}</g>`
-    + `<path class="hroof" d="M${(cx - 1.9).toFixed(2)} ${(cy + 0.7).toFixed(2)}h3.8l-.95-1.6h-1.9z"/></svg>`;   // (the roof: a trapezoid)
+    + chapelSVG(cx, cy - 0.7) + '</svg>';   // (the roof: a trapezoid)
+}
+// the chapel: white walls under the red roof (a trapezoid), the little tower at its west end; (x, y): the foot of the walls
+function chapelSVG(x, y) {
+  const f = v => v.toFixed(2);
+  return `<path class="hwall" d="M${f(x - 1.6)} ${f(y)}v-1.25h3.2v1.25z"/><path class="htower" d="M${f(x - 1.45)} ${f(y - 1.25)}v-2.1l.35-.75.35.75v2.1"/>`
+    + `<path class="hroof" d="M${f(x - 1.95)} ${f(y - 1.2)}h3.9l-.85-1.45h-2.2z"/>`;
 }
 function iconAnim(el, to, svg) {                                    // an icon from the shape shown to the other (0.45 s, eased)
   const from = +(el.dataset.t ?? (to ? 0 : 1)), t0 = performance.now();
