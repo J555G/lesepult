@@ -1862,3 +1862,5 @@ dialog .libcount .cdot{display:none}
 /* the sieve and the four sort buttons: only the icon or word flashes; the rim keeps to its state (v291) */
 body:not(.nofade) dialog :is(#libFilterBtn,.sortk,.sorto):is(:active,.fxon){color:var(--acc);transition:color .111s ease}
 dialog .sortpair .sorto{width:38px;padding:0}   /* (Α/Ω as wide as BC/AD) */
+dialog .sortpair button.on{border-color:var(--mut)}   /* (the two in use: a brighter rim, like the sieve with its panel open) */
+dialog .sortpair button{transition:border-color .15s}
