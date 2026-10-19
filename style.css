@@ -94,8 +94,8 @@ details.src.empty>summary{color:var(--mut);font-weight:400}
 .ref{margin:.4rem 0 .4rem .5rem;padding-left:.7rem;border-left:3px solid var(--line)}
 .ref>.rl{font:12px var(--ui);color:var(--mut)}
 .note{font:italic 14px var(--greek);color:var(--mut)}
-.gw{cursor:pointer;border-bottom:1px dotted transparent}
-.gw:hover,.gw:active{border-bottom-color:var(--acc2);color:var(--acc2)}
+.gw{cursor:pointer}
+.gw:active{color:var(--acc2)}@media (hover:hover){.gw:hover{color:var(--acc2)}}   /* (no underline; hover only with a mouse: no sticky hover on touch, v294) */
 .none{color:var(--mut);font-style:italic;font-size:14px}
 /* lemma list */
 /* Lemmata: the vocabulary of the section – lemma (tap: entry) and its default gloss, side by side; stacked when narrow */
@@ -152,7 +152,7 @@ body.nosrccol .ent .fc,body.nosrccol .ent .au{color:inherit}
 #menu{position:absolute;left:0;top:calc(100% + 4px);z-index:40;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:.3rem;display:flex;flex-direction:column;min-width:13rem}
 #menu[hidden]{display:none}
 #menu button{border:none;text-align:left;background:none;padding:.55rem .7rem;font-size:15px;border-radius:6px}
-#menu button:active,#menu button:hover{background:var(--bar)}
+#menu button:active{background:var(--bar)}@media (hover:hover){#menu button:hover{background:var(--bar)}}
 #dictBody,#listBody{padding-top:.6rem}
 @media (max-width:900px){
   #textTitle{max-width:19vw}
@@ -370,7 +370,7 @@ dialog .dsec .opt input{margin-right:.5rem}
 /* tappable Greek words in dictionary entries: a slight blue tint */
 .ent .gw{color:color-mix(in srgb,var(--fg) 35%,var(--acc2))}
 body:not(.nosrccol) .ent .fc .gw{color:inherit}
-.ent .gw:hover,.ent .gw:active{color:var(--acc2)}
+.ent .gw:active{color:var(--acc2)}@media (hover:hover){.ent .gw:hover{color:var(--acc2)}}
 
 /* floating selection buttons: highlighter (toggle), + Gloss, + Default */
 #fabBar #fabHl{background:var(--bar);color:var(--fg);border:1.5px solid var(--mut);line-height:0;padding:.5rem .8rem}
@@ -632,7 +632,7 @@ dialog .dictrow .fold{font:12px var(--ui);padding:.05rem .4rem;margin-left:.2rem
 /* dialogs: close button in the corner; explanations on demand */
 dialog{position:relative}
 dialog .dlgx{position:absolute;top:.55rem;right:.55rem;width:2rem;height:2rem;padding:0;border:0;background:none;color:var(--mut);font-size:17px;line-height:1;border-radius:50%}
-dialog .dlgx:hover{background:var(--bg)}
+@media (hover:hover){dialog .dlgx:hover{background:var(--bg)}}
 dialog h3{padding-right:2.2rem}
 .info{border:0;background:none;padding:0 .15rem;color:var(--mut);font:14px/1 var(--ui);cursor:pointer;vertical-align:baseline}
 .info[aria-expanded=true]{color:var(--acc)}
@@ -1150,7 +1150,7 @@ dialog .pkrow .t small{display:block;line-height:1.3}
 dialog .pkrow.avail .t b{font-weight:500}
 dialog .pkr{display:flex;gap:.3rem;align-items:center;flex:none}
 dialog .pkm{background:none;border:1px solid transparent;font-size:17px;line-height:1;padding:.15rem .45rem;color:var(--mut);border-radius:8px}
-dialog .pkm.on,dialog .pkm:hover{border-color:var(--line)}
+dialog .pkm.on{border-color:var(--line)}@media (hover:hover){dialog .pkm:hover{border-color:var(--line)}}
 dialog .pkmore{flex-basis:100%;display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;padding:.15rem 0 .2rem 2.9rem}
 dialog .pkmore[hidden]{display:none}
 dialog .pkmore small{flex:1;min-width:10rem}
@@ -1276,7 +1276,7 @@ dialog .xsw{padding:.2rem 0}
 #dictHist button small{font:14px var(--greek);color:var(--mut)}
 #dictHist button i{margin-left:auto;font:12px var(--ui);color:var(--mut);font-style:normal}
 #dictHist button.on{background:color-mix(in srgb,var(--acc) 22%,transparent)}
-#dictHist button:hover{background:var(--bar)}
+@media (hover:hover){#dictHist button:hover{background:var(--bar)}}
 #top #btnRead{display:inline-flex;align-items:center;justify-content:center;line-height:0}
 #top #btnRead svg{display:block}
 dialog .pkmore .dask{flex:1 1 100%;font-size:13px}
