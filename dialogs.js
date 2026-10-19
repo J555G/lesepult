@@ -334,7 +334,7 @@ async function dictsDialog() {
   // the button on the right: Update when the website has a newer version, Download when not installed
   const getBtn = id => {
     const p = remote[id], have = !!S.installed[id]; if (!p && !have) return '';
-    return dlIcon(id, { have, rev: have && !!p && S.installed[id].version !== p.version, size: p?.bytes, upd: 'Download update' });
+    return dlIcon(id, { have, rev: have && !!p && S.installed[id].version !== p.version, size: p?.bytes, upd: 'Download update', off: !have && document.body.classList.contains('netoff') });   // (offline: faint, as in the Library)
   };
   const delD = () => '';                       // (Delete: on the download icon)
   // after a delete: the row of a package becomes an available one in place
@@ -583,7 +583,7 @@ function paintDL(id, text) {
     if (b.dataset.lbl == null) b.dataset.lbl = icon ? b.innerHTML : b.textContent;
     b.classList.remove('busy', 'wait', 'inst', 'fail'); b.disabled = false;
     if (DL.has(id)) {
-      b.removeAttribute('data-get'); b.dataset.dl = id; b.classList.add('dlbtn', 'busy'); if (p < 0) b.classList.add('wait'); else if (p >= 0.9) b.classList.add('inst');
+      b.removeAttribute('data-get'); b.dataset.dl = id; b.classList.add('busy'); if (!icon) b.classList.add('dlbtn');   // (the icon keeps its own look: the old text buttons' styles would widen it) if (p < 0) b.classList.add('wait'); else if (p >= 0.9) b.classList.add('inst');
       b.style.setProperty('--p', Math.round(Math.max(0, p) * 100) + '%');
       const t = p < 0 ? 'Waiting' : p >= 0.9 ? 'Installing' : Math.round(p * 100) + ' %';
       if (icon) b.title = t + ' – tap to stop'; else { b.textContent = t; b.title = 'Tap to stop'; }

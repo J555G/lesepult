@@ -134,7 +134,7 @@ async function mapSectionHTML() {
     const lv = ps.length > 1 ? `<div class="seg lvl" role="group">${ps.map((p, i) => `<button type="button" data-mapget="${p.id}" class="${cur === p ? 'on' : ''}"${busy ? ' disabled' : ''} title="${cur === p ? 'Installed' : 'Download this level' + (cur ? ' (replaces the other)' : '')}">${cur === p ? '' : '⤓ '}${p.lvl || (i ? 'Detailed' : 'Standard')} <small>${mbs(p.bytes)}</small></button>`).join('')}</div>` : '';
     const right = busy ? dlIcon(q)
       : cur ? dlIcon('map:' + cur.id, { have: true, rev: inst[cur.id] !== cur.v, upd: 'Download update' })
-      : ps.length > 1 ? '' : dlIcon('map:' + p0.id, { size: p0.bytes });
+      : ps.length > 1 ? '' : dlIcon('map:' + p0.id, { size: p0.bytes, off: document.body.classList.contains('netoff') });
     return `<div class="mpk${cur ? '' : ' avail'}" data-mk="${esc(k)}">` + pkRow({
       sw: cur && k !== 'base' ? SW(`data-mapsw="${cur.id}" aria-label="Use ${esc(name)}"`, !off[cur.id]) : '<span class="swsp"></span>',
       name: esc(name), desc: esc(p0.desc) + (ps.length > 1 ? '' : ' · ' + mbs(p0.bytes)) + (cur && off[cur.id] ? ' · <i>switched off</i>' : ''),
