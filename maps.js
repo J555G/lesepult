@@ -43,7 +43,8 @@ async function mapCfg() {
       if (saved.sites) saved.pfOn = false;
     }
     if (!saved.v5) { saved.v5 = true; if (saved.regions) { saved.nmRegions = saved.regions !== 'off'; saved.regArea = saved.regions === 'areas'; } }   // the new layer menu
-    if (saved.basemap === 'ne2') saved.basemap = 'hd';                                     // (Natural Earth II retired, v296)
+    if (saved.basemap === 'ne2') saved.basemap = 'hd';
+    if (saved.img === 'none') saved.img = 'bm';                                            // (the drawn map retired, v300)                                     // (Natural Earth II retired, v296)
     if (!saved.v4) { saved.v4 = true; if (!Object.values(saved.cats || {}).some(Boolean)) saved.cats = { settl: true }; }   // kinds of places: settlements by default
     M.cfg = Object.assign({ mark: false, jump: true, pfOn: true, sel: [], scope: 'section', names: 'text', peoples: false, borders: false, rough: true, persons: 'unsure' }, JSON.parse(JSON.stringify(LCFG)), saved);
     M.esriKey ??= (await setting('esriKey')) || '';
@@ -677,7 +678,7 @@ async function showMap1() {
   if (!M.map) {
     box.innerHTML = `<div id="mapCanvas"></div><div class="mlabels" id="mapLabels"></div>
       <div class="mtop"><button type="button" class="mscope" id="mapScope"></button><button type="button" class="mcheck" id="mapCheck" hidden></button></div>
-      <div class="mctl"><button type="button" class="mico" id="mapSaveBtn" title="Saved maps and export" aria-label="Saved maps and export">${SAVE_ICON}</button><button type="button" class="mico" id="mapDrawBtn" title="Draw on the map" aria-label="Draw on the map">${PEN_ICON}</button><button type="button" class="mico" id="mapTimeBtn" title="Period filter" aria-label="Period filter">${CLOCK_ICON}</button><button type="button" class="mico" id="mapSunBtn" title="Sundial: day and night" aria-label="Sundial">${SUNDIAL_ICON}</button><button type="button" class="mico" id="mapLayersBtn" title="Layers" aria-label="Layers">${LAYERS_ICON}</button><button type="button" class="mico" id="mapOptsBtn" title="Map: base map, relief, view, sunlight" aria-label="Map options">${MAPOPT_ICON}</button></div><button type="button" class="mico mnorth" id="mapNorth" title="North up" aria-label="North up" hidden>${COMPASS_ICON}</button>
+      <div class="mctl"><button type="button" class="mico" id="mapSaveBtn" title="Saved maps and export" aria-label="Saved maps and export">${SAVE_ICON}</button><button type="button" class="mico" id="mapDrawBtn" title="Draw on the map" aria-label="Draw on the map">${PEN_ICON}</button><button type="button" class="mico" id="mapTimeBtn" title="Period filter" aria-label="Period filter">${CLOCK_ICON}</button><button type="button" class="mico" id="mapSunBtn" title="Sundial: day and night" aria-label="Sundial">${SUNDIAL_ICON}</button><button type="button" class="mico" id="mapLayersBtn" title="Layers" aria-label="Layers">${LAYERS_ICON}</button><button type="button" class="mico" id="mapOptsBtn" title="Globe: projection, 3D, map, elevation" aria-label="Globe">${GLOBE_EU_ICON}</button></div><button type="button" class="mico mnorth" id="mapNorth" title="North up" aria-label="North up">${COMPASS_ICON}</button>
       <div class="mhandles" id="mapHandles"></div>
       <div class="mtime" id="mapTime" hidden>${timeBarHTML()}</div><div class="mdraw" id="mapDraw" hidden></div>
       <div class="minfo" id="mapInfo" hidden><span class="mscale" id="mapScale"><i></i><b></b></span><span class="mzoom" id="mapZoom"></span></div>
@@ -1066,13 +1067,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ---------------------------------------------------------------- the view: a globe or the flat map (Mercator), and 3D terrain (v295)
 // Both on by default; two buttons on the map switch them (M.cfg.globe, M.cfg.t3d). 3D: the relief packages raise the
 // ground, and the map can be tilted (two fingers up or down; with a mouse, the right button), turned off: flat and north up.
-const GLOBE_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="8.5"/><ellipse cx="12" cy="12" rx="3.6" ry="8.5"/><path d="M3.5 12h17M5.2 7.2h13.6M5.2 16.8h13.6" stroke-width="1.1"/></g></svg>';
-const T3D_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"><path d="M2.5 19.5h19l-3.2-4.2"/><path d="M3.5 19.5 9.5 9l3.2 4.6 2.3-2.8 4.5 8.7"/><path d="M8.2 11.3l1.3 1.2 1.2-1" stroke-width="1.1"/></g></svg>';
 const viewOn = k => M.cfg?.[k] !== false;
-function viewBtnsHTML() {
-  const b = (id, k, icon, on, off) => `<button type="button" class="mico${viewOn(k) ? ' on' : ''}" id="${id}" aria-pressed="${viewOn(k)}" title="${viewOn(k) ? on : off}" aria-label="${viewOn(k) ? on : off}">${icon}</button>`;
-  return b('mapGlobeBtn', 'globe', GLOBE_ICON, 'Globe – tap for the flat map', 'Flat map – tap for the globe') + b('map3dBtn', 't3d', T3D_ICON, '3D terrain – tap to turn off', '3D off – tap for terrain and tilting');
-}
 const T3D = () => ({ source: 'terrdem', exaggeration: 1.5 });
 async function viewToggle(k) {
   M.cfg[k] = !viewOn(k); await saveMapCfg();

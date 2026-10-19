@@ -1938,3 +1938,16 @@ dialog .sortpair button{transition:border-color .15s}
 .msdial .sdtg{display:flex;gap:4px}
 .msdial .sdtg button{font:11.5px var(--ui);padding:.12rem .45rem;border-radius:10px;background:rgba(0,0,0,.28);color:#fff;border:1px solid rgba(255,255,255,.35);opacity:.6}
 .msdial .sdtg button.on{opacity:1;background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.8)}
+/* the Globe menu (v300): three icon buttons, then the map, elevation, rivers and lakes – no folds */
+.mpop .mvrow{display:flex;gap:8px;margin:.2rem 0 .6rem}
+.mpop .mvb{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:.4rem .2rem .3rem;border-radius:10px;background:var(--bg);color:var(--mut);border:1px solid var(--line)}
+.mpop .mvb.on{color:var(--fg);border-color:var(--mut)}
+.mpop .mvb:disabled{opacity:.35}
+.mpop .mvb svg{display:block}
+.mpop .mvb small{font:11.5px var(--ui)}
+.mpop .mrow{display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.35rem 0;font:14px var(--ui)}
+.mpop .mrow.dis{opacity:.4}
+.mpop .mrow.msub{padding-top:.15rem}
+.mpop .seg.mimg{display:flex;margin:0 0 .3rem}
+.mpop .seg.mimg button{flex:1;padding:.32rem .3rem;font-size:13px}
+.mnorth .svg,.mnorth svg{transition:transform .08s linear}

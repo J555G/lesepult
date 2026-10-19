@@ -188,14 +188,14 @@ function reliefStyle(st, C) {
   const at = id => st.layers.findIndex(l => l.id === id);
   const put = (k, ...ls) => st.layers.splice(k < 0 ? st.layers.length : k, 0, ...ls);
   // sea depth (Natural Earth): beneath the land; with the detailed coasts above their sea, fading out as one zooms in
-  if (M.pkFiles?.has('relief/bathy.pmtiles')) {
+  if (M.pkFiles?.has('relief/bathy.pmtiles') && M.cfg.elev !== false) {
     st.sources.bathy = { type: 'vector', url: pmUrl('relief/bathy.pmtiles') };
     const deep = dark ? ['#1d2a33', '#18242c', '#141f27', '#111a21', '#0e161c'] : ['#cfdde6', '#bfd2de', '#adc5d5', '#9cb8cb', '#8aaabf'];
     const hd = at('hd-sea') >= 0;
     put(hd ? at('hd-sea') + 1 : at('land'), { id: 'rel-bathy', type: 'fill', source: 'bathy', 'source-layer': 'depth', maxzoom: hd ? 9 : 24,
       paint: { 'fill-color': ['step', ['get', 'd'], deep[0], 200, deep[1], 1000, deep[2], 2000, deep[3], 4000, deep[4]], 'fill-opacity': hd ? ['interpolate', ['linear'], ['zoom'], 6, 1, 8.5, 0] : 1, 'fill-antialias': false } });
   }
-  if (!M.relDem) return;
+  if (!M.relDem || M.cfg.elev === false) return;                    // (Elevation switched off in the Globe menu)
   st.sources.reldem = { type: 'raster-dem', tiles: [M.relDem.sharedDemProtocolUrl], encoding: 'terrarium', tileSize: 256, maxzoom: M.rel.maxz };
   st.sources.terrdem = { type: 'raster-dem', tiles: [M.relDem.sharedDemProtocolUrl], encoding: 'terrarium', tileSize: 256, maxzoom: M.rel.maxz };   // (3D: its own source, as MapLibre advises)
   if (viewOn('t3d')) st.terrain = T3D();
@@ -215,18 +215,14 @@ function reliefStyle(st, C) {
   const k = ['a-prov', 'a-roads', 'own'].map(at).find(i => i >= 0) ?? at('pl-region');
   put(k, { id: 'rel-contour', type: 'line', source: 'contours', 'source-layer': 'contours', minzoom: 5, filter: ['>', ['get', 'ele'], 0],
     paint: { 'line-color': dark ? '#a08a66' : '#8a6a40', 'line-opacity': ['case', ['==', ['get', 'level'], 1], 0.6, 0.35], 'line-width': ['case', ['==', ['get', 'level'], 1], 1.1, 0.6] } });
+  put(k, { id: 'rel-coast0', type: 'line', source: 'contours', 'source-layer': 'contours', filter: ['==', ['get', 'ele'], 0],     // the 0 m line: the coast from the heights
+    paint: { 'line-color': dark ? '#c9b892' : '#7a6a4a', 'line-width': 1, 'line-opacity': 0.8 } });
 }
 function reliefLayerProps() {
   const v = x => x ? 'visible' : 'none';
-  return { 'rel-shade': { vis: v(relOn('relShade')) }, 'rel-color': { vis: v(relOn('relColor')) }, 'rel-contour': { vis: v(relOn('relContours')) }, 'rel-bathy': { vis: v(relOn('relBathy')) } };
+  return { 'rel-shade': { vis: v(relOn('relShade')) }, 'rel-color': { vis: v(relOn('relColor')) }, 'rel-contour': { vis: v(relOn('relContours')) }, 'rel-coast0': { vis: v(relOn('relContours')) }, 'rel-bathy': { vis: v(relOn('relBathy')) } };
 }
 // the menu: Layers → Landscape
-function reliefMenuHTML() {
-  if (!relFiles().length && !M.rel) return '<div class="navh">Relief</div><p class="hint small">Needs the download <b>Relief – overview</b> (and, for zooming in close, the regions).</p><button type="button" data-mapdl="1">Open Instruments → Map</button>';
-  const v5 = engineMajor() >= 5;
-  return `<div class="navh">Relief</div>` + tgl('relShade', 'Shading', relOn('relShade')) + (v5 ? tgl('relColor', 'Colours by height', relOn('relColor')) : '') + tgl('relContours', 'Contour lines', relOn('relContours'))
-    + (M.pkFiles?.has('relief/bathy.pmtiles') ? tgl('relBathy', 'Depth of the sea', relOn('relBathy')) : '');
-}
 // numbers of the contour lines: on the stronger lines, along them, where there is room (drawn with the other labels)
 function contourLabels(placed, W, H) {
   if (!relOn('relContours') || !M.map?.getLayer('rel-contour') || M.map.getZoom() < 7) return '';
