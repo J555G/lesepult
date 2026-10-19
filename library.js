@@ -198,7 +198,7 @@ function seg(f, opts) {
 }
 function sortBarHTML() {
   const v = libView(), [, key, ord] = SORTS.find(x => x[0] === v.sort), da = v.dirs.alpha, dc = v.dirs.chrono;
-  const kb = (k, label) => `<button type="button" class="sortk${key === k ? ' on' : ''}" data-sortk="${k}" aria-pressed="${key === k}" title="Sort by ${k}">${label}</button>`;
+  const kb = (k, label) => `<button type="button" class="sortk${key === k ? ' on' : ''}" data-sortk="${k}" aria-pressed="${key === k}" title="Sort by ${k}"><span>${label}</span></button>`;
   const ob = (o, icon, label, now) => `<button type="button" class="sorto${ord === o ? ' on' : ''}" data-sorto="${o}" aria-pressed="${ord === o}" aria-label="${label}" title="${ord === o ? label + ' – tap to reverse' : 'Sort ' + label}">${sortIcon(icon)}</button>`;
   return `<span class="sortpair" role="group" aria-label="Sort by">${kb('author', 'Author')}${kb('title', 'Title')}</span>`
     + `<span class="sortpair" role="group" aria-label="Order">${ob('alpha', da > 0 ? 'az' : 'za', da > 0 ? 'alphabetically, A to Z' : 'alphabetically, Z to A')}${ob('chrono', dc > 0 ? 'bcad' : 'adbc', dc > 0 ? 'chronologically, earliest first' : 'chronologically, latest first')}</span>`;
