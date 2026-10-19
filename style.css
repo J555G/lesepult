@@ -1893,9 +1893,9 @@ dialog .sortpair button{transition:border-color .15s}
 .sdlab small{font:11.5px var(--ui);color:var(--mut)}
 /* the sundial panel (v298): at the foot of the map, the sky behind the dial */
 #mapBody.sdopen .mtime{display:none!important}
-#mapBody.sdopen .mcred{bottom:196px}
-.msdial{position:absolute;left:50%;transform:translateX(-50%);bottom:8px;width:calc(100% - 16px);max-width:560px;height:180px;z-index:4;border-radius:14px;overflow:hidden;border:1px solid color-mix(in srgb,var(--line) 70%,transparent);box-shadow:0 4px 18px rgba(0,0,0,.35)}
-.msdial .sdsvg{position:absolute;inset:0;width:100%;height:180px;display:block;touch-action:none;-webkit-user-select:none;user-select:none}
+#mapBody.sdopen .mcred{bottom:214px}
+.msdial{position:absolute;left:50%;transform:translateX(-50%);bottom:8px;width:calc(100% - 16px);max-width:560px;height:198px;z-index:4;border-radius:14px;overflow:hidden;border:1px solid color-mix(in srgb,var(--line) 70%,transparent);box-shadow:0 4px 18px rgba(0,0,0,.35)}
+.msdial .sdsvg{position:absolute;inset:0;width:100%;height:198px;display:block;touch-action:none;-webkit-user-select:none;user-select:none}
 .msdial .sdstars circle{fill:#fff;animation:sdtw 3.4s ease-in-out infinite alternate}
 @keyframes sdtw{from{opacity:1}to{opacity:.35}}
 .msdial .sdglint{stroke:#fff3c8;stroke-width:1.2;stroke-linecap:round;fill:none}
@@ -1934,3 +1934,7 @@ dialog .sortpair button{transition:border-color .15s}
 .msdial .owlk{fill:#c9a24a}
 .msdial .owlf{stroke:#c9a24a;stroke-width:1;stroke-linecap:round}
 @media (max-width:420px){.msdial .sdctl{left:184px;right:6px}.msdial .sdctl .seg{flex-wrap:nowrap}.msdial .sdctl .seg button{padding:.22rem .36rem;font-size:11.5px}}
+.mnorth[hidden]{display:none}
+.msdial .sdtg{display:flex;gap:4px}
+.msdial .sdtg button{font:11.5px var(--ui);padding:.12rem .45rem;border-radius:10px;background:rgba(0,0,0,.28);color:#fff;border:1px solid rgba(255,255,255,.35);opacity:.6}
+.msdial .sdtg button.on{opacity:1;background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.8)}

@@ -624,7 +624,7 @@ function mapColors() {
 function mapStyle(C) {
   const st = mapStyle0(C);
   st.projection = { type: viewOn('globe') ? 'globe' : 'mercator' };
-  st.sky = { 'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 5, 1, 7, 0] };   // (the globe's halo, fading as one zooms in)
+  st.sky = { 'atmosphere-blend': sunOn() && M.cfg.sunAtm !== false ? ['interpolate', ['linear'], ['zoom'], 0, 0.33, 5, 0.33, 7, 0] : 0 };   // (only with day and night, faint: it hazes the lit half)   // (the globe's halo, fading as one zooms in)
   return st;
 }
 function mapStyle0(C) {

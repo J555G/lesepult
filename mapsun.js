@@ -45,24 +45,53 @@ function nightPolys(s, h) {
   if (run) runs.push(run);
   return runs.filter(r => r.length > 1).map(r => [[...r.map(([x, , b]) => [x, b]), ...r.reverse().map(([x, a]) => [x, a]), [r[r.length - 1][0], r[r.length - 1][2]]]]);
 }
+// the line between day and night (the sun h degrees below the horizon), for the twilight glow: the edges of the night
+// polygons without their straight cuts at the poles and the date line
+const TW = [[1700, '#ff8c96', 0.1, 8], [1300, '#ff9a78', 0.15, 5], [950, '#ffa060', 0.2, 2], [550, '#ffb35c', 0.27, -1]];   // [width on the ground (km), colour, opacity, the sun's height (°)]
+function twilightFC(ms) {
+  const s = sunPos(ms), feats = [];
+  for (const [, , , h] of TW) for (const ring of nightPolys(s, h)) {
+    let line = [];
+    const put = l => { if (l.length > 1) feats.push({ h, l }); };
+    for (const [x, y] of ring[0]) { if (Math.abs(y) > 89 || (line.length && Math.abs(line[line.length - 1][0] - x) > 3)) { put(line); line = []; } if (Math.abs(y) <= 89) line.push([x, y]); }
+    put(line);
+  }
+  return { type: 'FeatureCollection', features: feats.map(f => ({ type: 'Feature', properties: { h: f.h }, geometry: { type: 'LineString', coordinates: f.l } })) };
+}
 function nightFC(ms) {
   const s = sunPos(ms);
-  return { type: 'FeatureCollection', features: [0, -6, -12, -18].flatMap(h => nightPolys(s, h).map(co => ({ type: 'Feature', properties: { h }, geometry: { type: 'Polygon', coordinates: co } }))) };
+  return { type: 'FeatureCollection', features: [0, -3, -6, -9, -12, -15, -18].flatMap(h => nightPolys(s, h).map(co => ({ type: 'Feature', properties: { h }, geometry: { type: 'Polygon', coordinates: co } }))) };
 }
 
 // ---------------------------------------------------------------- on the map
 const sunOn = () => !!M.cfg?.sun;
 const sunTime = () => (M.sunT ??= Date.now());
 function sunStyle(st) {                                             // (called by layerStyle)
+  st.light = sunLight();
   if (!sunOn()) return;
   st.sources.sunnight = { type: 'geojson', data: nightFC(sunTime()) };
   const k = st.layers.findIndex(l => l.id === 'pl-region');
-  st.layers.splice(k < 0 ? st.layers.length : k, 0, { id: 'sun-night', type: 'fill', source: 'sunnight', paint: { 'fill-color': '#020611', 'fill-opacity': 0.17, 'fill-antialias': false } });
+  st.sources.suntw = { type: 'geojson', data: twilightFC(sunTime()) };
+  st.layers.splice(k < 0 ? st.layers.length : k, 0, { id: 'sun-night', type: 'fill', source: 'sunnight', layout: { visibility: M.cfg.sunNight !== false ? 'visible' : 'none' }, paint: { 'fill-color': '#020611', 'fill-opacity': 0.1, 'fill-antialias': false } },
+    ...TW.map(([km, col, op, h], i) => { const w = km * 512 / 40075;     // (widths in km on the ground)
+      return { id: 'sun-twilight' + i, type: 'line', source: 'suntw', filter: ['==', ['get', 'h'], h], layout: { 'line-join': 'round', visibility: M.cfg.sunGlow !== false ? 'visible' : 'none' }, paint: { 'line-color': col, 'line-opacity': op,
+        'line-width': ['interpolate', ['exponential', 2], ['zoom'], 0, w, 10, w * 1024], 'line-blur': ['interpolate', ['exponential', 2], ['zoom'], 0, w * 0.6, 10, w * 614] } }; }));
+}
+// the light of the globe's atmosphere (MapLibre takes it from the style's light): with day and night, where the sun
+// stands (fixed to the earth); without, from in front of the viewer, so the rim is evenly lit
+function sunLight() {
+  if (!sunOn()) return { anchor: 'viewport', position: [1.15, M.lightAz ?? 180, M.lightPolar ?? 120] };
+  const s = sunPos(sunTime()), f = s.dec, l = s.lon * RAD;
+  const a = [Math.cos(f) * Math.sin(l), Math.sin(f), Math.cos(f) * Math.cos(l)], p = a.map(v => -v);   // (MapLibre points the light from -position)
+  const polar = Math.acos(Math.max(-1, Math.min(1, p[2]))) / RAD, az = Math.atan2(p[1], p[0]) / RAD - 90;
+  return { anchor: 'map', position: [1.15, (az + 360) % 360, polar] };
 }
 function sunApply() {
   const m = M.map; if (!m) return;
+  try { m.setLight(sunLight()); } catch (_) {}
   if (sunOn()) {
     m.getSource('sunnight')?.setData(nightFC(sunTime()));
+    m.getSource('suntw')?.setData(twilightFC(sunTime()));
     if (m.getLayer('rel-shade')) { const c = m.getCenter(), a = sunAt(sunPos(sunTime()), c.lng, c.lat);
       m.setPaintProperty('rel-shade', 'hillshade-illumination-anchor', 'map'); m.setPaintProperty('rel-shade', 'hillshade-illumination-direction', Math.round(a.az)); }
   } else if (m.getLayer('rel-shade')) { m.setPaintProperty('rel-shade', 'hillshade-illumination-anchor', 'viewport'); m.setPaintProperty('rel-shade', 'hillshade-illumination-direction', 335); }
@@ -124,7 +153,7 @@ function skyAt(alt, eve) {
   if (alt >= K[0][0]) return K[0].slice(1); if (alt <= K[K.length - 1][0]) return K[K.length - 1].slice(1);
   for (let i = 0; i < K.length - 1; i++) if (alt <= K[i][0] && alt >= K[i + 1][0]) { const t = (K[i][0] - alt) / (K[i][0] - K[i + 1][0]); return [hexMix(K[i][1], K[i + 1][1], t), hexMix(K[i][2], K[i + 1][2], t)]; }
 }
-const SD = { H: 180, cx: 92, cy: 82, R: 64, P: 50 };                 // the panel's height, the dial's centre, ring and plate radii
+const SD = { H: 198, cx: 92, cy: 82, R: 64, P: 50 };                 // the panel's height, the dial's centre, ring and plate radii
 const sdAng = h => -(h - 12) / 24 * 2 * Math.PI;                       // (anticlockwise; noon at the top)
 const sdXY = (h, r) => [SD.cx + Math.sin(sdAng(h)) * r, SD.cy - Math.cos(sdAng(h)) * r];
 const OWL = '<g class="sdowl"><g class="owlw"><ellipse cx="-6" cy="2" rx="4" ry="7" transform="rotate(25 -6 2)"/><ellipse cx="6" cy="2" rx="4" ry="7" transform="rotate(-25 6 2)"/></g>'
@@ -157,6 +186,7 @@ function sdCtlHTML() {
     + `<div class="seg" role="group">${[['now', 'Now'], ['anim', 'Animate']].map(([v, l]) => `<button type="button" data-sunmode="${v}" class="${mode === v ? 'on' : ''}">${l}</button>`).join('')}</div>`
     + (mode === 'anim' ? `<div class="msun"><button type="button" class="mico2" data-sunplay="1" aria-label="${M.sunPause ? 'Play' : 'Pause'}">${M.sunPause ? '▶' : '❚❚'}</button><input type="range" min="0" max="100" value="${spdToV(spd)}" data-sunspeed="1" aria-label="Speed"><output>${spdLabel(spd)}</output></div>` : '')
     + `<div class="seg" role="group">${[['modern', 'Modern'], ['roman', 'Roman'], ['greek', 'Greek']].map(([v, l]) => `<button type="button" data-sunfmt="${v}" class="${(M.cfg.sunFmt || 'modern') === v ? 'on' : ''}">${l}</button>`).join('')}</div>`
+    + `<div class="sdtg">${[['sunNight', 'Night'], ['sunGlow', 'Glow'], ['sunAtm', 'Air']].map(([k, l]) => `<button type="button" data-suntg="${k}" class="${M.cfg[k] !== false ? 'on' : ''}" aria-pressed="${M.cfg[k] !== false}">${l}</button>`).join('')}</div>`
     + `<small class="sdsub" id="sdSub"></small>`;
 }
 async function sdOpen(open) {
@@ -287,6 +317,13 @@ async function mapOptsClick(b) {
   if (b.id === 'mapNorth' || d.mnorth) { M.map?.easeTo({ bearing: 0, pitch: viewOn('t3d') ? M.map.getPitch() : 0, duration: 500 }); return true; }
   if (d.mlay === 't3d') { await viewToggle('t3d'); b.classList.toggle('on', viewOn('t3d')); return true; }
   if (b.id === 'mapSunBtn') { await sdOpen(!M.sdOpen); return true; }
+  if (d.suntg) {                                                   // the night shade, the twilight glow, the atmosphere: each on or off
+    M.cfg[d.suntg] = M.cfg[d.suntg] === false; await saveMapCfg(); b.classList.toggle('on', M.cfg[d.suntg]); b.setAttribute('aria-pressed', M.cfg[d.suntg]);
+    const m = M.map, vis = k => M.cfg[k] !== false ? 'visible' : 'none';
+    if (m?.getLayer('sun-night')) m.setLayoutProperty('sun-night', 'visibility', vis('sunNight'));
+    TW.forEach((_, i) => { if (m?.getLayer('sun-twilight' + i)) m.setLayoutProperty('sun-twilight' + i, 'visibility', vis('sunGlow')); });
+    if (d.suntg === 'sunAtm' && m) m.setSky(mapStyle(M.colors).sky);
+    return true; }
   if (d.sdclose) { await sdOpen(false); return true; }
   if (d.sunfmt) { M.cfg.sunFmt = d.sunfmt; await saveMapCfg(); $('#sunCtl').innerHTML = sdCtlHTML(); sundialPaint(); return true; }
   if (d.sunmode) { M.sunPause = false; if (d.sunmode === 'now') M.sunT = Date.now(); await sunSet({ sunMode: d.sunmode }); $('#sunCtl').innerHTML = sdCtlHTML(); return true; }
