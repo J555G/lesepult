@@ -48,7 +48,7 @@ function demBlob(z, x, y) {
       if (z <= a.h.maxZoom) { const r = await a.pm.getZxy(z, x, y); if (r?.data) return new Blob([r.data], { type: 'image/webp' }); continue; }
       if (M.rel.online) { const m = await mhTile(z, x, y); if (m) return m; }                    // deeper, online: Mapterhorn
       const dz = z - a.h.maxZoom, px = x >> dz, py = y >> dz, r = await a.pm.getZxy(a.h.maxZoom, px, py);   // deeper: a part of the deepest tile, enlarged
-      if (r?.data) return enlarge(r.data, dz, x - (px << dz), y - (py << dz));
+      if (r?.data) return enlarge(r.data, dz, x - (px << dz), y - (py << dz), undefined, `${a.f}/${a.h.maxZoom}/${px}/${py}`);
     }
     if (M.rel.online) { const m = await mhTile(z, x, y); if (m) return m; }                      // outside every package, online
     return flatTile();                                               // sea, or outside every package
@@ -102,12 +102,12 @@ function pngChunk(type, data) {
   let c = 0xffffffff; for (let i = 4; i < 8 + data.length; i++) c = CRC[(c ^ out[i]) & 255] ^ (c >>> 8);
   dv.setUint32(8 + data.length, (c ^ 0xffffffff) >>> 0); return out;
 }
-async function zlib(raw) {
-  if (typeof CompressionStream !== 'undefined') return new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer());
-  const blocks = Math.ceil(raw.length / 65535), out = new Uint8Array(2 + raw.length + blocks * 5 + 4);      // (stored, uncompressed)
+// stored (uncompressed) deflate: deflating saves only ~10 % on heights but costs 5× the time; the tile lives a moment only
+function zlib(raw) {
+  const blocks = Math.ceil(raw.length / 65535), out = new Uint8Array(2 + raw.length + blocks * 5 + 4);
   out[0] = 0x78; out[1] = 0x01; let o = 2, a = 1, b = 0;
   for (let i = 0; i < raw.length; i += 65535) { const n = Math.min(65535, raw.length - i); out[o++] = i + n >= raw.length ? 1 : 0; out[o++] = n & 255; out[o++] = n >> 8; out[o++] = ~n & 255; out[o++] = (~n >> 8) & 255; out.set(raw.subarray(i, i + n), o); o += n; }
-  for (let i = 0; i < raw.length; i++) { a = (a + raw[i]) % 65521; b = (b + a) % 65521; }
+  for (let i = 0; i < raw.length;) { const e = Math.min(raw.length, i + 5552); for (; i < e; i++) { a += raw[i]; b += a; } a %= 65521; b %= 65521; }   // (Adler-32, reduced every 5552 bytes)
   new DataView(out.buffer).setUint32(o, ((b << 16) | a) >>> 0); return out;
 }
 async function encodeDem(h, n) {
@@ -117,12 +117,19 @@ async function encodeDem(h, n) {
     for (let x = 0; x < n; x++) { const v = Math.max(0, Math.min(65535.996, h[y * n + x] + 32768)), w = Math.floor(v); raw[o++] = w >> 8; raw[o++] = w & 255; raw[o++] = Math.floor((v - w) * 256); }
   }
   const ihdr = new Uint8Array(13), dv = new DataView(ihdr.buffer); dv.setUint32(0, n); dv.setUint32(4, n); ihdr[8] = 8; ihdr[9] = 2;   // 8 bit, RGB
-  const parts = [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), pngChunk('IHDR', ihdr), pngChunk('IDAT', await zlib(raw)), pngChunk('IEND', new Uint8Array(0))];
+  const parts = [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), pngChunk('IHDR', ihdr), pngChunk('IDAT', zlib(raw)), pngChunk('IEND', new Uint8Array(0))];
   return new Blob(parts, { type: 'image/png' });
 }
 // a quarter (eighth …) of a tile, enlarged to a whole tile (heights interpolated between the pixel centres)
-async function enlarge(data, dz, ox, oy, N) {
-  const { n, h } = await decodeDem(data), s = n / 2 ** dz; N ??= n; const out = new Float32Array(N * N);
+// decoded tiles kept for a while: the 4, 16 or 64 enlarged tiles cut from one deeper tile decode it only once
+function decodeOnce(data, key) {
+  const c = (M.decC ??= new Map()); key ??= data;
+  if (c.has(key)) { const v = c.get(key); c.delete(key); c.set(key, v); return v; }
+  const p = decodeDem(data); c.set(key, p); if (c.size > 48) c.delete(c.keys().next().value);
+  return p;
+}
+async function enlarge(data, dz, ox, oy, N, key) {
+  const { n, h } = await decodeOnce(data, key), s = n / 2 ** dz; N ??= n; const out = new Float32Array(N * N);
   const at = (x, y) => h[Math.max(0, Math.min(n - 1, y)) * n + Math.max(0, Math.min(n - 1, x))];
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
     const fx = ox * s + (i + 0.5) * s / N - 0.5, fy = oy * s + (j + 0.5) * s / N - 0.5, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
