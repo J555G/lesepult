@@ -412,7 +412,7 @@ dialog .cslider input[type=range]::-moz-range-track{background:none}
 dialog .cslider .eras{position:absolute;left:0;right:0;top:1.35rem;height:1.1rem}
 dialog .cslider .eras span{position:absolute;top:0;font-size:10px;color:var(--mut);opacity:.7;text-align:center;white-space:nowrap;overflow:visible;border-left:1px solid color-mix(in srgb,var(--mut) 40%,transparent)}
 dialog .cslider .eras span:first-child{border-left:0}
-#libSort{margin-top:.35rem}
+#libSort{margin-top:0}   /* (beside the count: centred with it) */
 @media (max-width:600px){dialog .cslider{margin-left:.5rem}}
 @media (max-width:600px){dialog .cslider .eras span{font-size:9px}}
 /* larger grab area for the slider handles (finger-sized), the visible knob stays the same */
@@ -1857,3 +1857,5 @@ dialog .sortpair button.on>*{opacity:1}
 dialog .sortpair .sorto{padding:0 .4rem}
 dialog .sortpair svg{display:block;pointer-events:none}
 dialog .sortpair path{fill:currentColor}
+dialog .libcount .cdot{display:none}
+@media (max-width:600px){dialog .libcount .cby{display:none}dialog .libcount .cdot{display:inline}}

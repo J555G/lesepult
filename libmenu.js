@@ -282,7 +282,7 @@ function renderLibList() {
       + (ws.length > S.libLimit ? `<div class="row" style="justify-content:center"><button type="button" data-more="1">Show more (${ws.length - S.libLimit} further)</button></div>` : '');
   }
   const cnt = `${nw.toLocaleString('en')} work${nw === 1 ? '' : 's'}`;
-  const c = $('#libCount'); if (c) c.textContent = nw ? cnt + (n ? ` by ${n} author${n === 1 ? '' : 's'}` : '') : '';
+  const c = $('#libCount'); if (c) c.innerHTML = nw ? cnt + (n ? `<span class="cby"> by </span><span class="cdot"> · </span>${n} author${n === 1 ? '' : 's'}` : '') : '';   // (narrow screens: · instead of by)
   const sh = $('#libShowN'); if (sh) sh.textContent = nw ? `Show ${cnt}` : 'No works match';
   const empty = v.view === 'fav' && !Object.keys(S.favs || {}).length ? 'No favourites yet – tap the flame next to a work.'
     : v.view === 'mine' && !Object.keys(S.libInst || {}).length && !S.impWorks?.length ? 'No works on this device yet – download them in Bibliotheca, or import a text (+).'
