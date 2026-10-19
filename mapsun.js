@@ -25,29 +25,32 @@ function sunAt(s, lon, lat) {
   return { alt: alt / RAD, az: (az + 360) % 360 };
 }
 // the night (sun below h degrees) as polygons: along each meridian the night is one stretch of latitude
-function nightPolys(s, h) {
-  const c = Math.sin(h * RAD), runs = [];
-  let run = null;
+// the night (sun below h degrees) as polygons, for several h at once: along each meridian the night is one stretch of
+// latitude; the sun's height along a meridian is worked out once (1° steps) and serves every h
+function nightPolysAll(s, hs) {
+  const cs = hs.map(h => Math.sin(h * RAD)), runs = hs.map(() => []), run = hs.map(() => null), A = Math.sin(s.dec), S = [], C = [];
+  for (let lat = -90; lat <= 90; lat++) { S.push(Math.sin(lat * RAD)); C.push(Math.cos(lat * RAD)); }
+  const v = new Float64Array(181);
   for (let lon = -180; lon <= 180; lon += 2) {
-    const B = Math.cos(s.dec) * Math.cos((lon - s.lon) * RAD), A = Math.sin(s.dec), f = lat => A * Math.sin(lat * RAD) + B * Math.cos(lat * RAD);
-    let lo = null, hi = null, prev = f(-90);
-    if (prev < c) lo = -90;
-    for (let lat = -89; lat <= 90; lat++) {
-      const v = f(lat), night = v < c, was = prev < c;
-      if (night && !was) lo = lat - 1 + (prev - c) / (prev - v);
-      if (!night && was) hi = lat - 1 + (prev - c) / (prev - v);
-      prev = v;
-    }
-    if (lo != null && hi == null) hi = 90;
-    if (lo == null) { if (run) { runs.push(run); run = null; } continue; }
-    (run ??= []).push([lon, Math.max(-89.9, lo), Math.min(89.9, hi)]);
+    const B = Math.cos(s.dec) * Math.cos((lon - s.lon) * RAD);
+    for (let i = 0; i <= 180; i++) v[i] = A * S[i] + B * C[i];
+    cs.forEach((c, k) => {
+      let lo = v[0] < c ? -90 : null, hi = null;
+      for (let i = 1; i <= 180; i++) { const night = v[i] < c, was = v[i - 1] < c;
+        if (night && !was) lo = i - 91 + (v[i - 1] - c) / (v[i - 1] - v[i]);
+        if (!night && was) hi = i - 91 + (v[i - 1] - c) / (v[i - 1] - v[i]); }
+      if (lo != null && hi == null) hi = 90;
+      if (lo == null) { if (run[k]) { runs[k].push(run[k]); run[k] = null; } return; }
+      (run[k] ??= []).push([lon, Math.max(-89.9, lo), Math.min(89.9, hi)]);
+    });
   }
-  if (run) runs.push(run);
-  return runs.filter(r => r.length > 1).map(r => [[...r.map(([x, , b]) => [x, b]), ...r.reverse().map(([x, a]) => [x, a]), [r[r.length - 1][0], r[r.length - 1][2]]]]);
+  return runs.map((rs, k) => { if (run[k]) rs.push(run[k]);
+    return rs.filter(r => r.length > 1).map(r => [[...r.map(([x, , b]) => [x, b]), ...r.slice().reverse().map(([x, a]) => [x, a]), [r[r.length - 1][0], r[r.length - 1][2]]]]); });
 }
+const nightPolys = (s, h) => nightPolysAll(s, [h])[0];
 // the line between day and night (the sun h degrees below the horizon), for the twilight glow: the edges of the night
 // polygons without their straight cuts at the poles and the date line
-const TW = [[1700, '#ff8c96', 0.1, 8], [1300, '#ff9a78', 0.15, 5], [950, '#ffa060', 0.2, 2], [550, '#ffb35c', 0.27, -1]];   // [width on the ground (km), colour, opacity, the sun's height (°)]
+const TW = [[1400, '#ffa060', 0.34, 2]];   // [width on the ground (km), colour, opacity, the sun's height (°)]
 function twilightFC(ms) {
   const s = sunPos(ms), feats = [];
   for (const [, , , h] of TW) for (const ring of nightPolys(s, h)) {
@@ -58,9 +61,24 @@ function twilightFC(ms) {
   }
   return { type: 'FeatureCollection', features: feats.map(f => ({ type: 'Feature', properties: { h: f.h }, geometry: { type: 'LineString', coordinates: f.l } })) };
 }
-function nightFC(ms) {
-  const s = sunPos(ms);
-  return { type: 'FeatureCollection', features: [0, -3, -6, -9, -12, -15, -18].flatMap(h => nightPolys(s, h).map(co => ({ type: 'Feature', properties: { h }, geometry: { type: 'Polygon', coordinates: co } }))) };
+// the night as a picture (one layer, a smooth darkening): 512 × 256 pixels over the map from 85° S to 85° N, rows in
+// Mercator spacing; each pixel as dark as the sun is low there – from sunset (0°) to the end of twilight (18° below)
+const NW = 512, NH = 256, NLAT = 85.0511;
+function nightCanvas() {
+  if (!M.nCv) { M.nCv = document.createElement('canvas'); M.nCv.width = NW; M.nCv.height = NH;
+    const y2lat = y => Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) / RAD, top = 0.5 - Math.log(Math.tan(Math.PI / 4 + NLAT * RAD / 2)) / (2 * Math.PI);
+    M.nRow = Array.from({ length: NH }, (_, r) => { const lat = y2lat(top + (r + 0.5) / NH * (1 - 2 * top)) * RAD; return [Math.sin(lat), Math.cos(lat)]; }); }
+  return M.nCv;
+}
+function nightPaint(ms) {
+  const cv = nightCanvas(), ctx = cv.getContext('2d'), s = sunPos(ms), A = Math.sin(s.dec), Bc = Math.cos(s.dec), img = ctx.createImageData(NW, NH), d = img.data;
+  const cl = Float64Array.from({ length: NW }, (_, c) => Math.cos((-180 + (c + 0.5) / NW * 360 - s.lon) * RAD)), lo = Math.sin(-18 * RAD), MAX = 0.58;
+  for (let r = 0; r < NH; r++) { const [sf, cf] = M.nRow[r], a0 = A * sf, b0 = Bc * cf;
+    for (let c = 0, o = r * NW * 4; c < NW; c++, o += 4) {
+      const v = a0 + b0 * cl[c];                                       // (the sine of the sun's height)
+      const t = v >= 0 ? 0 : v <= lo ? 1 : v / lo, e = t * t * (3 - 2 * t);
+      d[o] = 2; d[o + 1] = 6; d[o + 2] = 17; d[o + 3] = Math.round(e * MAX * 255); } }
+  ctx.putImageData(img, 0, 0);
 }
 
 // ---------------------------------------------------------------- on the map
@@ -69,13 +87,14 @@ const sunTime = () => (M.sunT ??= Date.now());
 function sunStyle(st) {                                             // (called by layerStyle)
   st.light = sunLight();
   if (!sunOn()) return;
-  st.sources.sunnight = { type: 'geojson', data: nightFC(sunTime()) };
+  nightPaint(sunTime()); st.sources.sunnight = { type: 'canvas', canvas: nightCanvas(), animate: true, coordinates: [[-180, NLAT], [180, NLAT], [180, -NLAT], [-180, -NLAT]] };
   const k = st.layers.findIndex(l => l.id === 'pl-region');
   st.sources.suntw = { type: 'geojson', data: twilightFC(sunTime()) };
-  st.layers.splice(k < 0 ? st.layers.length : k, 0, { id: 'sun-night', type: 'fill', source: 'sunnight', layout: { visibility: M.cfg.sunNight !== false ? 'visible' : 'none' }, paint: { 'fill-color': '#020611', 'fill-opacity': 0.1, 'fill-antialias': false } },
+  st.layers.splice(k < 0 ? st.layers.length : k, 0,               // (the glow beneath the night: the night darkens its night side)
     ...TW.map(([km, col, op, h], i) => { const w = km * 512 / 40075;     // (widths in km on the ground)
       return { id: 'sun-twilight' + i, type: 'line', source: 'suntw', filter: ['==', ['get', 'h'], h], layout: { 'line-join': 'round', visibility: M.cfg.sunGlow !== false ? 'visible' : 'none' }, paint: { 'line-color': col, 'line-opacity': op,
-        'line-width': ['interpolate', ['exponential', 2], ['zoom'], 0, w, 10, w * 1024], 'line-blur': ['interpolate', ['exponential', 2], ['zoom'], 0, w * 0.6, 10, w * 614] } }; }));
+        'line-width': ['interpolate', ['exponential', 2], ['zoom'], 0, w, 10, w * 1024], 'line-blur': ['interpolate', ['exponential', 2], ['zoom'], 0, w * 0.6, 10, w * 614] } }; }),
+    { id: 'sun-night', type: 'raster', source: 'sunnight', layout: { visibility: M.cfg.sunNight !== false ? 'visible' : 'none' }, paint: { 'raster-fade-duration': 0, 'raster-resampling': 'linear' } });
 }
 // the light of the globe's atmosphere (MapLibre takes it from the style's light): with day and night, where the sun
 // stands (fixed to the earth); without, from in front of the viewer, so the rim is evenly lit
@@ -90,7 +109,7 @@ function sunApply() {
   const m = M.map; if (!m) return;
   try { m.setLight(sunLight()); } catch (_) {}
   if (sunOn()) {
-    m.getSource('sunnight')?.setData(nightFC(sunTime()));
+    if (m.getSource('sunnight')) nightPaint(sunTime());
     m.getSource('suntw')?.setData(twilightFC(sunTime()));
     if (m.getLayer('rel-shade')) { const c = m.getCenter(), a = sunAt(sunPos(sunTime()), c.lng, c.lat);
       m.setPaintProperty('rel-shade', 'hillshade-illumination-anchor', 'map'); m.setPaintProperty('rel-shade', 'hillshade-illumination-direction', Math.round(a.az)); }
