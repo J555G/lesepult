@@ -493,7 +493,14 @@ async function setLangTool(lang, id) {
 // text size buttons: the letter A in the text's typeface, at the size it stands for (A++ too large for its box); 100 %: with a ↺
 const TZ_SIZE = { tz1: 11, tz2: 17, tz3: 21, tz4: 26, tz5: 62 };
 const tzBtn = (d, cls, label, extra = '') => `<button type="button" class="tzi ${cls}" data-tz="${d}" aria-label="${label}" title="${label}"><svg class="tzA" viewBox="0 0 40 40" aria-hidden="true"><text x="${cls === 'tz3' ? 17 : 20}" y="30" text-anchor="middle" font-size="${TZ_SIZE[cls]}">A</text></svg>${extra}</button>`;
-const PULT_DATE = '19 Oct 2026';     // the date this version was published (with the version number in sw.js)
+// the date this version was published: the newest Last-Modified among the app files kept offline (GitHub sets it on publishing)
+async function pultDate(ver) {
+  try {
+    const c = await caches.open('lesepult-v' + ver), rs = await c.matchAll();
+    const t = Math.max(...rs.map(r => Date.parse(r.headers.get('last-modified') || '') || 0));
+    return t > 0 ? new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  } catch (_) { return ''; }
+}
 // focus: 'colours' | 'grammar' | 'map' – opened by holding that button: its section unfolded and in view
 async function settingsDialog(focus) {
   await loadDicts();
@@ -502,6 +509,7 @@ async function settingsDialog(focus) {
   const seg = (k, cur, opts) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button type="button" class="${cur === v ? 'on' : ''}" data-setk="${k}" data-setv="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div>`;
   const line = (label, ctl, hint = '') => `<div class="mline"><span>${label}${hint ? `<small class="hint">${hint}</small>` : ''}</span>${ctl}</div>`;
   let ver = '–'; try { const ks = (await caches.keys()).filter(k => k.startsWith('lesepult-v')).map(k => +k.split('-v')[1]); if (ks.length) ver = Math.max(...ks); } catch (_) { }
+  const pub = ver === '–' ? '' : await pultDate(ver);
   const fold = (await setting('instFold')) || {};
   const want = { colours: 'read', grammar: 'read', map: 'map' }[focus];
   const sec = (k, title, sub, body) => `<details class="ifold" data-if="set-${k}"${(want ? want === k : fold['set-' + k]) ? ' open' : ''}><summary><b>${title}</b><small>${sub}</small></summary><section class="dsec">${body}</section></details>`;
@@ -529,7 +537,7 @@ async function settingsDialog(focus) {
       `<div class="srow1 sapp"><b>Appearance</b>${seg('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']])}</div>`
       + `<label class="srow1 swr sapp2"><span>Fades<small class="hint">buttons light up briefly when tapped, switches fade in and out</small></span>${SW('data-fades="1"', !document.body.classList.contains('nofade'))}</label>`
       + `<label class="srow1 swr sapp2"><span>Notices<small class="hint">short hints and confirmations at the bottom of the screen (warnings always show)</small></span>${SW('data-notices="1"', document.body.classList.contains('notices'))}</label>`)
-    + `<p class="sver">Pult · version ${ver} · published ${PULT_DATE}</p>`, []);
+    + `<p class="sver">Pult · version ${ver}${pub ? ' · published ' + pub : ''}</p>`, []);
   syncGramRows($('#dlgForm')); scIdxInfo();
   if (focus) {                                                   // the part asked for, at the top of the dialog
     const el = focus === 'map' ? null : $('#dlgForm').querySelector(focus === 'colours' ? '.rsec.scolours' : '.rsec.sgram');
