@@ -1744,9 +1744,9 @@ dialog .dlpop button{background:var(--card)}
 /* the fades (Settings → Appearance → Fades; off: body.nofade): a tapped button takes its colour over 1/9 s (.fxon, or
    while pressed) and gives it back over 1/3 s. Small icon buttons, choices, text buttons and the map's buttons: the accent
    (red ones: their red); rows: a faint tint; ☰: only its sign; the pane tabs: the accent border, their picture in colour */
-body:not(.nofade) dialog :is(.dli,.lwm,.lwi,.fti,.ftreset,.greset,.creset,.mtreset,.dirb,.tzi,#libFilterBtn,.seg button,.chip2,.chip,.dlgrowb,.dlpop button,.dlask button,#instUpd button,.lwmenu button,.lwcont,.srow1>button,.ftrestore button),
+body:not(.nofade) dialog :is(.dli,.lwm,.lwi,.fti,.ftreset,.greset,.creset,.mtreset,.dirb,.tzi,#libFilterBtn,.sortk,.sorto,.seg button,.chip2,.chip,.dlgrowb,.dlpop button,.dlask button,#instUpd button,.lwmenu button,.lwcont,.srow1>button,.ftrestore button),
 body:not(.nofade) #mapBody button,body:not(.nofade) #dlgForm>.row>:is(button,a,label){transition:color .333s ease,border-color .333s ease}
-body:not(.nofade) dialog :is(.dli,.lwm,.lwi,.fti,.ftreset,.greset,.creset,.mtreset,.dirb,.tzi,#libFilterBtn:not(.active),.seg button,.chip2,.chip,.dlgrowb,.dlpop button,.dlask button,#instUpd button,.lwmenu button,.lwcont,.srow1>button,.ftrestore button):is(:active,.fxon),
+body:not(.nofade) dialog :is(.dli,.lwm,.lwi,.fti,.ftreset,.greset,.creset,.mtreset,.dirb,.tzi,#libFilterBtn:not(.active),.sortk,.sorto,.seg button,.chip2,.chip,.dlgrowb,.dlpop button,.dlask button,#instUpd button,.lwmenu button,.lwcont,.srow1>button,.ftrestore button):is(:active,.fxon),
 body:not(.nofade) #mapBody button:is(:active,.fxon),body:not(.nofade) #dlgForm>.row>:is(button,a,label):is(:active,.fxon){color:var(--acc);border-color:var(--acc);transition:color .111s ease,border-color .111s ease}
 body:not(.nofade) dialog :is(.seg button.on,.chip2.on,.chip.on):is(:active,.fxon){color:inherit}
 body:not(.nofade) dialog .danger:is(:active,.fxon){color:#c0392b;border-color:#c0392b}
