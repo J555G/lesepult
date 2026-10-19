@@ -15,18 +15,20 @@ const tileLat = (y, z) => Math.atan(Math.sinh(Math.PI * (1 - 2 * y / 2 ** z))) *
 // the installed elevation packages (called while the map is built; needs pmtiles.js and maplibre-contour)
 async function reliefInit() {
   const files = relFiles();
-  if (!files.length || !window.pmtiles) { M.rel = null; return; }
-  if (!window.mlcontour) { try { await addScript(MAPS + 'relief/lib/maplibre-contour.js'); } catch (_) { M.rel = null; return; } }
-  const key = files.join('|');
+  const online = isOnline();                                          // online: Mapterhorn where no package reaches (v296)
+  if ((!files.length && !online) || !window.pmtiles) { M.rel = null; return; }
+  if (!window.mlcontour) { try { await addScript(MAPS + 'relief/lib/maplibre-contour.js'); } catch (_) {
+    try { if (!online) throw 0; await addScript(MH_LIB); } catch (_) { M.rel = null; return; } } }
+  const key = files.join('|') + (online ? '|mh' : '');
   if (M.rel?.key === key) return;
   const arch = [];
   for (const f of files) {
     const pm = new pmtiles.PMTiles(new CacheSource(new URL(MAPS + f, location.href).href));
     try { arch.push({ f, pm, h: await pm.getHeader() }); } catch (e) { console.warn('relief', f, e); }
   }
-  if (!arch.length) { M.rel = null; return; }
+  if (!arch.length && !online) { M.rel = null; return; }
   arch.sort((a, b) => b.h.maxZoom - a.h.maxZoom);                   // the most detailed first
-  M.rel = { key, arch, maxz: Math.max(...arch.map(a => a.h.maxZoom)), cache: new Map() };
+  M.rel = { key, arch, online, maxz: online ? MH_MAXZ : Math.max(...arch.map(a => a.h.maxZoom)), cache: new Map() };
   const dem = new mlcontour.DemSource({ url: 'pultdem://{z}/{x}/{y}', encoding: 'terrarium', maxzoom: M.rel.maxz, worker: false, cacheSize: 200, timeoutMs: 30000 });
   dem.manager.getTile = async url => { const [z, x, y] = url.match(/(\d+)\/(\d+)\/(\d+)$/).slice(1).map(Number); return { data: await demBlob(z, x, y) }; };
   dem.setupMaplibre(maplibregl);
@@ -44,9 +46,11 @@ function demBlob(z, x, y) {
     for (const a of M.rel.arch) {
       if (z < a.h.minZoom || !(a === last ? inArch : inside)(a.h, z, x, y)) continue;
       if (z <= a.h.maxZoom) { const r = await a.pm.getZxy(z, x, y); if (r?.data) return new Blob([r.data], { type: 'image/webp' }); continue; }
+      if (M.rel.online) { const m = await mhTile(z, x, y); if (m) return m; }                    // deeper, online: Mapterhorn
       const dz = z - a.h.maxZoom, px = x >> dz, py = y >> dz, r = await a.pm.getZxy(a.h.maxZoom, px, py);   // deeper: a part of the deepest tile, enlarged
       if (r?.data) return enlarge(r.data, dz, x - (px << dz), y - (py << dz));
     }
+    if (M.rel.online) { const m = await mhTile(z, x, y); if (m) return m; }                      // outside every package, online
     return flatTile();                                               // sea, or outside every package
   })();
   c.set(k, p); if (c.size > 400) c.delete(c.keys().next().value);
@@ -117,14 +121,29 @@ async function encodeDem(h, n) {
   return new Blob(parts, { type: 'image/png' });
 }
 // a quarter (eighth …) of a tile, enlarged to a whole tile (heights interpolated between the pixel centres)
-async function enlarge(data, dz, ox, oy) {
-  const { n, h } = await decodeDem(data), s = n / 2 ** dz, out = new Float32Array(n * n);
+async function enlarge(data, dz, ox, oy, N) {
+  const { n, h } = await decodeDem(data), s = n / 2 ** dz; N ??= n; const out = new Float32Array(N * N);
   const at = (x, y) => h[Math.max(0, Math.min(n - 1, y)) * n + Math.max(0, Math.min(n - 1, x))];
-  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
-    const fx = ox * s + (i + 0.5) * s / n - 0.5, fy = oy * s + (j + 0.5) * s / n - 0.5, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
-    out[j * n + i] = (at(x0, y0) * (1 - tx) + at(x0 + 1, y0) * tx) * (1 - ty) + (at(x0, y0 + 1) * (1 - tx) + at(x0 + 1, y0 + 1) * tx) * ty;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const fx = ox * s + (i + 0.5) * s / N - 0.5, fy = oy * s + (j + 0.5) * s / N - 0.5, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
+    out[j * N + i] = (at(x0, y0) * (1 - tx) + at(x0 + 1, y0) * tx) * (1 - ty) + (at(x0, y0 + 1) * (1 - tx) + at(x0 + 1, y0 + 1) * tx) * ty;
   }
-  return encodeDem(out, n);
+  return encodeDem(out, N);
+}
+// Mapterhorn (online): terrain tiles of 512 pixels (Terrarium, WebP) – one of zoom z-1 holds four of our 256-pixel tiles
+const MH = (z, x, y) => `https://tiles.mapterhorn.com/${z}/${x}/${y}.webp`, MH_MAXZ = 13;
+const MH_LIB = 'https://j555g.github.io/lesepult-maps/relief/lib/maplibre-contour.js';
+function mhFetch(z, x, y) {
+  const c = (M.mhCache ??= new Map()), k = `${z}/${x}/${y}`;
+  if (!c.has(k)) { c.set(k, fetch(MH(z, x, y)).then(r => r.ok ? r.arrayBuffer() : null).catch(() => null)); if (c.size > 120) c.delete(c.keys().next().value); }
+  return c.get(k);
+}
+async function mhTile(z, x, y) {
+  if (!M.rel?.online || (M.mhFails || 0) > 20) return null;            // (many failures in a row: not reachable)
+  const d = z ? await mhFetch(z - 1, x >> 1, y >> 1) : await mhFetch(0, 0, 0);
+  if (!d) { M.mhFails = (M.mhFails || 0) + 1; return null; }
+  M.mhFails = 0;
+  try { return await enlarge(d, z ? 1 : 0, z ? x & 1 : 0, z ? y & 1 : 0, 256); } catch (_) { return null; }
 }
 let flatP = null;
 const flatTile = () => flatP ??= encodeDem(new Float32Array(256 * 256), 256);
@@ -194,7 +213,7 @@ function reliefStyle(st, C) {
   st.sources.contours = { type: 'vector', maxzoom: 15, tiles: [M.relDem.contourProtocolUrl({ multiplier: 1 / unit().small, overzoom: 1, contourLayer: 'contours', elevationKey: 'ele', levelKey: 'level',
     thresholds: ft ? { 5: [2000, 5000], 7: [500, 2500], 9: [250, 1000], 11: [100, 500], 13: [50, 250] } : { 5: [500, 1000], 7: [200, 1000], 9: [100, 500], 11: [50, 250], 13: [20, 100] } })] };
   const k = ['a-prov', 'a-roads', 'own'].map(at).find(i => i >= 0) ?? at('pl-region');
-  put(k, { id: 'rel-contour', type: 'line', source: 'contours', 'source-layer': 'contours', minzoom: 5,
+  put(k, { id: 'rel-contour', type: 'line', source: 'contours', 'source-layer': 'contours', minzoom: 5, filter: ['>', ['get', 'ele'], 0],
     paint: { 'line-color': dark ? '#a08a66' : '#8a6a40', 'line-opacity': ['case', ['==', ['get', 'level'], 1], 0.6, 0.35], 'line-width': ['case', ['==', ['get', 'level'], 1], 1.1, 0.6] } });
 }
 function reliefLayerProps() {
@@ -203,7 +222,7 @@ function reliefLayerProps() {
 }
 // the menu: Layers → Landscape
 function reliefMenuHTML() {
-  if (!relFiles().length) return '<div class="navh">Relief</div><p class="hint small">Needs the download <b>Relief – overview</b> (and, for zooming in close, the regions).</p><button type="button" data-mapdl="1">Open Instruments → Map</button>';
+  if (!relFiles().length && !M.rel) return '<div class="navh">Relief</div><p class="hint small">Needs the download <b>Relief – overview</b> (and, for zooming in close, the regions).</p><button type="button" data-mapdl="1">Open Instruments → Map</button>';
   const v5 = engineMajor() >= 5;
   return `<div class="navh">Relief</div>` + tgl('relShade', 'Shading', relOn('relShade')) + (v5 ? tgl('relColor', 'Colours by height', relOn('relColor')) : '') + tgl('relContours', 'Contour lines', relOn('relContours'))
     + (M.pkFiles?.has('relief/bathy.pmtiles') ? tgl('relBathy', 'Depth of the sea', relOn('relBathy')) : '');

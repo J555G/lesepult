@@ -43,8 +43,10 @@ async function mapCfg() {
       if (saved.sites) saved.pfOn = false;
     }
     if (!saved.v5) { saved.v5 = true; if (saved.regions) { saved.nmRegions = saved.regions !== 'off'; saved.regArea = saved.regions === 'areas'; } }   // the new layer menu
+    if (saved.basemap === 'ne2') saved.basemap = 'hd';                                     // (Natural Earth II retired, v296)
     if (!saved.v4) { saved.v4 = true; if (!Object.values(saved.cats || {}).some(Boolean)) saved.cats = { settl: true }; }   // kinds of places: settlements by default
     M.cfg = Object.assign({ mark: false, jump: true, pfOn: true, sel: [], scope: 'section', names: 'text', peoples: false, borders: false, rough: true, persons: 'unsure' }, JSON.parse(JSON.stringify(LCFG)), saved);
+    M.esriKey ??= (await setting('esriKey')) || '';
   }
   return M.cfg;
 }
@@ -125,7 +127,8 @@ async function mapSectionHTML() {
   const inst = await mapInstalled(), off = await mapOff(), on = await mapsEnabled();
   const pinfo = inst.places ? await placeIndexInfo() : null;
   const units = new Map();                                     // one row per package or per group of levels
-  for (const p of man.packages) { const k = p.group || p.id; if (!units.has(k)) units.set(k, []); units.get(k).push(p); }
+  for (const p of man.packages) { if (p.retired && !inst[p.id]) continue;            // (retired packages: only while still installed, to be removed)
+    const k = p.group || p.id; if (!units.has(k)) units.set(k, []); units.get(k).push(p); }
   const row = k => {
     const ps = units.get(k); if (!ps) return '';
     const cur = ps.find(p => inst[p.id]), p0 = cur || ps[0];
@@ -137,7 +140,7 @@ async function mapSectionHTML() {
       : ps.length > 1 ? '' : dlIcon('map:' + p0.id, { size: p0.bytes, off: document.body.classList.contains('netoff') });
     return `<div class="mpk${cur ? '' : ' avail'}" data-mk="${esc(k)}">` + pkRow({
       sw: cur && k !== 'base' ? SW(`data-mapsw="${cur.id}" aria-label="Use ${esc(name)}"`, !off[cur.id]) : '<span class="swsp"></span>',
-      name: esc(name), desc: esc(p0.desc) + (ps.length > 1 ? '' : ' · ' + mbs(p0.bytes)) + (cur && off[cur.id] ? ' · <i>switched off</i>' : ''),
+      name: esc(name) + (p0.retired ? ' <small class="hint">– no longer used</small>' : ''), desc: (p0.retired ? 'Replaced by Blue Marble; remove it to free the space. ' : '') + esc(p0.desc) + (ps.length > 1 ? '' : ' · ' + mbs(p0.bytes)) + (cur && off[cur.id] ? ' · <i>switched off</i>' : ''),
       right, del: '', more: cur && k === 'places' ? (`<button type="button" data-pidx="1">Rebuild place index</button><small class="hint" id="pidxInfo">${pinfo?.built ? 'built ' + new Date(pinfo.built).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ` · ${pinfo.n.toLocaleString('en')} places` : 'not built yet – it is built when first needed'}</small>`) : '' }) + lv + '</div>';
   };
   // regions (relief, Natural Earth II): folded together, each region a row with its levels of detail
@@ -678,8 +681,9 @@ async function showMap1() {
       <div class="mhandles" id="mapHandles"></div>
       <div class="mtime" id="mapTime" hidden>${timeBarHTML()}</div><div class="mdraw" id="mapDraw" hidden></div>
       <div class="minfo" id="mapInfo" hidden><span class="mscale" id="mapScale"><i></i><b></b></span><span class="mzoom" id="mapZoom"></span></div>
-      <div class="mcard" id="mapCard" hidden></div><div class="mpop" id="mapPop" hidden></div>`;
+      <div class="mcred" id="mapCred" hidden></div><div class="mcard" id="mapCard" hidden></div><div class="mpop" id="mapPop" hidden></div>`;
     M.step = 'map engine'; try { await loadMapLib(); } catch (e) { box.innerHTML = `<div class="mapmsg"><p>${esc(e.message)}</p></div>`; return; }
+    M.step = 'imagery'; await imgInit();
     M.step = 'relief'; await reliefInit();
     M.colors = mapColors();
     const v = (await setting('mpos|last')) || { c: [24, 38], z: 4 };
@@ -710,6 +714,7 @@ async function showMap1() {
     M.map.on('mouseleave', 'pl', () => { M.map.getCanvas().style.cursor = ''; });
     M.step = 'loading the map'; const ok = await Promise.race([new Promise(r => M.map.once('load', () => r(true))), new Promise(r => setTimeout(() => r(false), 20000))]);
     if (!ok) return mapFailed('The map did not finish loading.' + (M.lastErr ? ' Last error: ' + M.lastErr : ''));
+    imgCredit();
     wireMapUI(); wireTime(); wireDraw(); mapInfo();
   } else M.map.resize();
   M.step = 'places'; renderTime();
@@ -1046,6 +1051,7 @@ document.addEventListener('change', async ev => {
   const k = ev.target.dataset?.mapset; if (!k) return;
   await mapCfg(); M.cfg[k] = ev.target.checked; await saveMapCfg();
   if (k === 'scale' || k === 'zoomShow') mapInfo();
+  if (k === 'imgDim' && M.map) M.map.setStyle(mapStyle(M.colors));
   if (k === 'mark') { markPlaces(); if (M.map) await refreshMapData(); }
   if (k === 'time') { timeFor(S.text); renderTime(); applyLayers(); }
 });

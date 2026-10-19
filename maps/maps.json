@@ -250,7 +250,8 @@
    ],
    "bytes": 1844382,
    "v": "2c073651049e",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-europe5",
@@ -263,7 +264,8 @@
    "v": "910ef605b210",
    "group": "ne2-europe",
    "lvl": "Basic",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-europe6",
@@ -276,7 +278,8 @@
    "v": "90618f39009f",
    "group": "ne2-europe",
    "lvl": "Medium",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-europe7",
@@ -289,7 +292,8 @@
    "v": "b87f545d06a6",
    "group": "ne2-europe",
    "lvl": "Detailed",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-neareast5",
@@ -302,7 +306,8 @@
    "v": "2e665f2c7042",
    "group": "ne2-neareast",
    "lvl": "Basic",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-neareast6",
@@ -315,7 +320,8 @@
    "v": "aa176eb97468",
    "group": "ne2-neareast",
    "lvl": "Medium",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-neareast7",
@@ -328,7 +334,8 @@
    "v": "9b09dfd3ea3d",
    "group": "ne2-neareast",
    "lvl": "Detailed",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-africa5",
@@ -341,7 +348,8 @@
    "v": "c02162020d3a",
    "group": "ne2-africa",
    "lvl": "Basic",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-africa6",
@@ -354,7 +362,8 @@
    "v": "ea7243f16c51",
    "group": "ne2-africa",
    "lvl": "Medium",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-africa7",
@@ -367,7 +376,8 @@
    "v": "8bb98764bd0d",
    "group": "ne2-africa",
    "lvl": "Detailed",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-southasia5",
@@ -380,7 +390,8 @@
    "v": "50100296edaa",
    "group": "ne2-southasia",
    "lvl": "Basic",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-southasia6",
@@ -393,7 +404,8 @@
    "v": "7ab922cfb5bd",
    "group": "ne2-southasia",
    "lvl": "Medium",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-southasia7",
@@ -406,7 +418,8 @@
    "v": "455d0018163a",
    "group": "ne2-southasia",
    "lvl": "Detailed",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-eastasia5",
@@ -419,7 +432,8 @@
    "v": "0e24e687f4f2",
    "group": "ne2-eastasia",
    "lvl": "Basic",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-eastasia6",
@@ -432,7 +446,8 @@
    "v": "7c2bb5d9137f",
    "group": "ne2-eastasia",
    "lvl": "Medium",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-eastasia7",
@@ -445,7 +460,8 @@
    "v": "82daef6b19ba",
    "group": "ne2-eastasia",
    "lvl": "Detailed",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-seasia5",
@@ -458,7 +474,8 @@
    "v": "f7b0c4e968f3",
    "group": "ne2-seasia",
    "lvl": "Basic",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-seasia6",
@@ -471,7 +488,8 @@
    "v": "8a1cc39488d9",
    "group": "ne2-seasia",
    "lvl": "Medium",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-seasia7",
@@ -484,7 +502,8 @@
    "v": "272d3d33d390",
    "group": "ne2-seasia",
    "lvl": "Detailed",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-namerica5",
@@ -497,7 +516,8 @@
    "v": "ed9f31355c0b",
    "group": "ne2-namerica",
    "lvl": "Basic",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-namerica6",
@@ -510,7 +530,8 @@
    "v": "603d2276e8c8",
    "group": "ne2-namerica",
    "lvl": "Medium",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-namerica7",
@@ -523,7 +544,8 @@
    "v": "b8c09687a6b3",
    "group": "ne2-namerica",
    "lvl": "Detailed",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-samerica5",
@@ -536,7 +558,8 @@
    "v": "b7577d351086",
    "group": "ne2-samerica",
    "lvl": "Basic",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-samerica6",
@@ -549,7 +572,8 @@
    "v": "626936ac691a",
    "group": "ne2-samerica",
    "lvl": "Medium",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-samerica7",
@@ -562,7 +586,8 @@
    "v": "7f67653b758e",
    "group": "ne2-samerica",
    "lvl": "Detailed",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-arctic5",
@@ -575,7 +600,8 @@
    "v": "9f61189b1d18",
    "group": "ne2-arctic",
    "lvl": "Basic",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-arctic6",
@@ -588,7 +614,8 @@
    "v": "120d6e333a06",
    "group": "ne2-arctic",
    "lvl": "Medium",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-arctic7",
@@ -601,7 +628,8 @@
    "v": "acd53daff0f4",
    "group": "ne2-arctic",
    "lvl": "Detailed",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-antarctica5",
@@ -614,7 +642,8 @@
    "v": "100c512fb1b5",
    "group": "ne2-antarctica",
    "lvl": "Basic",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-antarctica6",
@@ -627,7 +656,8 @@
    "v": "dafbe1d3afec",
    "group": "ne2-antarctica",
    "lvl": "Medium",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "ne2-antarctica7",
@@ -640,7 +670,8 @@
    "v": "63c7e7ee8f01",
    "group": "ne2-antarctica",
    "lvl": "Detailed",
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "landscape",
