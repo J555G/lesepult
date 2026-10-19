@@ -420,7 +420,7 @@ function outlineNodes(nodes, part, cr, depth, list, T) {
     const r = firstRef(n), title = r ? r.lab + (r.more ? ' …' : '') : '';
     const m = T ? rangeHas(T, ...nodeRange(n, list)) : {};
     // the bookmark once only: on the deepest row visible (an unfolded row leaves it to the row beneath that holds it)
-    if (m.mk && open && n.kids.some(k => rangeHas(T, ...nodeRange(k, list)).mk)) m.mk = false;
+    if (open && (m.mk || m.gl)) { const ks = n.kids.map(k => rangeHas(T, ...nodeRange(k, list))); if (m.mk && ks.some(x => x.mk)) m.mk = false; if (m.gl && ks.some(x => x.gl)) m.gl = false; }   // (the glosses mark likewise)
     h += `<div class="olrow d${Math.min(depth, 4)}${n.ref && n.ref === cr ? ' on' : ''}${onPath ? ' path' : ''}">`
       + (kids ? `<button type="button" class="olt" data-olt="${esc(key)}" aria-expanded="${!!open}" aria-label="${open ? 'Fold' : 'Unfold'}">${open ? '▾' : '▸'}</button>` : '<span class="olt"></span>')
       + `<button type="button" class="olj" data-sec="${esc(r?.s || '')}" data-secpart="${part}"><span class="oln">${esc(n.seg)}</span><span class="olx">${esc(title)}</span></button>`
@@ -441,7 +441,7 @@ async function outlineHTML(key) {
     const k = 'part|' + bi, here = cur && bi === t.bi, open = S.navOpen.has(k) || (here && !S.navShut.has(k));
     const T = await partTraces(key, bi), m = { mk: T.mk != null, gl: T.gl.length > 0 };
     const list = open ? await refsFor(key, bi) : null, tree = open ? refTree(list) : null;
-    if (m.mk && open && tree.kids.some(k => rangeHas(T, ...nodeRange(k, list)).mk)) m.mk = false;   // (unfolded: the bookmark on the row beneath that holds it)
+    if (open && (m.mk || m.gl)) { const ks = tree.kids.map(k => rangeHas(T, ...nodeRange(k, list))); if (m.mk && ks.some(x => x.mk)) m.mk = false; if (m.gl && ks.some(x => x.gl)) m.gl = false; }   // (unfolded: the marks on the rows beneath that hold them)
     h += `<div class="olrow d0 part${here ? ' path' : ''}"><button type="button" class="olt" data-olt="${k}" aria-expanded="${open}">${open ? '▾' : '▸'}</button>`
       + `<button type="button" class="olj" data-sec="" data-secpart="${bi}"><span class="olx">${esc(W.books[bi])}</span></button>`
       + `<button type="button" class="olrest" data-olt="${k}" aria-expanded="${open}" tabindex="-1" aria-hidden="true"><span class="olm">${marksHTML(m)}</span></button></div>`;
