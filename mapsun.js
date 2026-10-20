@@ -155,13 +155,23 @@ function obelGeo() {
   // the shadow: from the foot, away from the sun
   const s = sunAt(sunPos(sunTime()), g.lng, g.lat), sh = [];
   if (sunOn() && s.alt > 0) {
-    const L = Math.min(8 * H, H / Math.tan(Math.max(1.5, s.alt) * RAD)), d = (s.az + 180) * RAD, ux = Math.sin(d), uy = Math.cos(d), w = 0.088 * H;
-    const P = (along, side) => [g.lng + dLon(ux * along + uy * side), g.lat + dLat(uy * along - ux * side)];
-    // (fuzzy edges: seven shapes, from a little inside to a little outside the shadow, each faint – together dark in the middle and
-    // fading at the edge; the blur grows towards the tip, as the half-shadow does – v328)
-    const o = Math.max(0.15, Math.min(0.5, s.alt / 20)) / 5.5, sb = 0.035 * H, k = 0.035;
-    for (const f of [-1, -2 / 3, -1 / 3, 0, 1 / 3, 2 / 3, 1]) { const e = a => f * (sb + a * k);
-      sh.push({ type: 'Feature', properties: { o }, geometry: { type: 'Polygon', coordinates: [[P(-e(0), -w - e(0)), P(-e(0), w + e(0)), P(L * 0.8, w * 0.6 + e(L * 0.8)), P(L + e(L), 0), P(L * 0.8, -w * 0.6 - e(L * 0.8)), P(-e(0), -w - e(0))]] } }); }
+    // (along great circles from the foot, so a long shadow stays straight on the globe; strong, fading only slightly at its
+    // edges and towards the tip – v329)
+    const L = Math.min(8 * H, H / Math.tan(Math.max(1.5, s.alt) * RAD)), az = s.az + 180, w = 0.088 * H, R = 6371008.8, la1 = g.lat * RAD, lo1 = g.lng * RAD;
+    const dest = (brg, dist) => { const t = brg * RAD, d = dist / R, la = Math.asin(Math.sin(la1) * Math.cos(d) + Math.cos(la1) * Math.sin(d) * Math.cos(t));
+      return [(lo1 + Math.atan2(Math.sin(t) * Math.sin(d) * Math.cos(la1), Math.cos(d) - Math.sin(la1) * Math.sin(la))) / RAD, la / RAD]; };
+    const P = (along, side) => { const dd = Math.hypot(along, side); return dd < 1e-6 ? [g.lng, g.lat] : dest(az + Math.atan2(side, along) / RAD, dd); };
+    // the outline: as broad as the foot, narrowing to 0.6 of it, then to the tip; e widens (or narrows) it a little
+    const half = t => w * (1 - 0.4 * Math.min(1, t / 0.8)) * (t > 0.8 ? (1 - t) / 0.2 : 1);
+    const shape = (e, len) => { const pts = [], n = 12;
+      for (let i = 0; i <= n; i++) { const t = i / n, a = t * len; pts.push(P(a, half(t) + e(a))); }
+      pts.push(P(len + e(len), 0));
+      for (let i = n; i >= 0; i--) { const t = i / n, a = t * len; pts.push(P(a, -half(t) - e(a))); }
+      pts.push(pts[0]); return [pts]; };
+    // dark within, a narrow fading rim; the tip reached only by the faint rim layers
+    const strong = Math.max(0.3, Math.min(0.62, 0.3 + s.alt / 25)), sb = 0.012 * H, k = 0.012;
+    for (const [f, o, len] of [[-1, strong * 0.85, 0.9 * L], [0, strong * 0.12, 0.96 * L], [1, strong * 0.08, L]]) { const e = a => f * (sb + a * k);
+      sh.push({ type: 'Feature', properties: { o }, geometry: { type: 'Polygon', coordinates: shape(e, len) } }); }
   }
   M.obZ = z;
   return [{ type: 'FeatureCollection', features: f }, { type: 'FeatureCollection', features: sh }];
@@ -396,8 +406,7 @@ function sundialPaint() {
   if (len > 0 && len < 24) { const [ax, ay] = sdXY(rise, SD.R + 3), [bx, by] = sdXY(set, SD.R + 3); $('#sdDay').setAttribute('d', `M${ax.toFixed(1)} ${ay.toFixed(1)}A${SD.R + 3} ${SD.R + 3} 0 ${len > 12 ? 1 : 0} 0 ${bx.toFixed(1)} ${by.toFixed(1)}`); }
   else $('#sdDay').setAttribute('d', len >= 24 ? `M${SD.cx} ${SD.cy - SD.R - 3}a${SD.R + 3} ${SD.R + 3} 0 1 0 0.01 0` : '');
   const sh = $('#sdShadow'), up = day && alt > -0.8;
-  // (the shadow points where the obelisk's does: away from the sun, north at the top of the plate as on the map, turning with it – v327)
-  if (up) { const L = Math.min(SD.P - 4, 9 / Math.tan(Math.max(1.5, alt) * RAD)), a = (az + 180 - (M.map?.getBearing() || 0)) * RAD;
+  if (up) { const L = Math.min(SD.P - 4, 9 / Math.tan(Math.max(1.5, alt) * RAD)), a = sdAng(lst) + Math.PI;   // (opposite the sun on the ring, as before v327)
     sh.setAttribute('x2', (SD.cx + Math.sin(a) * L).toFixed(1)); sh.setAttribute('y2', (SD.cy - Math.cos(a) * L).toFixed(1)); sh.style.opacity = Math.max(0.12, Math.min(0.75, alt / 12)).toFixed(2); }
   else sh.style.opacity = 0;
   // the owl: lands when the handle enters the night, flies off when it leaves
