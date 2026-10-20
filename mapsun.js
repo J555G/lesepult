@@ -336,13 +336,18 @@ async function sunHere() {
 const mat4v = (m, v) => [0, 1, 2, 3].map(i => m[i] * v[0] + m[4 + i] * v[1] + m[8 + i] * v[2] + m[12 + i] * v[3]);
 const skyDir = (az, alt) => [Math.cos(alt * RAD) * Math.sin(az * RAD), Math.sin(alt * RAD), -Math.cos(alt * RAD) * Math.cos(az * RAD)];   // (x east, y up, z south)
 // Behind the map, wherever no earth is seen (around the globe, above the horizon of a tilted view): the sky of Flammarion's
-// engraving (1888) – blue, deeper higher up, finely hatched, with yellow six-pointed stars outlined in black, fixed among
-// themselves and turning with the sky (a scattering, not a star chart). The sun and the moon are cut from the engraving and
-// coloured (sky/sun.webp – its right side, hidden there by the frame, completed from the left; sky/moon.webp, the crescent – v339).
-const STARS = (() => { let sd = 11; const r = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
-  return Array.from({ length: 3600 }, () => { const u = r(), m = r();
-    return { ra: r() * 360, dec: Math.asin(2 * u - 1), s: 0.32 + 0.6 * m ** 2.5, rot: r() * 60, j: Array.from({ length: 6 }, () => 0.85 + 0.3 * r()), h: r() < 0.04 }; }); })();
+// engraving (1888) – blue, deeper higher up – with yellow six-pointed stars outlined in black: the real stars, down to the fifth
+// magnitude (Hipparcos, via d3-celestial: sky/stars.json – [right ascension, declination, magnitude, HIP number], J2000), so that
+// they form the constellations where they stand, turning with the sky. The sun and the moon are cut from the engraving and coloured
+// (sky/sun.webp – its right side, hidden there by the frame, completed from the left, the face set upright; sky/moon.webp – v339/340).
 const SKY = { img: {} };
+function skyStars() {                                               // (loaded once; the map is redrawn when they arrive)
+  if (SKY.stars !== undefined) return SKY.stars; SKY.stars = null;
+  fetch('sky/stars.json').then(r => r.json()).then(a => { SKY.stars = a.map(([ra, dec, mag, id]) => { let sd = id * 7919 % 2147483647 || 1; const r = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    return { ra, dec: dec * RAD, s: Math.max(0.16, 0.2 + 0.15 * (5 - mag)), rot: r() * 60, j: Array.from({ length: 6 }, () => 0.88 + 0.24 * r()), h: mag < 0.6 }; }); M.map?.triggerRepaint(); })
+    .catch(() => { SKY.stars = undefined; });
+  return null;
+}
 function skyImg(n) {                                                // (the sprites, loaded once; the map is redrawn when they arrive)
   const o = SKY.img[n]; if (o) return o.complete && o.naturalWidth ? o : null;
   const im = SKY.img[n] = new Image(); im.onload = () => M.map?.triggerRepaint(); im.src = `sky/${n}.webp`; return null;
@@ -354,15 +359,6 @@ function skySunLow() {                                              // (the sun,
     x.globalCompositeOperation = 'destination-in'; x.drawImage(im, 0, 0); SKY.low = c; }
   return SKY.low;
 }
-function skyHatch(y, dir, col) {                                    // (fine diagonal hatching, in device pixels)
-  const dpr = devicePixelRatio || 1, k = `${dir}${dpr}${col}`;
-  if (!SKY[k]) { const n = Math.max(4, Math.round(7 * dpr)), c = document.createElement('canvas'); c.width = c.height = n; const x = c.getContext('2d');
-    x.strokeStyle = col; x.lineWidth = 1.1 * dpr;
-    for (const o of [-n, 0, n]) { x.beginPath(); if (dir > 0) { x.moveTo(o, n); x.lineTo(o + n, 0); } else { x.moveTo(o, 0); x.lineTo(o + n, n); } x.stroke(); }
-    SKY[k] = y.createPattern(c, 'repeat'); }
-  return SKY[k];
-}
-function skyHatchFill(y, dir, col) { y.save(); y.setTransform(1, 0, 0, 1, 0, 0); y.fillStyle = skyHatch(y, dir, col); y.fill(); y.restore(); }   // (the path as drawn; the pattern fixed to the screen)
 function skyStar(y, x0, y0, R, st) {
   y.beginPath();
   for (let i = 0; i < 12; i++) { const a = (st.rot + i * 30) * RAD, q = i % 2 ? 0.42 * R : R * st.j[i / 2]; y[i ? 'lineTo' : 'moveTo'](x0 + q * Math.sin(a), y0 - q * Math.cos(a)); }
@@ -385,13 +381,12 @@ function skyDraw(args) {
   if (bg.width !== Math.round(W * dpr) || bg.height !== Math.round(H * dpr)) { bg.width = Math.round(W * dpr); bg.height = Math.round(H * dpr); }
   const y = bg.getContext('2d'); y.setTransform(dpr, 0, 0, dpr, 0, 0);
   const sp = y.createLinearGradient(0, 0, 0, H); sp.addColorStop(0, '#0f2a66'); sp.addColorStop(1, '#3a73bb'); y.fillStyle = sp; y.fillRect(0, 0, W, H);
-  y.beginPath(); y.rect(0, 0, W, H); skyHatchFill(y, 1, 'rgba(6,14,40,.42)');
   const ref = sunRef(), t = sunTime(), P = args.defaultProjectionData.mainMatrix, MM = m.transform.getMatrixForModel([ref.lng, ref.lat], 0);
   const scr = d => { const c = mat4v(P, mat4v(MM, [...d, 0])); return c[3] > 1e-9 ? [(c[0] / c[3] + 1) / 2 * W, (1 - c[1] / c[3]) / 2 * H] : null; };
   const f = H / 2 / Math.tan((m.transform.fovInRadians || 0.6435) / 2), size = M.cfg.skySize || 10;
   // the stars: each a direction in the sky (right ascension, declination), turned with the sidereal time to the place shown
   { const gm = ((18.697374558 + 24.06570982441908 * (t / 864e5 - 10957.5)) % 24 + 24) % 24 * 15;
-    for (const st of STARS) { const a = sunAt({ dec: st.dec, lon: ((st.ra - gm + 540) % 360) - 180 }, ref.lng, ref.lat), p = scr(skyDir(a.az, a.alt)), R = st.s * RAD * f;
+    for (const st of skyStars() || []) { const a = sunAt({ dec: st.dec, lon: ((st.ra - gm + 540) % 360) - 180 }, ref.lng, ref.lat), p = scr(skyDir(a.az, a.alt)), R = st.s * RAD * f;
       if (!p || p[0] < -2 * R || p[1] < -2 * R || p[0] > W + 2 * R || p[1] > H + 2 * R) continue;
       skyStar(y, p[0], p[1], Math.max(2, R), st); } }
   if (!sunOn()) return;                                              // (the sun and the moon: with day and night)
@@ -413,8 +408,8 @@ function skyDraw(args) {
       const dot = ds[0] * dm[0] + ds[1] * dm[1] + ds[2] * dm[2], pe = ds.map((v, i) => v - dm[i] * dot), pl = Math.hypot(...pe) || 1;
       const q = scr(dm.map((v, i) => v + 0.02 * pe[i] / pl)), th = q ? Math.atan2(q[1] - p[1], q[0] - p[0]) : 0;
       y.save(); y.translate(p[0], p[1]); y.rotate(th);
-      // the dark side, hatched across the hatching of the sky
-      y.beginPath(); y.arc(0, 0, r, 0, 7); y.fillStyle = '#0c2257'; y.fill(); skyHatchFill(y, -1, 'rgba(2,6,22,.55)');
+      // the dark side, a deeper blue
+      y.beginPath(); y.arc(0, 0, r, 0, 7); y.fillStyle = '#0c2257'; y.fill();
       y.lineWidth = Math.max(0.6, r * 0.02); y.strokeStyle = 'rgba(10,8,6,.6)'; y.stroke();
       if (k > 0.02) {
         // a crown of short strokes around the bright limb, as engraved
