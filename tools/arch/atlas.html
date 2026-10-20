@@ -197,7 +197,8 @@ function reach(sel, edges) {
 const svg = d3.select('#cv'), root = svg.append('g'), gTier = root.append('g'), gGrp = root.append('g'), gE = root.append('g'), gL = root.append('g'), gN = root.append('g');
 const defs = svg.append('defs');
 for (const [id, v] of [['a-code', '--mut'], ['a-flow', '--flow'], ['a-up', '--up'], ['a-down', '--down']]) defs.append('marker').attr('id', id).attr('viewBox', '0 0 10 10').attr('refX', 9).attr('refY', 5).attr('markerWidth', 7).attr('markerHeight', 7).attr('orient', 'auto-start-reverse').append('path').attr('d', 'M0,0L10,5L0,10z').style('fill', `var(${v})`);
-const zoom = d3.zoom().scaleExtent([0.08, 4]).on('zoom', e => root.attr('transform', e.transform));
+const zoom = d3.zoom().scaleExtent([0.05, 4]).on('zoom', e => { root.attr('transform', e.transform); scaleLabels(e.transform.k); });
+let ZK = 1; function scaleLabels(k) { ZK = k; const z = Math.max(1, 0.75 / k); gGrp.selectAll('g.group > text').style('font-size', (11 * Math.min(z, 2)) + 'px'); gTier.selectAll('text').style('font-size', (15 * Math.min(z, 3)) + 'px'); }
 svg.call(zoom).on('dblclick.zoom', null);
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const HUE = id => MODEL.l1.find(l => l.id === N.get(id).l1)?.hue ?? 210;
@@ -208,11 +209,11 @@ function fill(id) {
 const BW = 168, BH = 50;
 let POS = new Map(), sim = null, fitted = '';
 function layoutLayers(vis) {
-  POS = new Map(); const groups = [], tiers = [], visSet = new Set(vis), G = 10, pad = 12, head = 20;
+  POS = new Map(); const groups = [], tiers = [], visSet = new Set(vis), G = 34, pad = 26, head = 34;
   const leaves = id => visSet.has(id) ? 1 : N.get(id).children.filter(c => V.ex.has(c)).reduce((a, c) => a + leaves(c), 0);
-  const W = Math.max(900, ($('#stage').clientWidth || 1000) / 0.75, Math.sqrt(vis.length) * (BW + G) * 1.7);
+  const W = Math.max(1500, ($('#stage').clientWidth || 1000) / 0.6, Math.sqrt(vis.length) * (BW + G) * 1.9);
   // an open part is about as wide as a square of its parts would be (a little wider than tall)
-  const widthFor = id => 2 * pad + Math.max(1, Math.ceil(Math.sqrt(leaves(id) * 1.8))) * (BW + G);
+  const widthFor = id => 2 * pad + Math.max(1, Math.ceil(Math.sqrt(leaves(id) * 2.2))) * (BW + G);
   const order = ids => S.metric === 'part' ? ids : [...ids].sort((a, b) => rating(b, S.metric) - rating(a, S.metric) || V.tot(b, V.code) - V.tot(a, V.code));
   const box = (id, x, y, maxW, dry) => {
     if (visSet.has(id)) { if (!dry) POS.set(id, { x, y, w: BW, h: BH }); return { w: BW, h: BH }; }
@@ -225,9 +226,9 @@ function layoutLayers(vis) {
   let y = 0;
   for (const t of MODEL.tiers) {
     const ids = order(MODEL.l1.filter(l => l.tier === t.id && V.ex.has(l.id)).map(l => l.id)); if (!ids.length) continue;
-    let x = 150, rowH = 0; const y0 = y;
-    for (const id of ids) { const sz = box(id, 0, 0, W - 150, true); if (x > 150 && x + sz.w > W) { x = 150; y += rowH + 24; rowH = 0; } const r = box(id, x, y, W - 150); x += r.w + 24; rowH = Math.max(rowH, r.h); }
-    y += rowH; tiers.push({ name: t.name, y0, y1: y }); y += 60;
+    let x = 200, rowH = 0; const y0 = y;
+    for (const id of ids) { const sz = box(id, 0, 0, W - 200, true); if (x > 200 && x + sz.w > W) { x = 200; y += rowH + 70; rowH = 0; } const r = box(id, x, y, W - 200); x += r.w + 70; rowH = Math.max(rowH, r.h); }
+    y += rowH; tiers.push({ name: t.name, y0, y1: y }); y += 170;
   }
   return { groups, tiers };
 }
@@ -249,9 +250,10 @@ function draw(refit) {
   }
   // tiers and open groups
   gTier.selectAll('g').data(L.tiers).join(e => { const g = e.append('g').attr('class', 'tier'); g.append('line'); g.append('text'); return g; })
-    .call(g => { g.select('line').attr('x1', 0).attr('x2', 130).attr('y1', d => d.y0 - 18).attr('y2', d => d.y0 - 18); g.select('text').attr('x', 0).attr('y', d => d.y0 + 4).text(d => d.name); });
+    .call(g => { g.select('line').attr('x1', 0).attr('x2', 170).attr('y1', d => d.y0 - 18).attr('y2', d => d.y0 - 18); g.select('text').attr('x', 0).attr('y', d => d.y0 + 4).text(d => d.name); });
   gGrp.selectAll('g').data(L.groups, d => d.id).join(e => { const g = e.append('g').attr('class', 'group'); g.append('rect').attr('rx', 10); g.append('text'); return g; })
     .call(g => { g.select('rect').attr('x', d => d.x).attr('y', d => d.y).attr('width', d => d.w).attr('height', d => d.h); g.select('text').attr('x', d => d.x + 10).attr('y', d => d.y + 14).text(d => '▾ ' + N.get(d.id).name).style('cursor', 'pointer').style('pointer-events', 'all').on('click', (ev, d) => { S.exp.delete(d.id); for (const x of [...S.exp]) if (x.startsWith(d.id + '.')) S.exp.delete(x); select(d.id); draw(); }); });
+  scaleLabels(ZK);
   // parts
   const sel = gN.selectAll('g.node').data(vis, d => d);
   sel.exit().remove();
@@ -319,7 +321,7 @@ function fit(id) {
   const b = gN.node().getBBox(), g = gGrp.node().getBBox(); let x0 = Math.min(b.x, g.x || b.x) - 30, y0 = Math.min(b.y, g.y || b.y) - 30, x1 = Math.max(b.x + b.width, g.x + g.width) + 30, y1 = Math.max(b.y + b.height, g.y + g.height) + 30;
   if (id && POS.get(id)) { const p = POS.get(id); x0 = p.x - 260; x1 = p.x + p.w + 260; y0 = p.y - 180; y1 = p.y + p.h + 180; }
   if (S.layout === 'layers' && !id) x0 = Math.min(x0, -10);
-  const W = $('#stage').clientWidth, H = $('#stage').clientHeight, k = Math.min(id ? 1.15 : 1.6, Math.min(W / (x1 - x0), H / (y1 - y0)));
+  const W = $('#stage').clientWidth, H = $('#stage').clientHeight, k = Math.min(id ? 1.15 : 1.2, Math.min(W / (x1 - x0), H / (y1 - y0)));
   svg.transition().duration(450).call(zoom.transform, d3.zoomIdentity.translate((W - k * (x1 - x0)) / 2 - k * x0, (H - k * (y1 - y0)) / 2 - k * y0).scale(k));
 }
 function toggle(id) { if (!N.get(id).children.some(x => V.ex.has(x))) { select(id); return; } if (S.exp.has(id)) S.exp.delete(id); else S.exp.add(id); draw(); }
