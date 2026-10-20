@@ -241,8 +241,8 @@ async function sunSet(patch) {
 }
 
 // ---------------------------------------------------------------- the sundial (its own button; a panel at the foot of the map)
-// The hour is the true sun time at the middle of the map. The ring runs anticlockwise: noon at the top, sunset on the left
-// (west), midnight at the bottom, sunrise on the right. The handle is the sun above the horizon and the moon below it; the
+// The hour is the true sun time at the place shown. The ring runs clockwise as the day goes on (v330): noon at the top,
+// sunrise on the left, midnight at the bottom, sunset on the right. The handle is the sun above the horizon and the moon below it; the
 // horizon lies where the ring meets sunrise and sunset (lower in summer, higher in winter), and the sea covers the part of
 // the sun or moon beneath it. Behind the dial the sky follows the sun's height; at night the stars come out and an owl
 // sits on the gnomon. Settings (mapCfg): sunFmt ('modern' | 'roman' | 'greek').
@@ -313,7 +313,7 @@ function skyAt(alt, eve) {
 }
 const SD = { H: 198, cx: 92, cy: 82, R: 64, P: 50, ZR: 48, ZI: 33, ZW: 540 };   // the panel's height, the dial's centre, ring and plate radii;
                                                                     // the zodiac wheel's radii, and the least width of the panel that shows it
-const sdAng = h => -(h - 12) / 24 * 2 * Math.PI;                       // (anticlockwise; noon at the top)
+const sdAng = h => (h - 12) / 24 * 2 * Math.PI;                        // (clockwise, as the day goes on; noon at the top – v330)
 const sdXY = (h, r) => [SD.cx + Math.sin(sdAng(h)) * r, SD.cy - Math.cos(sdAng(h)) * r];
 const OWL = '<g class="sdowl"><g class="owlw"><ellipse cx="-6" cy="2" rx="4" ry="7" transform="rotate(25 -6 2)"/><ellipse cx="6" cy="2" rx="4" ry="7" transform="rotate(-25 6 2)"/></g>'
   + '<ellipse cx="0" cy="2" rx="6.5" ry="8.5" class="owlb"/><path d="M-5.5 -9-3.5-4H3.5L5.5-9 2-5.5h-4z" class="owlb"/><circle cx="-2.6" cy="-4" r="2.4" class="owle"/><circle cx="2.6" cy="-4" r="2.4" class="owle"/>'
@@ -403,7 +403,7 @@ function sundialPaint() {
   $('#sdGlint').setAttribute('d', hy < SD.H - 4 ? [0, 1, 2, 3].map(i => `M${(gx - 14 + i * 3).toFixed(1)} ${(hy + 4 + i * 5).toFixed(1)}h${(28 - i * 6).toFixed(1)}`).join('') : '');
   $('#sdGlint').style.opacity = (len > 0 && len < 24 ? gl * 0.8 : 0).toFixed(2);
   // the daylight on the ring, and the shadow: long when the sun is low, short at noon, fading towards sunset
-  if (len > 0 && len < 24) { const [ax, ay] = sdXY(rise, SD.R + 3), [bx, by] = sdXY(set, SD.R + 3); $('#sdDay').setAttribute('d', `M${ax.toFixed(1)} ${ay.toFixed(1)}A${SD.R + 3} ${SD.R + 3} 0 ${len > 12 ? 1 : 0} 0 ${bx.toFixed(1)} ${by.toFixed(1)}`); }
+  if (len > 0 && len < 24) { const [ax, ay] = sdXY(rise, SD.R + 3), [bx, by] = sdXY(set, SD.R + 3); $('#sdDay').setAttribute('d', `M${ax.toFixed(1)} ${ay.toFixed(1)}A${SD.R + 3} ${SD.R + 3} 0 ${len > 12 ? 1 : 0} 1 ${bx.toFixed(1)} ${by.toFixed(1)}`); }
   else $('#sdDay').setAttribute('d', len >= 24 ? `M${SD.cx} ${SD.cy - SD.R - 3}a${SD.R + 3} ${SD.R + 3} 0 1 0 0.01 0` : '');
   const sh = $('#sdShadow'), up = day && alt > -0.8;
   if (up) { const L = Math.min(SD.P - 4, 9 / Math.tan(Math.max(1.5, alt) * RAD)), a = sdAng(lst) + Math.PI;   // (opposite the sun on the ring, as before v327)
@@ -442,7 +442,7 @@ document.addEventListener('pointerdown', ev => {
       return; } }
   if (near(ev).d > SD.R + 22) return;                                   // (only on and around the dial)
   ev.preventDefault(); svg.setPointerCapture?.(ev.pointerId);
-  const setT = e => { const { x, y } = near(e), h = ((12 - Math.atan2(x, -y) / (2 * Math.PI) * 24) % 24 + 24) % 24, { lst } = sunHour();
+  const setT = e => { const { x, y } = near(e), h = ((12 + Math.atan2(x, -y) / (2 * Math.PI) * 24) % 24 + 24) % 24, { lst } = sunHour();
     let dh = h - lst; if (dh > 12) dh -= 24; if (dh < -12) dh += 24; M.sunT = sunTime() + dh * 36e5; sunApply(); };
   if (mode !== 'set' && mode !== 'year') { M.cfg.sunMode = 'set'; saveMapCfg(); sunClock(); $('#sunCtl').innerHTML = sdCtlHTML(); }
   M.sunDrag = true; setT(ev);                                           // (the year, running, waits while the hour is set)
