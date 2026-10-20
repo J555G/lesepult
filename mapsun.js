@@ -133,7 +133,7 @@ function sunMove() {
 function sunMoveHook() { const m = M.map; if (m && !m._sunMv) { m._sunMv = true; m.on('move', sunMove); } }
 // the obelisk: red porphyry, flecked; the same size on screen at every zoom; its shadow on the ground away from the sun,
 // long when the sun is low, none at night. Dragged, it moves; "Here" again takes it away.
-const OB_H = 34, obelK = () => M.cfg?.obelSize || 1;              // (its size: the reader's choice, 0.5 … 2.5 times)
+const OB_H = 34, obelK = () => M.cfg?.obelSize || 1;              // (its size: the reader's choice, ⅓ … 3 times)
 function obelSVG() {
   const fl = Array.from({ length: 14 }, (_, i) => { const y = -4 - (i * 7.3) % (OB_H - 9), x = ((i * 3.7) % 6) - 3 * (1 - (-y) / OB_H); return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(0.35 + (i % 3) * 0.15).toFixed(2)}"/>`; }).join('');
   return `<svg width="260" height="260" viewBox="-130 -130 260 260" aria-hidden="true"><path class="obsh" id="obShadow" d=""/>
@@ -160,7 +160,7 @@ function obelShadow() {
   $('#obBody')?.setAttribute('transform', `scale(${obelK()})`);
   if (!sunOn() || a.alt <= 0) { p.setAttribute('d', ''); return; }
   const k = obelK();
-  const L = Math.min(120, OB_H * k / Math.tan(Math.max(1.5, a.alt) * RAD)), d = (a.az + 180 - m.getBearing()) * RAD;
+  const L = Math.min(125, OB_H * k / Math.tan(Math.max(1.5, a.alt) * RAD)), d = (a.az + 180 - m.getBearing()) * RAD;
   const kp = Math.cos(m.getPitch() * RAD), ex = Math.sin(d) * L, ey = -Math.cos(d) * L * kp, px = Math.cos(d) * 3.4 * k, py = Math.sin(d) * 3.4 * k * kp;   // (the shadow: as broad as the foot, narrowing to the tip)
   p.setAttribute('d', `M${(-px).toFixed(1)} ${(-py).toFixed(1)}L${(px).toFixed(1)} ${(py).toFixed(1)}L${(ex * .86 + px * .5).toFixed(1)} ${(ey * .86 + py * .5).toFixed(1)}L${ex.toFixed(1)} ${ey.toFixed(1)}L${(ex * .86 - px * .5).toFixed(1)} ${(ey * .86 - py * .5).toFixed(1)}z`);
   p.style.opacity = Math.max(0.15, Math.min(1, a.alt / 10)).toFixed(2);
@@ -333,7 +333,7 @@ function sdCtlHTML() {
     + `<div class="seg" role="group">${[['modern', 'Modern'], ['roman', 'Roman'], ['greek', 'Greek']].map(([v, l]) => `<button type="button" data-sunfmt="${v}" class="${(M.cfg.sunFmt || 'modern') === v ? 'on' : ''}">${l}</button>`).join('')}</div>`
     + `<div class="sdtg">${[['sunNight', 'Night'], ['sunAtm', 'Air']].map(([k, l]) => `<button type="button" data-suntg="${k}" class="${M.cfg[k] !== false ? 'on' : ''}" aria-pressed="${M.cfg[k] !== false}">${l}</button>`).join('')}`
     + `<button type="button" data-sunhere="1" class="${M.cfg.gnomon ? 'on' : ''}" aria-pressed="${!!M.cfg.gnomon}" title="${M.cfg.gnomon ? 'Take the obelisk away' : 'Set an obelisk on the map: the dial then shows that place'}">Here</button>`
-    + (M.cfg.gnomon ? `<input type="range" class="obsz" min="0" max="100" value="${Math.round(Math.log(obelK() / 0.5) / Math.log(5) * 100)}" data-obsz="1" aria-label="Size of the obelisk" title="Size of the obelisk">` : '') + `</div>`
+    + (M.cfg.gnomon ? `<input type="range" class="obsz" min="0" max="100" value="${Math.round(Math.log(obelK() * 3) / Math.log(9) * 100)}" data-obsz="1" aria-label="Size of the obelisk" title="Size of the obelisk">` : '') + `</div>`
     + `<small class="sdsub" id="sdSub"></small>`;
 }
 async function sdOpen(open) {
@@ -415,10 +415,10 @@ document.addEventListener('change', ev => { if (ev.target.closest?.('[data-sunsw
 // the speed: one day in 60 s … 5 s (a logarithmic slider)
 const spdToV = s => Math.round(Math.log(60 / s) / Math.log(12) * 100), vToSpd = v => 60 / 12 ** (v / 100);
 const spdLabel = s => `a day in ${s >= 9.95 ? Math.round(s) : s.toFixed(1)} s`;
-// the obelisk's size: 0.5 … 2.5 times (logarithmic)
+// the obelisk's size: a third … three times (logarithmic; the middle of the slider is the normal size)
 document.addEventListener('input', ev => {
   const r = ev.target.closest?.('input[data-obsz]'); if (!r) return;
-  M.cfg.obelSize = 0.5 * 5 ** (+r.value / 100); obelShadow(); clearTimeout(M.obSzT); M.obSzT = setTimeout(saveMapCfg, 400);
+  M.cfg.obelSize = 9 ** (+r.value / 100) / 3; obelShadow(); clearTimeout(M.obSzT); M.obSzT = setTimeout(saveMapCfg, 400);
 });
 // the year: one year in 77 s … 7 s
 const yrToV = s => Math.round(Math.log(77 / s) / Math.log(11) * 100), vToYr = v => 77 / 11 ** (v / 100);
