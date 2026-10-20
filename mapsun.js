@@ -332,13 +332,45 @@ async function sunHere() {
 // ---------------------------------------------------------------- the sun and the moon in the sky (v334)
 // Drawn where they truly stand as seen from the place the dial shows: tilted towards the horizon, in the sky; zoomed out, in space
 // beside the globe – a direction "at infinity" projected by the map's own camera, hidden where the earth lies before it. Larger
-// than true (settings: skySize, 1 … 24, 10 – v336), the sun with a glow, the moon in its real phase. Switches: skySun, skyMoon.
+// than true (settings: skySize, 1 … 24, 10 – v336), the moon in its real phase. Switches: skySun, skyMoon.
 const mat4v = (m, v) => [0, 1, 2, 3].map(i => m[i] * v[0] + m[4 + i] * v[1] + m[8 + i] * v[2] + m[12 + i] * v[3]);
 const skyDir = (az, alt) => [Math.cos(alt * RAD) * Math.sin(az * RAD), Math.sin(alt * RAD), -Math.cos(alt * RAD) * Math.cos(az * RAD)];   // (x east, y up, z south)
-// Behind the map, wherever no earth is seen (around the globe, above the horizon of a tilted view): dark blue space with stars,
-// fixed among themselves and turning with the sky (a scattering, not a star chart – v335).
+// Behind the map, wherever no earth is seen (around the globe, above the horizon of a tilted view): the sky of Flammarion's
+// engraving (1888) – blue, deeper higher up, finely hatched, with yellow six-pointed stars outlined in black, fixed among
+// themselves and turning with the sky (a scattering, not a star chart). The sun and the moon are cut from the engraving and
+// coloured (sky/sun.webp – its right side, hidden there by the frame, completed from the left; sky/moon.webp, the crescent – v339).
 const STARS = (() => { let sd = 11; const r = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
-  return Array.from({ length: 3000 }, () => { const u = r(), m = r(); return { ra: r() * 360, dec: Math.asin(2 * u - 1), b: 0.3 + 0.7 * m ** 3, s: 0.45 + 1.3 * m ** 5, c: r() }; }); })();
+  return Array.from({ length: 3600 }, () => { const u = r(), m = r();
+    return { ra: r() * 360, dec: Math.asin(2 * u - 1), s: 0.32 + 0.6 * m ** 2.5, rot: r() * 60, j: Array.from({ length: 6 }, () => 0.85 + 0.3 * r()), h: r() < 0.04 }; }); })();
+const SKY = { img: {} };
+function skyImg(n) {                                                // (the sprites, loaded once; the map is redrawn when they arrive)
+  const o = SKY.img[n]; if (o) return o.complete && o.naturalWidth ? o : null;
+  const im = SKY.img[n] = new Image(); im.onload = () => M.map?.triggerRepaint(); im.src = `sky/${n}.webp`; return null;
+}
+function skySunLow() {                                              // (the sun, orange: the same sprite, multiplied)
+  const im = skyImg('sun'); if (!im) return null;
+  if (!SKY.low) { const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; const x = c.getContext('2d');
+    x.drawImage(im, 0, 0); x.globalCompositeOperation = 'multiply'; x.fillStyle = 'rgb(255,168,120)'; x.fillRect(0, 0, c.width, c.height);
+    x.globalCompositeOperation = 'destination-in'; x.drawImage(im, 0, 0); SKY.low = c; }
+  return SKY.low;
+}
+function skyHatch(y, dir, col) {                                    // (fine diagonal hatching, in device pixels)
+  const dpr = devicePixelRatio || 1, k = `${dir}${dpr}${col}`;
+  if (!SKY[k]) { const n = Math.max(4, Math.round(7 * dpr)), c = document.createElement('canvas'); c.width = c.height = n; const x = c.getContext('2d');
+    x.strokeStyle = col; x.lineWidth = 1.1 * dpr;
+    for (const o of [-n, 0, n]) { x.beginPath(); if (dir > 0) { x.moveTo(o, n); x.lineTo(o + n, 0); } else { x.moveTo(o, 0); x.lineTo(o + n, n); } x.stroke(); }
+    SKY[k] = y.createPattern(c, 'repeat'); }
+  return SKY[k];
+}
+function skyHatchFill(y, dir, col) { y.save(); y.setTransform(1, 0, 0, 1, 0, 0); y.fillStyle = skyHatch(y, dir, col); y.fill(); y.restore(); }   // (the path as drawn; the pattern fixed to the screen)
+function skyStar(y, x0, y0, R, st) {
+  y.beginPath();
+  for (let i = 0; i < 12; i++) { const a = (st.rot + i * 30) * RAD, q = i % 2 ? 0.42 * R : R * st.j[i / 2]; y[i ? 'lineTo' : 'moveTo'](x0 + q * Math.sin(a), y0 - q * Math.cos(a)); }
+  y.closePath(); y.fillStyle = '#f6d34c'; y.fill(); y.lineWidth = Math.max(0.7, R * 0.11); y.strokeStyle = '#17110b'; y.stroke();
+  if (st.h) { y.lineWidth = Math.max(0.6, R * 0.06); y.beginPath();       // (a few with a crown of rays, as in the engraving)
+    for (let i = 0; i < 28; i++) { const a = i / 28 * 2 * Math.PI, l = 1.25 + 0.35 * ((i * 7) % 5) / 4; y.moveTo(x0 + 1.12 * R * Math.cos(a), y0 + 1.12 * R * Math.sin(a)); y.lineTo(x0 + l * R * Math.cos(a), y0 + l * R * Math.sin(a)); }
+    y.stroke(); }
+}
 function skyHook() {
   const m = M.map; if (!m || !m.style?._loaded) return;
   if (!m.getLayer('skybodies')) m.addLayer({ id: 'skybodies', type: 'custom', renderingMode: '2d', render(gl, args) { skyDraw(args); } });
@@ -348,47 +380,58 @@ function skyDraw(args) {
   $('#skyCv')?.remove();                                             // (before v337 the sun and the moon lay over the map)
   // everything here is drawn behind the map: where the earth is seen, it covers the stars, the sun and the moon – also in part,
   // as when the moon rises behind the rim of the globe (v337)
-  let bg = $('#skyBg');                                              // (the space behind the map)
+  let bg = $('#skyBg');                                              // (the sky behind the map)
   if (!bg || bg.parentNode !== box) { bg?.remove(); bg = document.createElement('canvas'); bg.id = 'skyBg'; bg.className = 'skybg'; box.prepend(bg); }
   if (bg.width !== Math.round(W * dpr) || bg.height !== Math.round(H * dpr)) { bg.width = Math.round(W * dpr); bg.height = Math.round(H * dpr); }
   const y = bg.getContext('2d'); y.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const sp = y.createLinearGradient(0, 0, 0, H); sp.addColorStop(0, '#060b22'); sp.addColorStop(1, '#0c1534'); y.fillStyle = sp; y.fillRect(0, 0, W, H);
-  const x = y;
+  const sp = y.createLinearGradient(0, 0, 0, H); sp.addColorStop(0, '#0f2a66'); sp.addColorStop(1, '#3a73bb'); y.fillStyle = sp; y.fillRect(0, 0, W, H);
+  y.beginPath(); y.rect(0, 0, W, H); skyHatchFill(y, 1, 'rgba(6,14,40,.42)');
   const ref = sunRef(), t = sunTime(), P = args.defaultProjectionData.mainMatrix, MM = m.transform.getMatrixForModel([ref.lng, ref.lat], 0);
   const scr = d => { const c = mat4v(P, mat4v(MM, [...d, 0])); return c[3] > 1e-9 ? [(c[0] / c[3] + 1) / 2 * W, (1 - c[1] / c[3]) / 2 * H] : null; };
   const f = H / 2 / Math.tan((m.transform.fovInRadians || 0.6435) / 2), size = M.cfg.skySize || 10;
   // the stars: each a direction in the sky (right ascension, declination), turned with the sidereal time to the place shown
   { const gm = ((18.697374558 + 24.06570982441908 * (t / 864e5 - 10957.5)) % 24 + 24) % 24 * 15;
-    for (const st of STARS) { const a = sunAt({ dec: st.dec, lon: ((st.ra - gm + 540) % 360) - 180 }, ref.lng, ref.lat), d = skyDir(a.az, a.alt), p = scr(d);
-      if (!p || p[0] < -2 || p[1] < -2 || p[0] > W + 2 || p[1] > H + 2) continue;
-      y.fillStyle = st.c < 0.15 ? `rgba(255,214,180,${st.b})` : st.c > 0.85 ? `rgba(196,214,255,${st.b})` : `rgba(240,242,255,${st.b})`;
-      y.beginPath(); y.arc(p[0], p[1], st.s, 0, 7); y.fill(); } }
+    for (const st of STARS) { const a = sunAt({ dec: st.dec, lon: ((st.ra - gm + 540) % 360) - 180 }, ref.lng, ref.lat), p = scr(skyDir(a.az, a.alt)), R = st.s * RAD * f;
+      if (!p || p[0] < -2 * R || p[1] < -2 * R || p[0] > W + 2 * R || p[1] > H + 2 * R) continue;
+      skyStar(y, p[0], p[1], Math.max(2, R), st); } }
   if (!sunOn()) return;                                              // (the sun and the moon: with day and night)
   const s = sunAt(sunPos(t), ref.lng, ref.lat), ds = skyDir(s.az, s.alt);
   if (M.cfg.skySun !== false) {
-    const p = scr(ds);
-    if (p) {
-      const r = Math.max(1.5, 0.2666 * RAD * size * f), low = Math.max(0, Math.min(1, 1 - s.alt / 8));        // (redder when low)
-      const g = x.createRadialGradient(p[0], p[1], 0, p[0], p[1], r * 6); g.addColorStop(0, `rgba(255,${236 - 60 * low},${170 - 110 * low},.5)`); g.addColorStop(0.25, `rgba(255,${210 - 70 * low},${120 - 80 * low},.18)`); g.addColorStop(1, 'rgba(255,200,120,0)');
-      x.fillStyle = g; x.beginPath(); x.arc(p[0], p[1], r * 6, 0, 7); x.fill();
-      const d = x.createRadialGradient(p[0], p[1], 0, p[0], p[1], r); d.addColorStop(0, '#fffdf2'); d.addColorStop(1, `rgb(255,${226 - 90 * low},${120 - 90 * low})`);
-      x.fillStyle = d; x.beginPath(); x.arc(p[0], p[1], r, 0, 7); x.fill();
+    const p = scr(ds), im = skyImg('sun');
+    if (p && im) {
+      // the disc of the sprite (radius 73 of 300) as large as the sun is drawn; the rays around it
+      const r = Math.max(3, 0.2666 * RAD * size * f), h = r * 300 / 73, low = Math.max(0, Math.min(1, 1 - s.alt / 8));   // (redder when low)
+      y.drawImage(im, p[0] - h, p[1] - h, 2 * h, 2 * h);
+      const lo = low > 0.02 && skySunLow(); if (lo) { y.globalAlpha = low; y.drawImage(lo, p[0] - h, p[1] - h, 2 * h, 2 * h); y.globalAlpha = 1; }
     }
   }
   if (M.cfg.skyMoon !== false) {
     const mo = moonPos(t), a = sunAt(mo, ref.lng, ref.lat), dm = skyDir(a.az, a.alt), p = scr(dm);
     if (p) {
-      const r = Math.max(1.5, 0.259 * RAD * size * f);
+      const r = Math.max(3, 0.259 * RAD * size * f), k = mo.lit, ink = '#17110b';
       // the bright side turned to the sun: a direction a little towards it, seen on the screen
       const dot = ds[0] * dm[0] + ds[1] * dm[1] + ds[2] * dm[2], pe = ds.map((v, i) => v - dm[i] * dot), pl = Math.hypot(...pe) || 1;
-      const q = scr(dm.map((v, i) => v + 0.02 * pe[i] / pl)), th = q ? Math.atan2(q[1] - p[1], q[0] - p[0]) : 0, k = mo.lit;
-      const g = x.createRadialGradient(p[0], p[1], 0, p[0], p[1], r * 3); g.addColorStop(0, `rgba(230,236,255,${0.12 + 0.18 * k})`); g.addColorStop(1, 'rgba(230,236,255,0)');
-      x.fillStyle = g; x.beginPath(); x.arc(p[0], p[1], r * 3, 0, 7); x.fill();
-      x.save(); x.translate(p[0], p[1]); x.rotate(th);
-      x.fillStyle = 'rgba(70,76,104,.55)'; x.beginPath(); x.arc(0, 0, r, 0, 7); x.fill();            // (the dark side, faintly)
-      x.fillStyle = '#f1efe4'; x.beginPath(); x.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, false);
-      x.ellipse(0, 0, Math.max(0.01, r * Math.abs(2 * k - 1)), r, 0, Math.PI / 2, -Math.PI / 2, k <= 0.5); x.fill();
-      x.restore();
+      const q = scr(dm.map((v, i) => v + 0.02 * pe[i] / pl)), th = q ? Math.atan2(q[1] - p[1], q[0] - p[0]) : 0;
+      y.save(); y.translate(p[0], p[1]); y.rotate(th);
+      // the dark side, hatched across the hatching of the sky
+      y.beginPath(); y.arc(0, 0, r, 0, 7); y.fillStyle = '#0c2257'; y.fill(); skyHatchFill(y, -1, 'rgba(2,6,22,.55)');
+      y.lineWidth = Math.max(0.6, r * 0.02); y.strokeStyle = 'rgba(10,8,6,.6)'; y.stroke();
+      if (k > 0.02) {
+        // a crown of short strokes around the bright limb, as engraved
+        y.beginPath(); y.lineWidth = Math.max(0.6, r * 0.022); y.strokeStyle = ink;
+        for (let i = -26; i <= 26; i++) { const b = i * 3.8 * RAD, l = 1.2 + 0.1 * ((i * 7 + 26) % 5) / 4 + 0.06 * Math.cos(b * 2); y.moveTo(1.1 * r * Math.cos(b), 1.1 * r * Math.sin(b)); y.lineTo(l * r * Math.cos(b), l * r * Math.sin(b)); }
+        y.stroke();
+        const im = skyImg('moon');
+        if (k < 0.25 && im) {                                         // a crescent: the engraved crescent (lit towards 45°, radius 115 of 130)
+          const h = r * 130 / 115; y.rotate(-45 * RAD); y.drawImage(im, -h, -h, 2 * h, 2 * h);
+        } else {                                                      // otherwise the bright part in cream, its edge a little rough
+          y.beginPath(); y.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, false);
+          const e = r * (2 * k - 1);                                  // (the terminator: an ellipse, x = e · cos)
+          for (let i = 1; i < 40; i++) { const b = Math.PI / 2 - i / 40 * Math.PI, w = 1 + 0.035 * Math.sin(i * 2.3) * Math.sin(i * 0.7); y.lineTo(-e * Math.cos(b) * w, r * Math.sin(b)); }
+          y.closePath(); y.fillStyle = '#f6ecc8'; y.fill(); y.lineWidth = Math.max(0.8, r * 0.028); y.strokeStyle = ink; y.stroke();
+        }
+      }
+      y.restore();
     }
   }
 }

@@ -1001,6 +1001,7 @@ const ACKS = [
     ['OpenStreetMap contributors, via OpenFreeMap (OpenMapTiles)', 'https://www.openstreetmap.org/copyright', 'rivers, streams and lakes online', 'ODbL 1.0'],
     ['Natural Earth bathymetry', 'https://www.naturalearthdata.com/', 'the depths of the seas', 'public domain'],
     ['Itiner-e – P. de Soto, A. Pažout, T. Brughmans et al., a high-resolution dataset of roads of the Roman Empire (2025)', 'https://itiner-e.org/', 'the Roman roads of the map packages “Roman roads (Itiner-e)”', 'CC BY 4.0'],
+    ['Camille Flammarion, L’atmosphère: météorologie populaire (1888), the wood engraving “Un missionnaire du moyen âge…”', 'https://commons.wikimedia.org/wiki/File:Flammarion.jpg', 'the sun and the moon of the sky, cut from the engraving and coloured; the style of the sky and its stars', 'public domain'],
     ['three.js (the three.js authors)', 'https://threejs.org', 'the obelisk of the sundial as a 3D model, with its light and shadow', 'MIT'],
     ['maplibre-contour (Michael Barry) and pmtiles.js (Protomaps)', 'https://github.com/onthegomap/maplibre-contour', 'contour lines drawn from the elevation; reading the map packages', 'BSD-3-Clause'],
     ['J. W. Hanson, An Urban Geography of the Roman World (2016), and J. W. Hanson & S. G. Ortman, estimating the populations of Greek and Roman settlements (2017)', 'https://oxrep.classics.ox.ac.uk/databases/cities/', 'areas and populations of about 900 cities (for the significance of places); data via the Roman ECI project (CC BY-SA 4.0)', 'CC BY-SA 4.0'],
