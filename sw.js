@@ -1,6 +1,6 @@
 // Offline cache for the app shell (dictionaries and texts live in IndexedDB, not here).
 importScripts('reliefsw.js');                                        // (the saved relief: reliefServe)
-const CACHE = 'lesepult-v332';
+const CACHE = 'lesepult-v333';
 const FILES = ['./', 'index.html', 'core.js', 'analysis.js', 'text.js', 'dictview.js', 'dialogs.js', 'export.js', 'library.js', 'libtime.js', 'libmenu.js', 'librev.js', 'glosses.js', 'search.js', 'app.js', 'maps.js', 'maplibre-contour.js', 'reliefsw.js', 'maplayers.js', 'mapsaved.js', 'mapdraw.js', 'maprelief.js', 'mapimg.js', 'mapsun.js', 'style.css', 'fonts.css', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'fonts/roboto-condensed-latin-400-normal.woff2', ...['latin', 'latin-ext', 'greek', 'greek-ext'].map(x => `fonts/source-sans-3-${x}-wght-normal.woff2`), 'fonts/source-sans-3-latin-wght-italic.woff2', 'fonts/source-sans-3-latin-ext-wght-italic.woff2',
   ...['greek', 'greek-ext', 'latin', 'latin-ext'].flatMap(s => ['400-normal', '700-normal', '400-italic'].map(w => `fonts/gentium-book-plus-${s}-${w}.woff2`))];
 
@@ -11,7 +11,7 @@ self.addEventListener('install', e => e.waitUntil(
   })))).then(() => self.skipWaiting())));
 
 self.addEventListener('activate', e => e.waitUntil(
-  caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE && k !== 'pult-maps' && k !== RELIEF).map(k => caches.delete(k)))).then(() => self.clients.claim())));
+  caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE && k !== 'pult-maps' && k !== RELIEF && k !== 'pult-lib').map(k => caches.delete(k)))).then(() => self.clients.claim())));
 
 // Safari refuses to show a page from a service worker if the response was redirected
 // (e.g. GitHub Pages: /lesepult → /lesepult/) – store and serve a clean copy instead.
@@ -33,7 +33,9 @@ self.addEventListener('fetch', e => {
   if (url.hostname === MH_HOST) { e.respondWith(reliefServe(req)); return; }   // Mapterhorn: the saved areas first
   if (url.origin !== self.location.origin) return;   // e.g. the private repository (GitHub API): never cached
   if (!path.startsWith(new URL(self.registration.scope).pathname)) return;   // other sites on the same host (the map packages, lesepult-maps): straight to the network
-  if (path.includes('/packages/') || path.includes('/texts/')) return;   // dictionary and text downloads go straight to the network (stored in IndexedDB)
+  if (path.includes('/packages/') || path.includes('/texts/')) return;
+  // large libraries (lib/, their version in the name): kept apart, across updates of the app – fetched once, then from the cache
+  if (path.includes('/lib/')) { e.respondWith(caches.open('pult-lib').then(async c => (await c.match(url.href)) || fetch(req).then(r => { if (r.ok) c.put(url.href, r.clone()); return r; }))); return; }   // dictionary and text downloads go straight to the network (stored in IndexedDB)
   // map data (Dictionaries → Maps): from the downloaded copy, otherwise from the network
   // the list of map packages: always the newest from the network (so new packages and updates show), the stored copy offline
   if (path.endsWith('/maps/maps.json')) { e.respondWith(net(url.href.split('?')[0], 6000).then(r => { if (!r.ok) throw 0; return r; }).catch(() => caches.open('pult-maps').then(c => c.match(url.href.split('?')[0])).then(r => r || Response.error()))); return; }

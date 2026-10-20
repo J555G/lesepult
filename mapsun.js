@@ -182,14 +182,89 @@ function obelGeo() {
 }
 function obelUpd() {
   const g = M.cfg?.gnomon, m = M.map; if (!m || !m.style?._loaded) return;
-  if (!g) { self.__pultObLight = null; for (const id of ['obel', 'obel-sh']) if (m.getLayer(id)) m.removeLayer(id); for (const id of ['obel', 'obelsh']) if (m.getSource(id)) m.removeSource(id); return; }
-  const [body, sh] = obelGeo();
+  if (!g) { self.__pultObLight = null; for (const id of ['obel', 'obel-sh', 'obel3d']) if (m.getLayer(id)) m.removeLayer(id); for (const id of ['obel', 'obelsh']) if (m.getSource(id)) m.removeSource(id); return; }
+  const [body, sh0] = obelGeo();
+  // the model drawn with three.js (when it is loaded): its own shadow on a flat ground where the map is flat and the shadow
+  // short; else the shadow laid on the ground (3D terrain, the curve of the globe), as before
+  if (!M.three && !M.threeTried) { M.threeTried = true; threeLib().then(T => { if (T) { M.three = T; obelUpd(); } }); }
+  const ob3 = !!M.three, plane = ob3 && !m.getTerrain() && g.h * obelK() * 8 < 3e5, sh = plane ? { type: 'FeatureCollection', features: [] } : sh0;
+  if (ob3) { if (m.getLayer('obel')) m.setLayoutProperty('obel', 'visibility', 'none'); if (!m.getLayer('obel3d')) { m.addLayer(obel3dLayer(M.three)); obelDragHook(m); } M.ob3Plane = plane; m.triggerRepaint(); }
   if (!m.getSource('obel')) {
     m.addSource('obelsh', { type: 'geojson', data: sh }); m.addSource('obel', { type: 'geojson', data: body });
     m.addLayer({ id: 'obel-sh', type: 'fill', source: 'obelsh', paint: { 'fill-color': '#140e08', 'fill-opacity': ['get', 'o'], 'fill-antialias': false } });
-    m.addLayer({ id: 'obel', type: 'fill-extrusion', source: 'obel', paint: { 'fill-extrusion-color': ['get', 'c'], 'fill-extrusion-base': ['get', 'b'], 'fill-extrusion-height': ['get', 't'], 'fill-extrusion-vertical-gradient': true } });
+    m.addLayer({ id: 'obel', type: 'fill-extrusion', source: 'obel', layout: { visibility: ob3 ? 'none' : 'visible' }, paint: { 'fill-extrusion-color': ['get', 'c'], 'fill-extrusion-base': ['get', 'b'], 'fill-extrusion-height': ['get', 't'], 'fill-extrusion-vertical-gradient': true } });
     obelDragHook(m);
   } else { m.getSource('obel').setData(body); m.getSource('obelsh').setData(sh); }
+}
+// ---------------------------------------------------------------- the obelisk as a model (three.js, in a layer of its own – v333)
+// Shaft and point of red porphyry (a speckled stone, slightly glossy), lit by the sun where it stands and by the sky; at dusk and
+// night dimmer and bluer. If three.js cannot be loaded, the blocks of the map engine stand in for it.
+const THREE_URL = 'lib/three-0.169.0.module.min.js';
+let threeP = null;
+const threeLib = () => threeP ??= import(new URL(THREE_URL, location.href).href).catch(e => { console.warn('three.js not available:', e.message); return null; });
+function porphyryTex(T) {
+  const n = 256, cv = document.createElement('canvas'); cv.width = cv.height = n; const x = cv.getContext('2d');
+  x.fillStyle = '#6a2638'; x.fillRect(0, 0, n, n);
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 2600; i++) { const r = rnd(); x.fillStyle = r < 0.5 ? `rgba(46,14,24,${0.25 + rnd() * 0.4})` : r < 0.85 ? `rgba(140,62,80,${0.25 + rnd() * 0.4})` : `rgba(236,214,218,${0.5 + rnd() * 0.5})`;
+    const sz = r < 0.85 ? 1 + rnd() * 2.6 : 0.6 + rnd() * 1.4; x.beginPath(); x.arc(rnd() * n, rnd() * n, sz, 0, 7); x.fill(); }
+  const t = new T.CanvasTexture(cv); t.wrapS = t.wrapT = T.RepeatWrapping; t.colorSpace = T.SRGBColorSpace; t.anisotropy = 4; return t;
+}
+function obel3dLayer(T) {
+  return { id: 'obel3d', type: 'custom', renderingMode: '3d',
+    onAdd(map, gl) {
+      this.map = map; this.cam = new T.Camera(); this.scene = new T.Scene();
+      this.r = new T.WebGLRenderer({ canvas: map.getCanvas(), context: gl, antialias: true });
+      this.r.autoClear = false;
+      const tex = porphyryTex(T), stone = new T.MeshStandardMaterial({ map: tex, roughness: 0.32, metalness: 0.02 }), base = new T.MeshStandardMaterial({ map: tex, color: 0x9a8890, roughness: 0.5 });
+      const g = this.g = new T.Group();
+      const box = (w, h, y, mat) => { const b = new T.Mesh(new T.BoxGeometry(w, h, w), mat); b.position.y = y + h / 2; g.add(b); };
+      box(0.34, 0.05, 0, base); box(0.26, 0.03, 0.05, base);                                      // (the plinth, in two steps: unit height 1)
+      const shaft = new T.Mesh(new T.CylinderGeometry(0.052 * Math.SQRT2, 0.088 * Math.SQRT2, 0.72, 4, 1), stone);   // (a square frustum)
+      shaft.rotation.y = Math.PI / 4; shaft.position.y = 0.08 + 0.36; g.add(shaft);
+      const tip = new T.Mesh(new T.ConeGeometry(0.052 * Math.SQRT2, 0.2, 4, 1), stone); tip.rotation.y = Math.PI / 4; tip.position.y = 0.8 + 0.1; g.add(tip);
+      g.updateMatrixWorld(true); this.scene.add(g);
+      // its shadow where the map is flat: the model pressed flat onto the ground along the sun's rays, five times from a sun moved a
+      // little each way – overlapping, they are dark in the middle and soften at the edges, more towards the tip (each pixel taken
+      // once per copy: the stencil)
+      this.sh = []; this.shScene = new T.Scene();                    // (drawn first, so the stone covers it)
+      for (let i = 0; i < 5; i++) {
+        const mat = new T.MeshBasicMaterial({ color: 0x140e08, transparent: true, depthTest: false, depthWrite: false,
+          stencilWrite: true, stencilRef: i + 1, stencilFunc: T.NotEqualStencilFunc, stencilZPass: T.ReplaceStencilOp, stencilFail: T.KeepStencilOp });
+        const sg = new T.Group(); sg.matrixAutoUpdate = false;
+        for (const ms of g.children) { const c = new T.Mesh(ms.geometry, mat); c.matrixAutoUpdate = false; c.matrix.copy(ms.matrix); c.renderOrder = -1; sg.add(c); }
+        this.shScene.add(sg); this.sh.push(sg);
+      }
+      this.sun = new T.DirectionalLight(0xfff4e0, 3); this.scene.add(this.sun, this.sun.target);
+      this.sky = new T.HemisphereLight(0xbcd2ff, 0x5a4a3a, 0.8); this.scene.add(this.sky);
+    },
+    render(gl, args) {
+      const g = M.cfg?.gnomon, map = this.map; if (!g) return;
+      const H = (g.h || 1) * obelK(), ter = map.getTerrain();
+      let alt = 0; if (ter) { try { alt = map.queryTerrainElevation([g.lng, g.lat]) || 0; } catch (_) {} }
+      const P = new T.Matrix4().fromArray(args.defaultProjectionData.mainMatrix).multiply(new T.Matrix4().fromArray(map.transform.getMatrixForModel([g.lng, g.lat], alt)));
+      this.cam.projectionMatrix = P.clone().multiply(new T.Matrix4().makeScale(H, H, H)); this.P = this.cam.projectionMatrix;
+      // the sun where it stands (model: x east, y up, z south), or without sunlight from the north-west; dusk and night dimmer
+      const sa = sunAt(sunPos(sunTime()), g.lng, g.lat), on = sunOn(), sm = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+      const az = (on ? sa.az : 315) * RAD, el = (on ? Math.max(0.5, sa.alt) : 45) * RAD, day = on ? sm(-1, 6, sa.alt) : 1;
+      this.sun.position.set(Math.cos(el) * Math.sin(az) * 10, Math.sin(el) * 10, -Math.cos(el) * Math.cos(az) * 10); this.sun.target.position.set(0, 0, 0);
+      this.sun.intensity = 3.2 * day; this.sun.color.setHSL(0.09, 0.6, 0.5 + 0.45 * (on ? sm(0, 20, sa.alt) : 1));     // (warmer when low)
+      this.sky.intensity = on ? 0.18 + 0.75 * sm(-10, 8, sa.alt) : 0.9;
+      const plane = !!M.ob3Plane && on && sa.alt > 0, O = Math.max(0.3, Math.min(0.62, 0.3 + sa.alt / 25)), a1 = 1 - (1 - O) ** (1 / 5), j = 1.4 * RAD;
+      this.sh.forEach((sg, i) => { sg.visible = plane; if (!plane) return;
+        const [dz, de] = [[0, 0], [j, 0], [-j, 0], [0, j], [0, -j]][i], a = az + dz, e = Math.max(1.5 * RAD, el + de);
+        const lx = Math.cos(e) * Math.sin(a), ly = Math.sin(e), lz = -Math.cos(e) * Math.cos(a);
+        sg.matrix.set(1, -lx / ly, 0, 0, 0, 0, 0, 0.001, 0, -lz / ly, 1, 0, 0, 0, 0, 1); sg.matrixWorldNeedsUpdate = true; sg.children[0].material.opacity = a1; });
+      this.r.setViewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+      this.r.resetState(); gl.clearStencil(0); gl.clear(gl.STENCIL_BUFFER_BIT); if (plane) this.r.render(this.shScene, this.cam); this.r.render(this.scene, this.cam);
+    } };
+}
+// where the model stands on the screen: its foot and its top (for grabbing it)
+function obel3dAxis() {
+  const L = M.map?.getLayer('obel3d')?.implementation, cv = M.map?.getCanvas(); if (!L?.P || !cv) return null;
+  const pr = y => { const v = [0, y, 0, 1], e = L.P.elements, c = [0, 1, 2, 3].map(i => e[i] * v[0] + e[4 + i] * v[1] + e[8 + i] * v[2] + e[12 + i] * v[3]);
+    return c[3] > 0 ? [(c[0] / c[3] + 1) / 2 * cv.clientWidth, (1 - c[1] / c[3]) / 2 * cv.clientHeight] : null; };
+  return [pr(0), pr(1)];
 }
 const obelShadow = () => { if (M.cfg?.gnomon && M.map?.getSource('obel') && M.obZ == null) obelUpd(); };   // (after the size slider; its size stays at every zoom)
 // dragging it: a finger or the mouse on the obelisk moves it (and not the map). Caught before the map engine sees the touch
@@ -200,7 +275,10 @@ function obelDragHook(m) {
   const pt = e => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
   const hit = ([x, y]) => {
     const g = M.cfg?.gnomon; if (!g || !m.getLayer('obel')) return false;
-    try { if (m.queryRenderedFeatures([[x - 14, y - 14], [x + 14, y + 14]], { layers: ['obel'] }).length) return true; } catch (_) {}
+    const ax = m.getLayer('obel3d') && obel3dAxis();
+    if (ax?.[0] && ax[1]) { const [a, b] = ax, dx = b[0] - a[0], dy = b[1] - a[1], t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+      if (Math.hypot(a[0] + dx * t - x, a[1] + dy * t - y) < Math.max(16, Math.hypot(dx, dy) * 0.1)) return true; }
+    else try { if (m.queryRenderedFeatures([[x - 14, y - 14], [x + 14, y + 14]], { layers: ['obel'] }).length) return true; } catch (_) {}
     const f = m.project([g.lng, g.lat]); return Math.hypot(f.x - x, f.y - y) < 24;    // (the foot)
   };
   box.addEventListener('pointerdown', e => {

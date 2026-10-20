@@ -1077,7 +1077,7 @@ async function viewToggle(k) {
   if (m && k === 't3d') {
     if (on) { if (m.getSource('terrdem')) m.setTerrain(T3D()); }       // (the camera stays as it is: tilt it yourself)
     else m.setTerrain(null);                                         // (the camera stays: a flat map can be tilted too)
-    contApply();                                                     // (the contour lines: drawn by the terrain in 3D, by their own layer in 2D)
+    contApply(); obelUpd();                                          // (the contour lines: drawn by the terrain in 3D, by their own layer in 2D; the obelisk's shadow)
   }
   drawLabels();
 }
