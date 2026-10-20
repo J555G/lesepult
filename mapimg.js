@@ -92,8 +92,9 @@ function imgNetChange() {
   M.map.setStyle(mapStyle(M.colors)); M.map.once('styledata', () => setTimeout(() => { refreshMapData(); imgCredit(); }, 50));
   refreshLayersPop?.();
 }
-addEventListener('online', () => { imgNetChange(); if (M.rel) reliefInit().then(() => M.map && imgNetChange()); });
-addEventListener('offline', imgNetChange);
+// (the relief too: Mapterhorn online, the packages offline)
+const netRelief = () => (typeof reliefInit === 'function' ? reliefInit() : Promise.resolve()).catch(() => {}).then(imgNetChange);
+addEventListener('online', netRelief); addEventListener('offline', netRelief);
 // the select boxes of the layer menu
 document.addEventListener('change', async ev => {
   const s = ev.target.closest?.('select[data-mcfgsel]'); if (!s) return;

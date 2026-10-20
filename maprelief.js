@@ -13,22 +13,28 @@ const tileLon = (x, z) => x / 2 ** z * 360 - 180;
 const tileLat = (y, z) => Math.atan(Math.sinh(Math.PI * (1 - 2 * y / 2 ** z))) * 180 / Math.PI;
 
 // the installed elevation packages (called while the map is built; needs pmtiles.js and maplibre-contour)
+// Online, Mapterhorn alone, read straight from its address by the map engine (its own background threads) and by
+// maplibre-contour in its worker: nothing of the heights is done on the page itself. Offline, the packages (v315).
 async function reliefInit() {
-  const files = relFiles();
-  const online = isOnline();                                          // online: Mapterhorn where no package reaches (v296)
-  if ((!files.length && !online) || !window.pmtiles) { M.rel = null; return; }
+  const online = isOnline(), files = online ? [] : relFiles();
+  if (!online && (!files.length || !window.pmtiles)) { M.rel = null; return; }
   if (!window.mlcontour) { try { await addScript(MAPS + 'relief/lib/maplibre-contour.js'); } catch (_) {
     try { if (!online) throw 0; await addScript(MH_LIB); } catch (_) { M.rel = null; return; } } }
-  const key = files.join('|') + (online ? '|mh' : '');
+  const key = online ? 'mh' : files.join('|');
   if (M.rel?.key === key) return;
+  if (online) {
+    M.rel = { key, arch: [], online, direct: true, maxz: MH_Z, cache: new Map() };
+    M.relDem = new mlcontour.DemSource({ url: MH_URL, encoding: 'terrarium', maxzoom: MH_Z, worker: true, cacheSize: 100, timeoutMs: 30000 });
+    M.relDem.setupMaplibre(maplibregl); return;
+  }
   const arch = [];
   for (const f of files) {
     const pm = new pmtiles.PMTiles(new CacheSource(new URL(MAPS + f, location.href).href));
     try { arch.push({ f, pm, h: await pm.getHeader() }); } catch (e) { console.warn('relief', f, e); }
   }
-  if (!arch.length && !online) { M.rel = null; return; }
+  if (!arch.length) { M.rel = null; return; }
   arch.sort((a, b) => b.h.maxZoom - a.h.maxZoom);                   // the most detailed first
-  M.rel = { key, arch, online, maxz: online ? MH_MAXZ : Math.max(...arch.map(a => a.h.maxZoom)), cache: new Map() };
+  M.rel = { key, arch, online, maxz: Math.max(...arch.map(a => a.h.maxZoom)), cache: new Map() };
   const dem = new mlcontour.DemSource({ url: 'pultdem://{z}/{x}/{y}', encoding: 'terrarium', maxzoom: M.rel.maxz, worker: false, cacheSize: 200, timeoutMs: 30000 });
   dem.manager.getTile = async url => { const [z, x, y] = url.match(/(\d+)\/(\d+)\/(\d+)$/).slice(1).map(Number); return { data: await demBlob(z, x, y) }; };
   dem.setupMaplibre(maplibregl);
@@ -46,11 +52,9 @@ function demBlob(z, x, y) {
     for (const a of M.rel.arch) {
       if (z < a.h.minZoom || !(a === last ? inArch : inside)(a.h, z, x, y)) continue;
       if (z <= a.h.maxZoom) { const r = await a.pm.getZxy(z, x, y); if (r?.data) return new Blob([r.data], { type: 'image/webp' }); continue; }
-      if (M.rel.online) { const m = await mhTile(z, x, y); if (m) return m; }                    // deeper, online: Mapterhorn
       const dz = z - a.h.maxZoom, px = x >> dz, py = y >> dz, r = await a.pm.getZxy(a.h.maxZoom, px, py);   // deeper: a part of the deepest tile, enlarged
       if (r?.data) return enlarge(r.data, dz, x - (px << dz), y - (py << dz), undefined, `${a.f}/${a.h.maxZoom}/${px}/${py}`);
     }
-    if (M.rel.online) { const m = await mhTile(z, x, y); if (m) return m; }                      // outside every package, online
     return flatTile();                                               // sea, or outside every package
   })();
   c.set(k, p); if (c.size > 400) c.delete(c.keys().next().value);
@@ -137,21 +141,9 @@ async function enlarge(data, dz, ox, oy, N, key) {
   }
   return encodeDem(out, N);
 }
-// Mapterhorn (online): terrain tiles of 512 pixels (Terrarium, WebP) – one of zoom z-1 holds four of our 256-pixel tiles
-const MH = (z, x, y) => `https://tiles.mapterhorn.com/${z}/${x}/${y}.webp`, MH_MAXZ = 13;
+// Mapterhorn (online): terrain tiles of 512 pixels (Terrarium, WebP), zoom 0–12
+const MH_URL = 'https://tiles.mapterhorn.com/{z}/{x}/{y}.webp', MH_Z = 12;
 const MH_LIB = 'https://j555g.github.io/lesepult-maps/relief/lib/maplibre-contour.js';
-function mhFetch(z, x, y) {
-  const c = (M.mhCache ??= new Map()), k = `${z}/${x}/${y}`;
-  if (!c.has(k)) { c.set(k, fetch(MH(z, x, y)).then(r => r.ok ? r.arrayBuffer() : null).catch(() => null)); if (c.size > 120) c.delete(c.keys().next().value); }
-  return c.get(k);
-}
-async function mhTile(z, x, y) {
-  if (!M.rel?.online || (M.mhFails || 0) > 20) return null;            // (many failures in a row: not reachable)
-  const d = z ? await mhFetch(z - 1, x >> 1, y >> 1) : await mhFetch(0, 0, 0);
-  if (!d) { M.mhFails = (M.mhFails || 0) + 1; return null; }
-  M.mhFails = 0;
-  try { return await enlarge(d, z ? 1 : 0, z ? x & 1 : 0, z ? y & 1 : 0, 256); } catch (_) { return null; }
-}
 let flatP = null;
 const flatTile = () => flatP ??= encodeDem(new Float32Array(256 * 256), 256);
 
@@ -203,8 +195,9 @@ function reliefStyle(st, C) {
       paint: { 'fill-color': ['step', ['get', 'd'], deep[0], 200, deep[1], 1000, deep[2], 2000, deep[3], 4000, deep[4]], 'fill-opacity': hd ? ['interpolate', ['linear'], ['zoom'], 6, 1, 8.5, 0] : 1, 'fill-antialias': false } });
   }
   if (!M.relDem || M.cfg.elev === false) return;                    // (Elevation switched off in the Globe menu)
-  st.sources.reldem = { type: 'raster-dem', tiles: [M.relDem.sharedDemProtocolUrl], encoding: 'terrarium', tileSize: 256, maxzoom: M.rel.maxz };
-  st.sources.terrdem = { type: 'raster-dem', tiles: [M.relDem.sharedDemProtocolUrl], encoding: 'terrarium', tileSize: 256, maxzoom: M.rel.maxz };   // (3D: its own source, as MapLibre advises)
+  const dsrc = () => M.rel.direct ? { type: 'raster-dem', tiles: [MH_URL], encoding: 'terrarium', tileSize: 512, maxzoom: MH_Z }
+    : { type: 'raster-dem', tiles: [M.relDem.sharedDemProtocolUrl], encoding: 'terrarium', tileSize: 256, maxzoom: M.rel.maxz };
+  st.sources.reldem = dsrc(); st.sources.terrdem = dsrc();           // (3D: its own source, as MapLibre advises)
   if (viewOn('t3d')) st.terrain = T3D();
   const below = ['a-water', 'a-areas', 'a-emp', 'lakes'].map(at).find(k => k >= 0) ?? at('lakes');
   const ls = [];
