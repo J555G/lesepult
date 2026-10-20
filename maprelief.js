@@ -290,7 +290,8 @@ function reliefStyle(st, C) {
       'color-relief-color': ['interpolate', ['linear'], ['elevation'], 0, 'rgba(0,0,0,0)', 1, dark ? '#3c5232' : '#a8c690', 200, dark ? '#4a5a34' : '#cfd9a0', 500, dark ? '#6a6036' : '#e6dca6', 1000, dark ? '#7a5a36' : '#d9b98a', 2000, dark ? '#7a4a3a' : '#c09a7e', 3500, dark ? '#8a8a8a' : '#e8e4e0', 5500, '#ffffff'] } });
   }
   ls.push({ id: 'rel-shade', type: 'hillshade', source: 'reldem', paint: { 'hillshade-exaggeration': ['interpolate', ['linear'], ['zoom'], 3, 0.55, 8, 0.4, 12, 0.3],
-    'hillshade-shadow-color': dark ? '#000000' : '#5b4a33', 'hillshade-highlight-color': dark ? '#7b7466' : '#fffdf6', 'hillshade-accent-color': dark ? '#000000' : '#6b5b44' } });
+    // (only darkening, in black: the shaded slopes keep their own colour, the sunlit ones are left as they are – v321)
+    'hillshade-shadow-color': '#000000', 'hillshade-highlight-color': 'rgba(0,0,0,0)', 'hillshade-accent-color': '#000000' } });
   put(below, ...ls);
   // contour lines (maplibre-contour): every so many metres (or feet, in the units of the map settings), the larger steps stronger and numbered
   const ft = unit().small !== 1;
@@ -298,7 +299,8 @@ function reliefStyle(st, C) {
     thresholds: ft ? { 5: [2000, 5000], 7: [500, 2500], 9: [250, 1000], 11: [100, 500], 13: [50, 250] } : { 5: [500, 1000], 7: [200, 1000], 9: [100, 500], 11: [50, 250], 13: [20, 100] } })] };
   const k = ['a-prov', 'a-roads', 'own'].map(at).find(i => i >= 0) ?? at('pl-region');
   put(k, { id: 'rel-contour', type: 'line', source: 'contours', 'source-layer': 'contours', minzoom: 5, filter: ['>', ['get', 'ele'], 0],
-    paint: { 'line-color': dark ? '#a08a66' : '#8a6a40', 'line-opacity': ['case', ['==', ['get', 'level'], 1], 0.6, 0.35], 'line-width': ['case', ['==', ['get', 'level'], 1], 1.1, 0.6] } });
+    paint: clNeutral() ? { 'line-color': dark ? '#dcdbd4' : '#3a3a38', 'line-opacity': ['case', ['==', ['get', 'level'], 1], 0.5, 0.24], 'line-width': ['case', ['==', ['get', 'level'], 1], 0.9, 0.45] }
+      : { 'line-color': dark ? '#a08a66' : '#8a6a40', 'line-opacity': ['case', ['==', ['get', 'level'], 1], 0.6, 0.35], 'line-width': ['case', ['==', ['get', 'level'], 1], 1.1, 0.6] } });
   put(k, { id: 'rel-coast0', type: 'line', source: 'contours', 'source-layer': 'contours', filter: ['==', ['get', 'ele'], 0],     // the 0 m line: the coast from the heights
     paint: { 'line-color': dark ? '#c9b892' : '#7a6a4a', 'line-width': 1, 'line-opacity': 0.8 } });
 }
@@ -308,6 +310,8 @@ function reliefLayerProps() {
 }
 // the menu: Layers → Landscape
 // numbers of the contour lines: on the stronger lines, along them, where there is room (drawn with the other labels)
+// contour lines in a neutral grey, thin and faint; brown as before when the imagery is dimmed in dark mode (v321)
+const clNeutral = () => !(document.documentElement.dataset.theme === 'dark' && M.cfg?.imgDim !== false);
 function contourLabels(placed, W, H) {
   if (!relOn('relContours') || !M.map?.getLayer('rel-contour') || M.map.getZoom() < 7) return '';
   const hit = r => placed.some(q => r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1]);
@@ -323,7 +327,7 @@ function contourLabels(placed, W, H) {
       let ang = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI; if (ang > 90) ang -= 180; if (ang < -90) ang += 180;
       const txt = Math.round(f.properties.ele).toLocaleString('en'), w = txt.length * 6 + 4, r = [cx - w / 2, cy - 6, cx + w / 2, cy + 6];
       if (hit(r)) continue; placed.push(r);
-      h += `<span class="mlbl cl" style="left:${Math.round(cx)}px;top:${Math.round(cy)}px;transform:translate(-50%,-50%) rotate(${ang.toFixed(0)}deg)">${txt}</span>`;
+      h += `<span class="mlbl cl${clNeutral() ? ' cn' : ''}" style="left:${Math.round(cx)}px;top:${Math.round(cy)}px;transform:translate(-50%,-50%) rotate(${ang.toFixed(0)}deg)">${txt}</span>`;
       if (++n > 60) return h;
     }
   }

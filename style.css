@@ -2016,3 +2016,4 @@ dialog .sortpair button{transition:border-color .15s}
 .sdobel .ob{pointer-events:visiblePainted;cursor:grab}
 .sdobel .obsh{fill:rgba(20,14,8,.45)}
 .msdial .sdtg .obsz{width:64px;margin-left:2px;accent-color:#c46a7e}
+.mlbl.cl.cn{color:color-mix(in srgb,var(--fg) 78%,transparent)}
