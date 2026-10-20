@@ -125,45 +125,61 @@ function sdRefUpd() {
 function sunMove() {
   if (M.sunMvRaf) return;
   M.sunMvRaf = requestAnimationFrame(() => { M.sunMvRaf = 0;
+    if (typeof cgpuOn === 'function' && cgpuOn() && self.__pultCont?.[0] && M.map && contIdx(M.map.getZoom()) !== self.__pultCont[3]) contApply();   // (the step of the numbered lines follows the zoom)
     if (M.sdOpen) { sdRefUpd(); sundialPaint(); }
     const m = M.map; if (sunOn() && m?.getLayer('rel-shade') && !M.cfg.gnomon) { const c = sunRef(), a = Math.round(sunAt(sunPos(sunTime()), c.lng, c.lat).az);
       if (a !== M.shadeAz) { M.shadeAz = a; m.setPaintProperty('rel-shade', 'hillshade-illumination-direction', a); } }
     obelShadow(); });
 }
-function sunMoveHook() { const m = M.map; if (m && !m._sunMv) { m._sunMv = true; m.on('move', sunMove); } }
-// the obelisk: red porphyry, flecked; the same size on screen at every zoom; its shadow on the ground away from the sun,
-// long when the sun is low, none at night. Dragged, it moves; "Here" again takes it away.
-const OB_H = 34, obelK = () => M.cfg?.obelSize || 1;              // (its size: the reader's choice, ⅓ … 3 times)
-function obelSVG() {
-  const fl = Array.from({ length: 14 }, (_, i) => { const y = -4 - (i * 7.3) % (OB_H - 9), x = ((i * 3.7) % 6) - 3 * (1 - (-y) / OB_H); return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(0.35 + (i % 3) * 0.15).toFixed(2)}"/>`; }).join('');
-  return `<svg width="260" height="260" viewBox="-130 -130 260 260" aria-hidden="true"><path class="obsh" id="obShadow" d=""/>
-    <g class="ob" id="obBody"><ellipse cx="0" cy="0.5" rx="7" ry="2.2" fill="rgba(0,0,0,.25)"/><path d="M-5.5 0h11v-2.6h-11z" fill="#45182a" stroke="#2c0f17" stroke-width=".6"/>
-    <path d="M-4.2-2.6 4.2-2.6 2.6-${OB_H - 6}H-2.6z" fill="url(#obGrad)" stroke="#2c0f17" stroke-width=".6"/><path d="M-2.6-${OB_H - 6} 0-${OB_H}l2.6 6z" fill="#63283a" stroke="#2c0f17" stroke-width=".6"/>
-    <g fill="#e3c4c9" opacity=".4">${fl}</g></g>
-    <defs><linearGradient id="obGrad" x1="0" x2="1"><stop offset="0" stop-color="#5c2032"/><stop offset=".45" stop-color="#6e2a3d"/><stop offset="1" stop-color="#36111b"/></linearGradient></defs></svg>`;
+function sunMoveHook() { const m = M.map; if (m && !m._sunMv) { m._sunMv = true; m.on('move', sunMove); m.on('style.load', () => setTimeout(obelUpd, 0)); } }
+// the obelisk: a model of red porphyry standing upright on the ground (fill-extrusion, lit by the sun of the map's light): a
+// plinth, a tapering shaft, a pointed top; always about the same size on screen (made anew as the zoom changes), the
+// reader's size ⅓ … 3 times; its shadow on the ground away from the sun, long when the sun is low, none at night. Dragged,
+// it moves; "Here" again takes it away.
+const OB_H = 34, obelK = () => M.cfg?.obelSize || 1;              // (its height in screen pixels, times the reader's size)
+function obelGeo() {
+  const g = M.cfg.gnomon, m = M.map, z = m.getZoom(), lat = g.lat * RAD;
+  const mpp = 40075016.7 * Math.cos(lat) / (512 * 2 ** z), H = OB_H * obelK() * mpp;    // (metres per screen pixel there; the height in metres)
+  const dLat = d => d / 111320, dLon = d => d / (111320 * Math.max(0.05, Math.cos(lat)));
+  const sq = h => [[[g.lng - dLon(h), g.lat - dLat(h)], [g.lng + dLon(h), g.lat - dLat(h)], [g.lng + dLon(h), g.lat + dLat(h)], [g.lng - dLon(h), g.lat + dLat(h)], [g.lng - dLon(h), g.lat - dLat(h)]]];
+  const f = [], piece = (h, b, t, c) => f.push({ type: 'Feature', properties: { b, t, c }, geometry: { type: 'Polygon', coordinates: sq(h) } });
+  piece(0.17 * H, 0, 0.05 * H, '#3e1524'); piece(0.13 * H, 0.05 * H, 0.08 * H, '#4a1a2b');            // (the plinth, in two steps)
+  for (let i = 0; i < 9; i++) { const a = i / 9, b = (i + 1) / 9; piece((0.088 - 0.036 * a) * H, (0.08 + 0.72 * a) * H, (0.08 + 0.72 * b) * H, i % 2 ? '#6c2a3c' : '#702c3f'); }
+  for (let i = 0; i < 6; i++) { const a = i / 6; piece((0.052 * (1 - a) + 0.003) * H, (0.8 + 0.2 * a) * H, (0.8 + 0.2 * (i + 1) / 6) * H, '#7a3346'); }   // (the pointed top)
+  // the shadow: from the foot, away from the sun
+  const s = sunAt(sunPos(sunTime()), g.lng, g.lat), sh = [];
+  if (sunOn() && s.alt > 0) {
+    const L = Math.min(8 * H, H / Math.tan(Math.max(1.5, s.alt) * RAD)), d = (s.az + 180) * RAD, ux = Math.sin(d), uy = Math.cos(d), w = 0.088 * H;
+    const P = (along, side) => [g.lng + dLon(ux * along + uy * side), g.lat + dLat(uy * along - ux * side)];
+    sh.push({ type: 'Feature', properties: { o: Math.max(0.15, Math.min(0.5, s.alt / 20)) }, geometry: { type: 'Polygon', coordinates: [[P(0, -w), P(0, w), P(L * 0.8, w * 0.6), P(L, 0), P(L * 0.8, -w * 0.6), P(0, -w)]] } });
+  }
+  M.obZ = z;
+  return [{ type: 'FeatureCollection', features: f }, { type: 'FeatureCollection', features: sh }];
 }
 function obelUpd() {
-  const g = M.cfg?.gnomon, m = M.map;
-  if (!g || !m) { M.obel?.remove(); M.obel = null; return; }
-  if (!M.obel || M.obel._map !== m) {
-    M.obel?.remove();
-    const el = document.createElement('div'); el.className = 'sdobel'; el.innerHTML = obelSVG();
-    M.obel = new maplibregl.Marker({ element: el, anchor: 'center', draggable: true }).setLngLat([g.lng, g.lat]).addTo(m);
-    M.obel.on('drag', () => { const ll = M.obel.getLngLat(); M.cfg.gnomon = { lng: ll.lng, lat: ll.lat }; sunApply(); });
-    M.obel.on('dragend', () => saveMapCfg());
-  } else M.obel.setLngLat([g.lng, g.lat]);
-  obelShadow();
+  const g = M.cfg?.gnomon, m = M.map; if (!m || !m.style?._loaded) return;
+  if (!g) { for (const id of ['obel', 'obel-sh']) if (m.getLayer(id)) m.removeLayer(id); for (const id of ['obel', 'obelsh']) if (m.getSource(id)) m.removeSource(id); return; }
+  const [body, sh] = obelGeo();
+  if (!m.getSource('obel')) {
+    m.addSource('obelsh', { type: 'geojson', data: sh }); m.addSource('obel', { type: 'geojson', data: body });
+    m.addLayer({ id: 'obel-sh', type: 'fill', source: 'obelsh', paint: { 'fill-color': '#140e08', 'fill-opacity': ['get', 'o'], 'fill-antialias': true } });
+    m.addLayer({ id: 'obel', type: 'fill-extrusion', source: 'obel', paint: { 'fill-extrusion-color': ['get', 'c'], 'fill-extrusion-base': ['get', 'b'], 'fill-extrusion-height': ['get', 't'], 'fill-extrusion-vertical-gradient': true } });
+    obelDragHook(m);
+  } else { m.getSource('obel').setData(body); m.getSource('obelsh').setData(sh); }
 }
-function obelShadow() {
-  const p = $('#obShadow'); if (!p || !M.obel) return;
-  const g = M.cfg.gnomon, a = sunAt(sunPos(sunTime()), g.lng, g.lat), m = M.map;
-  $('#obBody')?.setAttribute('transform', `scale(${obelK()})`);
-  if (!sunOn() || a.alt <= 0) { p.setAttribute('d', ''); return; }
-  const k = obelK();
-  const L = Math.min(125, OB_H * k / Math.tan(Math.max(1.5, a.alt) * RAD)), d = (a.az + 180 - m.getBearing()) * RAD;
-  const kp = Math.cos(m.getPitch() * RAD), ex = Math.sin(d) * L, ey = -Math.cos(d) * L * kp, px = Math.cos(d) * 3.4 * k, py = Math.sin(d) * 3.4 * k * kp;   // (the shadow: as broad as the foot, narrowing to the tip)
-  p.setAttribute('d', `M${(-px).toFixed(1)} ${(-py).toFixed(1)}L${(px).toFixed(1)} ${(py).toFixed(1)}L${(ex * .86 + px * .5).toFixed(1)} ${(ey * .86 + py * .5).toFixed(1)}L${ex.toFixed(1)} ${ey.toFixed(1)}L${(ex * .86 - px * .5).toFixed(1)} ${(ey * .86 - py * .5).toFixed(1)}z`);
-  p.style.opacity = Math.max(0.15, Math.min(1, a.alt / 10)).toFixed(2);
+const obelShadow = () => { if (M.cfg?.gnomon && M.map?.getSource('obel') && (M.obZ == null || Math.abs(M.map.getZoom() - M.obZ) > 0.01)) obelUpd(); };
+// dragging it: a finger or the mouse on the obelisk moves it (and not the map)
+function obelDragHook(m) {
+  if (m._obDrag) return; m._obDrag = true;
+  const start = e => {
+    if (e.originalEvent?.touches?.length > 1) return;
+    e.preventDefault(); m.dragPan.disable(); M.obDrag = true;
+    const mv = ev => { const ll = ev.lngLat; M.cfg.gnomon = { lng: ((ll.lng + 540) % 360) - 180, lat: ll.lat }; obelUpd(); sunApply(); };
+    const end = () => { m.off('mousemove', mv); m.off('touchmove', mv); m.off('mouseup', end); m.off('touchend', end); m.off('touchcancel', end); m.dragPan.enable(); M.obDrag = false; saveMapCfg(); };
+    m.on('mousemove', mv); m.on('touchmove', mv); m.on('mouseup', end); m.on('touchend', end); m.on('touchcancel', end);
+  };
+  m.on('mousedown', 'obel', start); m.on('touchstart', 'obel', start);
+  m.on('mouseenter', 'obel', () => { m.getCanvas().style.cursor = 'grab'; }); m.on('mouseleave', 'obel', () => { m.getCanvas().style.cursor = ''; });
 }
 // "Here": the next tap on the map sets the obelisk; when one stands, "Here" takes it away
 async function sunHere() {
@@ -415,10 +431,18 @@ document.addEventListener('change', ev => { if (ev.target.closest?.('[data-sunsw
 // the speed: one day in 60 s … 5 s (a logarithmic slider)
 const spdToV = s => Math.round(Math.log(60 / s) / Math.log(12) * 100), vToSpd = v => 60 / 12 ** (v / 100);
 const spdLabel = s => `a day in ${s >= 9.95 ? Math.round(s) : s.toFixed(1)} s`;
+// the height exaggeration of 3D (1 … 3), and the spacing of the contour lines (the least room between them, 4 … 24 pixels)
+document.addEventListener('input', ev => {
+  const x = ev.target.closest?.('input[data-exag]'), sp = ev.target.closest?.('input[data-cspace]');
+  if (x) { M.cfg.exag = +x.value; $('#exagOut') && ($('#exagOut').textContent = '×' + M.cfg.exag.toFixed(1)); if (M.map?.getTerrain()) M.map.setTerrain(T3D()); clearTimeout(M.exT); M.exT = setTimeout(saveMapCfg, 400); }
+  if (sp) { M.cfg.relSpacing = +sp.value; clearTimeout(M.spT);
+    if (cgpuOn()) { contApply(); M.cnum = null; drawLabels(); M.spT = setTimeout(saveMapCfg, 400); }
+    else M.spT = setTimeout(async () => { await saveMapCfg(); if (M.map) { M.map.setStyle(mapStyle(M.colors)); M.map.once('styledata', () => setTimeout(refreshMapData, 50)); } }, 500); }   // (the lines of maplibre-contour: made anew)
+});
 // the obelisk's size: a third … three times (logarithmic; the middle of the slider is the normal size)
 document.addEventListener('input', ev => {
   const r = ev.target.closest?.('input[data-obsz]'); if (!r) return;
-  M.cfg.obelSize = 9 ** (+r.value / 100) / 3; obelShadow(); clearTimeout(M.obSzT); M.obSzT = setTimeout(saveMapCfg, 400);
+  M.cfg.obelSize = 9 ** (+r.value / 100) / 3; M.obZ = null; obelShadow(); clearTimeout(M.obSzT); M.obSzT = setTimeout(saveMapCfg, 400);
 });
 // the year: one year in 77 s … 7 s
 const yrToV = s => Math.round(Math.log(77 / s) / Math.log(11) * 100), vToYr = v => 77 / 11 ** (v / 100);
@@ -520,7 +544,9 @@ function mapOptsHTML() {
   return `<div class="mvrow">${ib('mapProjBtn', true, projIconSVG(glb ? 0 : 1), glb ? 'Globe' : 'Flat map')}${ib('map3dBtn', t3, hillIconSVG(t3 ? 1 : 0), '3D terrain', !can3)}${ib('mapCompBtn', c.compass !== false, COMPASS_SM, 'Compass')}</div>`
     + `<div class="mimg" role="group" aria-label="Map">${[['bm', 'Blue Marble'], ['s2', 'Sentinel-2'], ['esri', 'Esri']].map(([v, l]) => `<button type="button" data-mcfg="img" data-mv="${v}" class="mib${k === v ? ' on' : ''}" aria-pressed="${k === v}"${v !== 'bm' && !on ? ' disabled' : ''}>${IMG_ICON[v]}<small>${l}</small></button>`).join('')}</div>`
     + (ver ? `<div class="mrow msub"><span>${k === 's2' ? 'Year' : 'Version'}</span>${ver}</div>` : '')
+    + (t3 ? `<label class="mrow msub"><span>Height <output id="exagOut">×${(c.exag || 1.5).toFixed(1)}</output></span><input type="range" min="1" max="3" step="0.1" value="${c.exag || 1.5}" data-exag="1" aria-label="Height exaggeration"></label>` : '')
     + sw('elev', 'Elevation', elevOn(), false) + sw('relShade', 'Shading', relOn('relShade'), !elevOn()) + sw('relContours', 'Contour lines', relOn('relContours'), !elevOn())
+    + `<label class="mrow msub${!elevOn() || !relOn('relContours') ? ' dis' : ''}"><span>Spacing</span><span class="mrng"><small>close</small><input type="range" min="4" max="24" step="1" value="${c.relSpacing || 9}" data-cspace="1" aria-label="Spacing of the contour lines"${!elevOn() || !relOn('relContours') ? ' disabled' : ''}><small>wide</small></span></label>`
     + `<button type="button" class="mrsave" id="mapSaveBtn"${on || M.rsJob ? '' : ' disabled'}>${M.rsJob ? `Saving ${esc(M.rsJob.a.name)} … ${Math.round(M.rsJob.done / M.rsJob.a.total * 100)} %` : 'Save this area for offline use …'}</button>`
     + sw('rivlak', 'Rivers and lakes', c.rivers !== false, false);
 }
@@ -532,7 +558,7 @@ async function mapOptsClick(b) {
   if (b.id === 'mapProjBtn') { const on = !viewOn('globe'); iconAnim(b, on ? 0 : 1, projIconSVG); b.title = on ? 'Globe' : 'Flat map'; b.setAttribute('aria-label', b.title);
     requestAnimationFrame(() => setTimeout(() => viewToggle('globe'), 0)); return true; }
   if (b.id === 'map3dBtn') { const on = !viewOn('t3d'); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); iconAnim(b, on ? 1 : 0, hillIconSVG);
-    requestAnimationFrame(() => setTimeout(() => viewToggle('t3d'), 0)); return true; }
+    requestAnimationFrame(() => setTimeout(() => viewToggle('t3d'), 0)); setTimeout(refreshLayersPop, 520); return true; }   // (then the menu shows or hides the height slider)
   if (b.id === 'mapCompBtn') { M.cfg.compass = M.cfg.compass === false; await saveMapCfg(); b.classList.toggle('on', M.cfg.compass); b.setAttribute('aria-pressed', M.cfg.compass); compassUpd(); return true; }
   if (b.id === 'mapNorth' || d.mnorth) { M.map?.easeTo({ bearing: 0, duration: 500 }); return true; }
   if (b.id === 'mapSunBtn') { await sdOpen(!M.sdOpen); return true; }
@@ -561,6 +587,7 @@ document.addEventListener('change', async ev => {
   await mapCfg(); const v = ev.target.checked;
   if (k === 'rivlak') { M.cfg.rivers = M.cfg.lakes = v; await saveMapCfg(); if (v && isOnline() && M.map && !M.map.getSource('osm')) { M.map.setStyle(mapStyle(M.colors)); M.map.once('styledata', () => setTimeout(refreshMapData, 50)); } else applyLayers(); return; }
   M.cfg[k] = v; await saveMapCfg();
+  if (k === 'relContours') { applyLayers(); refreshLayersPop(); return; }
   if (k === 'elev') { if (!v && viewOn('t3d')) M.map?.setTerrain(null); if (M.map) { M.map.setStyle(mapStyle(M.colors)); M.map.once('styledata', () => setTimeout(refreshMapData, 50)); } refreshLayersPop(); return; }
   applyLayers();
 });

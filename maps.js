@@ -717,7 +717,7 @@ async function showMap1() {
     M.step = 'loading the map'; const ok = await Promise.race([new Promise(r => M.map.once('load', () => r(true))), new Promise(r => setTimeout(() => r(false), 20000))]);
     // (slow tiles – e.g. the relief over a weak connection – are no failure: the map goes on once its style stands)
     if (!ok && !M.map.style?._loaded) return mapFailed('The map did not finish loading.' + (M.lastErr ? ' Last error: ' + M.lastErr : ''));
-    imgCredit(); compassUpd(); sunClock(); obelUpd(); sunMoveHook();
+    imgCredit(); compassUpd(); sunClock(); obelUpd(); sunMoveHook(); contApply();
     wireMapUI(); wireTime(); wireDraw(); mapInfo();
   } else M.map.resize();
   M.step = 'places'; renderTime();
@@ -1068,7 +1068,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Both on by default; switched in the Globe menu (M.cfg.globe, M.cfg.t3d). 3D: the elevation raises the ground. The map can
 // always be tilted (two fingers up or down; with a mouse, the right button), with or without 3D; switching changes no view.
 const viewOn = k => M.cfg?.[k] !== false;
-const T3D = () => ({ source: 'terrdem', exaggeration: 1.5 });
+const T3D = () => ({ source: 'terrdem', exaggeration: M.cfg?.exag || 1.5 });   // (the height exaggeration: the reader's choice, 1 … 3)
 async function viewToggle(k) {
   M.cfg[k] = !viewOn(k); await saveMapCfg();
   const m = M.map, on = viewOn(k);
@@ -1076,6 +1076,7 @@ async function viewToggle(k) {
   if (m && k === 't3d') {
     if (on) { if (m.getSource('terrdem')) m.setTerrain(T3D()); }       // (the camera stays as it is: tilt it yourself)
     else m.setTerrain(null);                                         // (the camera stays: a flat map can be tilted too)
+    contApply();                                                     // (the contour lines: drawn by the terrain in 3D, by their own layer in 2D)
   }
   drawLabels();
 }

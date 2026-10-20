@@ -33,13 +33,63 @@ const SHADE_PATCH = [
   ['float azimuth=u_azimuths[0]+PI;', 'float azimuth=pult_az+PI;', 4],
   ['vec2 deriv=((pixel.rg*8.0)-4.0)/scaleFactor;', 'vec2 deriv=((pixel.rg*8.0)-4.0)/scaleFactor;pult_az=u_azimuths[0];float pult_fade=1.0;if (u_sun2.y > 0.5) {float plat=radians((u_latrange[0]-u_latrange[1])*(1.0-v_pos.y)+u_latrange[1]);float plon=radians(mix(u_lngrange[0],u_lngrange[1],v_pos.x));float ph=plon-u_sun2.x;float salt=sin(plat)*u_sun.x+cos(plat)*u_sun.y*cos(ph);pult_az=atan(sin(ph),cos(ph)*sin(plat)-(u_sun.x/max(u_sun.y,1e-4))*cos(plat))+PI;pult_fade=smoothstep(-0.015,0.06,salt);}'],
   ['} else {standard_hillshade(deriv);}\\n#ifdef OVERDRAW_INSPECTOR', '} else {standard_hillshade(deriv);}fragColor*=pult_fade;\\n#ifdef OVERDRAW_INSPECTOR']];
+// ---------------------------------------------------------------- contour lines drawn by the graphics chip (v325)
+// While the chip draws the relief (2D: a colour-by-height layer of our own, 'rel-cgpu'; 3D: the terrain surface itself), every
+// pixel whose height lies within a hair of a whole step becomes part of a line – as thin on screen at every steepness and zoom,
+// lying exactly on the surface. The steps follow the room there is: from the change of height from one pixel to the next the chip
+// knows how far apart the lines of each step (10, 20, 50 … 2000) would be, and draws only those at least u_pcfg.y pixels apart –
+// on steep slopes the coarse steps, on gentle ground also the finer ones; numbered lines (every u_pcfg.w) a little stronger, and
+// the 0 m line (the coast). Two-tone: a light silvery core with a fine dark blue edge. self.__pultCont: [device pixel ratio (0:
+// off), least spacing (CSS pixels), metres per unit (1, or 0.3048 for feet), the step of the numbered lines (units)].
+// If a piece is not found (another engine version), the lines of maplibre-contour are drawn as before.
+const PC_GLSL = 'uniform highp vec4 u_pcfg;'
+  + 'vec4 pult_line(highp float d,float w,float a,float dpr){float core=1.0-smoothstep(w*0.5-0.5,w*0.5+0.5,d);float edge=1.0-smoothstep(w*0.5+0.7*dpr-0.5,w*0.5+0.7*dpr+0.5,d);'
+  + 'vec3 c=mix(vec3(0.086,0.149,0.290),vec3(0.894,0.914,0.937),clamp(core/max(edge,0.001),0.0,1.0));float al=edge*a;return vec4(c*al,al);}'
+  + 'vec4 pult_over(vec4 t,vec4 b){return t+b*(1.0-t.a);}'
+  + 'highp float pult_d(highp float e,highp float L,highp float g){return abs(fract(e/L+0.5)-0.5)*L/g;}'
+  + 'vec4 pult_contours(highp float e){vec4 o=vec4(0.0);float dpr=u_pcfg.x;if(dpr<=0.0)return o;highp float g=max(fwidth(e),0.0001);float mn=u_pcfg.y*dpr;highp float um=u_pcfg.z;'
+  + 'if(abs(e)>0.5){float lv[8]=float[8](10.0,20.0,50.0,100.0,200.0,500.0,1000.0,2000.0);'
+  + 'for(int i=0;i<7;i++){highp float L=lv[i]*um;float vis=smoothstep(mn,mn*1.6,L/g);if(vis>0.0){highp float L2=lv[i+1]*um;float v2=smoothstep(mn,mn*1.6,L2/g);'
+  + 'o=pult_line(pult_d(e,L2,g),1.0*dpr,0.55*v2,dpr);o=pult_over(pult_line(pult_d(e,L,g),1.0*dpr,0.55*vis,dpr),o);break;}}'
+  + 'highp float LI=u_pcfg.w*um;float vi=smoothstep(mn*0.6,mn,LI/g);o=pult_over(pult_line(pult_d(e,LI,g),1.7*dpr,0.9*vi,dpr),o);}'
+  + 'if(e>0.5){o=pult_over(pult_line(e/g,1.2*dpr,0.85,dpr),o);}return o;}';
+const CONT_PATCH = [
+  // 2D: our colour-by-height layer draws the lines instead of colours
+  ['void main() {float el=getElevation(v_pos);', 'uniform highp vec2 u_dimension;' + PC_GLSL
+    + 'highp float pult_ele(){highp vec2 p=v_pos*u_dimension-0.5;highp vec2 f=fract(p);highp vec2 b=(floor(p)+0.5)/u_dimension;highp vec2 d=1.0/u_dimension;'
+    + 'return mix(mix(getElevation(b),getElevation(b+vec2(d.x,0.0)),f.x),mix(getElevation(b+vec2(0.0,d.y)),getElevation(b+d),f.x),f.y);}'
+    + 'void main() {if(u_pcfg.x>0.0){fragColor=pult_contours(pult_ele());return;}float el=getElevation(v_pos);'],
+  ['u_opacity:e.paint.get("color-relief-opacity")}', 'u_opacity:e.paint.get("color-relief-opacity"),u_pcfg:e.id==="rel-cgpu"&&self.__pultCont?self.__pultCont:[0,0,0,0]}'],
+  ['u_opacity:new t.bp(e,i.u_opacity)}),line:', 'u_opacity:new t.bp(e,i.u_opacity),u_pcfg:new t.c1(e,i.u_pcfg)}),line:'],
+  // 3D: the terrain surface draws them on itself, from the heights it is made of
+  ['uniform sampler2D u_texture;uniform vec4 u_fog_color;', 'uniform sampler2D u_terrain;uniform highp float u_terrain_dim;uniform highp mat4 u_terrain_matrix;uniform highp vec4 u_terrain_unpack;' + PC_GLSL + 'uniform sampler2D u_texture;uniform vec4 u_fog_color;'],
+  ['in vec2 v_texture_pos;in float v_fog_depth;', 'in highp vec2 v_texture_pos;in float v_fog_depth;'
+    + 'highp float pult_te(highp vec2 p){highp vec4 rgb=(texture(u_terrain,p)*255.0)*u_terrain_unpack;return rgb.r+rgb.g+rgb.b-u_terrain_unpack.a;}'
+    + 'highp float pult_tele(){highp vec2 co=(u_terrain_matrix*vec4(v_texture_pos*8192.0,0.0,1.0)).xy*u_terrain_dim+1.0;highp vec2 f=fract(co);highp vec2 c=(floor(co)+0.5)/(u_terrain_dim+2.0);highp float d=1.0/(u_terrain_dim+2.0);'
+    + 'return mix(mix(pult_te(c),pult_te(c+vec2(d,0.0)),f.x),mix(pult_te(c+vec2(0.0,d)),pult_te(c+vec2(d,d)),f.x),f.y);}'],
+  ['} else {fragColor=surface_color;}}', '} else {fragColor=surface_color;}if(u_pcfg.x>0.0){fragColor=pult_over(pult_contours(pult_tele()),fragColor);}}'],
+  ['u_is_globe_mode:r?1:0})', 'u_is_globe_mode:r?1:0,u_pcfg:self.__pultCont||[0,0,0,0]})'],
+  ['u_is_globe_mode:new t.bp(e,i.u_is_globe_mode)})', 'u_is_globe_mode:new t.bp(e,i.u_is_globe_mode),u_pcfg:new t.c1(e,i.u_pcfg)})']];
+// each group whole or not at all
+function enginePatch(s, list) { let t = s; for (const [a, b, n = 1] of list) { if (t.split(a).length - 1 !== n) throw new Error('not found: ' + a.slice(0, 40)); t = t.split(a).join(b); } return t; }
 async function shadePatchedLib(url) {
   try {
-    let s = await (await fetch(url)).text();
-    for (const [a, b, n = 1] of SHADE_PATCH) { if (s.split(a).length - 1 !== n) throw new Error('not found: ' + a.slice(0, 30)); s = s.split(a).join(b); }
-    M.shadePatch = true;
-    return URL.createObjectURL(new Blob([s], { type: 'text/javascript' }));
-  } catch (e) { console.warn('shading by the sun not available:', e.message); M.shadePatch = false; return url; }
+    let s = await (await fetch(url)).text(), any = false;
+    try { s = enginePatch(s, SHADE_PATCH); M.shadePatch = any = true; } catch (e) { console.warn('shading by the sun not available:', e.message); M.shadePatch = false; }
+    try { s = enginePatch(s, CONT_PATCH); M.contPatch = any = true; } catch (e) { console.warn('contour lines by the graphics chip not available:', e.message); M.contPatch = false; }
+    return any ? URL.createObjectURL(new Blob([s], { type: 'text/javascript' })) : url;
+  } catch (e) { M.shadePatch = M.contPatch = false; return url; }
+}
+// the settings of the lines drawn by the chip, by zoom: the step of the numbered lines (units)
+const CONT_IDX = { m: [[8, 1000], [10, 500], [12, 200], [14, 100], [99, 50]], ft: [[8, 2000], [10, 1000], [12, 500], [14, 200], [99, 100]] };
+const contSpacing = () => M.cfg?.relSpacing || 9;                     // (the least room between lines, CSS pixels: the reader's choice, 4 … 24)
+const contIdx = z => (CONT_IDX[unit().small !== 1 ? 'ft' : 'm'].find(([zz]) => z < zz) || [0, 50])[1];
+const cgpuOn = () => !!M.contPatch && engineMajor() >= 5;
+function contApply() {
+  const m = M.map, on = cgpuOn() && relOn('relContours') && M.cfg.elev !== false && !!M.rel;
+  self.__pultCont = on ? [devicePixelRatio || 1, contSpacing(), unit().small !== 1 ? 0.3048 : 1, contIdx(m ? m.getZoom() : 6)] : [0, 0, 0, 0];
+  if (m?.getLayer('rel-cgpu')) m.setLayoutProperty('rel-cgpu', 'visibility', on && !m.getTerrain() ? 'visible' : 'none');
+  m?.triggerRepaint();
 }
 
 // ---------------------------------------------------------------- saved areas
@@ -293,11 +343,17 @@ function reliefStyle(st, C) {
     // (only darkening, in black: the shaded slopes keep their own colour, the sunlit ones are left as they are – v321)
     'hillshade-shadow-color': '#000000', 'hillshade-highlight-color': 'rgba(0,0,0,0)', 'hillshade-accent-color': '#000000' } });
   put(below, ...ls);
-  // contour lines (maplibre-contour): every so many metres (or feet, in the units of the map settings), the larger steps stronger and numbered
-  const ft = unit().small !== 1;
-  st.sources.contours = { type: 'vector', maxzoom: 15, tiles: [M.relDem.contourProtocolUrl({ multiplier: 1 / unit().small, overzoom: 1, contourLayer: 'contours', elevationKey: 'ele', levelKey: 'level',
-    thresholds: ft ? { 5: [2000, 5000], 7: [500, 2500], 9: [250, 1000], 11: [100, 500], 13: [50, 250] } : { 5: [500, 1000], 7: [200, 1000], 9: [100, 500], 11: [50, 250], 13: [20, 100] } })] };
   const k = ['a-prov', 'a-roads', 'own'].map(at).find(i => i >= 0) ?? at('pl-region');
+  if (cgpuOn()) {                                                    // contour lines drawn by the graphics chip (see CONT_PATCH)
+    put(k, { id: 'rel-cgpu', type: 'color-relief', source: 'reldem', paint: { 'color-relief-opacity': 1, 'color-relief-color': ['interpolate', ['linear'], ['elevation'], 0, 'rgba(0,0,0,0)', 1, 'rgba(0,0,0,0)'] } });
+    return;
+  }
+  // contour lines (maplibre-contour): every so many metres (or feet, in the units of the map settings), the larger steps stronger and
+  // numbered; wider apart than before (v325), and wider or closer by the reader's spacing
+  const ft = unit().small !== 1, f = contSpacing() / 9, NICE = [10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000];
+  const nice = v => NICE.find(n => n >= v * 0.9) || 10000, th = o => Object.fromEntries(Object.entries(o).map(([z, [a, b]]) => [z, [nice(a * f), Math.max(nice(b * f), nice(a * f) * 2)]]));
+  st.sources.contours = { type: 'vector', maxzoom: 15, tiles: [M.relDem.contourProtocolUrl({ multiplier: 1 / unit().small, overzoom: 1, contourLayer: 'contours', elevationKey: 'ele', levelKey: 'level',
+    thresholds: th(ft ? { 5: [2000, 5000], 7: [1000, 5000], 9: [500, 2500], 11: [250, 1000], 13: [100, 500] } : { 5: [500, 1000], 7: [500, 1000], 9: [200, 1000], 11: [100, 500], 13: [50, 250] }) })] };
   // (two-tone, to stand out on any ground: a light silvery core with a fine dark blue edge – v323)
   const cw = ['case', ['==', ['get', 'level'], 1], 0.9, 0.5];
   put(k, { id: 'rel-contour-edge', type: 'line', source: 'contours', 'source-layer': 'contours', minzoom: 5, filter: ['>', ['get', 'ele'], 0],
@@ -309,11 +365,57 @@ function reliefStyle(st, C) {
 }
 function reliefLayerProps() {
   const v = x => x ? 'visible' : 'none';
-  return { 'rel-shade': { vis: v(relOn('relShade')) }, 'rel-color': { vis: v(relOn('relColor')) }, 'rel-contour': { vis: v(relOn('relContours')) }, 'rel-contour-edge': { vis: v(relOn('relContours')) }, 'rel-coast0': { vis: v(relOn('relContours')) }, 'rel-bathy': { vis: v(relOn('relBathy')) } };
+  return { 'rel-shade': { vis: v(relOn('relShade')) }, 'rel-color': { vis: v(relOn('relColor')) }, 'rel-contour': { vis: v(relOn('relContours')) }, 'rel-contour-edge': { vis: v(relOn('relContours')) }, 'rel-cgpu': { vis: v(relOn('relContours') && !M.map?.getTerrain?.()) }, 'rel-coast0': { vis: v(relOn('relContours')) }, 'rel-bathy': { vis: v(relOn('relBathy')) } };
 }
 // the menu: Layers → Landscape
 // numbers of the contour lines: on the stronger lines, along them, where there is room (drawn with the other labels)
+// the numbers of the lines drawn by the chip: Pult reads the heights in a loose grid over the screen (once the map rests) and
+// finds where a numbered line passes between two points of it; each number turned along its line, none where the lines crowd
+const camKey = m => { const c = m.getCenter(), cv = m.getCanvas(); return [c.lng.toFixed(6), c.lat.toFixed(6), m.getZoom().toFixed(3), m.getBearing().toFixed(1), m.getPitch().toFixed(1), cv.clientWidth, cv.clientHeight].join('|'); };
+async function contNumbers(m) {
+  const cv = m.getCanvas(), W = cv.clientWidth, H = cv.clientHeight, S = 24, z = Math.min(MH_Z, Math.max(0, Math.floor(m.getZoom())));
+  const um = unit().small !== 1 ? 0.3048 : 1, I = contIdx(m.getZoom()) * um, mn = contSpacing(), nx = Math.ceil(W / S) + 1, ny = Math.ceil(H / S) + 1;
+  const pts = [], tiles = new Map(), n2 = 2 ** z;
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+    const p = [i * S, j * S]; let ll = null;
+    try { ll = m.unproject(p); const q = m.project(ll); if (Math.hypot(q.x - p[0], q.y - p[1]) > 2 || Math.abs(ll.lat) > 85) ll = null; } catch (_) { ll = null; }
+    if (!ll) { pts.push(null); continue; }
+    const lon = ((ll.lng + 540) % 360) - 180, fx = (lon + 180) / 360 * n2, sy = Math.log(Math.tan(Math.PI / 4 + ll.lat * Math.PI / 360)), fy = (1 - sy / Math.PI) / 2 * n2;
+    const k = `${Math.floor(fx)}/${Math.floor(fy)}`; if (!tiles.has(k)) tiles.set(k, null);
+    pts.push({ fx, fy, k });
+  }
+  await Promise.all([...tiles.keys()].map(async k => { const [x, y] = k.split('/').map(Number); try { tiles.set(k, await M.relDem.getDemTile(z, x, y)); } catch (_) {} }));
+  const h = pts.map(q => { if (!q) return null; const t = tiles.get(q.k); if (!t) return null; const w = t.width, u = (q.fx % 1) * w - 0.5, v = (q.fy % 1) * w - 0.5;
+    const x0 = Math.max(0, Math.min(w - 1, Math.floor(u))), y0 = Math.max(0, Math.min(w - 1, Math.floor(v))), x1 = Math.min(w - 1, x0 + 1), y1 = Math.min(w - 1, y0 + 1), a = u - Math.floor(u), b = v - Math.floor(v), d = t.data;
+    return (d[y0 * w + x0] * (1 - a) + d[y0 * w + x1] * a) * (1 - b) + (d[y1 * w + x0] * (1 - a) + d[y1 * w + x1] * a) * b; });
+  const H_ = (i, j) => i >= 0 && j >= 0 && i < nx && j < ny ? h[j * nx + i] : null, out = [];
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) for (const [di, dj] of [[1, 0], [0, 1]]) {
+    const a = H_(i, j), b = H_(i + di, j + dj); if (a == null || b == null || a <= 0.5 || b <= 0.5) continue;
+    const ka = Math.floor(a / I), kb = Math.floor(b / I); if (Math.abs(ka - kb) !== 1) continue;      // (one line between the two points, no more)
+    const v = Math.max(ka, kb) * I, t = (v - a) / (b - a), x = (i + di * t) * S, y = (j + dj * t) * S;
+    const r = H_(i + 1, j), d = H_(i, j + 1); if (r == null || d == null) continue;
+    const gx = (r - a) / S, gy = (d - a) / S, g = Math.hypot(gx, gy); if (!g || I / g < mn) continue;   // (where the numbered lines have room)
+    let ang = Math.atan2(gx, -gy) * 180 / Math.PI; if (ang > 90) ang -= 180; if (ang < -90) ang += 180;
+    out.push({ v: Math.round(v / um), x, y, ang });
+  }
+  return out;
+}
 function contourLabels(placed, W, H) {
+  if (cgpuOn()) {
+    const m = M.map; if (!relOn('relContours') || !m || !M.relDem || m.getZoom() < 5 || M.cfg.elev === false) return '';
+    const key = camKey(m);
+    if (M.cnum?.key !== key) { if (!m.isMoving() && M.cnumBusy !== key) { M.cnumBusy = key; contNumbers(m).then(l => { M.cnumBusy = null; if (camKey(m) === key) { M.cnum = { key, l }; drawLabels(); } }).catch(() => { M.cnumBusy = null; }); } return ''; }
+    const hit = r => placed.some(q => r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1]), byV = new Map(); let h = '', n = 0;
+    for (const c of M.cnum.l) {
+      if (c.x < 20 || c.x > W - 20 || c.y < 20 || c.y > H - 20) continue;
+      const near = byV.get(c.v) || []; if (near.some(([x, y]) => Math.hypot(x - c.x, y - c.y) < 160)) continue;
+      const txt = c.v.toLocaleString('en'), w = txt.length * 6 + 4, r = [c.x - w / 2 - 4, c.y - 10, c.x + w / 2 + 4, c.y + 10];
+      if (hit(r)) continue; placed.push(r); near.push([c.x, c.y]); byV.set(c.v, near);
+      h += `<span class="mlbl cl cn" style="left:${Math.round(c.x)}px;top:${Math.round(c.y)}px;transform:translate(-50%,-50%) rotate(${c.ang.toFixed(0)}deg)">${txt}</span>`;
+      if (++n >= 40) break;
+    }
+    return h;
+  }
   if (!relOn('relContours') || !M.map?.getLayer('rel-contour') || M.map.getZoom() < 7) return '';
   const hit = r => placed.some(q => r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1]);
   const seen = new Set(); let h = '', n = 0;
