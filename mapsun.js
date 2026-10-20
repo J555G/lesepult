@@ -229,10 +229,16 @@ function sdPanelHTML() {
     <g clip-path="url(#sdBelow)"><g class="sdhpos"><circle r="8" class="sdmoon"/><circle r="6.6" cx="3.4" cy="-2.2" class="sdmoonc"/></g></g><g class="sdhpos"><circle r="16" class="sdgrab"/></g>
     ${zodWheelHTML()}
     <text id="sdLab" class="sdlab" x="${SD.cx}" y="${SD.H - 12}" text-anchor="middle"></text></svg>
-    <div class="sdctl" id="sunCtl"></div><button type="button" class="sdx" data-sdclose="1" aria-label="Close" title="Close">×</button></div>`;
+    <div class="sdctl" id="sunCtl"></div><button type="button" class="sdx" id="sdSwap" data-sdswap="1"></button></div>`;
 }
 // the zodiac wheel: the signs anticlockwise, as in the sky; the wheel turns so that the sun's place stands at the top, under
 // the pointer (turned clockwise, the year goes on)
+// where the panel is narrow, the controls and the wheel take turns; the button shows where it leads: the wheel, or day and night
+const SWAP_ZOD = '<svg width="18" height="18" viewBox="-10 -10 20 20" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.1"><circle r="8.2"/><circle r="4.6"/>'
+  + Array.from({ length: 12 }, (_, i) => { const a = i * 30 * RAD; return `<path d="M${(Math.sin(a) * 4.6).toFixed(2)} ${(-Math.cos(a) * 4.6).toFixed(2)}L${(Math.sin(a) * 8.2).toFixed(2)} ${(-Math.cos(a) * 8.2).toFixed(2)}" stroke-width=".7"/>`; }).join('')
+  + '</g><path d="M-2.2-9.8h4.4L0-7.2z" fill="#ffd166"/></svg>';
+const SWAP_DN = '<svg width="18" height="18" viewBox="-10 -10 20 20" aria-hidden="true"><path d="M0-8a8 8 0 0 0 0 16z" fill="#ffd166"/><path d="M0-8a8 8 0 0 1 0 16z" fill="#1d2550"/>'
+  + '<circle r="8" fill="none" stroke="currentColor" stroke-width="1.1"/></svg>';
 const zXY = (a, r) => [(Math.sin(a * RAD) * r).toFixed(2), (-Math.cos(a * RAD) * r).toFixed(2)];
 function zodWheelHTML() {
   const { ZR: R, ZI: I } = SD, rm = (R + I) / 2;
@@ -293,9 +299,10 @@ function sundialPaint() {
   // the owl: lands when the handle enters the night, flies off when it leaves
   if (M.sdOwl !== !day) { M.sdOwl = !day; const o = $('#sdOwlPos .sdowl'); o.classList.remove('land', 'away'); void o.getBoundingClientRect(); o.classList.add(day ? 'away' : 'land'); }
   const l = sunLabel(); $('#sdLab').textContent = l.main; const sub = $('#sdSub'); if (sub) sub.textContent = l.sub;
-  // the zodiac wheel, where there is room: at the right, beside the controls
-  const zw = W >= SD.ZW; $('#sunPanel')?.classList.toggle('zw', zw);
-  if (zw) { const zx = W - SD.ZR - 16, e = sunPos(sunTime()).ecl, i = Math.floor(e / 30), fmt = M.cfg.sunFmt || 'modern';
+  // the zodiac wheel, where there is room: at the right, beside the controls; else in turn with them
+  const zw = W >= SD.ZW, zp = !zw && M.sdPage === 'zod', pn = $('#sunPanel'); pn?.classList.toggle('zw', zw); pn?.classList.toggle('zp', zp);
+  const sw = $('#sdSwap'); if (sw) { sw.hidden = zw; const t = zp ? 'Day and night' : 'Time of year'; if (sw.title !== t) { sw.title = t; sw.setAttribute('aria-label', t); sw.innerHTML = zp ? SWAP_DN : SWAP_ZOD; } }
+  if (zw || zp) { const zx = zw ? W - SD.ZR - 16 : 2 * SD.cx + (W - 2 * SD.cx) / 2, e = sunPos(sunTime()).ecl, i = Math.floor(e / 30), fmt = M.cfg.sunFmt || 'modern';
     M.zc = { x: zx, y: SD.cy };
     $('#sdZod').setAttribute('transform', `translate(${zx.toFixed(1)} ${SD.cy})`); $('#sdZodRot').setAttribute('transform', `rotate(${e.toFixed(2)})`);
     svg.querySelectorAll('.sdzg').forEach(p => p.classList.toggle('cur', +p.dataset.z === i));
@@ -307,7 +314,7 @@ function sundialPaint() {
 document.addEventListener('pointerdown', ev => {
   const svg = ev.target.closest?.('#sunSvg'); if (!svg) return;
   const near = e => { const r = svg.getBoundingClientRect(), x = e.clientX - r.left - SD.cx, y = e.clientY - r.top - SD.cy; return { x, y, d: Math.hypot(x, y) }; };
-  const mode = M.cfg.sunMode || 'now', zc = $('#sunPanel')?.classList.contains('zw') && M.zc;
+  const mode = M.cfg.sunMode || 'now', pn = $('#sunPanel'), zc = (pn?.classList.contains('zw') || pn?.classList.contains('zp')) && M.zc;
   if (zc) { const r = svg.getBoundingClientRect(), za = e => Math.atan2(e.clientX - r.left - zc.x, -(e.clientY - r.top - zc.y)) / RAD;
     if (Math.hypot(ev.clientX - r.left - zc.x, ev.clientY - r.top - zc.y) <= SD.ZR + 12) {   // the wheel: the day of the year (the hour kept)
       ev.preventDefault(); svg.setPointerCapture?.(ev.pointerId);
@@ -454,7 +461,7 @@ async function mapOptsClick(b) {
     if (m?.getLayer('sun-night')) m.setLayoutProperty('sun-night', 'visibility', vis('sunNight'));
     if (d.suntg === 'sunAtm' && m) m.setSky(mapStyle(M.colors).sky);
     return true; }
-  if (d.sdclose) { await sdOpen(false); return true; }
+  if (d.sdswap) { M.sdPage = M.sdPage === 'zod' ? 'ctl' : 'zod'; sundialPaint(); return true; }
   if (d.sunfmt) { M.cfg.sunFmt = d.sunfmt; await saveMapCfg(); $('#sunCtl').innerHTML = sdCtlHTML(); sundialPaint(); return true; }
   if (d.sunmode) { M.sunPause = false; if (d.sunmode === 'now') M.sunT = Date.now(); await sunSet({ sunMode: d.sunmode }); $('#sunCtl').innerHTML = sdCtlHTML(); return true; }
   if (d.sunplay) { M.sunPause = !M.sunPause; sunClock(); $('#sunCtl').innerHTML = sdCtlHTML(); return true; }

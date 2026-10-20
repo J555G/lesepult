@@ -1942,6 +1942,9 @@ dialog .sortpair button{transition:border-color .15s}
 .msdial.zw .sdzod{display:inline}
 .msdial.zw .sdctl{right:130px}
 .msdial.zw .sdsub{display:none}
+.msdial.zp .sdzod{display:inline}
+.msdial.zp .sdctl{display:none}
+.msdial .sdx svg{display:block;margin:auto}
 .msdial .sdzband{fill:rgba(20,16,10,.38);stroke:rgba(255,255,255,.35);stroke-width:1;cursor:grab}
 .msdial .sdzdiv line{stroke:rgba(255,255,255,.55);stroke-width:1}
 .msdial .sdzdec line{stroke:rgba(255,255,255,.35);stroke-width:.8}
@@ -1949,7 +1952,8 @@ dialog .sortpair button{transition:border-color .15s}
 .msdial .sdzg.cur{stroke:#ffd166;stroke-width:1.5;opacity:1}
 .msdial .sdzname{font:600 10.5px var(--greek);fill:#4a3c28}
 .msdial .sdzptr{fill:#ffd166;stroke:#7a5a10;stroke-width:.6}
-.msdial .sdzlab{font-size:13px}
+.msdial .sdzlab{font-size:13px;display:none}
+.msdial.zw .sdzlab,.msdial.zp .sdzlab{display:inline}
 /* the Globe menu (v300): three icon buttons, then the map, elevation, rivers and lakes – no folds */
 .mpop .mvrow{display:flex;gap:8px;margin:.2rem 0 .6rem}
 .mpop .mvb{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:.4rem .2rem .3rem;border-radius:10px;background:var(--bg);color:var(--mut);border:1px solid var(--line)}
