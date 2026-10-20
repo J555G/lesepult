@@ -684,9 +684,9 @@ function sdPanelHTML() {
 // anticlockwise, as in the sky, the months, the hours, and Helios in his chariot (v350). The rings turn so that the sun's
 // place stands at the top, under the pointer (turned clockwise, the year goes on); Helios in the middle stays upright.
 // sky/zodiac-rings.webp: the disc, straightened, with Aries–Taurus at the top, the middle cut out; sky/zodiac-helios.webp: the
-// middle, cut along the outer edge of its red ring, the gold around it see-through (139 of 512 – v351). A tap opens the
+// middle, cut along the outer edge of its red ring, the gold around it see-through, the crown whole (141 of 512 – v352). A tap opens the
 // wheel large over the map; there, too, a finger turns it.
-const ZOD_HL = 139 / 512;
+const ZOD_HL = 141 / 512;
 function zodDiscSVG(R, ptr) {
   return `<circle r="${R + 4}" class="sdrim"/><g class="zrot"><image href="sky/zodiac-rings.webp" x="${-R}" y="${-R}" width="${2 * R}" height="${2 * R}" transform="rotate(-30)"/></g>
     <image href="sky/zodiac-helios.webp" x="${(-R * ZOD_HL).toFixed(2)}" y="${(-R * ZOD_HL).toFixed(2)}" width="${(2 * R * ZOD_HL).toFixed(2)}" height="${(2 * R * ZOD_HL).toFixed(2)}"/>
