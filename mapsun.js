@@ -340,39 +340,29 @@ function skyHook() {
 }
 function skyDraw(args) {
   const m = M.map, box = m.getContainer(), W = box.clientWidth, H = box.clientHeight, dpr = devicePixelRatio || 1;
-  let cv = $('#skyCv');
-  if (!cv || cv.parentNode !== box) { cv?.remove(); cv = document.createElement('canvas'); cv.id = 'skyCv'; cv.className = 'skycv'; box.append(cv); }
-  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
-  const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, W, H);
+  $('#skyCv')?.remove();                                             // (before v337 the sun and the moon lay over the map)
+  // everything here is drawn behind the map: where the earth is seen, it covers the stars, the sun and the moon – also in part,
+  // as when the moon rises behind the rim of the globe (v337)
   let bg = $('#skyBg');                                              // (the space behind the map)
   if (!bg || bg.parentNode !== box) { bg?.remove(); bg = document.createElement('canvas'); bg.id = 'skyBg'; bg.className = 'skybg'; box.prepend(bg); }
   if (bg.width !== Math.round(W * dpr) || bg.height !== Math.round(H * dpr)) { bg.width = Math.round(W * dpr); bg.height = Math.round(H * dpr); }
   const y = bg.getContext('2d'); y.setTransform(dpr, 0, 0, dpr, 0, 0);
   const sp = y.createLinearGradient(0, 0, 0, H); sp.addColorStop(0, '#060b22'); sp.addColorStop(1, '#0c1534'); y.fillStyle = sp; y.fillRect(0, 0, W, H);
+  const x = y;
   const ref = sunRef(), t = sunTime(), P = args.defaultProjectionData.mainMatrix, MM = m.transform.getMatrixForModel([ref.lng, ref.lat], 0);
   const scr = d => { const c = mat4v(P, mat4v(MM, [...d, 0])); return c[3] > 1e-9 ? [(c[0] / c[3] + 1) / 2 * W, (1 - c[1] / c[3]) / 2 * H] : null; };
-  // hidden by the earth: the eye of the camera (in metres about the place, x east, y up, z south) and a ray from it – on the globe
-  // a sphere, on the flat map the ground plane
-  const Q = [0, 1, 3].map(r => [0, 1, 2, 3].map(c => { let v = 0; for (let k = 0; k < 4; k++) v += P[k * 4 + r] * MM[c * 4 + k]; return v; }));
-  const det3 = (a, b, c) => a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0]);
-  const A = Q.map(q => q.slice(0, 3)), B = Q.map(q => -q[3]), dA = det3(...A);
-  const eye = Math.abs(dA) > 1e-30 ? [0, 1, 2].map(i => det3(...A.map((row, j) => row.map((v, k) => k === i ? B[j] : v))) / dA) : [0, 1e7, 0];
-  const globe = m.getProjection?.()?.type === 'globe', RE = 6371008.8;
-  const behindEarth = d => { if (!globe) return d[1] < 0;
-    const o = [eye[0], eye[1] + RE, eye[2]], b = o[0] * d[0] + o[1] * d[1] + o[2] * d[2], c = o[0] ** 2 + o[1] ** 2 + o[2] ** 2 - RE * RE, disc = b * b - c;
-    return disc > 0 && -b - Math.sqrt(disc) > 0; };
   const f = H / 2 / Math.tan((m.transform.fovInRadians || 0.6435) / 2), size = M.cfg.skySize || 10;
   // the stars: each a direction in the sky (right ascension, declination), turned with the sidereal time to the place shown
   { const gm = ((18.697374558 + 24.06570982441908 * (t / 864e5 - 10957.5)) % 24 + 24) % 24 * 15;
     for (const st of STARS) { const a = sunAt({ dec: st.dec, lon: ((st.ra - gm + 540) % 360) - 180 }, ref.lng, ref.lat), d = skyDir(a.az, a.alt), p = scr(d);
-      if (!p || p[0] < -2 || p[1] < -2 || p[0] > W + 2 || p[1] > H + 2 || behindEarth(d)) continue;
+      if (!p || p[0] < -2 || p[1] < -2 || p[0] > W + 2 || p[1] > H + 2) continue;
       y.fillStyle = st.c < 0.15 ? `rgba(255,214,180,${st.b})` : st.c > 0.85 ? `rgba(196,214,255,${st.b})` : `rgba(240,242,255,${st.b})`;
       y.beginPath(); y.arc(p[0], p[1], st.s, 0, 7); y.fill(); } }
   if (!sunOn()) return;                                              // (the sun and the moon: with day and night)
   const s = sunAt(sunPos(t), ref.lng, ref.lat), ds = skyDir(s.az, s.alt);
   if (M.cfg.skySun !== false) {
     const p = scr(ds);
-    if (p && !behindEarth(ds)) {
+    if (p) {
       const r = Math.max(1.5, 0.2666 * RAD * size * f), low = Math.max(0, Math.min(1, 1 - s.alt / 8));        // (redder when low)
       const g = x.createRadialGradient(p[0], p[1], 0, p[0], p[1], r * 6); g.addColorStop(0, `rgba(255,${236 - 60 * low},${170 - 110 * low},.5)`); g.addColorStop(0.25, `rgba(255,${210 - 70 * low},${120 - 80 * low},.18)`); g.addColorStop(1, 'rgba(255,200,120,0)');
       x.fillStyle = g; x.beginPath(); x.arc(p[0], p[1], r * 6, 0, 7); x.fill();
@@ -382,7 +372,7 @@ function skyDraw(args) {
   }
   if (M.cfg.skyMoon !== false) {
     const mo = moonPos(t), a = sunAt(mo, ref.lng, ref.lat), dm = skyDir(a.az, a.alt), p = scr(dm);
-    if (p && !behindEarth(dm)) {
+    if (p) {
       const r = Math.max(1.5, 0.259 * RAD * size * f);
       // the bright side turned to the sun: a direction a little towards it, seen on the screen
       const dot = ds[0] * dm[0] + ds[1] * dm[1] + ds[2] * dm[2], pe = ds.map((v, i) => v - dm[i] * dot), pl = Math.hypot(...pe) || 1;
