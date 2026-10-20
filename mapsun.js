@@ -93,6 +93,9 @@ function sunLight() {
 function sunApply() {
   const m = M.map; if (!m) return;
   try { m.setLight(sunLight()); } catch (_) {}
+  // the shading by the real sun, place by place (maprelief.js: SHADE_PATCH)
+  if (sunOn()) { const s = sunPos(sunTime()); self.__pultSun = [Math.sin(s.dec), Math.cos(s.dec), s.lon * RAD, 1]; } else self.__pultSun = [0, 1, 0, 0];
+  m.triggerRepaint();
   if (sunOn()) {
     const ns = m.getSource('sunnight');
     if (ns) { nightPaint(sunTime()); ns.play(); requestAnimationFrame(() => requestAnimationFrame(() => ns.pause())); }   // (the picture read once, then the map rests)
@@ -130,11 +133,11 @@ function sunMove() {
 function sunMoveHook() { const m = M.map; if (m && !m._sunMv) { m._sunMv = true; m.on('move', sunMove); } }
 // the obelisk: red porphyry, flecked; the same size on screen at every zoom; its shadow on the ground away from the sun,
 // long when the sun is low, none at night. Dragged, it moves; "Here" again takes it away.
-const OB_H = 34;
+const OB_H = 34, obelK = () => M.cfg?.obelSize || 1;              // (its size: the reader's choice, 0.5 … 2.5 times)
 function obelSVG() {
   const fl = Array.from({ length: 14 }, (_, i) => { const y = -4 - (i * 7.3) % (OB_H - 9), x = ((i * 3.7) % 6) - 3 * (1 - (-y) / OB_H); return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(0.35 + (i % 3) * 0.15).toFixed(2)}"/>`; }).join('');
   return `<svg width="260" height="260" viewBox="-130 -130 260 260" aria-hidden="true"><path class="obsh" id="obShadow" d=""/>
-    <g class="ob"><ellipse cx="0" cy="0.5" rx="7" ry="2.2" fill="rgba(0,0,0,.25)"/><path d="M-5.5 0h11v-2.6h-11z" fill="#45182a" stroke="#2c0f17" stroke-width=".6"/>
+    <g class="ob" id="obBody"><ellipse cx="0" cy="0.5" rx="7" ry="2.2" fill="rgba(0,0,0,.25)"/><path d="M-5.5 0h11v-2.6h-11z" fill="#45182a" stroke="#2c0f17" stroke-width=".6"/>
     <path d="M-4.2-2.6 4.2-2.6 2.6-${OB_H - 6}H-2.6z" fill="url(#obGrad)" stroke="#2c0f17" stroke-width=".6"/><path d="M-2.6-${OB_H - 6} 0-${OB_H}l2.6 6z" fill="#63283a" stroke="#2c0f17" stroke-width=".6"/>
     <g fill="#e3c4c9" opacity=".4">${fl}</g></g>
     <defs><linearGradient id="obGrad" x1="0" x2="1"><stop offset="0" stop-color="#5c2032"/><stop offset=".45" stop-color="#6e2a3d"/><stop offset="1" stop-color="#36111b"/></linearGradient></defs></svg>`;
@@ -154,9 +157,11 @@ function obelUpd() {
 function obelShadow() {
   const p = $('#obShadow'); if (!p || !M.obel) return;
   const g = M.cfg.gnomon, a = sunAt(sunPos(sunTime()), g.lng, g.lat), m = M.map;
+  $('#obBody')?.setAttribute('transform', `scale(${obelK()})`);
   if (!sunOn() || a.alt <= 0) { p.setAttribute('d', ''); return; }
-  const L = Math.min(110, OB_H / Math.tan(Math.max(1.5, a.alt) * RAD)), d = (a.az + 180 - m.getBearing()) * RAD, k = Math.cos(m.getPitch() * RAD);
-  const ex = Math.sin(d) * L, ey = -Math.cos(d) * L * k, px = Math.cos(d) * 3.4, py = Math.sin(d) * 3.4 * k;   // (the shadow: as broad as the foot, narrowing to the tip)
+  const k = obelK();
+  const L = Math.min(120, OB_H * k / Math.tan(Math.max(1.5, a.alt) * RAD)), d = (a.az + 180 - m.getBearing()) * RAD;
+  const kp = Math.cos(m.getPitch() * RAD), ex = Math.sin(d) * L, ey = -Math.cos(d) * L * kp, px = Math.cos(d) * 3.4 * k, py = Math.sin(d) * 3.4 * k * kp;   // (the shadow: as broad as the foot, narrowing to the tip)
   p.setAttribute('d', `M${(-px).toFixed(1)} ${(-py).toFixed(1)}L${(px).toFixed(1)} ${(py).toFixed(1)}L${(ex * .86 + px * .5).toFixed(1)} ${(ey * .86 + py * .5).toFixed(1)}L${ex.toFixed(1)} ${ey.toFixed(1)}L${(ex * .86 - px * .5).toFixed(1)} ${(ey * .86 - py * .5).toFixed(1)}z`);
   p.style.opacity = Math.max(0.15, Math.min(1, a.alt / 10)).toFixed(2);
 }
@@ -327,7 +332,8 @@ function sdCtlHTML() {
     + (mode === 'year' ? `<div class="msun">${play}<input type="range" min="0" max="100" value="${yrToV(yr)}" data-sunyear="1" aria-label="Speed"><output>${yrLabel(yr)}</output></div>` : '')
     + `<div class="seg" role="group">${[['modern', 'Modern'], ['roman', 'Roman'], ['greek', 'Greek']].map(([v, l]) => `<button type="button" data-sunfmt="${v}" class="${(M.cfg.sunFmt || 'modern') === v ? 'on' : ''}">${l}</button>`).join('')}</div>`
     + `<div class="sdtg">${[['sunNight', 'Night'], ['sunAtm', 'Air']].map(([k, l]) => `<button type="button" data-suntg="${k}" class="${M.cfg[k] !== false ? 'on' : ''}" aria-pressed="${M.cfg[k] !== false}">${l}</button>`).join('')}`
-    + `<button type="button" data-sunhere="1" class="${M.cfg.gnomon ? 'on' : ''}" aria-pressed="${!!M.cfg.gnomon}" title="${M.cfg.gnomon ? 'Take the obelisk away' : 'Set an obelisk on the map: the dial then shows that place'}">Here</button></div>`
+    + `<button type="button" data-sunhere="1" class="${M.cfg.gnomon ? 'on' : ''}" aria-pressed="${!!M.cfg.gnomon}" title="${M.cfg.gnomon ? 'Take the obelisk away' : 'Set an obelisk on the map: the dial then shows that place'}">Here</button>`
+    + (M.cfg.gnomon ? `<input type="range" class="obsz" min="0" max="100" value="${Math.round(Math.log(obelK() / 0.5) / Math.log(5) * 100)}" data-obsz="1" aria-label="Size of the obelisk" title="Size of the obelisk">` : '') + `</div>`
     + `<small class="sdsub" id="sdSub"></small>`;
 }
 async function sdOpen(open) {
@@ -409,6 +415,11 @@ document.addEventListener('change', ev => { if (ev.target.closest?.('[data-sunsw
 // the speed: one day in 60 s … 5 s (a logarithmic slider)
 const spdToV = s => Math.round(Math.log(60 / s) / Math.log(12) * 100), vToSpd = v => 60 / 12 ** (v / 100);
 const spdLabel = s => `a day in ${s >= 9.95 ? Math.round(s) : s.toFixed(1)} s`;
+// the obelisk's size: 0.5 … 2.5 times (logarithmic)
+document.addEventListener('input', ev => {
+  const r = ev.target.closest?.('input[data-obsz]'); if (!r) return;
+  M.cfg.obelSize = 0.5 * 5 ** (+r.value / 100); obelShadow(); clearTimeout(M.obSzT); M.obSzT = setTimeout(saveMapCfg, 400);
+});
 // the year: one year in 77 s … 7 s
 const yrToV = s => Math.round(Math.log(77 / s) / Math.log(11) * 100), vToYr = v => 77 / 11 ** (v / 100);
 const yrLabel = s => `a year in ${Math.round(s)} s`;

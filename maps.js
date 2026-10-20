@@ -593,7 +593,7 @@ function loadMapLib() {
   return mapLibP ??= (async () => {
     const dir = MAPS + (M.engineDir = await engineDir());
     const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = dir + 'maplibre-gl.css'; document.head.append(l);
-    try { await addScript(dir + 'maplibre-gl.js'); } catch (e) { mapLibP = null; throw new Error('map engine not available'); }
+    try { await addScript(M.engineDir === 'base/lib5/' ? await shadePatchedLib(dir + 'maplibre-gl.js') : dir + 'maplibre-gl.js'); } catch (e) { mapLibP = null; throw new Error('map engine not available'); }
     // packages in PMTiles format (one file each, read from the device)
     if (await inCache('base/lib/pmtiles.js')) { try { await addScript(MAPS + 'base/lib/pmtiles.js'); pmInit(); } catch (_) { } }
   })();

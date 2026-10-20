@@ -20,6 +20,28 @@ async function reliefInit() {
   M.relDem = M.relDemSrc ??= (() => { const d = new mlcontour.DemSource({ url: MH_URL, encoding: 'terrarium', maxzoom: MH_Z, worker: true, cacheSize: 24, timeoutMs: 30000 }); d.setupMaplibre(maplibregl); return d; })();
 }
 
+// ---------------------------------------------------------------- the shading by the real sun (v319)
+// The map engine shades the whole map from one direction. A few lines are added to its shading (MapLibre 5.24, as shipped
+// with the base map) so that, with sunlight on, every point is lit from where the sun stands for that point, and the night
+// side is not shaded at all: the engine's own program is changed as it is loaded (if any piece is not found – another
+// version – it is loaded unchanged, and the shading is lit from one direction as before). self.__pultSun: [sin, cos of the
+// sun's declination, the longitude beneath the sun (radians), on (1) or off (0)].
+const SHADE_PATCH = [
+  ['u_latrange:oo(0,t.tileID),', 'u_latrange:oo(0,t.tileID),u_lngrange:[t.tileID.canonical.x/Math.pow(2,t.tileID.canonical.z)*360-180,(t.tileID.canonical.x+1)/Math.pow(2,t.tileID.canonical.z)*360-180],u_sun:(self.__pultSun||[0,1,0,0]).slice(0,2),u_sun2:(self.__pultSun||[0,1,0,0]).slice(2,4),'],
+  ['u_latrange:new t.c3(e,i.u_latrange),', 'u_latrange:new t.c3(e,i.u_latrange),u_lngrange:new t.c3(e,i.u_lngrange),u_sun:new t.c3(e,i.u_sun),u_sun2:new t.c3(e,i.u_sun2),'],
+  ['uniform vec2 u_latrange;', 'uniform vec2 u_latrange;uniform vec2 u_lngrange;uniform vec2 u_sun;uniform vec2 u_sun2;float pult_az;'],
+  ['float azimuth=u_azimuths[0]+PI;', 'float azimuth=pult_az+PI;', 4],
+  ['vec2 deriv=((pixel.rg*8.0)-4.0)/scaleFactor;', 'vec2 deriv=((pixel.rg*8.0)-4.0)/scaleFactor;pult_az=u_azimuths[0];float pult_fade=1.0;if (u_sun2.y > 0.5) {float plat=radians((u_latrange[0]-u_latrange[1])*(1.0-v_pos.y)+u_latrange[1]);float plon=radians(mix(u_lngrange[0],u_lngrange[1],v_pos.x));float ph=plon-u_sun2.x;float salt=sin(plat)*u_sun.x+cos(plat)*u_sun.y*cos(ph);pult_az=atan(sin(ph),cos(ph)*sin(plat)-(u_sun.x/max(u_sun.y,1e-4))*cos(plat))+PI;pult_fade=smoothstep(-0.015,0.06,salt);}'],
+  ['} else {standard_hillshade(deriv);}\\n#ifdef OVERDRAW_INSPECTOR', '} else {standard_hillshade(deriv);}fragColor*=pult_fade;\\n#ifdef OVERDRAW_INSPECTOR']];
+async function shadePatchedLib(url) {
+  try {
+    let s = await (await fetch(url)).text();
+    for (const [a, b, n = 1] of SHADE_PATCH) { if (s.split(a).length - 1 !== n) throw new Error('not found: ' + a.slice(0, 30)); s = s.split(a).join(b); }
+    M.shadePatch = true;
+    return URL.createObjectURL(new Blob([s], { type: 'text/javascript' }));
+  } catch (e) { console.warn('shading by the sun not available:', e.message); M.shadePatch = false; return url; }
+}
+
 // ---------------------------------------------------------------- saved areas
 // The list lies beside the tiles: [{ id, name, w, s, e, n (degrees), z (deepest zoom), world, total, tiles, bytes, at, state }]
 const areasKey = () => new URL('pult-relief-areas.json', location.href).href;

@@ -2015,3 +2015,4 @@ dialog .sortpair button{transition:border-color .15s}
 .sdobel svg{position:absolute;left:-130px;top:-130px;overflow:visible;pointer-events:none}
 .sdobel .ob{pointer-events:visiblePainted;cursor:grab}
 .sdobel .obsh{fill:rgba(20,14,8,.45)}
+.msdial .sdtg .obsz{width:64px;margin-left:2px;accent-color:#c46a7e}
