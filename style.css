@@ -2016,7 +2016,6 @@ dialog .sortpair button{transition:border-color .15s}
 .sdobel .ob{pointer-events:visiblePainted;cursor:grab}
 .sdobel .obsh{fill:rgba(20,14,8,.45)}
 .msdial .sdtg .obsz{width:64px;margin-left:2px;accent-color:#c46a7e}
-.mlbl.cl.cn{color:#e4e9ef;text-shadow:0 0 1px #16264a,0 0 2px #16264a,0 0 3px rgba(22,38,74,.8)}
 .mpop .mrow.msub input[type=range]{width:9rem}
 .mpop .mrng{display:flex;align-items:center;gap:.3rem}
 .mpop .mrng small{font:11px var(--ui);color:var(--mut)}

@@ -242,7 +242,7 @@ function applyLayers() {
   const ac = ['match', ['get', 'k'], 'people', dark ? '#c98a5a' : '#c0703c', dark ? '#8fb86a' : '#6f9a46'];
   if (M.map.getLayer('a-areas')) { M.map.setPaintProperty('a-areas', 'fill-color', tColor(ac)); M.map.setPaintProperty('a-areas-edge', 'line-color', tColor(ac)); }
   M.map.setPaintProperty('sites', 'circle-color', tColor(['match', ['get', 'c'], ...SITE_CATS.flatMap((c, i) => [i, c[dark ? 4 : 3]]), mapColors().fg]));
-  contApply(); drawLabels();
+  drawLabels();
 }
 
 // ---------------------------------------------------------------- labels of regions, peoples, mountains (and of sites)

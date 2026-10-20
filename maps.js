@@ -625,7 +625,8 @@ function mapColors() {
   return { sea: dark ? '#1d2a33' : '#cfdde6', land: dark ? '#2e2b25' : '#f2ecdc', coast: dark ? '#5d5547' : '#b9ae92', river: dark ? '#4f84aa' : '#5d93bd', border: dark ? '#77706a' : '#a59c8a', fg: v('--fg'), acc: v('--acc'), bg: v('--bg') };
 }
 function mapStyle(C) {
-  const st = mapStyle0(C);
+  glyphInit(); const st = mapStyle0(C);
+  st.glyphs = 'pultglyph://{fontstack}/{range}';                   // (the figures of the contour numbers – maprelief.js)
   st.projection = { type: viewOn('globe') ? 'globe' : 'mercator' };
   st.sky = { 'atmosphere-blend': sunOn() && M.cfg.sunAtm !== false ? ['interpolate', ['linear'], ['zoom'], 0, 0.33, 5, 0.33, 7, 0] : 0 };   // (only with day and night, faint: it hazes the lit half)   // (the globe's halo, fading as one zooms in)
   return st;
@@ -720,7 +721,7 @@ async function showMap1() {
     M.step = 'loading the map'; const ok = await Promise.race([new Promise(r => M.map.once('load', () => r(true))), new Promise(r => setTimeout(() => r(false), 20000))]);
     // (slow tiles – e.g. the relief over a weak connection – are no failure: the map goes on once its style stands)
     if (!ok && !M.map.style?._loaded) return mapFailed('The map did not finish loading.' + (M.lastErr ? ' Last error: ' + M.lastErr : ''));
-    imgCredit(); compassUpd(); sunClock(); obelUpd(); sunMoveHook(); contApply();
+    imgCredit(); compassUpd(); sunClock(); obelUpd(); sunMoveHook();
     wireMapUI(); wireTime(); wireDraw(); mapInfo();
   } else M.map.resize();
   M.step = 'places'; renderTime();
@@ -821,7 +822,7 @@ function drawLabels() {
     placed.push(r); M.lblHit.push([r, o.x.p.id]);
     h += `<span class="mlbl${reg ? ' reg' : ''}${o.x.unsure && o.x.unsure === o.x.n ? ' unsure' : ''}${isWater(o.x.p) ? ' wat' : ''}${o.x.p.id === sel ? ' sel' : ''}${o.x.extra ? ' extra' : ''}" data-pid="${esc(String(o.x.p.id))}" style="left:${Math.round(x)}px;top:${Math.round(y)}px${reg ? '' : `;font-size:${fs}px`}">${esc(txt)}</span>`;
   }
-  box.innerHTML = h + drawLabelsOwn(placed, W, H) + moreLabels(placed, W, H) + contourLabels(placed, W, H);
+  box.innerHTML = h + drawLabelsOwn(placed, W, H) + moreLabels(placed, W, H);
 }
 
 // ---------------------------------------------------------------- choosing a place: from the text, the entry or the map
@@ -1079,7 +1080,7 @@ async function viewToggle(k) {
   if (m && k === 't3d') {
     if (on) { if (m.getSource('terrdem')) m.setTerrain(T3D()); }       // (the camera stays as it is: tilt it yourself)
     else m.setTerrain(null);                                         // (the camera stays: a flat map can be tilted too)
-    contApply(); obelUpd();                                          // (the contour lines: drawn by the terrain in 3D, by their own layer in 2D; the obelisk's shadow)
+    obelUpd();                                                       // (the obelisk's shadow)
   }
   drawLabels();
 }

@@ -145,7 +145,6 @@ function sdRefUpd() {
 function sunMove() {
   if (M.sunMvRaf) return;
   M.sunMvRaf = requestAnimationFrame(() => { M.sunMvRaf = 0;
-    if (typeof cgpuOn === 'function' && cgpuOn() && self.__pultCont?.[0] && M.map && contIdx(M.map.getZoom()) !== self.__pultCont[3]) contApply();   // (the step of the numbered lines follows the zoom)
     if (M.sdOpen) { sdRefUpd(); sundialPaint(); }
     const m = M.map; if (sunOn() && m?.getLayer('rel-shade') && !M.cfg.gnomon) { const c = sunRef(), a = Math.round(sunAt(sunPos(sunTime()), c.lng, c.lat).az);
       if (a !== M.shadeAz) { M.shadeAz = a; m.setPaintProperty('rel-shade', 'hillshade-illumination-direction', a); } }
@@ -764,8 +763,7 @@ document.addEventListener('input', ev => {
   if (sk) { M.cfg.skySize = +sk.value; M.map?.triggerRepaint(); clearTimeout(M.skT); M.skT = setTimeout(saveMapCfg, 400); return; }
   if (x) { M.cfg.exag = +x.value; $('#exagOut') && ($('#exagOut').textContent = '×' + M.cfg.exag.toFixed(1)); if (M.map?.getTerrain()) M.map.setTerrain(T3D()); clearTimeout(M.exT); M.exT = setTimeout(saveMapCfg, 400); }
   if (sp) { M.cfg.relSpacing = +sp.value; clearTimeout(M.spT);
-    if (cgpuOn()) { contApply(); M.cnum = null; drawLabels(); M.spT = setTimeout(saveMapCfg, 400); }
-    else M.spT = setTimeout(async () => { await saveMapCfg(); if (M.map) { M.map.setStyle(mapStyle(M.colors)); M.map.once('styledata', () => setTimeout(refreshMapData, 50)); } }, 500); }   // (the lines of maplibre-contour: made anew)
+    M.spT = setTimeout(async () => { await saveMapCfg(); if (M.map) { M.map.setStyle(mapStyle(M.colors)); M.map.once('styledata', () => setTimeout(refreshMapData, 50)); } }, 500); }   // (the lines of maplibre-contour: made anew)
 });
 // the obelisk's size: a third … three times (logarithmic; the middle of the slider is the normal size)
 document.addEventListener('input', ev => {
