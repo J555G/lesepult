@@ -353,12 +353,38 @@ function skyImg(n) {                                                // (the spri
   const o = SKY.img[n]; if (o) return o.complete && o.naturalWidth ? o : null;
   const im = SKY.img[n] = new Image(); im.onload = () => M.map?.triggerRepaint(); im.src = `sky/${n}.webp`; return null;
 }
-function skySunLow() {                                              // (the sun, orange: the same sprite, multiplied)
+// The sun's colour by its height and whether it rises or sets (v343): rising, from red through rose to gold; setting, from gold
+// through orange to crimson – held until the end of twilight (18° below the horizon); deeper still, as seen only from space, it
+// turns golden again. (Height in degrees; [r, g, b].)
+const SUN_GOLD = [255, 210, 70];
+const SUN_RISE = [[-30, SUN_GOLD], [-18, [196, 34, 30]], [-5, [222, 58, 46]], [-1, [246, 112, 112]], [4, [255, 156, 138]], [9, [255, 190, 100]], [14, SUN_GOLD]];
+const SUN_SET = [[-30, SUN_GOLD], [-18, [150, 14, 44]], [-5, [178, 22, 48]], [-1, [232, 84, 34]], [4, [255, 140, 36]], [9, [255, 182, 56]], [14, SUN_GOLD]];
+function sunTint(alt, rising) {
+  const T = rising ? SUN_RISE : SUN_SET; if (alt <= T[0][0]) return T[0][1];
+  for (let i = 1; i < T.length; i++) if (alt <= T[i][0]) { const [a0, c0] = T[i - 1], [a1, c1] = T[i], u = (alt - a0) / (a1 - a0); return c0.map((v, k) => Math.round(v + (c1[k] - v) * u)); }
+  return SUN_GOLD;
+}
+// the sprite split once into its paper (the colour, with the glow fading outwards) and its ink; coloured anew as the colour changes
+function skySunTinted(rgb) {
   const im = skyImg('sun'); if (!im) return null;
-  if (!SKY.low) { const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; const x = c.getContext('2d');
-    x.drawImage(im, 0, 0); x.globalCompositeOperation = 'multiply'; x.fillStyle = 'rgb(255,168,120)'; x.fillRect(0, 0, c.width, c.height);
-    x.globalCompositeOperation = 'destination-in'; x.drawImage(im, 0, 0); SKY.low = c; }
-  return SKY.low;
+  if (!SKY.sunInk) {
+    const w = im.naturalWidth, h = im.naturalHeight, mk = () => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+    const src = mk(), sx = src.getContext('2d', { willReadFrequently: true }); sx.drawImage(im, 0, 0);
+    const d = sx.getImageData(0, 0, w, h), ink = new ImageData(w, h), pap = new ImageData(w, h);
+    for (let o = 0; o < d.data.length; o += 4) { const L = 0.299 * d.data[o] + 0.587 * d.data[o + 1] + 0.114 * d.data[o + 2], a = d.data[o + 3], c = Math.max(0, Math.min(1, (212 - L) / 190));
+      ink.data[o] = 28; ink.data[o + 1] = 20; ink.data[o + 2] = 14; ink.data[o + 3] = a * c; pap.data[o] = pap.data[o + 1] = pap.data[o + 2] = 255; pap.data[o + 3] = a * (1 - c); }
+    const ic = mk(), pc = mk(); ic.getContext('2d').putImageData(ink, 0, 0); pc.getContext('2d').putImageData(pap, 0, 0);
+    SKY.sunInk = ic; SKY.sunPap = pc; SKY.sunCol = new Map();
+  }
+  const q = rgb.map(v => Math.round(v / 6) * 6), k = q.join();
+  let c = SKY.sunCol.get(k);
+  if (!c) {
+    c = document.createElement('canvas'); c.width = SKY.sunPap.width; c.height = SKY.sunPap.height; const x = c.getContext('2d');
+    x.drawImage(SKY.sunPap, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = `rgb(${q})`; x.fillRect(0, 0, c.width, c.height);
+    x.globalCompositeOperation = 'source-over'; x.drawImage(SKY.sunInk, 0, 0);
+    SKY.sunCol.set(k, c); if (SKY.sunCol.size > 6) SKY.sunCol.delete(SKY.sunCol.keys().next().value);
+  }
+  return c;
 }
 function skyZodiac() {                                              // the twelve constellations of the zodiac, as lines (d3-celestial)
   if (SKY.zod !== undefined) return SKY.zod; SKY.zod = null;
@@ -441,10 +467,9 @@ function skyDraw(args) {
     const p = scr(ds), im = skyImg('sun');
     if (p && im) {
       // the disc of the sprite (radius 73 of 300) as large as the sun is drawn; the rays around it
-      const r = Math.max(3, 0.2666 * RAD * size * f), h = r * 300 / 73, low = Math.max(0, Math.min(1, 1 - s.alt / 8, (s.alt + 6) / 5));   // (redder when low – not when seen from space, below the horizon of the place)
-      y.save(); y.translate(p[0], p[1]); y.rotate(upAng(ds, p)); y.drawImage(im, -h, -h, 2 * h, 2 * h);
-      const lo = low > 0.02 && skySunLow(); if (lo) { y.globalAlpha = low; y.drawImage(lo, -h, -h, 2 * h, 2 * h); }
-      y.restore();
+      const r = Math.max(3, 0.2666 * RAD * size * f), h = r * 300 / 73;
+      const sun = skySunTinted(sunTint(s.alt, s.az < 180)) || im;                     // (rising: the sun in the east)
+      y.save(); y.translate(p[0], p[1]); y.rotate(upAng(ds, p)); y.drawImage(sun, -h, -h, 2 * h, 2 * h); y.restore();
     }
   }
   if (M.cfg.skyMoon !== false) {
