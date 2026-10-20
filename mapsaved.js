@@ -314,7 +314,7 @@ async function mapCanvas() {
   ctx.globalAlpha = 0.65; ctx.font = '10px "Source Sans 3", system-ui, sans-serif';
   const has = id => !!M.map.getLayer(id) && M.map.getLayoutProperty(id, 'visibility') !== 'none';
   const cred = ['Places: Pleiades (CC BY)', has('ne2') ? 'Map: Natural Earth II' : 'Map: Natural Earth', has('hd-sea') && 'Coasts: © OpenStreetMap contributors (ODbL)',
-    M.anc && 'Ancient world: Ancient World Mapping Center (ODbL)', has('it-roads') && 'Roads: Itiner-e (CC BY 4.0)', (has('rel-shade') || has('rel-contour')) && 'Relief: Copernicus DEM GLO-90', 'made with Pult'].filter(Boolean);
+    M.anc && 'Ancient world: Ancient World Mapping Center (ODbL)', has('it-roads') && 'Roads: Itiner-e (CC BY 4.0)', (has('rel-shade') || has('rel-contour')) && 'Relief: Mapterhorn (from open elevation data)', 'made with Pult'].filter(Boolean);
   ctx.fillText(cred.join(' · '), 10, H + 27, W / dpr - 20);
   ctx.restore();
   return cv;

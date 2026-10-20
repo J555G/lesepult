@@ -298,14 +298,18 @@ function reliefStyle(st, C) {
   st.sources.contours = { type: 'vector', maxzoom: 15, tiles: [M.relDem.contourProtocolUrl({ multiplier: 1 / unit().small, overzoom: 1, contourLayer: 'contours', elevationKey: 'ele', levelKey: 'level',
     thresholds: ft ? { 5: [2000, 5000], 7: [500, 2500], 9: [250, 1000], 11: [100, 500], 13: [50, 250] } : { 5: [500, 1000], 7: [200, 1000], 9: [100, 500], 11: [50, 250], 13: [20, 100] } })] };
   const k = ['a-prov', 'a-roads', 'own'].map(at).find(i => i >= 0) ?? at('pl-region');
-  put(k, { id: 'rel-contour', type: 'line', source: 'contours', 'source-layer': 'contours', minzoom: 5, filter: ['>', ['get', 'ele'], 0],
-    paint: { 'line-color': dark ? '#dcdbd4' : '#3a3a38', 'line-opacity': ['case', ['==', ['get', 'level'], 1], 0.5, 0.24], 'line-width': ['case', ['==', ['get', 'level'], 1], 0.9, 0.45] } });   // (neutral grey, thin and faint: v321)
+  // (two-tone, to stand out on any ground: a light silvery core with a fine dark blue edge – v323)
+  const cw = ['case', ['==', ['get', 'level'], 1], 0.9, 0.5];
+  put(k, { id: 'rel-contour-edge', type: 'line', source: 'contours', 'source-layer': 'contours', minzoom: 5, filter: ['>', ['get', 'ele'], 0],
+    paint: { 'line-color': '#16264a', 'line-opacity': ['case', ['==', ['get', 'level'], 1], 0.6, 0.4], 'line-width': ['+', cw, 1] } },
+    { id: 'rel-contour', type: 'line', source: 'contours', 'source-layer': 'contours', minzoom: 5, filter: ['>', ['get', 'ele'], 0],
+    paint: { 'line-color': '#e4e9ef', 'line-opacity': ['case', ['==', ['get', 'level'], 1], 0.85, 0.6], 'line-width': cw } });
   put(k, { id: 'rel-coast0', type: 'line', source: 'contours', 'source-layer': 'contours', filter: ['==', ['get', 'ele'], 0],     // the 0 m line: the coast from the heights
     paint: { 'line-color': dark ? '#c9b892' : '#7a6a4a', 'line-width': 1, 'line-opacity': 0.8 } });
 }
 function reliefLayerProps() {
   const v = x => x ? 'visible' : 'none';
-  return { 'rel-shade': { vis: v(relOn('relShade')) }, 'rel-color': { vis: v(relOn('relColor')) }, 'rel-contour': { vis: v(relOn('relContours')) }, 'rel-coast0': { vis: v(relOn('relContours')) }, 'rel-bathy': { vis: v(relOn('relBathy')) } };
+  return { 'rel-shade': { vis: v(relOn('relShade')) }, 'rel-color': { vis: v(relOn('relColor')) }, 'rel-contour': { vis: v(relOn('relContours')) }, 'rel-contour-edge': { vis: v(relOn('relContours')) }, 'rel-coast0': { vis: v(relOn('relContours')) }, 'rel-bathy': { vis: v(relOn('relBathy')) } };
 }
 // the menu: Layers → Landscape
 // numbers of the contour lines: on the stronger lines, along them, where there is room (drawn with the other labels)
