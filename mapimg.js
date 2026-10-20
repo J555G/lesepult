@@ -4,7 +4,7 @@
 // Imagery (to under 1 m; the current imagery needs a free ArcGIS key, the earlier captures of “Wayback” do not).
 // Offline, an online choice falls back to Blue Marble from the package. The package always lies beneath an online
 // layer, so gaps (tiles still loading, a lost connection) show Blue Marble rather than nothing.
-// Settings (mapCfg): img ('bm' | 's2' | 'esri'; 'none' only as a fallback when nothing can be shown), s2v, esriv, imgDim. The key: setting 'esriKey'.
+// Settings (mapCfg): img ('bm' | 's2' | 'esri'; 'none' only as a fallback when nothing can be shown), s2v, esriv (the imagery is never dimmed, v322). The key: setting 'esriKey'.
 const BM_PKG = 'base/bluemarble.pmtiles';
 const GIBS_BM = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/wmts.cgi?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=BlueMarble_ShadedRelief_Bathymetry&STYLE=default&TILEMATRIXSET=GoogleMapsCompatible_Level8&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image%2Fjpeg';
 const EOX_WMS = l => `https://tiles.maps.eox.at/?SERVICE=WMS&REQUEST=GetMap&VERSION=1.1.1&LAYERS=${l}&STYLES=&FORMAT=image%2Fjpeg&SRS=EPSG%3A3857&WIDTH=256&HEIGHT=256&BBOX={bbox-epsg-3857}`;
@@ -52,8 +52,7 @@ function imgOnline() {
 }
 const imgOn = () => imgKind() !== 'none' && !!(bmPkg() || imgOnline());
 function imgPaint() {
-  const dark = document.documentElement.dataset.theme === 'dark' && M.cfg.imgDim !== false;
-  return { 'raster-fade-duration': 150, 'raster-resampling': 'linear', ...(dark ? { 'raster-brightness-max': 0.68, 'raster-saturation': -0.15, 'raster-contrast': -0.05 } : {}) };
+  return { 'raster-fade-duration': 150, 'raster-resampling': 'linear' };
 }
 // called by layerStyle: the imagery beneath the waters, lines and labels
 function imgStyle(st, C) {

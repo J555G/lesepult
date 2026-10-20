@@ -6,7 +6,7 @@
 const TMAXR = 5;                                                   // at most five periods
 const fmtY = y => y == null ? '' : y < 0 ? `${-y} BC` : `AD ${Math.max(1, y)}`;
 const fmtR = ([a, b]) => a === b ? fmtY(a) : a < 0 && b < 0 ? `${-a}–${-b} BC` : a >= 0 ? `AD ${Math.max(1, a)}–${b}` : `${fmtY(a)} – ${fmtY(b)}`;
-const LCFG = { img: 'bm', coasts: true, imgDim: true, time: true, tol: 25, gone: 'fade', undated: 'show', later: 'fade', rivers: true, lakes: true, provinces: true, regArea: false, aqueducts: false, walls: false, canals: false, own: true, dOff: [], dLen: 'off', units: 'metric', basemap: 'hd',
+const LCFG = { img: 'bm', coasts: true, time: true, tol: 25, gone: 'fade', undated: 'show', later: 'fade', rivers: true, lakes: true, provinces: true, regArea: false, aqueducts: false, walls: false, canals: false, own: true, dOff: [], dLen: 'off', units: 'metric', basemap: 'hd',
   nmPlaces: true, nmRegions: true, nmMountains: true, nmIslands: true, twoCol: false, sites: false, cats: { settl: true }, coast: true, empires: true, regions: 'labels', roads: false, urban: true, fold: { text: true }, layScroll: 0 };
 // the colours of the periods (when several are shown in their own colours); the reader can set them (Map settings → Period)
 const RANGE_COL = ['#c0503a', '#2f78b5', '#4a9a3a', '#9a55b5', '#c9922b'];
@@ -524,7 +524,6 @@ function settingsHTML() {
     + sw('scale', 'Reference distance', 'a scale bar, top right below the buttons')
     + sw('zoomShow', 'Zoom level', 'shown below it')
     + rivSettingsHTML()
-    + sw('imgDim', 'Dim the imagery in dark mode', 'satellite pictures and Blue Marble a little darker, so they do not glare')
     + `<div class="mline"><span>ArcGIS key<small class="hint">for Esri’s current imagery; free at developers.arcgis.com – kept on this device only</small></span><input type="text" data-esrikey="1" class="nofocus" value="${esc(M.esriKey || '')}" autocomplete="off" spellcheck="false" placeholder="none" aria-label="ArcGIS key"></div>`
     + line('Units of distance and height', seg('units', [['metric', 'Metric'], ['imperial', 'Imperial'], ['roman', 'Roman'], ['greek', 'Greek']]))
     + `<p class="hint small">Metric: km, m · Imperial: miles, feet · Roman: miles (1,479 m), feet (29.6 cm) · Greek: stades (185 m), feet (30.8 cm)</p>`

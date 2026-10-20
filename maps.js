@@ -1054,7 +1054,6 @@ document.addEventListener('change', async ev => {
   const k = ev.target.dataset?.mapset; if (!k) return;
   await mapCfg(); M.cfg[k] = ev.target.checked; await saveMapCfg();
   if (k === 'scale' || k === 'zoomShow') mapInfo();
-  if (k === 'imgDim' && M.map) M.map.setStyle(mapStyle(M.colors));
   if (k === 'mark') { markPlaces(); if (M.map) await refreshMapData(); }
   if (k === 'time') { timeFor(S.text); renderTime(); applyLayers(); }
 });

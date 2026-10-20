@@ -299,8 +299,7 @@ function reliefStyle(st, C) {
     thresholds: ft ? { 5: [2000, 5000], 7: [500, 2500], 9: [250, 1000], 11: [100, 500], 13: [50, 250] } : { 5: [500, 1000], 7: [200, 1000], 9: [100, 500], 11: [50, 250], 13: [20, 100] } })] };
   const k = ['a-prov', 'a-roads', 'own'].map(at).find(i => i >= 0) ?? at('pl-region');
   put(k, { id: 'rel-contour', type: 'line', source: 'contours', 'source-layer': 'contours', minzoom: 5, filter: ['>', ['get', 'ele'], 0],
-    paint: clNeutral() ? { 'line-color': dark ? '#dcdbd4' : '#3a3a38', 'line-opacity': ['case', ['==', ['get', 'level'], 1], 0.5, 0.24], 'line-width': ['case', ['==', ['get', 'level'], 1], 0.9, 0.45] }
-      : { 'line-color': dark ? '#a08a66' : '#8a6a40', 'line-opacity': ['case', ['==', ['get', 'level'], 1], 0.6, 0.35], 'line-width': ['case', ['==', ['get', 'level'], 1], 1.1, 0.6] } });
+    paint: { 'line-color': dark ? '#dcdbd4' : '#3a3a38', 'line-opacity': ['case', ['==', ['get', 'level'], 1], 0.5, 0.24], 'line-width': ['case', ['==', ['get', 'level'], 1], 0.9, 0.45] } });   // (neutral grey, thin and faint: v321)
   put(k, { id: 'rel-coast0', type: 'line', source: 'contours', 'source-layer': 'contours', filter: ['==', ['get', 'ele'], 0],     // the 0 m line: the coast from the heights
     paint: { 'line-color': dark ? '#c9b892' : '#7a6a4a', 'line-width': 1, 'line-opacity': 0.8 } });
 }
@@ -310,8 +309,6 @@ function reliefLayerProps() {
 }
 // the menu: Layers → Landscape
 // numbers of the contour lines: on the stronger lines, along them, where there is room (drawn with the other labels)
-// contour lines in a neutral grey, thin and faint; brown as before when the imagery is dimmed in dark mode (v321)
-const clNeutral = () => !(document.documentElement.dataset.theme === 'dark' && M.cfg?.imgDim !== false);
 function contourLabels(placed, W, H) {
   if (!relOn('relContours') || !M.map?.getLayer('rel-contour') || M.map.getZoom() < 7) return '';
   const hit = r => placed.some(q => r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1]);
@@ -327,7 +324,7 @@ function contourLabels(placed, W, H) {
       let ang = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI; if (ang > 90) ang -= 180; if (ang < -90) ang += 180;
       const txt = Math.round(f.properties.ele).toLocaleString('en'), w = txt.length * 6 + 4, r = [cx - w / 2, cy - 6, cx + w / 2, cy + 6];
       if (hit(r)) continue; placed.push(r);
-      h += `<span class="mlbl cl${clNeutral() ? ' cn' : ''}" style="left:${Math.round(cx)}px;top:${Math.round(cy)}px;transform:translate(-50%,-50%) rotate(${ang.toFixed(0)}deg)">${txt}</span>`;
+      h += `<span class="mlbl cl cn" style="left:${Math.round(cx)}px;top:${Math.round(cy)}px;transform:translate(-50%,-50%) rotate(${ang.toFixed(0)}deg)">${txt}</span>`;
       if (++n > 60) return h;
     }
   }
