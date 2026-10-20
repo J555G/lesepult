@@ -238,7 +238,8 @@ function sunHour() {                                                 // sun time
   const lst = ((12 + (c.lng - s.lon) / 15) % 24 + 24) % 24;          // (noon: the sun due south)
   const cosH = (Math.sin(-0.833 * RAD) - Math.sin(c.lat * RAD) * Math.sin(s.dec)) / (Math.cos(c.lat * RAD) * Math.cos(s.dec));
   const half = cosH <= -1 ? 12 : cosH >= 1 ? 0 : Math.acos(cosH) / RAD / 15;     // half the day, in hours
-  return { lst, rise: 12 - half, set: 12 + half, alt: sunAt(s, c.lng, c.lat).alt };
+  const a = sunAt(s, c.lng, c.lat);
+  return { lst, rise: 12 - half, set: 12 + half, alt: a.alt, az: a.az };
 }
 // the twelve signs (the tropical zodiac: the Ram from the spring equinox): English, Latin, Greek, Greek after ἐν, and the sign
 // itself, drawn in a box of 12 (−6 … 6)
@@ -370,7 +371,7 @@ async function sdOpen(open) {
 }
 function sundialPaint() {
   const svg = $('#sunSvg'); if (!svg) return;
-  const { lst, rise, set, alt } = sunHour(), W = svg.clientWidth || 400, len = set - rise;
+  const { lst, rise, set, alt, az } = sunHour(), W = svg.clientWidth || 400, len = set - rise;
   // the horizon: level with sunrise and sunset on the ring
   const hy = len >= 24 ? SD.cy + SD.R + 12 : len <= 0 ? SD.cy - SD.R - 12 : sdXY(set, SD.R)[1];
   const eve = lst >= 12, [top, foot] = skyAt(alt, eve);
@@ -390,7 +391,8 @@ function sundialPaint() {
   if (len > 0 && len < 24) { const [ax, ay] = sdXY(rise, SD.R + 3), [bx, by] = sdXY(set, SD.R + 3); $('#sdDay').setAttribute('d', `M${ax.toFixed(1)} ${ay.toFixed(1)}A${SD.R + 3} ${SD.R + 3} 0 ${len > 12 ? 1 : 0} 0 ${bx.toFixed(1)} ${by.toFixed(1)}`); }
   else $('#sdDay').setAttribute('d', len >= 24 ? `M${SD.cx} ${SD.cy - SD.R - 3}a${SD.R + 3} ${SD.R + 3} 0 1 0 0.01 0` : '');
   const sh = $('#sdShadow'), up = day && alt > -0.8;
-  if (up) { const L = Math.min(SD.P - 4, 9 / Math.tan(Math.max(1.5, alt) * RAD)), a = sdAng(lst) + Math.PI;
+  // (the shadow points where the obelisk's does: away from the sun, north at the top of the plate as on the map, turning with it – v327)
+  if (up) { const L = Math.min(SD.P - 4, 9 / Math.tan(Math.max(1.5, alt) * RAD)), a = (az + 180 - (M.map?.getBearing() || 0)) * RAD;
     sh.setAttribute('x2', (SD.cx + Math.sin(a) * L).toFixed(1)); sh.setAttribute('y2', (SD.cy - Math.cos(a) * L).toFixed(1)); sh.style.opacity = Math.max(0.12, Math.min(0.75, alt / 12)).toFixed(2); }
   else sh.style.opacity = 0;
   // the owl: lands when the handle enters the night, flies off when it leaves
