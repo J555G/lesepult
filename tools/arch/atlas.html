@@ -22,22 +22,27 @@
   --acc: #6aa9d8; --up: #6aa9ec; --down: #f08a4b; --flow: #b394e0;
   --h0: #39414a; --h1: #2f6b5f; --h2: #7d7034; --h3: #96662a; --h4: #a3502c; --h5: #a83a32; color-scheme: dark }
 html, body { height: 100%; }
+[hidden] { display: none !important; }
 body { background: var(--bg); color: var(--ink); font: 14px/1.4 var(--ui); display: flex; flex-direction: column; overflow: hidden; }
-header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); border-bottom: 1px solid var(--line); background: var(--surface); }
-h1 { font: 700 20px/1.1 var(--display); margin: 0; letter-spacing: .01em; white-space: nowrap; }
-h1 small { font: 400 13px var(--ui); color: var(--mut); margin-left: 6px; }
+header { display: flex; flex-wrap: nowrap; align-items: center; gap: 10px; overflow-x: auto; scrollbar-width: none; padding-block: 5px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); border-bottom: 1px solid var(--line); background: var(--surface); }
+h1 { font: 700 17px/1.1 var(--display); flex: none; margin: 0; letter-spacing: .01em; white-space: nowrap; }
+h1 small { font: 400 12px var(--ui); color: var(--mut); margin-left: 6px; }
 .grp { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .lab { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--mut); }
-.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
-.seg button { border: 0; background: transparent; color: var(--ink); padding: 5px 10px; font: 600 13px var(--ui); cursor: pointer; }
+.seg { flex: none; display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.seg button { border: 0; background: transparent; color: var(--ink); padding: 3px 8px; font: 600 12.5px var(--ui); cursor: pointer; white-space: nowrap; }
 .seg button + button { border-left: 1px solid var(--line); }
 .seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
-button.plain { border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 7px; padding: 5px 10px; font: 600 13px var(--ui); cursor: pointer; }
+button.plain { flex: none; border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 7px; padding: 3px 9px; font: 600 12.5px var(--ui); cursor: pointer; white-space: nowrap; }
+.rng { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--mut); }
+.rng input { width: 110px; accent-color: var(--acc); }
+.menu { position: fixed; z-index: 30; right: max(16px, env(safe-area-inset-right, 0px)); background: var(--surface); border: 1px solid var(--line); border-radius: 9px; box-shadow: 0 10px 28px rgba(0,0,0,.2); padding: 10px 12px; display: grid; gap: 8px; }
+.menu .row { display: flex; gap: 8px; }
 button:focus-visible, input:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 .chk { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; cursor: pointer; user-select: none; }
-.search { position: relative; flex: 1 1 200px; min-width: 0; max-width: 320px; }
-.search input { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 7px; padding: 6px 10px; background: var(--bg); color: var(--ink); font: 14px var(--ui); }
-.results { position: absolute; z-index: 20; top: 100%; left: 0; right: 0; margin-top: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.18); max-height: 50vh; overflow: auto; }
+.search { position: relative; flex: 1 0 150px; min-width: 150px; max-width: 280px; }
+.search input { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 7px; padding: 3px 9px; background: var(--bg); color: var(--ink); font: 14px var(--ui); }
+.results { position: fixed; width: 300px; z-index: 20; top: 100%; left: 0; right: 0; margin-top: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.18); max-height: 50vh; overflow: auto; }
 .results button { display: block; width: 100%; text-align: left; border: 0; background: transparent; color: var(--ink); padding: 7px 10px; cursor: pointer; font: 14px var(--ui); }
 .results button:hover, .results button.on { background: var(--soft); }
 .results small { color: var(--mut); display: block; font-size: 12px; }
@@ -68,11 +73,14 @@ svg#cv, #cv3 { width: 100%; height: 100%; display: block; touch-action: none; cu
 .legend span.sw { display: inline-block; width: 22px; height: 3px; vertical-align: middle; margin-right: 6px; }
 .heat { display: flex; gap: 2px; align-items: center; }
 .heat i { width: 18px; height: 10px; border-radius: 2px; }
-footer { border-top: 1px solid var(--line); background: var(--surface); padding-block: 8px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; align-items: center; }
-footer input[type=range] { width: 100%; accent-color: var(--acc); }
-#verInfo { grid-column: 1 / -1; font-size: 13px; color: var(--mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+footer { border-top: 1px solid var(--line); background: var(--surface); padding-block: 3px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; gap: 10px; align-items: center; }
+footer #play { padding: 1px 8px; }
+.track { position: relative; flex: 1 1 45%; min-width: 120px; height: 22px; }
+.track input { position: absolute; inset: 0; width: 100%; margin: 0; background: transparent; }
+footer input[type=range] { accent-color: var(--acc); }
+#verInfo { flex: 1 1 55%; min-width: 0; font-size: 12px; color: var(--mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 #verInfo b { color: var(--ink); }
-#spark { grid-column: 2; height: 26px; width: 100%; display: block; }
+#spark { position: absolute; inset: 0; height: 22px; width: 100%; display: block; opacity: .7; }
 .node rect.box { stroke: var(--line); stroke-width: 1; }
 .node text { fill: var(--ink); font: 600 12.5px var(--ui); pointer-events: none; }
 .node text.sub { font: 400 10.5px var(--mono); fill: var(--mut); }
@@ -94,33 +102,35 @@ footer input[type=range] { width: 100%; accent-color: var(--acc); }
 .tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; font-size: 12.5px; max-width: 280px; box-shadow: 0 6px 18px rgba(0,0,0,.15); z-index: 5; }
 @media (max-width: 760px) {
   main { flex-direction: column; }
-  #panel { width: auto; max-width: none; height: 42%; border-left: 0; border-top: 1px solid var(--line); padding-left: max(16px, env(safe-area-inset-left, 0px)); }
+  #panel { width: auto; max-width: none; height: 34%; border-left: 0; border-top: 1px solid var(--line); padding-left: max(16px, env(safe-area-inset-left, 0px)); }
   h1 small { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
 
 <header>
-  <h1>Pult Component Atlas<small id="hdrVer"></small></h1>
+  <h1>Pult Atlas<small id="hdrVer"></small></h1>
   <div class="search"><input id="q" type="search" placeholder="Find a part or function…" autocomplete="off" aria-label="Find a part"><div class="results" id="res" hidden></div></div>
-  <div class="grp"><span class="lab">Layout</span><div class="seg" id="segLayout"><button data-v="layers" aria-pressed="true">Layers</button><button data-v="web" aria-pressed="false">Web</button><button data-v="3d" aria-pressed="false">3D</button></div></div>
-  <div class="grp"><span class="lab">Colour</span><div class="seg" id="segMetric"><button data-v="part" aria-pressed="true">Part</button><button data-v="mem" aria-pressed="false">Memory</button><button data-v="store" aria-pressed="false">Storage</button><button data-v="cpu" aria-pressed="false">CPU</button><button data-v="gpu" aria-pressed="false">GPU</button></div></div>
-  <div class="grp">
-    <label class="chk"><input type="checkbox" id="ind" checked> Indicators</label>
-    <label class="chk"><input type="checkbox" id="offv"> Offline view</label>
-    <label class="chk"><input type="checkbox" id="lbl"> Flow labels</label>
-    <label class="chk"><input type="checkbox" id="chain"> Whole chains</label>
-    <button class="plain" id="expAll">Expand all</button><button class="plain" id="colAll">Collapse</button>
-  </div>
+  <div class="seg" id="segLayout" title="Layout"><button data-v="layers" aria-pressed="true">Layers</button><button data-v="web" aria-pressed="false">Web</button><button data-v="3d" aria-pressed="false">3D</button></div>
+  <div class="seg" id="segMetric" title="Colour by"><button data-v="part" aria-pressed="true">Part</button><button data-v="mem" aria-pressed="false" title="Memory">Mem</button><button data-v="store" aria-pressed="false" title="Storage">Store</button><button data-v="cpu" aria-pressed="false">CPU</button><button data-v="gpu" aria-pressed="false">GPU</button></div>
+  <div class="seg" id="segFocus" title="With a part selected, show only…"><button data-v="all" aria-pressed="true">All</button><button data-v="up" aria-pressed="false" title="only what the selected part relies on">Relies on</button><button data-v="down" aria-pressed="false" title="only what relies on the selected part">Relied on by</button><button data-v="both" aria-pressed="false" title="only the selected part's connections">Both</button></div>
+  <label class="rng" title="How far apart the parts are">Spacing <input type="range" id="spread" min="0.4" max="3" step="0.05" value="1"></label>
+  <button class="plain" id="optBtn" aria-expanded="false">Options ▾</button>
 </header>
+<div class="menu" id="opts" hidden>
+  <label class="chk"><input type="checkbox" id="ind" checked> Load indicators</label>
+  <label class="chk"><input type="checkbox" id="offv"> Offline view</label>
+  <label class="chk"><input type="checkbox" id="lbl"> Flow labels</label>
+  <label class="chk"><input type="checkbox" id="chain"> Whole chains</label>
+  <div class="row"><button class="plain" id="expAll">Expand all</button><button class="plain" id="colAll">Collapse</button></div>
+</div>
 <main>
   <div id="stage"><svg id="cv" aria-label="Components of Pult and how they connect"></svg><canvas id="cv3" hidden aria-label="Components of Pult in three dimensions"></canvas><div class="hint" id="hint">Tap a part to see it; double-tap or ▸ to open it</div><div class="tip" id="tip" hidden></div></div>
   <aside id="panel"></aside>
 </main>
 <footer>
   <button class="plain" id="play" aria-label="Play through the versions">▶</button>
-  <input type="range" id="ver" min="0" max="0" value="0" aria-label="Version">
-  <span></span><svg id="spark" aria-hidden="true"></svg>
+  <div class="track"><svg id="spark" aria-hidden="true"></svg><input type="range" id="ver" min="0" max="0" value="0" aria-label="Version"></div>
   <div id="verInfo"></div>
 </footer>
 
@@ -128,9 +138,9 @@ footer input[type=range] { width: 100%; accent-color: var(--acc); }
 <script>
 const $ = s => document.querySelector(s), esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const METRICS = { mem: 'Memory', store: 'Storage', cpu: 'CPU', gpu: 'GPU' };
-const S = { layout: 'layers', metric: 'part', ind: true, offv: false, lbl: false, exp: new Set(), sel: null, ver: 0, depth: 1 };
-try { const k = JSON.parse(localStorage.getItem('atlas') || '{}'); Object.assign(S, { layout: k.layout || 'layers', metric: k.metric || 'part', ind: k.ind ?? true }); } catch (_) {}
-const keep = () => { try { localStorage.setItem('atlas', JSON.stringify({ layout: S.layout, metric: S.metric, ind: S.ind })); } catch (_) {} };
+const S = { layout: 'layers', metric: 'part', ind: true, offv: false, lbl: false, exp: new Set(), sel: null, ver: 0, depth: 1, focus: 'all', spread: 1, rot: 0 };
+try { const k = JSON.parse(localStorage.getItem('atlas') || '{}'); Object.assign(S, { spread: k.spread || 1, layout: k.layout || 'layers', metric: k.metric || 'part', ind: k.ind ?? true }); } catch (_) {}
+const keep = () => { try { localStorage.setItem('atlas', JSON.stringify({ layout: S.layout, metric: S.metric, ind: S.ind, spread: S.spread })); } catch (_) {} };
 let MODEL, HIST, N = new Map(), OWN = new Map(), V = null, CK = [];
 
 // ---------------------------------------------------------------- data
@@ -200,7 +210,16 @@ const defs = svg.append('defs');
 for (const [id, v] of [['a-code', '--mut'], ['a-flow', '--flow'], ['a-up', '--up'], ['a-down', '--down']]) defs.append('marker').attr('id', id).attr('viewBox', '0 0 10 10').attr('refX', 9).attr('refY', 5).attr('markerWidth', 7).attr('markerHeight', 7).attr('orient', 'auto-start-reverse').append('path').attr('d', 'M0,0L10,5L0,10z').style('fill', `var(${v})`);
 const zoom = d3.zoom().scaleExtent([0.05, 4]).on('zoom', e => { root.attr('transform', e.transform); scaleLabels(e.transform.k); });
 let ZK = 1; function scaleLabels(k) { ZK = k; const z = Math.max(1, 0.75 / k); gGrp.selectAll('g.group > text').style('font-size', (11 * Math.min(z, 2)) + 'px'); gTier.selectAll('text').style('font-size', (15 * Math.min(z, 3)) + 'px'); }
+zoom.filter(e => !(e.type === 'wheel' && e.shiftKey) && (!e.button || e.type === 'wheel'));
 svg.call(zoom).on('dblclick.zoom', null);
+{ const tp = new Map(); let a0 = null, r0 = 0;
+  const ang = () => { const [a, b] = [...tp.values()]; return Math.atan2(b.y - a.y, b.x - a.x); };
+  const el = document.getElementById('cv');
+  el.addEventListener('pointerdown', e => { tp.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (tp.size === 2) { a0 = ang(); r0 = S.rot; } });
+  el.addEventListener('pointermove', e => { if (!tp.has(e.pointerId)) return; tp.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (tp.size === 2 && a0 != null && S.layout === 'web') { S.rot = r0 + ang() - a0; place(lastEdges); } });
+  const end = e => { tp.delete(e.pointerId); if (tp.size < 2) a0 = null; };
+  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  el.addEventListener('wheel', e => { if (!e.shiftKey || S.layout !== 'web') return; e.preventDefault(); S.rot += (e.deltaY || e.deltaX) * 0.003; place(lastEdges); }, { passive: false }); }
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const HUE = id => MODEL.l1.find(l => l.id === N.get(id).l1)?.hue ?? 210;
 function fill(id) {
@@ -210,7 +229,7 @@ function fill(id) {
 const BW = 168, BH = 50;
 let POS = new Map(), sim = null, fitted = '';
 function layoutLayers(vis) {
-  POS = new Map(); const groups = [], tiers = [], visSet = new Set(vis), G = 34, pad = 26, head = 34;
+  POS = new Map(); const sp = S.spread, groups = [], tiers = [], visSet = new Set(vis), G = 34 * sp, pad = Math.max(12, 26 * sp), head = 34;
   const leaves = id => visSet.has(id) ? 1 : N.get(id).children.filter(c => V.ex.has(c)).reduce((a, c) => a + leaves(c), 0);
   const W = Math.max(1500, ($('#stage').clientWidth || 1000) / 0.6, Math.sqrt(vis.length) * (BW + G) * 1.9);
   // an open part is about as wide as a square of its parts would be (a little wider than tall)
@@ -228,14 +247,18 @@ function layoutLayers(vis) {
   for (const t of MODEL.tiers) {
     const ids = order(MODEL.l1.filter(l => l.tier === t.id && V.ex.has(l.id)).map(l => l.id)); if (!ids.length) continue;
     let x = 200, rowH = 0; const y0 = y;
-    for (const id of ids) { const sz = box(id, 0, 0, W - 200, true); if (x > 200 && x + sz.w > W) { x = 200; y += rowH + 70; rowH = 0; } const r = box(id, x, y, W - 200); x += r.w + 70; rowH = Math.max(rowH, r.h); }
-    y += rowH; tiers.push({ name: t.name, y0, y1: y }); y += 170;
+    for (const id of ids) { const sz = box(id, 0, 0, W - 200, true); if (x > 200 && x + sz.w > W) { x = 200; y += rowH + 70 * sp; rowH = 0; } const r = box(id, x, y, W - 200); x += r.w + 70 * sp; rowH = Math.max(rowH, r.h); }
+    y += rowH; tiers.push({ name: t.name, y0, y1: y }); y += 170 * sp;
   }
   return { groups, tiers };
 }
 function draw(refit) {
   V = V || computeVersion(S.ver);
-  const vis = visible(), visSet = new Set(vis), edges = visEdges(visSet);
+  let vis = visible(), visSet = new Set(vis), edges = visEdges(visSet);
+  // only what the selected part relies on, what relies on it, or both (near or, with Whole chains, further)
+  if (S.sel && S.focus !== 'all' && visSet.has(S.sel)) { const r = reach(S.sel, edges), k = new Set([S.sel]);
+    if (S.focus !== 'down') r.up.forEach((_, x) => k.add(x)); if (S.focus !== 'up') r.down.forEach((_, x) => k.add(x));
+    vis = vis.filter(x => k.has(x)); visSet = k; edges = edges.filter(e => k.has(e.a) && k.has(e.b)); }
   let L = { groups: [], tiers: [] };
   if (sim) { sim.stop(); sim = null; }
   const three = S.layout === '3d'; $('#cv').style.display = three ? 'none' : ''; $('#cv3').hidden = !three;
@@ -245,10 +268,10 @@ function draw(refit) {
   if (S.layout === 'layers') L = layoutLayers(vis);
   else { // the web: the parts pull on each other along their connections, each kind towards its own corner
     const old = POS; POS = new Map(); const l1s = MODEL.l1.map(l => l.id);
-    const nodes = vis.map(id => { const o = old.get(id) || (N.get(id).parent && old.get(N.get(id).parent)); const a = l1s.indexOf(N.get(id).l1) / l1s.length * 2 * Math.PI; return { id, x: o ? o.x + Math.random() * 20 : 600 + 500 * Math.cos(a), y: o ? o.y + Math.random() * 20 : 400 + 380 * Math.sin(a), ax: 600 + 520 * Math.cos(a), ay: 400 + 400 * Math.sin(a) }; });
+    const nodes = vis.map(id => { const o = old.get(id) || (N.get(id).parent && old.get(N.get(id).parent)); const a = l1s.indexOf(N.get(id).l1) / l1s.length * 2 * Math.PI; return { id, x: o ? o.x + Math.random() * 20 : 600 + 500 * S.spread * Math.cos(a), y: o ? o.y + Math.random() * 20 : 400 + 380 * S.spread * Math.sin(a), ax: 600 + 520 * S.spread * Math.cos(a), ay: 400 + 400 * S.spread * Math.sin(a) }; });
     const byId = new Map(nodes.map(n => [n.id, n]));
-    sim = d3.forceSimulation(nodes).force('link', d3.forceLink(edges.map(e => ({ source: e.a, target: e.b }))).id(d => d.id).distance(150).strength(0.06))
-      .force('charge', d3.forceManyBody().strength(-420)).force('collide', d3.forceCollide(BW * 0.62)).force('x', d3.forceX(d => d.ax).strength(0.05)).force('y', d3.forceY(d => d.ay).strength(0.05))
+    sim = d3.forceSimulation(nodes).force('link', d3.forceLink(edges.map(e => ({ source: e.a, target: e.b }))).id(d => d.id).distance(150 * S.spread).strength(0.06))
+      .force('charge', d3.forceManyBody().strength(-420 * S.spread * S.spread)).force('collide', d3.forceCollide(BW * 0.62 * Math.max(1, S.spread * 0.8))).force('x', d3.forceX(d => d.ax).strength(0.05)).force('y', d3.forceY(d => d.ay).strength(0.05))
       .on('tick', () => { for (const n of nodes) POS.set(n.id, { x: n.x - BW / 2, y: n.y - BH / 2, w: BW, h: BH }); place(edges); });
     for (const n of nodes) POS.set(n.id, { x: n.x - BW / 2, y: n.y - BH / 2, w: BW, h: BH });
     sim.alpha(old.size ? 0.6 : 1).restart(); setTimeout(() => sim && fit(), 900);
@@ -296,7 +319,17 @@ function draw(refit) {
   if (refit || fitted !== S.layout) { fitted = S.layout; if (S.layout === 'layers') fit(); }
   renderPanel();
 }
+// the Web turned by twirling (two fingers, or Shift + scroll): positions turned about their middle, the cards kept upright
+function rotPOS() {
+  if (S.layout !== 'web' || !S.rot) return POS;
+  let cx = 0, cy = 0; for (const p of POS.values()) { cx += p.x + p.w / 2; cy += p.y + p.h / 2; } cx /= POS.size || 1; cy /= POS.size || 1;
+  const c = Math.cos(S.rot), s = Math.sin(S.rot), out = new Map();
+  for (const [k, p] of POS) { const x = p.x + p.w / 2 - cx, y = p.y + p.h / 2 - cy; out.set(k, { ...p, x: cx + x * c - y * s - p.w / 2, y: cy + x * s + y * c - p.h / 2 }); }
+  return out;
+}
+let lastEdges = [];
 function place(edges) {
+  lastEdges = edges; const POS = rotPOS();
   gN.selectAll('g.node').attr('transform', d => { const p = POS.get(d); return p ? `translate(${p.x},${p.y})` : 'translate(-9999,-9999)'; });
   const pts = e => { const a = POS.get(e.a), b = POS.get(e.b); if (!a || !b) return null;
     const ax = a.x + a.w / 2, ay = a.y + a.h / 2, bx = b.x + b.w / 2, by = b.y + b.h / 2, dy = by - ay, dx = bx - ax;
@@ -344,7 +377,7 @@ const T3 = { nodes: new Map(), edges: [], cam: { yaw: 0.5, pitch: -0.25, dist: 2
 const cv3 = document.getElementById('cv3'), c3 = cv3.getContext('2d');
 function anchor3(l1) {   // each main part has its own direction in space (spread evenly on a sphere)
   const ids = MODEL.l1.map(l => l.id), i = ids.indexOf(l1), n = ids.length, y = 1 - 2 * (i + 0.5) / n, r = Math.sqrt(1 - y * y), a = i * 2.39996;
-  return [Math.cos(a) * r * 900, y * 700, Math.sin(a) * r * 900];
+  const k = 900 * S.spread; return [Math.cos(a) * r * k, y * 700 * S.spread, Math.sin(a) * r * k];
 }
 function draw3d(vis, edges, refit) {
   const old = T3.nodes, nn = new Map();
@@ -367,10 +400,10 @@ function run3d() { if (!T3.raf) T3.raf = requestAnimationFrame(frame3d); }
 function tick3d() {   // the forces: parts push each other apart, strings pull connected parts together, each main part keeps to its region
   const ns = [...T3.nodes.values()], a = T3.alpha, n = ns.length;
   for (let i = 0; i < n; i++) { const p = ns[i];
-    for (let j = i + 1; j < n; j++) { const q = ns[j]; let dx = p.x - q.x, dy = p.y - q.y, dz = p.z - q.z; const r2 = dx * dx + dy * dy + dz * dz + 400, r = Math.sqrt(r2), f = 9e5 * a / r2 / r;
+    for (let j = i + 1; j < n; j++) { const q = ns[j]; let dx = p.x - q.x, dy = p.y - q.y, dz = p.z - q.z; const r2 = dx * dx + dy * dy + dz * dz + 400, r = Math.sqrt(r2), f = 9e5 * S.spread * S.spread * a / r2 / r;
       p.vx += dx * f; p.vy += dy * f; p.vz += dz * f; q.vx -= dx * f; q.vy -= dy * f; q.vz -= dz * f; } }
   for (const e of T3.edges) { const p = T3.nodes.get(e.a), q = T3.nodes.get(e.b); if (!p || !q) continue;
-    const dx = q.x - p.x, dy = q.y - p.y, dz = q.z - p.z, r = Math.hypot(dx, dy, dz) || 1, L = e.kind === 'flow' ? 330 : 280, f = 0.012 * a * (r - L) / r * Math.min(3, 1 + Math.log2(e.n));
+    const dx = q.x - p.x, dy = q.y - p.y, dz = q.z - p.z, r = Math.hypot(dx, dy, dz) || 1, L = (e.kind === 'flow' ? 330 : 280) * S.spread, f = 0.012 * a * (r - L) / r * Math.min(3, 1 + Math.log2(e.n));
     p.vx += dx * f; p.vy += dy * f; p.vz += dz * f; q.vx -= dx * f; q.vy -= dy * f; q.vz -= dz * f; }
   for (const p of ns) { const an = anchor3(N.get(p.id).l1), k = 0.004 * a;
     p.vx += (an[0] - p.x) * k; p.vy += (an[1] - p.y) * k; p.vz += (an[2] - p.z) * k;
@@ -378,8 +411,9 @@ function tick3d() {   // the forces: parts push each other apart, strings pull c
     p.vx *= 0.8; p.vy *= 0.8; p.vz *= 0.8; p.x += p.vx; p.y += p.vy; p.z += p.vz; }
   T3.alpha = Math.max(0, a * 0.985 - 0.0005);
 }
-function camBasis() { const c = T3.cam, cy = Math.cos(c.yaw), sy = Math.sin(c.yaw), cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
-  return { right: [cy, 0, -sy], up: [-sy * sp, cp, -cy * sp], fwd: [sy * cp, sp, cy * cp] }; }
+function camBasis() { const c = T3.cam, cy = Math.cos(c.yaw), sy = Math.sin(c.yaw), cp = Math.cos(c.pitch), sp = Math.sin(c.pitch), cr = Math.cos(c.roll || 0), sr = Math.sin(c.roll || 0);
+  const R = [cy, 0, -sy], U = [-sy * sp, cp, -cy * sp];   // (turned about the line of sight by the twirl)
+  return { right: R.map((v, i) => v * cr + U[i] * sr), up: U.map((v, i) => v * cr - R[i] * sr), fwd: [sy * cp, sp, cy * cp] }; }
 function proj(B, p, W, H, f) {   // world → screen (x, y), depth, scale
   const c = T3.cam, dx = p.x - c.tx, dy = p.y - c.ty, dz = p.z - c.tz;
   const x = dx * B.right[0] + dy * B.right[1] + dz * B.right[2], y = dx * B.up[0] + dy * B.up[1] + dz * B.up[2], z = c.dist - (dx * B.fwd[0] + dy * B.fwd[1] + dz * B.fwd[2]);
@@ -453,19 +487,20 @@ function fit3d(id, now) {   // the camera to a part, or to all
 }
 cv3.addEventListener('pointerdown', e => {
   cv3.setPointerCapture(e.pointerId); T3.ptrs.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
-  if (T3.ptrs.size === 2) { const [a, b] = [...T3.ptrs.values()]; T3.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), dist: T3.cam.dist }; T3.drag = null; return; }
+  if (T3.ptrs.size === 2) { const [a, b] = [...T3.ptrs.values()]; T3.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), dist: T3.cam.dist, ang: Math.atan2(b.y - a.y, b.x - a.x), roll: T3.cam.roll || 0 }; T3.drag = null; return; }
   const id = hit3d(e.offsetX, e.offsetY); T3.drag = { id, x: e.offsetX, y: e.offsetY, x0: e.offsetX, y0: e.offsetY, moved: false }; $('#tip').hidden = true;
 });
 cv3.addEventListener('pointermove', e => {
   if (T3.ptrs.has(e.pointerId)) T3.ptrs.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
-  if (T3.pinch && T3.ptrs.size === 2) { const [a, b] = [...T3.ptrs.values()]; T3.cam.dist = Math.max(300, Math.min(20000, T3.pinch.dist * T3.pinch.d / Math.max(10, Math.hypot(a.x - b.x, a.y - b.y)))); T3.camTo = null; run3d(); return; }
+  if (T3.pinch && T3.ptrs.size === 2) { const [a, b] = [...T3.ptrs.values()]; T3.cam.dist = Math.max(300, Math.min(20000, T3.pinch.dist * T3.pinch.d / Math.max(10, Math.hypot(a.x - b.x, a.y - b.y))));
+    T3.cam.roll = T3.pinch.roll - (Math.atan2(b.y - a.y, b.x - a.x) - T3.pinch.ang); T3.camTo = null; run3d(); return; }   // (pinch to zoom, twirl to turn)
   const d = T3.drag;
   if (!d) { const id = hit3d(e.offsetX, e.offsetY); if (id) tip(e, id); else $('#tip').hidden = true; return; }
   const dx = e.offsetX - d.x, dy = e.offsetY - d.y; d.x = e.offsetX; d.y = e.offsetY; if (Math.hypot(e.offsetX - d.x0, e.offsetY - d.y0) > 4) d.moved = true;
   if (d.id) {   // pulling a part: it follows the finger, its strings pull the others
     const p = T3.nodes.get(d.id), B = camBasis(), H = cv3.clientHeight, q = proj(B, p, cv3.clientWidth, H, H * 0.95); if (!q) return; const u = 1 / q.s;
     p.x += (B.right[0] * dx - B.up[0] * dy) * u; p.y += (B.right[1] * dx - B.up[1] * dy) * u; p.z += (B.right[2] * dx - B.up[2] * dy) * u; T3.alpha = Math.max(T3.alpha, 0.25);
-  } else { T3.cam.yaw -= dx * 0.006; T3.cam.pitch = Math.max(-1.45, Math.min(1.45, T3.cam.pitch + dy * 0.006)); }
+  } else if (e.shiftKey) { T3.cam.roll = (T3.cam.roll || 0) - dx * 0.006; } else { T3.cam.yaw -= dx * 0.006; T3.cam.pitch = Math.max(-1.45, Math.min(1.45, T3.cam.pitch + dy * 0.006)); }
   run3d();
 });
 const up3 = e => { T3.ptrs.delete(e.pointerId); if (T3.ptrs.size < 2) T3.pinch = null; const d = T3.drag; T3.drag = null; if (!d || d.moved) { run3d(); return; }
@@ -492,7 +527,8 @@ function renderPanel() {
       <div>The four small bars on each part: memory, storage, CPU, GPU – coloured by load:</div>
       <div class="heat">${[0, 1, 2, 3, 4, 5].map(i => `<i style="background:var(--h${i})" title="${i}"></i>`).join('')}<span style="margin-left:6px">none … very high</span></div>
       <div><span class="sw" style="border-top:2px dashed var(--flow);background:none;height:0"></span>dashed outline: changed in the version shown</div>
-      <div>Selecting a part shows its direct links; <i>Whole chains</i> follows them further.</div>
+      <div>Selecting a part shows its direct links; <i>Whole chains</i> (Options) follows them further. <i>Relies on / Relied on by / Both</i> then hides everything else.</div>
+      <div>Spacing moves the parts closer or further apart. In Web and 3D, twirl with two fingers (or Shift + scroll / Shift + drag) to turn the view.</div>
       </div>
       <h3>The figures</h3><p>Sizes of code and data are measured from the repository for each version. Memory, storage, CPU and GPU loads are estimates from reading the code, rated 0 to 5, each with a note on what it is based on. Measured figures from your own devices can follow.</p>
       <h3>This version</h3><p><b>v${vs.v ?? '?'}</b> · ${new Date(vs.d).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}<br>${esc(vs.m)}</p>
@@ -564,7 +600,12 @@ $('#ver').oninput = e => setVer(+e.target.value, true);
 
 // ---------------------------------------------------------------- controls
 function seg(sel, key, cb) { $(sel).onclick = e => { const b = e.target.closest('button'); if (!b) return; S[key] = b.dataset.v; [...$(sel).children].forEach(x => x.setAttribute('aria-pressed', x === b)); keep(); cb?.(); draw(); }; [...$(sel).children].forEach(x => x.setAttribute('aria-pressed', x.dataset.v === S[key])); }
-seg('#segLayout', 'layout', () => { fitted = ''; }); seg('#segMetric', 'metric');
+seg('#segLayout', 'layout', () => { fitted = ''; }); seg('#segMetric', 'metric'); seg('#segFocus', 'focus', () => { if (S.focus !== 'all' && !S.sel) note2('Select a part first'); T3.fitNext = true; fitted = ''; setTimeout(() => S.layout !== '3d' && fit(), 60); });
+function note2(t) { const h = $('#hint'), o = h.textContent; h.textContent = t; setTimeout(() => { h.textContent = o; }, 1800); }
+$('#spread').value = S.spread;
+$('#spread').oninput = e => { S.spread = +e.target.value; keep(); if (S.layout === '3d') { T3.alpha = Math.max(T3.alpha, 0.6); run3d(); } else draw(); };
+$('#optBtn').onclick = () => { const m = $('#opts'), open = m.hidden; m.hidden = !open; $('#optBtn').setAttribute('aria-expanded', open); if (open) m.style.top = ($('header').getBoundingClientRect().bottom + 6) + 'px'; };
+document.addEventListener('pointerdown', e => { if (!$('#opts').hidden && !e.target.closest('#opts, #optBtn')) { $('#opts').hidden = true; $('#optBtn').setAttribute('aria-expanded', false); } });
 $('#ind').checked = S.ind; $('#ind').onchange = e => { S.ind = e.target.checked; keep(); draw(); };
 $('#offv').onchange = e => { S.offv = e.target.checked; draw(); };
 $('#lbl').onchange = e => { S.lbl = e.target.checked; draw(); };
@@ -580,7 +621,7 @@ $('#q').oninput = () => { const q = $('#q').value.trim().toLowerCase(); if (!q) 
   for (const c of N.values()) if (V.ex.has(c.id) && (c.name.toLowerCase().includes(q) || c.id.includes(q))) hits.push({ id: c.id, t: c.name, s: N.get(c.parent)?.name || 'Pult' });
   for (const [k] of Object.entries(V.st.decls)) if (k.split('|')[1].toLowerCase().includes(q)) { const o = owner(k); if (o) hits.push({ id: o, t: k.split('|')[1] + '()', s: 'in ' + N.get(o).name }); }
   hits = hits.slice(0, 14); hi = 0; paintHits(); };
-function paintHits() { $('#res').hidden = !hits.length; $('#res').innerHTML = hits.map((h, i) => `<button data-i="${i}" class="${i === hi ? 'on' : ''}">${esc(h.t)}<small>${esc(h.s)}</small></button>`).join(''); }
+function paintHits() { const r = $('#q').getBoundingClientRect(); $('#res').style.left = Math.max(8, Math.min(innerWidth - 308, r.left)) + 'px'; $('#res').style.top = (r.bottom + 4) + 'px'; $('#res').hidden = !hits.length; $('#res').innerHTML = hits.map((h, i) => `<button data-i="${i}" class="${i === hi ? 'on' : ''}">${esc(h.t)}<small>${esc(h.s)}</small></button>`).join(''); }
 $('#q').onkeydown = e => { if (e.key === 'ArrowDown') { hi = Math.min(hits.length - 1, hi + 1); paintHits(); e.preventDefault(); } else if (e.key === 'ArrowUp') { hi = Math.max(0, hi - 1); paintHits(); e.preventDefault(); } else if (e.key === 'Enter' && hits[hi]) go(hits[hi].id); else if (e.key === 'Escape') $('#res').hidden = true; };
 $('#res').onclick = e => { const b = e.target.closest('button'); if (b) go(hits[+b.dataset.i].id); };
 function go(id) { $('#res').hidden = true; $('#q').blur(); select(id); setTimeout(() => fit(id), 60); }
