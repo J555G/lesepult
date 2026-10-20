@@ -157,7 +157,11 @@ function obelGeo() {
   if (sunOn() && s.alt > 0) {
     const L = Math.min(8 * H, H / Math.tan(Math.max(1.5, s.alt) * RAD)), d = (s.az + 180) * RAD, ux = Math.sin(d), uy = Math.cos(d), w = 0.088 * H;
     const P = (along, side) => [g.lng + dLon(ux * along + uy * side), g.lat + dLat(uy * along - ux * side)];
-    sh.push({ type: 'Feature', properties: { o: Math.max(0.15, Math.min(0.5, s.alt / 20)) }, geometry: { type: 'Polygon', coordinates: [[P(0, -w), P(0, w), P(L * 0.8, w * 0.6), P(L, 0), P(L * 0.8, -w * 0.6), P(0, -w)]] } });
+    // (fuzzy edges: seven shapes, from a little inside to a little outside the shadow, each faint – together dark in the middle and
+    // fading at the edge; the blur grows towards the tip, as the half-shadow does – v328)
+    const o = Math.max(0.15, Math.min(0.5, s.alt / 20)) / 5.5, sb = 0.035 * H, k = 0.035;
+    for (const f of [-1, -2 / 3, -1 / 3, 0, 1 / 3, 2 / 3, 1]) { const e = a => f * (sb + a * k);
+      sh.push({ type: 'Feature', properties: { o }, geometry: { type: 'Polygon', coordinates: [[P(-e(0), -w - e(0)), P(-e(0), w + e(0)), P(L * 0.8, w * 0.6 + e(L * 0.8)), P(L + e(L), 0), P(L * 0.8, -w * 0.6 - e(L * 0.8)), P(-e(0), -w - e(0))]] } }); }
   }
   M.obZ = z;
   return [{ type: 'FeatureCollection', features: f }, { type: 'FeatureCollection', features: sh }];
@@ -168,7 +172,7 @@ function obelUpd() {
   const [body, sh] = obelGeo();
   if (!m.getSource('obel')) {
     m.addSource('obelsh', { type: 'geojson', data: sh }); m.addSource('obel', { type: 'geojson', data: body });
-    m.addLayer({ id: 'obel-sh', type: 'fill', source: 'obelsh', paint: { 'fill-color': '#140e08', 'fill-opacity': ['get', 'o'], 'fill-antialias': true } });
+    m.addLayer({ id: 'obel-sh', type: 'fill', source: 'obelsh', paint: { 'fill-color': '#140e08', 'fill-opacity': ['get', 'o'], 'fill-antialias': false } });
     m.addLayer({ id: 'obel', type: 'fill-extrusion', source: 'obel', paint: { 'fill-extrusion-color': ['get', 'c'], 'fill-extrusion-base': ['get', 'b'], 'fill-extrusion-height': ['get', 't'], 'fill-extrusion-vertical-gradient': true } });
     obelDragHook(m);
   } else { m.getSource('obel').setData(body); m.getSource('obelsh').setData(sh); }
@@ -311,6 +315,7 @@ function sdPanelHTML() {
   return `<div class="msdial" id="sunPanel"><svg class="sdsvg" id="sunSvg" height="${SD.H}" aria-hidden="true"><defs>
       <linearGradient id="sdSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" id="sdSky0"/><stop offset="1" id="sdSky1"/></linearGradient>
       <linearGradient id="sdSea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" id="sdSea0"/><stop offset="1" id="sdSea1"/></linearGradient>
+      <filter id="sdBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.3"/></filter>
       <radialGradient id="sdGlow"><stop offset="0" stop-color="#fff6c8" stop-opacity=".95"/><stop offset=".35" stop-color="#ffd85a" stop-opacity=".55"/><stop offset="1" stop-color="#ffb030" stop-opacity="0"/></radialGradient>
       <radialGradient id="sdStone" cx=".42" cy=".38"><stop offset="0" stop-color="#e9dfc8"/><stop offset="1" stop-color="#b8aa8c"/></radialGradient>
       <clipPath id="sdAbove"><rect id="sdAboveR" x="0" y="0" width="4000" height="0"/></clipPath><clipPath id="sdBelow"><rect id="sdBelowR" x="0" y="0" width="4000" height="4000"/></clipPath></defs>
@@ -318,7 +323,7 @@ function sdPanelHTML() {
     <rect id="sdSeaR" x="0" width="100%" height="${SD.H}" fill="url(#sdSea)"/><path id="sdGlint" class="sdglint" d=""/>
     <circle cx="${SD.cx}" cy="${SD.cy}" r="${SD.R + 6}" class="sdrim"/><circle cx="${SD.cx}" cy="${SD.cy}" r="${SD.P}" fill="url(#sdStone)" class="sdplate"/>
     <g class="sdticks">${ticks}</g><path id="sdDay" class="sdday" d=""/>
-    <line id="sdShadow" class="sdshadow" x1="${SD.cx}" y1="${SD.cy}" x2="${SD.cx}" y2="${SD.cy}"/><path class="sdgnomon" d="M${SD.cx - 3} ${SD.cy + 3}L${SD.cx} ${SD.cy - 14}L${SD.cx + 3} ${SD.cy + 3}z"/>
+    <line id="sdShadow" class="sdshadow" filter="url(#sdBlur)" x1="${SD.cx}" y1="${SD.cy}" x2="${SD.cx}" y2="${SD.cy}"/><path class="sdgnomon" d="M${SD.cx - 3} ${SD.cy + 3}L${SD.cx} ${SD.cy - 14}L${SD.cx + 3} ${SD.cy + 3}z"/>
     <g id="sdOwlPos" transform="translate(${SD.cx} ${SD.cy - 22})">${OWL}</g>
     <g clip-path="url(#sdAbove)"><g class="sdhpos"><circle r="22" fill="url(#sdGlow)" id="sdGlowC"/><circle r="8.5" class="sdsun"/></g></g>
     <g clip-path="url(#sdBelow)"><g class="sdhpos"><circle r="8" class="sdmoon"/><circle r="6.6" cx="3.4" cy="-2.2" class="sdmoonc"/></g></g><g class="sdhpos"><circle r="16" class="sdgrab"/></g>
