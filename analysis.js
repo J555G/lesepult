@@ -213,8 +213,75 @@ async function deleteDict(id) {
   await dropDictDB(id); await del('dicts', id); bucketCache.clear();
   if (id === 'morphhints') { await del('settings', 'morphPref'); await del('settings', 'lemmapos'); }
 }
+// A dictionary package read as it streams in (v347): unpacked bit by bit and taken apart at its top level – the small
+// entries (name, licence, headword list …) kept whole, the buckets parsed one at a time and stored in batches as they come.
+// Never the whole package in memory: the Greek morphology (99 MB unpacked, about a million forms) once took ~1 GB this way
+// round, now a few tens of MB. onBucket(key, value) may return a promise; reading waits for it.
+async function scanPackage(file, onMeta, onBucket, onProgress) {
+  let stream = file.stream();
+  const head = new Uint8Array(await file.slice(0, 2).arrayBuffer());
+  let read = 0; const total = file.size || 1;
+  stream = stream.pipeThrough(new TransformStream({ transform(ch, c) { read += ch.byteLength; c.enqueue(ch); } }));
+  if (head[0] === 0x1f && head[1] === 0x8b) {
+    if (typeof DecompressionStream === 'undefined') throw new Error('This browser cannot unpack .gz files – please update iPadOS.');
+    stream = stream.pipeThrough(new DecompressionStream('gzip'));
+  }
+  const reader = stream.pipeThrough(new TextDecoderStream()).getReader();
+  // depth 1: the package's own entries; depth 2 inside "buckets": one bucket each. A pair runs from after '{' or ',' to the
+  // next ',' or '}' at its depth (outside strings).
+  let depth = 0, inStr = false, esc = false, parts = [], start = 0, key = null, inBk = false, skip = false, chars = 0, pend = [];
+  const take = (ch, i) => { const t = parts.join('') + ch.slice(start, i); parts = []; start = i + 1; return t; };
+  const endTop = t => { if (skip) { skip = false; key = null; return; } const c = t.indexOf(':'); if (c < 0 || key == null) return; onMeta(key, JSON.parse(t.slice(c + 1))); key = null; };
+  const endBk = t => { if (!t.trim()) return; const o = JSON.parse('{' + t + '}'), k = Object.keys(o)[0]; const r = onBucket(k, o[k]); if (r) pend.push(r); };
+  for (;;) {
+    const { done, value: ch } = await reader.read(); if (done) break;
+    chars += ch.length; start = 0;
+    for (let i = 0; i < ch.length; i++) {
+      const c = ch.charCodeAt(i);
+      if (inStr) { if (esc) esc = false; else if (c === 92) esc = true; else if (c === 34) inStr = false; continue; }
+      if (c === 34) { inStr = true; continue; }
+      if (c === 123 || c === 91) {                                  // { [
+        depth++;
+        if (depth === 1) start = i + 1;
+        else if (depth === 2 && key === 'buckets' && c === 123 && !inBk) { inBk = true; skip = true; parts = []; start = i + 1; }
+      } else if (c === 125 || c === 93) {                           // } ]
+        if (inBk && depth === 2) { endBk(take(ch, i)); inBk = false; }
+        else if (depth === 1) endTop(take(ch, i));
+        depth--;
+      } else if (c === 44) {                                        // ,
+        if (inBk && depth === 2) endBk(take(ch, i));
+        else if (depth === 1) endTop(take(ch, i));
+      } else if (c === 58 && depth === 1 && key == null && !inBk) {   // : – the name of the entry now starting
+        const t = parts.join('') + ch.slice(start, i); key = JSON.parse(t.trim()); parts = [t + ':']; start = i + 1;
+      }
+    }
+    if (start < ch.length && !(skip && !inBk)) parts.push(ch.slice(start));
+    if (pend.length) { await Promise.all(pend); pend = []; }
+    onProgress?.(Math.min(1, read / total));
+  }
+  if (pend.length) await Promise.all(pend);
+  return chars;                                                     // (≈ the size of the data on the device)
+}
 async function importPackage(file, progress, version = null) {
-  const info = {}; const p = await readPackage(file, info);
+  S.importing = (S.importing || 0) + 1;                             // (the housekeeping leaves a database alone while one comes in)
+  try { return await importPackage1(file, progress, version); } finally { S.importing--; }
+}
+async function importPackage1(file, progress, version) {
+  const p = {}, names = new Set(); let ddb = null, batch = [], shown = false;
+  const flush = async () => {
+    if (!batch.length) return;
+    if (p.format !== 'greekdict-pkg-2' || p.id == null) throw new Error(file.name + ': not a (current) dictionary package');
+    ddb ??= await dictDB(p.id);
+    const t = ddb.transaction('b', 'readwrite'), os = t.objectStore('b'); for (const it of batch) os.put(it); batch = []; await done(t);
+  };
+  // no deletion first: buckets are overwritten one by one and stale ones removed at the end,
+  // so an interrupted update never leaves the dictionary missing
+  const size = await scanPackage(file, (k, v) => { p[k] = v; },
+    (k, v) => { names.add(k); batch.push(Object.assign({ b: k }, v));
+      if (!shown && p.name) { shown = true; progress(0, `${p.name}: ${(p.count || 0).toLocaleString('en')} ${p.kind === 'morph' ? 'forms' : 'entries'} …`); }
+      if (batch.length >= 300) return flush(); },
+    x => progress(x));
+  const info = { size };
   if (p.format !== 'greekdict-pkg-2') throw new Error(file.name + ': not a (current) dictionary package');
   if (p.kind === 'latmorph') {                 // Latin analysis engine: one record
     progress(0.5, `${p.name} …`);
@@ -229,18 +296,9 @@ async function importPackage(file, progress, version = null) {
     await put('dicts', { id: p.id, kind: p.kind, name: p.name, source: p.source, license: p.license, count: p.count, version, size: info.size });
     return;
   }
-  // no deletion first: buckets are overwritten one by one and stale ones removed at the end,
-  // so an interrupted update never leaves the dictionary missing
-  const items = Object.entries(p.buckets).map(([b, v]) => Object.assign({ b }, v));
-  progress(0, `${p.name}: ${p.count.toLocaleString('en')} ${p.kind === 'morph' ? 'forms' : 'entries'} …`);
-  const ddb = await dictDB(p.id);
-  for (let i = 0; i < items.length; i += 300) {
-    const t = ddb.transaction('b', 'readwrite'); const os = t.objectStore('b');
-    for (const it of items.slice(i, i + 300)) os.put(it);
-    await done(t); progress(Math.min(1, (i + 300) / items.length));
-  }
+  await flush(); ddb ??= await dictDB(p.id);
   if (p.hw != null) { const t = ddb.transaction('b', 'readwrite'); t.objectStore('b').put({ b: '#hw', s: p.hw }); await done(t); }   // the headword list (search)
-  { const keep = new Set(Object.keys(p.buckets)); if (p.hw != null) keep.add('#hw'); const t = ddb.transaction('b', 'readwrite'); const os = t.objectStore('b');
+  { const keep = new Set(names); if (p.hw != null) keep.add('#hw'); const t = ddb.transaction('b', 'readwrite'); const os = t.objectStore('b');
     for (const k of await req2p(os.getAllKeys())) if (!keep.has(k)) os.delete(k);
     await done(t); }
   bucketCache.clear();

@@ -131,7 +131,7 @@ async function saveText(title, text, choices) {
 // entries of deleted texts, the place index without its package, deleted works and previous versions after 7 days
 async function housekeep() {
   const step = async f => { try { await f(); } catch (_) { } };
-  await step(async () => { if ([...DL.keys()].some(id => !id.startsWith('work:') && !id.startsWith('map:'))) return;   // (not while a dictionary is coming in: its database exists before it counts as installed)
+  await step(async () => { if (S.importing || [...DL.keys()].some(id => !id.startsWith('work:') && !id.startsWith('map:'))) return;   // (not while a dictionary is coming in – downloaded or imported from a file: its database exists before it counts as installed – v347)
     const dbs = await listDBs(); if (!S.installed) await loadDicts();
     if (dbs) for (const { name } of dbs) if (name === OLD_DB || (name.startsWith(DICT_DB) && !S.installed[name.slice(DICT_DB.length)]))
       await new Promise(res => { const r = indexedDB.deleteDatabase(name); r.onsuccess = r.onerror = r.onblocked = () => res(); }); });
