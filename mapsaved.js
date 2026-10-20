@@ -313,7 +313,11 @@ async function mapCanvas() {
   ctx.font = '600 14px "Gentium Book Plus", serif'; ctx.fillText(mapTitle(), 10, H + 7, W / dpr - 20);
   ctx.globalAlpha = 0.65; ctx.font = '10px "Source Sans 3", system-ui, sans-serif';
   const has = id => !!M.map.getLayer(id) && M.map.getLayoutProperty(id, 'visibility') !== 'none';
-  const cred = ['Places: Pleiades (CC BY)', has('ne2') ? 'Map: Natural Earth II' : 'Map: Natural Earth', has('hd-sea') && 'Coasts: © OpenStreetMap contributors (ODbL)',
+  const on = has('img-on') && imgOnline(), k = imgKind();             // (the imagery as shown: online Sentinel-2 or Esri, else Blue Marble – v324)
+  const img = on && k === 's2' ? `Imagery: Sentinel-2 cloudless – s2maps.eu by EOX (contains modified Copernicus Sentinel data${on.s2year ? ' ' + on.s2year : ''})`
+    : on && k === 'esri' ? 'Imagery: Esri, Maxar, Earthstar Geographics, and the GIS User Community' : (has('img-bm') || on) && 'Imagery: NASA Blue Marble';
+  const cred = ['Places: Pleiades (CC BY)', img, ['land', 'lakes', 'rivers', 'borders', 'img-lakes'].some(has) && 'Waters and borders: Natural Earth',
+    has('osm-rivers') && 'Rivers: © OpenStreetMap contributors (ODbL)', has('hd-sea') && 'Coasts: © OpenStreetMap contributors (ODbL)',
     M.anc && 'Ancient world: Ancient World Mapping Center (ODbL)', has('it-roads') && 'Roads: Itiner-e (CC BY 4.0)', (has('rel-shade') || has('rel-contour')) && 'Relief: Mapterhorn (from open elevation data)', 'made with Pult'].filter(Boolean);
   ctx.fillText(cred.join(' · '), 10, H + 27, W / dpr - 20);
   ctx.restore();
