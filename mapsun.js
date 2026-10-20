@@ -19,6 +19,26 @@ function sunPos(ms) {
   let lon = (ra / RAD / 15 - gmst) * 15; lon = ((lon + 540) % 360) - 180;
   return { dec, lon, ecl: ((L / RAD) % 360 + 360) % 360 };         // the point beneath the sun (dec: radians, lon: degrees); its place on the ecliptic (degrees)
 }
+// the moon (after P. Schlyter's low-precision method, with the main perturbations: about a quarter of a degree): the point beneath
+// it (as sunPos), its place on the ecliptic, and how much of it is lit; waxing while it moves away from the sun (v334)
+function moonPos(ms) {
+  const d = ms / 864e5 - 10956, R = RAD, n = x => ((x % 360) + 360) % 360;
+  const N = n(125.1228 - 0.0529538083 * d) * R, i = 5.1454 * R, w = n(318.0634 + 0.1643573223 * d) * R, a = 60.2666, e = 0.0549, M = n(115.3654 + 13.0649929509 * d) * R;
+  let E = M + e * Math.sin(M) * (1 + e * Math.cos(M)); for (let k = 0; k < 3; k++) E = E - (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+  const xv = a * (Math.cos(E) - e), yv = a * Math.sqrt(1 - e * e) * Math.sin(E), v = Math.atan2(yv, xv), r = Math.hypot(xv, yv);
+  const xh = r * (Math.cos(N) * Math.cos(v + w) - Math.sin(N) * Math.sin(v + w) * Math.cos(i)), yh = r * (Math.sin(N) * Math.cos(v + w) + Math.cos(N) * Math.sin(v + w) * Math.cos(i)), zh = r * Math.sin(v + w) * Math.sin(i);
+  let lon = Math.atan2(yh, xh) / R, lat = Math.atan2(zh, Math.hypot(xh, yh)) / R;
+  const Ms = n(356.047 + 0.9856002585 * d) * R, Ls = Ms + n(282.9404 + 4.70935e-5 * d) * R, Lm = N + w + M, D = Lm - Ls, F = Lm - N, sn = Math.sin;
+  lon += -1.274 * sn(M - 2 * D) + 0.658 * sn(2 * D) - 0.186 * sn(Ms) - 0.059 * sn(2 * M - 2 * D) - 0.057 * sn(M - 2 * D + Ms) + 0.053 * sn(M + 2 * D)
+    + 0.046 * sn(2 * D - Ms) + 0.041 * sn(M - Ms) - 0.035 * sn(D) - 0.031 * sn(M + Ms) - 0.015 * sn(2 * F - 2 * D) + 0.011 * sn(M - 4 * D);
+  lat += -0.173 * sn(F - 2 * D) - 0.055 * sn(M - F - 2 * D) - 0.046 * sn(M + F - 2 * D) + 0.033 * sn(F + 2 * D) + 0.017 * sn(2 * M + F);
+  const ob = (23.4393 - 3.563e-7 * d) * R, la = lat * R, lo = lon * R;
+  const xe = Math.cos(la) * Math.cos(lo), ye = Math.cos(la) * Math.sin(lo) * Math.cos(ob) - Math.sin(la) * Math.sin(ob), ze = Math.cos(la) * Math.sin(lo) * Math.sin(ob) + Math.sin(la) * Math.cos(ob);
+  const ra = Math.atan2(ye, xe), dec = Math.asin(ze), d0 = ms / 864e5 - 10957.5, gmst = ((18.697374558 + 24.06570982441908 * d0) % 24 + 24) % 24;
+  let glon = (ra / R / 15 - gmst) * 15; glon = ((glon + 540) % 360) - 180;
+  const s = sunPos(ms), el = Math.acos(Math.max(-1, Math.min(1, Math.sin(s.dec) * Math.sin(dec) + Math.cos(s.dec) * Math.cos(dec) * Math.cos((glon - s.lon) * R))));
+  return { dec, lon: glon, ecl: n(lon), lit: (1 - Math.cos(el)) / 2, waxing: n(lon - s.ecl) < 180 };
+}
 // height and direction of the sun at a place (degrees; azimuth clockwise from north)
 function sunAt(s, lon, lat) {
   const H = (lon - s.lon) * RAD, f = lat * RAD;
@@ -102,7 +122,7 @@ function sunApply() {
     if (m.getLayer('rel-shade')) { const c = sunRef(), a = sunAt(sunPos(sunTime()), c.lng, c.lat);
       m.setPaintProperty('rel-shade', 'hillshade-illumination-anchor', 'map'); m.setPaintProperty('rel-shade', 'hillshade-illumination-direction', Math.round(a.az)); }
   } else if (m.getLayer('rel-shade')) { m.setPaintProperty('rel-shade', 'hillshade-illumination-anchor', 'viewport'); m.setPaintProperty('rel-shade', 'hillshade-illumination-direction', 335); }
-  sundialPaint(); obelUpd();
+  sundialPaint(); obelUpd(); skyHook();
 }
 // ---------------------------------------------------------------- the place the dial shows (and the shading is lit from)
 // An obelisk set on the map with "Here" (mapCfg gnomon: { lng, lat }); else, while the sundial is open, the point of the
@@ -131,7 +151,7 @@ function sunMove() {
       if (a !== M.shadeAz) { M.shadeAz = a; m.setPaintProperty('rel-shade', 'hillshade-illumination-direction', a); } }
     obelShadow(); });
 }
-function sunMoveHook() { const m = M.map; if (m && !m._sunMv) { m._sunMv = true; m.on('move', sunMove); m.on('style.load', () => setTimeout(obelUpd, 0)); } }
+function sunMoveHook() { const m = M.map; if (m && !m._sunMv) { m._sunMv = true; m.on('move', sunMove); m.on('style.load', () => setTimeout(() => { obelUpd(); skyHook(); }, 0)); } skyHook(); }
 // the obelisk: a model of red porphyry standing upright on the ground (fill-extrusion, lit by the sun where it stands): a
 // plinth, a tapering shaft, a pointed top; its size fixed in metres when it is set (then like any building: larger as one
 // zooms in), the reader's size ⅓ … 3 times; its shadow on the ground away from the sun, long when the sun is low, none at night. Dragged,
@@ -304,6 +324,65 @@ async function sunHere() {
   $('#mapCanvas')?.classList.add('picking');
   M.pick = async ll => { M.cfg.gnomon = { lng: ((ll.lng + 540) % 360) - 180, lat: ll.lat }; await saveMapCfg(); obelUpd(); sdRefUpd(); sunApply(); const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML(); };
 }
+// ---------------------------------------------------------------- the sun and the moon in the sky (v334)
+// Drawn where they truly stand as seen from the place the dial shows: tilted towards the horizon, in the sky; zoomed out, in space
+// beside the globe – a direction "at infinity" projected by the map's own camera, hidden where the earth lies before it. Larger
+// than true (settings: skySize, 1 … 6, 3), the sun with a glow, the moon in its real phase. Switches: skySun, skyMoon.
+const mat4v = (m, v) => [0, 1, 2, 3].map(i => m[i] * v[0] + m[4 + i] * v[1] + m[8 + i] * v[2] + m[12 + i] * v[3]);
+const skyDir = (az, alt) => [Math.cos(alt * RAD) * Math.sin(az * RAD), Math.sin(alt * RAD), -Math.cos(alt * RAD) * Math.cos(az * RAD)];   // (x east, y up, z south)
+function skyHook() {
+  const m = M.map; if (!m || !m.style?._loaded) return;
+  const on = sunOn() && (M.cfg.skySun !== false || M.cfg.skyMoon !== false);
+  if (on && !m.getLayer('skybodies')) m.addLayer({ id: 'skybodies', type: 'custom', renderingMode: '2d', render(gl, args) { skyDraw(args); } });
+  if (!on) { if (m.getLayer('skybodies')) m.removeLayer('skybodies'); const c = $('#skyCv'); if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height); }
+}
+function skyDraw(args) {
+  const m = M.map, box = m.getContainer(), W = box.clientWidth, H = box.clientHeight, dpr = devicePixelRatio || 1;
+  let cv = $('#skyCv');
+  if (!cv || cv.parentNode !== box) { cv?.remove(); cv = document.createElement('canvas'); cv.id = 'skyCv'; cv.className = 'skycv'; box.append(cv); }
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, W, H);
+  const ref = sunRef(), t = sunTime(), P = args.defaultProjectionData.mainMatrix, MM = m.transform.getMatrixForModel([ref.lng, ref.lat], 0);
+  const scr = d => { const c = mat4v(P, mat4v(MM, [...d, 0])); return c[3] > 1e-9 ? [(c[0] / c[3] + 1) / 2 * W, (1 - c[1] / c[3]) / 2 * H] : null; };
+  // hidden by the earth: the eye of the camera (in metres about the place, x east, y up, z south) and a ray from it – on the globe
+  // a sphere, on the flat map the ground plane
+  const Q = [0, 1, 3].map(r => [0, 1, 2, 3].map(c => { let v = 0; for (let k = 0; k < 4; k++) v += P[k * 4 + r] * MM[c * 4 + k]; return v; }));
+  const det3 = (a, b, c) => a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0]);
+  const A = Q.map(q => q.slice(0, 3)), B = Q.map(q => -q[3]), dA = det3(...A);
+  const eye = Math.abs(dA) > 1e-30 ? [0, 1, 2].map(i => det3(...A.map((row, j) => row.map((v, k) => k === i ? B[j] : v))) / dA) : [0, 1e7, 0];
+  const globe = m.getProjection?.()?.type === 'globe', RE = 6371008.8;
+  const behindEarth = d => { if (!globe) return d[1] < 0;
+    const o = [eye[0], eye[1] + RE, eye[2]], b = o[0] * d[0] + o[1] * d[1] + o[2] * d[2], c = o[0] ** 2 + o[1] ** 2 + o[2] ** 2 - RE * RE, disc = b * b - c;
+    return disc > 0 && -b - Math.sqrt(disc) > 0; };
+  const f = H / 2 / Math.tan((m.transform.fovInRadians || 0.6435) / 2), size = M.cfg.skySize || 3;
+  const s = sunAt(sunPos(t), ref.lng, ref.lat), ds = skyDir(s.az, s.alt);
+  if (M.cfg.skySun !== false) {
+    const p = scr(ds);
+    if (p && !behindEarth(ds)) {
+      const r = Math.max(1.5, 0.2666 * RAD * size * f), low = Math.max(0, Math.min(1, 1 - s.alt / 8));        // (redder when low)
+      const g = x.createRadialGradient(p[0], p[1], 0, p[0], p[1], r * 6); g.addColorStop(0, `rgba(255,${236 - 60 * low},${170 - 110 * low},.5)`); g.addColorStop(0.25, `rgba(255,${210 - 70 * low},${120 - 80 * low},.18)`); g.addColorStop(1, 'rgba(255,200,120,0)');
+      x.fillStyle = g; x.beginPath(); x.arc(p[0], p[1], r * 6, 0, 7); x.fill();
+      const d = x.createRadialGradient(p[0], p[1], 0, p[0], p[1], r); d.addColorStop(0, '#fffdf2'); d.addColorStop(1, `rgb(255,${226 - 90 * low},${120 - 90 * low})`);
+      x.fillStyle = d; x.beginPath(); x.arc(p[0], p[1], r, 0, 7); x.fill();
+    }
+  }
+  if (M.cfg.skyMoon !== false) {
+    const mo = moonPos(t), a = sunAt(mo, ref.lng, ref.lat), dm = skyDir(a.az, a.alt), p = scr(dm);
+    if (p && !behindEarth(dm)) {
+      const r = Math.max(1.5, 0.259 * RAD * size * f);
+      // the bright side turned to the sun: a direction a little towards it, seen on the screen
+      const dot = ds[0] * dm[0] + ds[1] * dm[1] + ds[2] * dm[2], pe = ds.map((v, i) => v - dm[i] * dot), pl = Math.hypot(...pe) || 1;
+      const q = scr(dm.map((v, i) => v + 0.02 * pe[i] / pl)), th = q ? Math.atan2(q[1] - p[1], q[0] - p[0]) : 0, k = mo.lit;
+      const g = x.createRadialGradient(p[0], p[1], 0, p[0], p[1], r * 3); g.addColorStop(0, `rgba(230,236,255,${0.12 + 0.18 * k})`); g.addColorStop(1, 'rgba(230,236,255,0)');
+      x.fillStyle = g; x.beginPath(); x.arc(p[0], p[1], r * 3, 0, 7); x.fill();
+      x.save(); x.translate(p[0], p[1]); x.rotate(th);
+      x.fillStyle = 'rgba(70,76,104,.55)'; x.beginPath(); x.arc(0, 0, r, 0, 7); x.fill();            // (the dark side, faintly)
+      x.fillStyle = '#f1efe4'; x.beginPath(); x.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, false);
+      x.ellipse(0, 0, Math.max(0.01, r * Math.abs(2 * k - 1)), r, 0, Math.PI / 2, -Math.PI / 2, k <= 0.5); x.fill();
+      x.restore();
+    }
+  }
+}
 // the clock: Now (every 30 s), Animate (about 20 times a second), or set by hand
 function sunClock() {
   cancelAnimationFrame(M.sunRaf); clearInterval(M.sunIv); M.sunRaf = M.sunIv = 0;
@@ -431,7 +510,7 @@ function sdPanelHTML() {
     <line id="sdShadow" class="sdshadow" filter="url(#sdBlur)" x1="${SD.cx}" y1="${SD.cy}" x2="${SD.cx}" y2="${SD.cy}"/><path class="sdgnomon" d="M${SD.cx - 3} ${SD.cy + 3}L${SD.cx} ${SD.cy - 14}L${SD.cx + 3} ${SD.cy + 3}z"/>
     <g id="sdOwlPos" transform="translate(${SD.cx} ${SD.cy - 22})">${OWL}</g>
     <g clip-path="url(#sdAbove)"><g class="sdhpos"><circle r="22" fill="url(#sdGlow)" id="sdGlowC"/><circle r="8.5" class="sdsun"/></g></g>
-    <g clip-path="url(#sdBelow)"><g class="sdhpos"><circle r="8" class="sdmoon"/><circle r="6.6" cx="3.4" cy="-2.2" class="sdmoonc"/></g></g><g class="sdhpos"><circle r="16" class="sdgrab"/></g>
+    <g clip-path="url(#sdBelow)"><g class="sdhpos"><circle r="8" class="sdmoonc"/><path id="sdMoonLit" class="sdmoon" d=""/></g></g><g class="sdhpos"><circle r="16" class="sdgrab"/></g>
     ${zodWheelHTML()}
     <text id="sdLab" class="sdlab" x="${SD.cx}" y="${SD.H - 12}" text-anchor="middle"></text></svg>
     <div class="sdctl" id="sunCtl"></div><button type="button" class="sdx" id="sdSwap" data-sdswap="1"></button></div>`;
@@ -464,7 +543,7 @@ function sdCtlHTML() {
     + (mode === 'anim' ? `<div class="msun">${play}<input type="range" min="0" max="100" value="${spdToV(spd)}" data-sunspeed="1" aria-label="Speed"><output>${spdLabel(spd)}</output></div>` : '')
     + (mode === 'year' ? `<div class="msun">${play}<input type="range" min="0" max="100" value="${yrToV(yr)}" data-sunyear="1" aria-label="Speed"><output>${yrLabel(yr)}</output></div>` : '')
     + `<div class="seg" role="group">${[['modern', 'Modern'], ['roman', 'Roman'], ['greek', 'Greek']].map(([v, l]) => `<button type="button" data-sunfmt="${v}" class="${(M.cfg.sunFmt || 'modern') === v ? 'on' : ''}">${l}</button>`).join('')}</div>`
-    + `<div class="sdtg">${[['sunNight', 'Night'], ['sunAtm', 'Air']].map(([k, l]) => `<button type="button" data-suntg="${k}" class="${M.cfg[k] !== false ? 'on' : ''}" aria-pressed="${M.cfg[k] !== false}">${l}</button>`).join('')}`
+    + `<div class="sdtg">${[['skySun', 'Sun'], ['skyMoon', 'Moon']].map(([k, l]) => `<button type="button" data-suntg="${k}" class="${M.cfg[k] !== false ? 'on' : ''}" aria-pressed="${M.cfg[k] !== false}">${l}</button>`).join('')}`
     + `<button type="button" data-sunhere="1" class="${M.cfg.gnomon ? 'on' : ''}" aria-pressed="${!!M.cfg.gnomon}" title="${M.cfg.gnomon ? 'Take the obelisk away' : 'Set an obelisk on the map: the dial then shows that place'}">Here</button>`
     + (M.cfg.gnomon ? `<input type="range" class="obsz" min="0" max="100" value="${Math.round(Math.log(obelK() * 3) / Math.log(9) * 100)}" data-obsz="1" aria-label="Size of the obelisk" title="Size of the obelisk">` : '') + `</div>`
     + `<small class="sdsub" id="sdSub"></small>`;
@@ -506,6 +585,9 @@ function sundialPaint() {
   else sh.style.opacity = 0;
   // the owl: lands when the handle enters the night, flies off when it leaves
   if (M.sdOwl !== !day) { M.sdOwl = !day; const o = $('#sdOwlPos .sdowl'); o.classList.remove('land', 'away'); void o.getBoundingClientRect(); o.classList.add(day ? 'away' : 'land'); }
+  // the moon on the dial in its real phase: lit on the right while waxing, on the left while waning (as seen from the north)
+  { const mo = moonPos(sunTime()), k = mo.lit, r = 8, rx = Math.max(0.01, r * Math.abs(2 * k - 1)), sgn = mo.waxing ? 1 : -1;
+    $('#sdMoonLit')?.setAttribute('d', `M0 ${-r}A${r} ${r} 0 0 ${sgn > 0 ? 1 : 0} 0 ${r}A${rx.toFixed(2)} ${r} 0 0 ${(k > 0.5) === (sgn > 0) ? 1 : 0} 0 ${-r}z`); }
   const l = sunLabel(); $('#sdLab').textContent = l.main; const sub = $('#sdSub'); if (sub) sub.textContent = l.sub;
   // the zodiac wheel, where there is room: at the right, beside the controls; else in turn with them
   const zw = W >= SD.ZW, zp = !zw && M.sdPage === 'zod', pn = $('#sunPanel'); pn?.classList.toggle('zw', zw); pn?.classList.toggle('zp', zp);
@@ -550,7 +632,8 @@ const spdToV = s => Math.round(Math.log(60 / s) / Math.log(12) * 100), vToSpd = 
 const spdLabel = s => `a day in ${s >= 9.95 ? Math.round(s) : s.toFixed(1)} s`;
 // the height exaggeration of 3D (1 … 3), and the spacing of the contour lines (the least room between them, 4 … 24 pixels)
 document.addEventListener('input', ev => {
-  const x = ev.target.closest?.('input[data-exag]'), sp = ev.target.closest?.('input[data-cspace]');
+  const x = ev.target.closest?.('input[data-exag]'), sp = ev.target.closest?.('input[data-cspace]'), sk = ev.target.closest?.('input[data-skysize]');
+  if (sk) { M.cfg.skySize = +sk.value; M.map?.triggerRepaint(); clearTimeout(M.skT); M.skT = setTimeout(saveMapCfg, 400); return; }
   if (x) { M.cfg.exag = +x.value; $('#exagOut') && ($('#exagOut').textContent = '×' + M.cfg.exag.toFixed(1)); if (M.map?.getTerrain()) M.map.setTerrain(T3D()); clearTimeout(M.exT); M.exT = setTimeout(saveMapCfg, 400); }
   if (sp) { M.cfg.relSpacing = +sp.value; clearTimeout(M.spT);
     if (cgpuOn()) { contApply(); M.cnum = null; drawLabels(); M.spT = setTimeout(saveMapCfg, 400); }
@@ -679,12 +762,9 @@ async function mapOptsClick(b) {
   if (b.id === 'mapCompBtn') { M.cfg.compass = M.cfg.compass === false; await saveMapCfg(); b.classList.toggle('on', M.cfg.compass); b.setAttribute('aria-pressed', M.cfg.compass); compassUpd(); return true; }
   if (b.id === 'mapNorth' || d.mnorth) { M.map?.easeTo({ bearing: 0, duration: 500 }); return true; }
   if (b.id === 'mapSunBtn') { await sdOpen(!M.sdOpen); return true; }
-  if (d.suntg) {                                                   // the night shade, the atmosphere: each on or off
+  if (d.suntg) {                                                   // the sun and the moon in the sky: each on or off
     M.cfg[d.suntg] = M.cfg[d.suntg] === false; await saveMapCfg(); b.classList.toggle('on', M.cfg[d.suntg]); b.setAttribute('aria-pressed', M.cfg[d.suntg]);
-    const m = M.map, vis = k => M.cfg[k] !== false ? 'visible' : 'none';
-    if (m?.getLayer('sun-night')) m.setLayoutProperty('sun-night', 'visibility', vis('sunNight'));
-    if (d.suntg === 'sunAtm' && m) m.setSky(mapStyle(M.colors).sky);
-    return true; }
+    skyHook(); M.map?.triggerRepaint(); return true; }
   if (d.sunhere) { await sunHere(); return true; }
   if (d.sdswap) { M.sdPage = M.sdPage === 'zod' ? 'ctl' : 'zod'; sundialPaint(); return true; }
   if (d.sunfmt) { M.cfg.sunFmt = d.sunfmt; await saveMapCfg(); $('#sunCtl').innerHTML = sdCtlHTML(); sundialPaint(); return true; }

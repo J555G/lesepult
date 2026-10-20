@@ -523,6 +523,7 @@ function settingsHTML() {
   return `<div class="navh">Display</div>`
     + sw('scale', 'Reference distance', 'a scale bar, top right below the buttons')
     + sw('zoomShow', 'Zoom level', 'shown below it')
+    + `<div class="mline"><span>Sun and moon in the sky<small class="hint">their size: true (half a degree, very small) to six times larger</small></span><span class="mrng"><small>true</small><input type="range" min="1" max="6" step="0.5" value="${M.cfg.skySize || 3}" data-skysize="1" aria-label="Size of the sun and the moon"><small>6×</small></span></div>`
     + rivSettingsHTML()
     + `<div class="mline"><span>ArcGIS key<small class="hint">for Esri’s current imagery; free at developers.arcgis.com – kept on this device only</small></span><input type="text" data-esrikey="1" class="nofocus" value="${esc(M.esriKey || '')}" autocomplete="off" spellcheck="false" placeholder="none" aria-label="ArcGIS key"></div>`
     + line('Units of distance and height', seg('units', [['metric', 'Metric'], ['imperial', 'Imperial'], ['roman', 'Roman'], ['greek', 'Greek']]))

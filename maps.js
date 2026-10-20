@@ -44,6 +44,7 @@ async function mapCfg() {
     }
     if (!saved.v5) { saved.v5 = true; if (saved.regions) { saved.nmRegions = saved.regions !== 'off'; saved.regArea = saved.regions === 'areas'; } }   // the new layer menu
     if (saved.basemap === 'ne2') saved.basemap = 'hd';
+    delete saved.sunNight; delete saved.sunAtm;                                             // (night shade and air: always with day and night, v334)
     if (saved.img === 'none') saved.img = 'bm';                                            // (the drawn map retired, v300)                                     // (Natural Earth II retired, v296)
     if (!saved.v4) { saved.v4 = true; if (!Object.values(saved.cats || {}).some(Boolean)) saved.cats = { settl: true }; }   // kinds of places: settlements by default
     M.cfg = Object.assign({ mark: false, jump: true, pfOn: true, sel: [], scope: 'section', names: 'text', peoples: false, borders: false, rough: true, persons: 'unsure' }, JSON.parse(JSON.stringify(LCFG)), saved);

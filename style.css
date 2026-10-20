@@ -2023,3 +2023,4 @@ dialog .sortpair button{transition:border-color .15s}
 .mpop .mrow output{font:12px var(--ui);color:var(--mut);margin-left:.3rem}
 .msdial .sdtg{flex-wrap:nowrap;align-items:center;max-width:100%}
 .msdial .sdtg .obsz{flex:1 1 56px;min-width:36px;max-width:72px;width:auto}
+.skycv{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
