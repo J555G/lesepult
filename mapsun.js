@@ -457,10 +457,15 @@ function skyDraw(args) {
       if (!p || p[0] < -2 * R || p[1] < -2 * R || p[0] > W + 2 * R || p[1] > H + 2 * R) continue;
       skyStar(y, p[0], p[1], Math.max(2, R), st); } }
   if (!sunOn()) return;                                              // (the sun and the moon: with day and night)
-  // the faces of the sun and the moon are upright to the local vertical of the place shown – part of the world, not of the screen:
-  // turning the globe turns them with it; seen from the ground they stand upright over the horizon (v341). The screen angle of "up"
-  // at a direction d: towards a point a little above it (straight up at the zenith itself: towards the north)
-  const upAng = (d, p) => { let u = [-d[0] * d[1], 1 - d[1] * d[1], -d[2] * d[1]], l = Math.hypot(...u); if (l < 1e-4) { u = [0, 0, -1]; l = 1; }
+  // the faces of the sun and the moon are upright to whoever sees them on the horizon: their "up" points away from the earth's
+  // centre, as seen on the screen – part of the world, not of the screen (v341/344). Zoomed out, the sun beside the globe stands
+  // upright to the people at the rim of the globe beneath it, who see it rise or set; as it passes round the globe it turns,
+  // upright to those who see it rise and, half a turn later, to those who see it set. Seen from the ground (the earth's centre far
+  // below), upright over the horizon. (Where the centre cannot be projected: the local vertical of the place shown.)
+  const ce = mat4v(P, mat4v(MM, [0, -6371008.8, 0, 1])), C = ce[3] > 1e-9 ? [(ce[0] / ce[3] + 1) / 2 * W, (1 - ce[1] / ce[3]) / 2 * H] : null;
+  const upAng = (d, p) => {
+    if (C && Math.hypot(p[0] - C[0], p[1] - C[1]) > 1) return Math.atan2(p[1] - C[1], p[0] - C[0]) + Math.PI / 2;
+    let u = [-d[0] * d[1], 1 - d[1] * d[1], -d[2] * d[1]], l = Math.hypot(...u); if (l < 1e-4) { u = [0, 0, -1]; l = 1; }
     const q = scr(d.map((v, i) => v + 0.02 * u[i] / l)); return q ? Math.atan2(q[1] - p[1], q[0] - p[0]) + Math.PI / 2 : 0; };
   const s = sunAt(sunPos(t), ref.lng, ref.lat), ds = skyDir(s.az, s.alt);
   if (M.cfg.skySun !== false) {
