@@ -330,11 +330,13 @@ async function sunHere() {
 // than true (settings: skySize, 1 … 6, 3), the sun with a glow, the moon in its real phase. Switches: skySun, skyMoon.
 const mat4v = (m, v) => [0, 1, 2, 3].map(i => m[i] * v[0] + m[4 + i] * v[1] + m[8 + i] * v[2] + m[12 + i] * v[3]);
 const skyDir = (az, alt) => [Math.cos(alt * RAD) * Math.sin(az * RAD), Math.sin(alt * RAD), -Math.cos(alt * RAD) * Math.cos(az * RAD)];   // (x east, y up, z south)
+// Behind the map, wherever no earth is seen (around the globe, above the horizon of a tilted view): dark blue space with stars,
+// fixed among themselves and turning with the sky (a scattering, not a star chart – v335).
+const STARS = (() => { let sd = 11; const r = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  return Array.from({ length: 3000 }, () => { const u = r(), m = r(); return { ra: r() * 360, dec: Math.asin(2 * u - 1), b: 0.3 + 0.7 * m ** 3, s: 0.45 + 1.3 * m ** 5, c: r() }; }); })();
 function skyHook() {
   const m = M.map; if (!m || !m.style?._loaded) return;
-  const on = sunOn() && (M.cfg.skySun !== false || M.cfg.skyMoon !== false);
-  if (on && !m.getLayer('skybodies')) m.addLayer({ id: 'skybodies', type: 'custom', renderingMode: '2d', render(gl, args) { skyDraw(args); } });
-  if (!on) { if (m.getLayer('skybodies')) m.removeLayer('skybodies'); const c = $('#skyCv'); if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height); }
+  if (!m.getLayer('skybodies')) m.addLayer({ id: 'skybodies', type: 'custom', renderingMode: '2d', render(gl, args) { skyDraw(args); } });
 }
 function skyDraw(args) {
   const m = M.map, box = m.getContainer(), W = box.clientWidth, H = box.clientHeight, dpr = devicePixelRatio || 1;
@@ -342,6 +344,11 @@ function skyDraw(args) {
   if (!cv || cv.parentNode !== box) { cv?.remove(); cv = document.createElement('canvas'); cv.id = 'skyCv'; cv.className = 'skycv'; box.append(cv); }
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
   const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, W, H);
+  let bg = $('#skyBg');                                              // (the space behind the map)
+  if (!bg || bg.parentNode !== box) { bg?.remove(); bg = document.createElement('canvas'); bg.id = 'skyBg'; bg.className = 'skybg'; box.prepend(bg); }
+  if (bg.width !== Math.round(W * dpr) || bg.height !== Math.round(H * dpr)) { bg.width = Math.round(W * dpr); bg.height = Math.round(H * dpr); }
+  const y = bg.getContext('2d'); y.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const sp = y.createLinearGradient(0, 0, 0, H); sp.addColorStop(0, '#060b22'); sp.addColorStop(1, '#0c1534'); y.fillStyle = sp; y.fillRect(0, 0, W, H);
   const ref = sunRef(), t = sunTime(), P = args.defaultProjectionData.mainMatrix, MM = m.transform.getMatrixForModel([ref.lng, ref.lat], 0);
   const scr = d => { const c = mat4v(P, mat4v(MM, [...d, 0])); return c[3] > 1e-9 ? [(c[0] / c[3] + 1) / 2 * W, (1 - c[1] / c[3]) / 2 * H] : null; };
   // hidden by the earth: the eye of the camera (in metres about the place, x east, y up, z south) and a ray from it – on the globe
@@ -355,6 +362,13 @@ function skyDraw(args) {
     const o = [eye[0], eye[1] + RE, eye[2]], b = o[0] * d[0] + o[1] * d[1] + o[2] * d[2], c = o[0] ** 2 + o[1] ** 2 + o[2] ** 2 - RE * RE, disc = b * b - c;
     return disc > 0 && -b - Math.sqrt(disc) > 0; };
   const f = H / 2 / Math.tan((m.transform.fovInRadians || 0.6435) / 2), size = M.cfg.skySize || 3;
+  // the stars: each a direction in the sky (right ascension, declination), turned with the sidereal time to the place shown
+  { const gm = ((18.697374558 + 24.06570982441908 * (t / 864e5 - 10957.5)) % 24 + 24) % 24 * 15;
+    for (const st of STARS) { const a = sunAt({ dec: st.dec, lon: ((st.ra - gm + 540) % 360) - 180 }, ref.lng, ref.lat), d = skyDir(a.az, a.alt), p = scr(d);
+      if (!p || p[0] < -2 || p[1] < -2 || p[0] > W + 2 || p[1] > H + 2 || behindEarth(d)) continue;
+      y.fillStyle = st.c < 0.15 ? `rgba(255,214,180,${st.b})` : st.c > 0.85 ? `rgba(196,214,255,${st.b})` : `rgba(240,242,255,${st.b})`;
+      y.beginPath(); y.arc(p[0], p[1], st.s, 0, 7); y.fill(); } }
+  if (!sunOn()) return;                                              // (the sun and the moon: with day and night)
   const s = sunAt(sunPos(t), ref.lng, ref.lat), ds = skyDir(s.az, s.alt);
   if (M.cfg.skySun !== false) {
     const p = scr(ds);

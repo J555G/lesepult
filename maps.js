@@ -690,7 +690,7 @@ async function showMap1() {
     M.colors = mapColors();
     const v = (await setting('mpos|last')) || { c: [24, 38], z: 4 };
     M.step = 'map'; try {
-      M.map = new maplibregl.Map({ container: 'mapCanvas', style: mapStyle(M.colors), center: v.c, zoom: v.z, attributionControl: false, dragRotate: true, pitchWithRotate: true, maxPitch: 70, maxZoom: 16, minZoom: 0 });
+      M.map = new maplibregl.Map({ container: 'mapCanvas', style: mapStyle(M.colors), center: v.c, zoom: v.z, attributionControl: false, dragRotate: true, pitchWithRotate: true, maxPitch: 85, maxZoom: 16, minZoom: 0 });
     } catch (e) { M.map = null; return mapFailed(e.message || String(e)); }
     // problems are shown instead of an empty map: errors while loading, the graphics memory lost (phones)
     M.map.on('error', e => { M.lastErr = e?.error?.message || String(e?.error || e); console.warn('map:', M.lastErr); });
