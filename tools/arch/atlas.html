@@ -43,6 +43,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--acc); outli
 .chk { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; cursor: pointer; user-select: none; }
 .search { position: relative; flex: 1 1 150px; min-width: 90px; max-width: 280px; }
 select.sm { display: none; flex: 0 1 auto; min-width: 64px; max-width: 120px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--ink); font: 600 12.5px var(--ui); padding: 3px 4px; }
+header .seg.nb { display: inline-flex !important; }
+.seg.nb button { font-size: 17px; padding: 1px 10px; }
+.seg.nb button:disabled { color: var(--line); cursor: default; }
 @media (max-width: 1440px) { header .seg { display: none; } select.sm { display: block; } h1 { display: none; } .rng input { width: 80px; } }
 @media (max-width: 560px) { .rng span { display: none; } .rng input { width: 56px; } #optBtn .t { display: none; } header { gap: 5px 6px; } }
 #fsBtn .t { display: none; }
@@ -116,15 +119,12 @@ body.full #panel { position: absolute; left: max(12px, env(safe-area-inset-left,
 body.full.nosel #panel { display: none; }
 body.full .hint { display: none; }
 .fsx { position: absolute; z-index: 7; top: max(10px, env(safe-area-inset-top, 0px)); right: max(10px, env(safe-area-inset-right, 0px)); background: var(--surface); }
-.nav { position: absolute; z-index: 5; right: max(12px, env(safe-area-inset-right, 0px)); top: 50%; transform: translateY(-50%); display: grid; grid-template-columns: repeat(3, 34px); gap: 4px; padding: 6px; border-radius: 12px; background: color-mix(in srgb, var(--surface) 82%, transparent); border: 1px solid var(--line); box-shadow: 0 6px 18px rgba(0,0,0,.12); touch-action: none; }
-.nav button { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: 600 16px var(--ui); cursor: pointer; padding: 0; user-select: none; -webkit-user-select: none; }
-.nav button:active { background: var(--soft); }
-@media (max-width: 760px) { .nav { grid-template-columns: repeat(3, 30px); gap: 3px; padding: 4px; } .nav button { width: 30px; height: 30px; font-size: 14px; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
 
 <header>
   <h1>Pult Atlas<small id="hdrVer"></small></h1>
+  <div class="seg nb" id="navBtns"><button id="back" title="Back to the previous part (Alt + ←)" aria-label="Back" disabled>‹</button><button id="fwd" title="Forward (Alt + →)" aria-label="Forward" disabled>›</button><button id="home" title="Show everything" aria-label="Show everything">⌂</button></div>
   <div class="search"><input id="q" type="search" placeholder="Find a part or function…" autocomplete="off" aria-label="Find a part"><div class="results" id="res" hidden></div></div>
   <div class="seg" id="segArr" title="Arrangement"><button data-v="web" aria-pressed="true">Web</button><button data-v="layers" aria-pressed="false">Layers</button></div>
   <button class="plain" id="flatBtn" aria-pressed="false" title="Flatten the view onto a plane">Flat</button>
@@ -145,11 +145,7 @@ body.full .hint { display: none; }
   <div class="row"><button class="plain" id="expAll">Expand all</button><button class="plain" id="colAll">Collapse</button></div>
 </div>
 <main>
-  <div id="stage"><canvas id="cv3" aria-label="Components of Pult and how they connect"></canvas><div class="nav" id="nav" aria-label="Move the view">
-    <button data-n="twl" title="Twirl left">↺</button><button data-n="up" title="Turn up (flat: move up)">↑</button><button data-n="twr" title="Twirl right">↻</button>
-    <button data-n="left" title="Turn left (flat: move left)">←</button><button data-n="home" title="Show all">⌂</button><button data-n="right" title="Turn right (flat: move right)">→</button>
-    <button data-n="out" title="Zoom out">−</button><button data-n="down" title="Turn down (flat: move down)">↓</button><button data-n="in" title="Zoom in">+</button>
-  </div><div class="hint" id="hint">Drag to turn (flat: to move) · pinch or scroll to zoom · twirl with two fingers · drag a part to pull it · double-tap to open it</div><div class="tip" id="tip" hidden></div></div>
+  <div id="stage"><canvas id="cv3" aria-label="Components of Pult and how they connect"></canvas><div class="hint" id="hint">Drag to turn (flat: to move) · pinch or scroll to zoom · twirl with two fingers · drag a part to pull it · double-tap to open it</div><div class="tip" id="tip" hidden></div></div>
   <aside id="panel"></aside>
 </main>
 <footer>
@@ -160,6 +156,8 @@ body.full .hint { display: none; }
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script>
+addEventListener('error', e => { const h = document.getElementById('hint'); if (h) { h.textContent = 'Error: ' + (e.message || e.error) + ' (' + (e.filename || '').split('/').pop() + ':' + e.lineno + ')'; h.style.color = '#c2410c'; } });
+addEventListener('unhandledrejection', e => { const h = document.getElementById('hint'); if (h) { h.textContent = 'Error: ' + (e.reason?.message || e.reason); h.style.color = '#c2410c'; } });
 const $ = s => document.querySelector(s), esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const METRICS = { mem: 'Memory', store: 'Storage', cpu: 'CPU', gpu: 'GPU' };
 const S = { arr: 'web', flat: false, metric: 'part', ind: true, offv: false, lbl: false, exp: new Set(), sel: null, ver: 0, depth: 1, focus: 'all', spread: 1, rot: 0 };
@@ -177,11 +175,12 @@ async function load() {
   // the versions: every commit rebuilt from the changes, with a full copy every 20 for the slider
   let st = { files: {}, decls: {}, du: {} };
   HIST.forEach((c, i) => { for (const k of ['files', 'decls', 'du']) for (const [n, x] of Object.entries(c[k] || {})) { if (x === null) delete st[k][n]; else st[k][n] = x; }
-    if (i % 20 === 0) CK[i] = structuredClone(st); c._bytes = Object.values(st.decls).reduce((a, b) => a + b, 0); });
+    if (i % 20 === 0) CK[i] = copySt(st); c._bytes = Object.values(st.decls).reduce((a, b) => a + b, 0); });
   S.ver = HIST.length - 1;
 }
+const copySt = st => ({ files: { ...st.files }, decls: { ...st.decls }, du: { ...st.du } });   // (the lists inside are never changed, only replaced)
 function stateAt(i) {
-  const b = Math.floor(i / 20) * 20, st = structuredClone(CK[b]);
+  const b = Math.floor(i / 20) * 20, st = copySt(CK[b]);
   for (let j = b + 1; j <= i; j++) for (const k of ['files', 'decls', 'du']) for (const [n, x] of Object.entries(HIST[j][k] || {})) { if (x === null) delete st[k][n]; else st[k][n] = x; }
   return st;
 }
@@ -247,7 +246,24 @@ function draw(refit) {
 }
 function fit(id) { return fit3d(id); }
 function toggle(id) { if (!N.get(id).children.some(x => V.ex.has(x))) { select(id); return; } if (S.exp.has(id)) S.exp.delete(id); else S.exp.add(id); draw(); }
-function select(id) { S.sel = id; if (id) { let p = N.get(id).parent; while (p) { S.exp.add(p); p = N.get(p).parent; } } draw(); }
+// the way back and forward through the parts looked at (and nothing selected – the whole view – counts as a stop too)
+const NAV = { list: [null], pos: 0 };
+function navPush(id) {
+  if (NAV.list[NAV.pos] === id) return;
+  NAV.list = NAV.list.slice(0, NAV.pos + 1); NAV.list.push(id); NAV.pos++; if (NAV.list.length > 200) { NAV.list.shift(); NAV.pos--; }
+  if (NAV_TOP) try { history.pushState({ atlas: NAV.pos }, ''); } catch (_) {}   // (the phone's back gesture too, in the web app)
+  navPaint();
+}
+const NAV_TOP = window.top === window;   // (on its own page the browser's back and forward walk the same way; in a frame, only the buttons)
+if (NAV_TOP) try { history.replaceState({ atlas: 0 }, ''); } catch (_) {}
+function navGo(d) { const i = NAV.pos + d; if (i < 0 || i >= NAV.list.length) return; if (NAV_TOP) { try { history.go(d); return; } catch (_) {} } navTo(i); }
+function navTo(i) {
+  if (i < 0 || i >= NAV.list.length) return;
+  NAV.pos = i; const id = NAV.list[i]; select(id, true); if (id) setTimeout(() => fit(id), 40); else { T3.fitNext = true; run3d(); } navPaint();
+}
+function navPaint() { $('#back').disabled = NAV.pos <= 0; $('#fwd').disabled = NAV.pos >= NAV.list.length - 1; }
+function select(id, fromNav) { if (!fromNav && V) navPush(id ?? null); select0(id); }
+function select0(id) { S.sel = id; if (id) { let p = N.get(id).parent; while (p) { S.exp.add(p); p = N.get(p).parent; } } draw(); }
 function tip(ev, id) {
   const c = N.get(id), t = $('#tip'), r = $('#stage').getBoundingClientRect();
   t.innerHTML = `<b>${esc(c.name)}</b><br>${esc(c.desc || '')}`; t.hidden = false;
@@ -366,7 +382,7 @@ function frame3d(now) {
   for (const [id, q] of order) { const p = T3.nodes.get(id), cn = N.get(id);
     let al = fog(q.z); if (sel && id !== sel && !r.up.has(id) && !r.down.has(id)) al *= 0.18; if (S.offv && netOf(id) === 'online') al *= 0.35;
     x.save(); x.globalAlpha = al; x.translate(q.x, q.y); x.rotate(p.th); const k = q.s * p.sc; x.scale(k, k);
-    x.beginPath(); x.roundRect(-BW / 2, -BH / 2, BW, BH, 9); x.fillStyle = fill(id); x.fill();
+    x.beginPath(); rrect(x, -BW / 2, -BH / 2, BW, BH, 9); x.fillStyle = fill(id); x.fill();
     x.lineWidth = (id === sel ? 3 : V.chg.has(id) && S.ver > 0 ? 2 : 1) / k * Math.min(1, k * 1.5); x.strokeStyle = id === sel ? css('--acc') : V.chg.has(id) && S.ver > 0 ? css('--flow') : css('--line'); x.setLineDash(V.chg.has(id) && S.ver > 0 && id !== sel ? [4, 3] : []); x.stroke(); x.setLineDash([]);
     if (BW * k > 50) {   // the writing, once the card is big enough to read
       x.fillStyle = css('--ink'); x.textAlign = 'left'; x.font = '600 12.5px "Source Sans 3", sans-serif';
@@ -387,6 +403,7 @@ function pan3d(dx, dy) {   // the view moved across the screen by dx, dy pixels
   const B = camBasis(), u = T3.cam.dist / (cv3.clientHeight * 0.95); T3.camTo = null;
   for (let i = 0; i < 3; i++) T3.cam[['tx', 'ty', 'tz'][i]] -= (B.right[i] * dx - B.up[i] * dy) * u;
 }
+function rrect(x, a, b, w, h, r) { if (x.roundRect) return x.roundRect(a, b, w, h, r); x.moveTo(a + r, b); x.arcTo(a + w, b, a + w, b + h, r); x.arcTo(a + w, b + h, a, b + h, r); x.arcTo(a, b + h, a, b, r); x.arcTo(a, b, a + w, b, r); x.closePath(); }
 function hit3d(ex, ey) { for (let i = T3.drawn.length - 1; i >= 0; i--) { const d = T3.drawn[i]; if (Math.abs(ex - d.x) <= d.w && Math.abs(ey - d.y) <= d.h) return d.id; } return null; }
 function fit3d(id, now) {   // the camera to a part, or to all
   const ns = [...T3.nodes.values()]; if (!ns.length) return;
@@ -439,7 +456,7 @@ function renderPanel() {
       <div class="heat">${[0, 1, 2, 3, 4, 5].map(i => `<i style="background:var(--h${i})" title="${i}"></i>`).join('')}<span style="margin-left:6px">none … very high</span></div>
       <div><span class="sw" style="border-top:2px dashed var(--flow);background:none;height:0"></span>dashed outline: changed in the version shown</div>
       <div>Selecting a part shows its direct links; <i>Whole chains</i> (Options) follows them further. <i>Relies on / Relied on by / Both</i> then hides everything else.</div>
-      <div><i>Web</i> lets the parts find their places in space; <i>Layers</i> sets them on four floors, from what you see down to data and sources. <i>Flat</i> lays either onto a plane. Spacing moves the parts closer or further apart. Twirl with two fingers (or Shift + drag), or use the buttons at the right.</div>
+      <div><i>Web</i> lets the parts find their places in space; <i>Layers</i> sets them on four floors, from what you see down to data and sources. <i>Flat</i> lays either onto a plane. Spacing moves the parts closer or further apart. Twirl with two fingers (or Shift + drag). ‹ › go back and forward through the parts you looked at; ⌂ shows everything.</div>
       </div>
       <h3>The figures</h3><p>Sizes of code and data are measured from the repository for each version. Memory, storage, CPU and GPU loads are estimates from reading the code, rated 0 to 5, each with a note on what it is based on. Measured figures from your own devices can follow.</p>
       <h3>This version</h3><p><b>v${vs.v ?? '?'}</b> · ${new Date(vs.d).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}<br>${esc(vs.m)}</p>
@@ -521,18 +538,14 @@ function setFlat(on) {
   S.flat = on; keep(); $('#flatBtn').setAttribute('aria-pressed', on); T3.alpha = Math.max(T3.alpha, 0.8);
   T3.camTo = on ? { yaw: 0, pitch: 0, roll: 0 } : { yaw: 0.5, pitch: -0.25 }; T3.fitNext = true; draw();
 }
+$('#back').onclick = () => navGo(-1); $('#fwd').onclick = () => navGo(1);
+$('#home').onclick = () => { select(null); T3.camTo = S.flat ? { yaw: 0, pitch: 0, roll: 0 } : { yaw: 0.5, pitch: -0.25, roll: 0 }; T3.fitNext = true; run3d(); };
+addEventListener('keydown', e => { if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); navGo(-1); } if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); navGo(1); } });
+addEventListener('pointerdown', e => { if (e.button === 3) { e.preventDefault(); navGo(-1); } if (e.button === 4) { e.preventDefault(); navGo(1); } });
+addEventListener('popstate', e => { const i = e.state?.atlas; navTo(typeof i === 'number' ? i : 0); });
 $('#flatBtn').onclick = () => setFlat(!S.flat); $('#flatBtn').setAttribute('aria-pressed', S.flat);
 if (S.flat) Object.assign(T3.cam, { yaw: 0, pitch: 0, roll: 0 });
-// the navigation buttons: held down, they keep going
-{ const act = { left: () => S.flat ? pan3d(14, 0) : (T3.cam.yaw += 0.035), right: () => S.flat ? pan3d(-14, 0) : (T3.cam.yaw -= 0.035),
-    up: () => S.flat ? pan3d(0, 14) : (T3.cam.pitch = Math.min(1.45, T3.cam.pitch + 0.035)), down: () => S.flat ? pan3d(0, -14) : (T3.cam.pitch = Math.max(-1.45, T3.cam.pitch - 0.035)),
-    in: () => (T3.cam.dist = Math.max(300, T3.cam.dist * 0.96)), out: () => (T3.cam.dist = Math.min(20000, T3.cam.dist / 0.96)),
-    twl: () => (T3.cam.roll = (T3.cam.roll || 0) - 0.03), twr: () => (T3.cam.roll = (T3.cam.roll || 0) + 0.03) };
-  let iv = 0; const stop = () => { clearInterval(iv); iv = 0; };
-  $('#nav').addEventListener('pointerdown', e => { const b = e.target.closest('button'); if (!b) return; e.preventDefault(); stop();
-    if (b.dataset.n === 'home') { T3.camTo = S.flat ? { yaw: 0, pitch: 0, roll: 0 } : { yaw: 0.5, pitch: -0.25, roll: 0 }; T3.fitNext = true; run3d(); return; }
-    const f = act[b.dataset.n]; if (!f) return; T3.camTo = null; f(); run3d(); iv = setInterval(() => { f(); run3d(); }, 30); });
-  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) $('#nav').addEventListener(ev, stop); }
+
 function note2(t) { const h = $('#hint'), o = h.textContent; h.textContent = t; setTimeout(() => { h.textContent = o; }, 1800); }
 $('#spread').value = S.spread;
 $('#spread').oninput = e => { S.spread = +e.target.value; keep(); T3.alpha = Math.max(T3.alpha, 0.6); run3d(); };
