@@ -2021,3 +2021,5 @@ dialog .sortpair button{transition:border-color .15s}
 .mpop .mrng{display:flex;align-items:center;gap:.3rem}
 .mpop .mrng small{font:11px var(--ui);color:var(--mut)}
 .mpop .mrow output{font:12px var(--ui);color:var(--mut);margin-left:.3rem}
+.msdial .sdtg{flex-wrap:nowrap;align-items:center;max-width:100%}
+.msdial .sdtg .obsz{flex:1 1 56px;min-width:36px;max-width:72px;width:auto}

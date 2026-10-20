@@ -70,6 +70,12 @@ const CONT_PATCH = [
   ['} else {fragColor=surface_color;}}', '} else {fragColor=surface_color;}if(u_pcfg.x>0.0){fragColor=pult_over(pult_contours(pult_tele()),fragColor);}}'],
   ['u_is_globe_mode:r?1:0})', 'u_is_globe_mode:r?1:0,u_pcfg:self.__pultCont||[0,0,0,0]})'],
   ['u_is_globe_mode:new t.bp(e,i.u_is_globe_mode)})', 'u_is_globe_mode:new t.bp(e,i.u_is_globe_mode),u_pcfg:new t.c1(e,i.u_pcfg)})']];
+// the obelisk (fill-extrusion) lit by the sun where it stands, not by the light of the atmosphere (v326): self.__pultObLight
+// [x, y, z, intensity] in the engine's frame of the light
+const OB_PATCH = [
+  ['const Vi=(e,i,o,a)=>{const r=e.style.light,s=r.properties.get("position"),n=[s.x,s.y,s.z],l=t.c4();"viewport"===r.properties.get("anchor")&&t.c5(l,e.transform.bearingInRadians),t.c6(n,n,l);',
+   'const Vi=(e,i,o,a)=>{const r=e.style.light,pl=self.__pultObLight,s=r.properties.get("position"),n=pl?[pl[0],pl[1],pl[2]]:[s.x,s.y,s.z],l=t.c4();!pl&&"viewport"===r.properties.get("anchor")&&t.c5(l,e.transform.bearingInRadians),t.c6(n,n,l);'],
+  ['u_lightintensity:r.properties.get("intensity")', 'u_lightintensity:pl?pl[3]:r.properties.get("intensity")']];
 // each group whole or not at all
 function enginePatch(s, list) { let t = s; for (const [a, b, n = 1] of list) { if (t.split(a).length - 1 !== n) throw new Error('not found: ' + a.slice(0, 40)); t = t.split(a).join(b); } return t; }
 async function shadePatchedLib(url) {
@@ -77,6 +83,7 @@ async function shadePatchedLib(url) {
     let s = await (await fetch(url)).text(), any = false;
     try { s = enginePatch(s, SHADE_PATCH); M.shadePatch = any = true; } catch (e) { console.warn('shading by the sun not available:', e.message); M.shadePatch = false; }
     try { s = enginePatch(s, CONT_PATCH); M.contPatch = any = true; } catch (e) { console.warn('contour lines by the graphics chip not available:', e.message); M.contPatch = false; }
+    try { s = enginePatch(s, OB_PATCH); any = true; } catch (e) { console.warn('the obelisk lit by its own sun not available:', e.message); }
     return any ? URL.createObjectURL(new Blob([s], { type: 'text/javascript' })) : url;
   } catch (e) { M.shadePatch = M.contPatch = false; return url; }
 }

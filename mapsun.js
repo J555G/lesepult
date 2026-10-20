@@ -132,20 +132,26 @@ function sunMove() {
     obelShadow(); });
 }
 function sunMoveHook() { const m = M.map; if (m && !m._sunMv) { m._sunMv = true; m.on('move', sunMove); m.on('style.load', () => setTimeout(obelUpd, 0)); } }
-// the obelisk: a model of red porphyry standing upright on the ground (fill-extrusion, lit by the sun of the map's light): a
-// plinth, a tapering shaft, a pointed top; always about the same size on screen (made anew as the zoom changes), the
-// reader's size ⅓ … 3 times; its shadow on the ground away from the sun, long when the sun is low, none at night. Dragged,
+// the obelisk: a model of red porphyry standing upright on the ground (fill-extrusion, lit by the sun where it stands): a
+// plinth, a tapering shaft, a pointed top; its size fixed in metres when it is set (then like any building: larger as one
+// zooms in), the reader's size ⅓ … 3 times; its shadow on the ground away from the sun, long when the sun is low, none at night. Dragged,
 // it moves; "Here" again takes it away.
 const OB_H = 34, obelK = () => M.cfg?.obelSize || 1;              // (its height in screen pixels, times the reader's size)
 function obelGeo() {
   const g = M.cfg.gnomon, m = M.map, z = m.getZoom(), lat = g.lat * RAD;
-  const mpp = 40075016.7 * Math.cos(lat) / (512 * 2 ** z), H = OB_H * obelK() * mpp;    // (metres per screen pixel there; the height in metres)
+  // its height in metres: fixed when it is set (OB_H pixels at the zoom of that moment), times the reader's size
+  if (!g.h) { g.h = OB_H * 40075016.7 * Math.cos(lat) / (512 * 2 ** z); saveMapCfg(); }
+  const H = g.h * obelK();
+  // the light on it: the sun where it stands (or, without sunlight, from the north-west); dim at night
+  const sp = ([r, a, p]) => { a = (a + 90) * RAD; p *= RAD; return [r * Math.cos(a) * Math.sin(p), r * Math.sin(a) * Math.sin(p), r * Math.cos(p)]; };
+  const sa = sunAt(sunPos(sunTime()), g.lng, g.lat);
+  self.__pultObLight = !sunOn() ? [...sp([1.15, 315, 45]), 0.6] : sa.alt > 0 ? [...sp([1.15, sa.az, 90 - sa.alt]), 0.75] : [...sp([1.15, 0, 0]), 0.12];
   const dLat = d => d / 111320, dLon = d => d / (111320 * Math.max(0.05, Math.cos(lat)));
   const sq = h => [[[g.lng - dLon(h), g.lat - dLat(h)], [g.lng + dLon(h), g.lat - dLat(h)], [g.lng + dLon(h), g.lat + dLat(h)], [g.lng - dLon(h), g.lat + dLat(h)], [g.lng - dLon(h), g.lat - dLat(h)]]];
   const f = [], piece = (h, b, t, c) => f.push({ type: 'Feature', properties: { b, t, c }, geometry: { type: 'Polygon', coordinates: sq(h) } });
   piece(0.17 * H, 0, 0.05 * H, '#3e1524'); piece(0.13 * H, 0.05 * H, 0.08 * H, '#4a1a2b');            // (the plinth, in two steps)
-  for (let i = 0; i < 9; i++) { const a = i / 9, b = (i + 1) / 9; piece((0.088 - 0.036 * a) * H, (0.08 + 0.72 * a) * H, (0.08 + 0.72 * b) * H, i % 2 ? '#6c2a3c' : '#702c3f'); }
-  for (let i = 0; i < 6; i++) { const a = i / 6; piece((0.052 * (1 - a) + 0.003) * H, (0.8 + 0.2 * a) * H, (0.8 + 0.2 * (i + 1) / 6) * H, '#7a3346'); }   // (the pointed top)
+  for (let i = 0; i < 20; i++) { const a = (i + 0.5) / 20; piece((0.088 - 0.036 * a) * H, (0.08 + 0.72 * i / 20) * H, (0.08 + 0.72 * (i + 1) / 20) * H, '#6e2b3e'); }   // (the shaft, tapering in fine steps)
+  for (let i = 0; i < 10; i++) { const a = (i + 0.5) / 10; piece((0.052 * (1 - a) + 0.002) * H, (0.8 + 0.2 * i / 10) * H, (0.8 + 0.2 * (i + 1) / 10) * H, '#743044'); }   // (the pointed top)
   // the shadow: from the foot, away from the sun
   const s = sunAt(sunPos(sunTime()), g.lng, g.lat), sh = [];
   if (sunOn() && s.alt > 0) {
@@ -158,7 +164,7 @@ function obelGeo() {
 }
 function obelUpd() {
   const g = M.cfg?.gnomon, m = M.map; if (!m || !m.style?._loaded) return;
-  if (!g) { for (const id of ['obel', 'obel-sh']) if (m.getLayer(id)) m.removeLayer(id); for (const id of ['obel', 'obelsh']) if (m.getSource(id)) m.removeSource(id); return; }
+  if (!g) { self.__pultObLight = null; for (const id of ['obel', 'obel-sh']) if (m.getLayer(id)) m.removeLayer(id); for (const id of ['obel', 'obelsh']) if (m.getSource(id)) m.removeSource(id); return; }
   const [body, sh] = obelGeo();
   if (!m.getSource('obel')) {
     m.addSource('obelsh', { type: 'geojson', data: sh }); m.addSource('obel', { type: 'geojson', data: body });
@@ -167,14 +173,14 @@ function obelUpd() {
     obelDragHook(m);
   } else { m.getSource('obel').setData(body); m.getSource('obelsh').setData(sh); }
 }
-const obelShadow = () => { if (M.cfg?.gnomon && M.map?.getSource('obel') && (M.obZ == null || Math.abs(M.map.getZoom() - M.obZ) > 0.01)) obelUpd(); };
+const obelShadow = () => { if (M.cfg?.gnomon && M.map?.getSource('obel') && M.obZ == null) obelUpd(); };   // (after the size slider; its size stays at every zoom)
 // dragging it: a finger or the mouse on the obelisk moves it (and not the map)
 function obelDragHook(m) {
   if (m._obDrag) return; m._obDrag = true;
   const start = e => {
     if (e.originalEvent?.touches?.length > 1) return;
     e.preventDefault(); m.dragPan.disable(); M.obDrag = true;
-    const mv = ev => { const ll = ev.lngLat; M.cfg.gnomon = { lng: ((ll.lng + 540) % 360) - 180, lat: ll.lat }; obelUpd(); sunApply(); };
+    const mv = ev => { const ll = ev.lngLat; M.cfg.gnomon = { lng: ((ll.lng + 540) % 360) - 180, lat: ll.lat, h: M.cfg.gnomon?.h }; obelUpd(); sunApply(); };
     const end = () => { m.off('mousemove', mv); m.off('touchmove', mv); m.off('mouseup', end); m.off('touchend', end); m.off('touchcancel', end); m.dragPan.enable(); M.obDrag = false; saveMapCfg(); };
     m.on('mousemove', mv); m.on('touchmove', mv); m.on('mouseup', end); m.on('touchend', end); m.on('touchcancel', end);
   };
