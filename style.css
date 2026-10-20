@@ -1893,9 +1893,15 @@ dialog .sortpair button{transition:border-color .15s}
 .sdlab small{font:11.5px var(--ui);color:var(--mut)}
 /* the sundial panel (v298): at the foot of the map, the sky behind the dial */
 #mapBody.sdopen .mtime{display:none!important}
-#mapBody.sdopen .mcred{bottom:214px}
-.msdial{position:absolute;left:50%;transform:translateX(-50%);bottom:8px;width:calc(100% - 16px);max-width:560px;height:198px;z-index:4;border-radius:14px;overflow:hidden;border:1px solid color-mix(in srgb,var(--line) 70%,transparent);box-shadow:0 4px 18px rgba(0,0,0,.35)}
-.msdial .sdsvg{position:absolute;inset:0;width:100%;height:198px;display:block;touch-action:none;-webkit-user-select:none;user-select:none}
+#mapBody.sdopen .mcred{bottom:234px}
+/* the mark at the middle of the panel's upper edge: its tip is the place the dial shows (until an obelisk stands) */
+.sdmark{position:absolute;left:50%;bottom:222px;transform:translateX(-50%);width:12px;height:10px;z-index:5;pointer-events:none;transition:opacity .4s}
+.sdmark.off{opacity:0}
+.sdmark svg{display:block}
+#mapCanvas.picking{cursor:crosshair}
+/* (the upper edge fades into the map; the band above the dial takes the sky's colour) */
+.msdial{position:absolute;left:50%;transform:translateX(-50%);bottom:8px;width:calc(100% - 16px);max-width:560px;height:218px;z-index:4;border-radius:0 0 14px 14px;overflow:hidden;border:1px solid color-mix(in srgb,var(--line) 70%,transparent);border-top:0;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 20px);mask-image:linear-gradient(to bottom,transparent 0,#000 20px)}
+.msdial .sdsvg{position:absolute;top:20px;left:0;width:100%;height:198px;display:block;touch-action:none;-webkit-user-select:none;user-select:none}
 .msdial .sdstars circle{fill:#fff;animation:sdtw 3.4s ease-in-out infinite alternate}
 @keyframes sdtw{from{opacity:1}to{opacity:.35}}
 .msdial .sdglint{stroke:#fff3c8;stroke-width:1.2;stroke-linecap:round;fill:none}
@@ -1910,7 +1916,7 @@ dialog .sortpair button{transition:border-color .15s}
 .msdial .sdmoonc{fill:#2a3050;opacity:.55}
 .msdial .sdgrab{fill:transparent;cursor:grab}
 .msdial .sdlab{font:600 15px var(--greek);fill:#fff;paint-order:stroke;stroke:rgba(0,0,0,.55);stroke-width:3px}
-.msdial .sdctl{position:absolute;left:192px;right:34px;top:10px;bottom:10px;display:flex;flex-direction:column;gap:.4rem;align-items:flex-start;justify-content:center;font:13px var(--ui);color:#fff}
+.msdial .sdctl{position:absolute;left:192px;right:34px;top:30px;bottom:10px;display:flex;flex-direction:column;gap:.4rem;align-items:flex-start;justify-content:center;font:13px var(--ui);color:#fff}
 .msdial .sdctl .seg{background:rgba(0,0,0,.28);border-color:rgba(255,255,255,.35)}
 .msdial .sdctl .seg button{background:transparent;color:#fff;font-size:12.5px;padding:.25rem .55rem;min-width:0}
 .msdial .sdctl .seg button.on{background:rgba(255,255,255,.88);color:#1b1a18}
@@ -1919,7 +1925,7 @@ dialog .sortpair button{transition:border-color .15s}
 .msdial .msun output{color:#fff;text-shadow:0 0 3px #000}
 .msdial .msun .mico2{background:rgba(0,0,0,.3);color:#fff;border-color:rgba(255,255,255,.4)}
 .msdial .sdsub{color:#fff;opacity:.85;text-shadow:0 0 3px #000}
-.msdial .sdx{position:absolute;top:6px;right:6px;width:26px;height:26px;padding:0;border-radius:50%;background:rgba(0,0,0,.3);color:#fff;border:1px solid rgba(255,255,255,.4);font-size:16px;line-height:1}
+.msdial .sdx{position:absolute;top:26px;right:6px;width:26px;height:26px;padding:0;border-radius:50%;background:rgba(0,0,0,.3);color:#fff;border:1px solid rgba(255,255,255,.4);font-size:16px;line-height:1}
 /* the owl: flies in at nightfall, away at daybreak */
 .msdial .sdowl{opacity:0;transform:translate(120px,-90px) scale(.5);transition:transform .9s cubic-bezier(.3,.7,.4,1),opacity .5s}
 .msdial .sdowl.land{opacity:1;transform:translate(0,0) scale(1)}
@@ -2004,3 +2010,8 @@ dialog .sortpair button{transition:border-color .15s}
 .rsrow small{display:block}
 .rsrow .rsact{display:flex;gap:.4rem;flex:none}
 .mpop .rsave small.hint{font:12px var(--ui);display:block}
+/* the obelisk (porphyry) where the dial's place is set by hand, with its shadow */
+.sdobel{width:0;height:0;pointer-events:none}
+.sdobel svg{position:absolute;left:-130px;top:-130px;overflow:visible;pointer-events:none}
+.sdobel .ob{pointer-events:visiblePainted;cursor:grab}
+.sdobel .obsh{fill:rgba(20,14,8,.45)}

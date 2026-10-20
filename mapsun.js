@@ -96,10 +96,77 @@ function sunApply() {
   if (sunOn()) {
     const ns = m.getSource('sunnight');
     if (ns) { nightPaint(sunTime()); ns.play(); requestAnimationFrame(() => requestAnimationFrame(() => ns.pause())); }   // (the picture read once, then the map rests)
-    if (m.getLayer('rel-shade')) { const c = m.getCenter(), a = sunAt(sunPos(sunTime()), c.lng, c.lat);
+    if (m.getLayer('rel-shade')) { const c = sunRef(), a = sunAt(sunPos(sunTime()), c.lng, c.lat);
       m.setPaintProperty('rel-shade', 'hillshade-illumination-anchor', 'map'); m.setPaintProperty('rel-shade', 'hillshade-illumination-direction', Math.round(a.az)); }
   } else if (m.getLayer('rel-shade')) { m.setPaintProperty('rel-shade', 'hillshade-illumination-anchor', 'viewport'); m.setPaintProperty('rel-shade', 'hillshade-illumination-direction', 335); }
-  sundialPaint();
+  sundialPaint(); obelUpd();
+}
+// ---------------------------------------------------------------- the place the dial shows (and the shading is lit from)
+// An obelisk set on the map with "Here" (mapCfg gnomon: { lng, lat }); else, while the sundial is open, the point of the
+// map just above the mark at the middle of the panel's upper edge (where only sky lies there, the mark fades out and the
+// dial keeps the last place); else the middle of the map.
+function sunRef() {
+  const g = M.cfg?.gnomon; if (g) return g;
+  if (M.sdOpen && M.sdRef) return M.sdRef;
+  return M.map?.getCenter() || { lng: 24, lat: 38 };
+}
+function sdRefUpd() {
+  const mk = $('#sdMark'), m = M.map; if (!mk || !m) return;
+  mk.hidden = !!M.cfg.gnomon; if (M.cfg.gnomon) return;
+  const r = mk.getBoundingClientRect(), cr = m.getCanvas().getBoundingClientRect(), pt = [r.left + r.width / 2 - cr.left, r.top - cr.top];
+  let ll = null; try { ll = m.unproject(pt); const q = m.project(ll); if (Math.hypot(q.x - pt[0], q.y - pt[1]) > 2 || Math.abs(ll.lat) > 85.05) ll = null; } catch (_) { ll = null; }
+  mk.classList.toggle('off', !ll);
+  if (ll) M.sdRef = { lng: ((ll.lng + 540) % 360) - 180, lat: ll.lat };
+}
+// on every movement of the map (once a frame): the mark's place, the dial, the shading, the obelisk's shadow
+function sunMove() {
+  if (M.sunMvRaf) return;
+  M.sunMvRaf = requestAnimationFrame(() => { M.sunMvRaf = 0;
+    if (M.sdOpen) { sdRefUpd(); sundialPaint(); }
+    const m = M.map; if (sunOn() && m?.getLayer('rel-shade') && !M.cfg.gnomon) { const c = sunRef(), a = Math.round(sunAt(sunPos(sunTime()), c.lng, c.lat).az);
+      if (a !== M.shadeAz) { M.shadeAz = a; m.setPaintProperty('rel-shade', 'hillshade-illumination-direction', a); } }
+    obelShadow(); });
+}
+function sunMoveHook() { const m = M.map; if (m && !m._sunMv) { m._sunMv = true; m.on('move', sunMove); } }
+// the obelisk: red porphyry, flecked; the same size on screen at every zoom; its shadow on the ground away from the sun,
+// long when the sun is low, none at night. Dragged, it moves; "Here" again takes it away.
+const OB_H = 34;
+function obelSVG() {
+  const fl = Array.from({ length: 14 }, (_, i) => { const y = -4 - (i * 7.3) % (OB_H - 9), x = ((i * 3.7) % 6) - 3 * (1 - (-y) / OB_H); return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(0.35 + (i % 3) * 0.15).toFixed(2)}"/>`; }).join('');
+  return `<svg width="260" height="260" viewBox="-130 -130 260 260" aria-hidden="true"><path class="obsh" id="obShadow" d=""/>
+    <g class="ob"><ellipse cx="0" cy="0.5" rx="7" ry="2.2" fill="rgba(0,0,0,.25)"/><path d="M-5.5 0h11v-2.6h-11z" fill="#45182a" stroke="#2c0f17" stroke-width=".6"/>
+    <path d="M-4.2-2.6 4.2-2.6 2.6-${OB_H - 6}H-2.6z" fill="url(#obGrad)" stroke="#2c0f17" stroke-width=".6"/><path d="M-2.6-${OB_H - 6} 0-${OB_H}l2.6 6z" fill="#63283a" stroke="#2c0f17" stroke-width=".6"/>
+    <g fill="#e3c4c9" opacity=".4">${fl}</g></g>
+    <defs><linearGradient id="obGrad" x1="0" x2="1"><stop offset="0" stop-color="#5c2032"/><stop offset=".45" stop-color="#6e2a3d"/><stop offset="1" stop-color="#36111b"/></linearGradient></defs></svg>`;
+}
+function obelUpd() {
+  const g = M.cfg?.gnomon, m = M.map;
+  if (!g || !m) { M.obel?.remove(); M.obel = null; return; }
+  if (!M.obel || M.obel._map !== m) {
+    M.obel?.remove();
+    const el = document.createElement('div'); el.className = 'sdobel'; el.innerHTML = obelSVG();
+    M.obel = new maplibregl.Marker({ element: el, anchor: 'center', draggable: true }).setLngLat([g.lng, g.lat]).addTo(m);
+    M.obel.on('drag', () => { const ll = M.obel.getLngLat(); M.cfg.gnomon = { lng: ll.lng, lat: ll.lat }; sunApply(); });
+    M.obel.on('dragend', () => saveMapCfg());
+  } else M.obel.setLngLat([g.lng, g.lat]);
+  obelShadow();
+}
+function obelShadow() {
+  const p = $('#obShadow'); if (!p || !M.obel) return;
+  const g = M.cfg.gnomon, a = sunAt(sunPos(sunTime()), g.lng, g.lat), m = M.map;
+  if (!sunOn() || a.alt <= 0) { p.setAttribute('d', ''); return; }
+  const L = Math.min(110, OB_H / Math.tan(Math.max(1.5, a.alt) * RAD)), d = (a.az + 180 - m.getBearing()) * RAD, k = Math.cos(m.getPitch() * RAD);
+  const ex = Math.sin(d) * L, ey = -Math.cos(d) * L * k, px = Math.cos(d) * 3.4, py = Math.sin(d) * 3.4 * k;   // (the shadow: as broad as the foot, narrowing to the tip)
+  p.setAttribute('d', `M${(-px).toFixed(1)} ${(-py).toFixed(1)}L${(px).toFixed(1)} ${(py).toFixed(1)}L${(ex * .86 + px * .5).toFixed(1)} ${(ey * .86 + py * .5).toFixed(1)}L${ex.toFixed(1)} ${ey.toFixed(1)}L${(ex * .86 - px * .5).toFixed(1)} ${(ey * .86 - py * .5).toFixed(1)}z`);
+  p.style.opacity = Math.max(0.15, Math.min(1, a.alt / 10)).toFixed(2);
+}
+// "Here": the next tap on the map sets the obelisk; when one stands, "Here" takes it away
+async function sunHere() {
+  if (M.cfg.gnomon) { M.cfg.gnomon = null; await saveMapCfg(); obelUpd(); sdRefUpd(); sunApply(); $('#sunCtl') && ($('#sunCtl').innerHTML = sdCtlHTML()); return; }
+  if (!M.map) return;
+  note('Tap the map where the obelisk should stand.');
+  $('#mapCanvas')?.classList.add('picking');
+  M.pick = async ll => { M.cfg.gnomon = { lng: ((ll.lng + 540) % 360) - 180, lat: ll.lat }; await saveMapCfg(); obelUpd(); sdRefUpd(); sunApply(); const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML(); };
 }
 // the clock: Now (every 30 s), Animate (about 20 times a second), or set by hand
 function sunClock() {
@@ -140,7 +207,7 @@ async function sunSet(patch) {
 // sits on the gnomon. Settings (mapCfg): sunFmt ('modern' | 'roman' | 'greek').
 const GR_NUM = ['αʹ', 'βʹ', 'γʹ', 'δʹ', 'εʹ', 'ϛʹ', 'ζʹ', 'ηʹ', 'θʹ', 'ιʹ', 'ιαʹ', 'ιβʹ'], RO_NUM = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
 function sunHour() {                                                 // sun time (hours), sunrise and sunset, the sun's height
-  const c = M.map?.getCenter() || { lng: 24, lat: 38 }, t = sunTime(), s = sunPos(t);
+  const c = sunRef(), t = sunTime(), s = sunPos(t);
   const lst = ((12 + (c.lng - s.lon) / 15) % 24 + 24) % 24;          // (noon: the sun due south)
   const cosH = (Math.sin(-0.833 * RAD) - Math.sin(c.lat * RAD) * Math.sin(s.dec)) / (Math.cos(c.lat * RAD) * Math.cos(s.dec));
   const half = cosH <= -1 ? 12 : cosH >= 1 ? 0 : Math.acos(cosH) / RAD / 15;     // half the day, in hours
@@ -259,15 +326,17 @@ function sdCtlHTML() {
     + (mode === 'anim' ? `<div class="msun">${play}<input type="range" min="0" max="100" value="${spdToV(spd)}" data-sunspeed="1" aria-label="Speed"><output>${spdLabel(spd)}</output></div>` : '')
     + (mode === 'year' ? `<div class="msun">${play}<input type="range" min="0" max="100" value="${yrToV(yr)}" data-sunyear="1" aria-label="Speed"><output>${yrLabel(yr)}</output></div>` : '')
     + `<div class="seg" role="group">${[['modern', 'Modern'], ['roman', 'Roman'], ['greek', 'Greek']].map(([v, l]) => `<button type="button" data-sunfmt="${v}" class="${(M.cfg.sunFmt || 'modern') === v ? 'on' : ''}">${l}</button>`).join('')}</div>`
-    + `<div class="sdtg">${[['sunNight', 'Night'], ['sunAtm', 'Air']].map(([k, l]) => `<button type="button" data-suntg="${k}" class="${M.cfg[k] !== false ? 'on' : ''}" aria-pressed="${M.cfg[k] !== false}">${l}</button>`).join('')}</div>`
+    + `<div class="sdtg">${[['sunNight', 'Night'], ['sunAtm', 'Air']].map(([k, l]) => `<button type="button" data-suntg="${k}" class="${M.cfg[k] !== false ? 'on' : ''}" aria-pressed="${M.cfg[k] !== false}">${l}</button>`).join('')}`
+    + `<button type="button" data-sunhere="1" class="${M.cfg.gnomon ? 'on' : ''}" aria-pressed="${!!M.cfg.gnomon}" title="${M.cfg.gnomon ? 'Take the obelisk away' : 'Set an obelisk on the map: the dial then shows that place'}">Here</button></div>`
     + `<small class="sdsub" id="sdSub"></small>`;
 }
 async function sdOpen(open) {
   const box = $('#mapBody'); if (!box) return;
-  $('#sunPanel')?.remove(); box.classList.toggle('sdopen', open); $('#mapSunBtn')?.classList.toggle('on', open);
-  M.sdOpen = open;
-  if (!open) return;
-  box.insertAdjacentHTML('beforeend', sdPanelHTML()); $('#sunCtl').innerHTML = sdCtlHTML();
+  $('#sunPanel')?.remove(); $('#sdMark')?.remove(); box.classList.toggle('sdopen', open); $('#mapSunBtn')?.classList.toggle('on', open);
+  M.sdOpen = open; sunMoveHook();
+  if (!open) { if (M.map && sunOn()) sunApply(); return; }
+  box.insertAdjacentHTML('beforeend', sdPanelHTML() + `<div class="sdmark" id="sdMark" aria-hidden="true"><svg width="12" height="10" viewBox="0 0 12 10"><path d="M6 0.6 11.2 9.4H0.8z" fill="#ffd166" stroke="#5a4210" stroke-width=".9" stroke-linejoin="round"/></svg></div>`);
+  $('#sunCtl').innerHTML = sdCtlHTML(); sdRefUpd();
   if (!sunOn()) await sunSet({ sun: true });
   $('#sunCtl').innerHTML = sdCtlHTML(); M.sdOwl = null; sundialPaint();
 }
@@ -277,7 +346,7 @@ function sundialPaint() {
   // the horizon: level with sunrise and sunset on the ring
   const hy = len >= 24 ? SD.cy + SD.R + 12 : len <= 0 ? SD.cy - SD.R - 12 : sdXY(set, SD.R)[1];
   const eve = lst >= 12, [top, foot] = skyAt(alt, eve);
-  $('#sdSky0').setAttribute('stop-color', top); $('#sdSky1').setAttribute('stop-color', foot);
+  $('#sdSky0').setAttribute('stop-color', top); $('#sdSky1').setAttribute('stop-color', foot); const pnl = $('#sunPanel'); if (pnl) pnl.style.background = top;
   $('#sdSea0').setAttribute('stop-color', hexMix(foot, '#0b2236', 0.45)); $('#sdSea1').setAttribute('stop-color', hexMix(top, '#03101c', 0.6));
   const sea = $('#sdSeaR'); sea.setAttribute('y', hy.toFixed(1)); sea.setAttribute('height', Math.max(0, SD.H - hy).toFixed(1));
   $('#sdAboveR').setAttribute('height', Math.max(0, hy).toFixed(1)); $('#sdBelowR').setAttribute('y', hy.toFixed(1));
@@ -462,6 +531,7 @@ async function mapOptsClick(b) {
     if (m?.getLayer('sun-night')) m.setLayoutProperty('sun-night', 'visibility', vis('sunNight'));
     if (d.suntg === 'sunAtm' && m) m.setSky(mapStyle(M.colors).sky);
     return true; }
+  if (d.sunhere) { await sunHere(); return true; }
   if (d.sdswap) { M.sdPage = M.sdPage === 'zod' ? 'ctl' : 'zod'; sundialPaint(); return true; }
   if (d.sunfmt) { M.cfg.sunFmt = d.sunfmt; await saveMapCfg(); $('#sunCtl').innerHTML = sdCtlHTML(); sundialPaint(); return true; }
   if (d.sunmode) { M.sunPause = false; if (d.sunmode === 'now') M.sunT = Date.now(); await sunSet({ sunMode: d.sunmode }); $('#sunCtl').innerHTML = sdCtlHTML(); return true; }

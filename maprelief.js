@@ -17,7 +17,7 @@ async function reliefInit() {
   if (!online && !saved) { M.rel = M.relDem = null; return; }
   if (!window.mlcontour) { try { await addScript('maplibre-contour.js'); } catch (_) { M.rel = M.relDem = null; return; } }
   M.rel = { key: 'mh', maxz: MH_Z };
-  M.relDem = M.relDemSrc ??= (() => { const d = new mlcontour.DemSource({ url: MH_URL, encoding: 'terrarium', maxzoom: MH_Z, worker: true, cacheSize: 100, timeoutMs: 30000 }); d.setupMaplibre(maplibregl); return d; })();
+  M.relDem = M.relDemSrc ??= (() => { const d = new mlcontour.DemSource({ url: MH_URL, encoding: 'terrarium', maxzoom: MH_Z, worker: true, cacheSize: 24, timeoutMs: 30000 }); d.setupMaplibre(maplibregl); return d; })();
 }
 
 // ---------------------------------------------------------------- saved areas
@@ -85,6 +85,25 @@ function reliefSavePop() {
   if (!M.rsJob) { let z = 2; while (z < MH_Z && areaCount(a, z + 1) <= 3000) z++; M.rsv = { a, z, name: a.world ? 'Whole world' : coordName(a) }; }
   rightPop('mapsave', 'Save relief offline', reliefSaveHTML());
   reliefSaveInfo();
+  if (!M.rsJob && !a.world) areaName(a).then(n => { const f = $('#rsName'); if (n && f && M.rsv?.a === a && !M.rsv.edited) { f.value = n; M.rsv.name = n; } });
+}
+// a name for the area, from OpenStreetMap's place names (Nominatim): by its size a city, a region, a country or a continent
+const CONT = { Europe: 'al ad at by be ba bg hr cz dk ee fo fi fr de gi gr gg hu is ie im it je xk lv li lt lu mt md mc me nl mk no pl pt ro ru sm rs sk si es sj se ch ua gb va',
+  Africa: 'dz ao bj bw bf bi cv cm cf td km cg cd ci dj eg gq er sz et ga gm gh gn gw ke ls lr ly mg mw ml mr mu yt ma mz na ne ng re rw sh st sn sc sl so za ss sd tz tg tn ug eh zm zw',
+  'North America': 'ai ag aw bs bb bz bm bq vg ca ky cr cu cw dm do sv gl gd gp gt ht hn jm mq mx ms ni pa pr bl kn lc mf pm vc sx tt tc us vi',
+  'South America': 'ar bo br cl co ec fk gf gy py pe sr uy ve', Oceania: 'as au ck fj pf gu ki mh fm nr nc nz nu nf mp pw pg pn ws sb tk to tv um vu wf', Antarctica: 'aq' };
+async function areaName(a) {
+  const [kw, kh] = areaKm(a), km = Math.max(kw, kh), lat = (a.s + a.n) / 2, lon = a.w <= a.e ? (a.w + a.e) / 2 : (((a.w + a.e + 360) / 2 + 540) % 360) - 180;
+  const zoom = km > 1500 ? 3 : km > 400 ? 3 : km > 120 ? 5 : km > 30 ? 8 : 10;
+  try {
+    const ctl = new AbortController(); setTimeout(() => ctl.abort(), 6000);
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}&zoom=${zoom}&accept-language=en`, { signal: ctl.signal });
+    if (!r.ok) return null; const j = await r.json(), ad = j.address || {};
+    if (km > 1500) { const cc = (ad.country_code || '').toLowerCase(); if (!cc) return null; return Object.keys(CONT).find(k => CONT[k].split(' ').includes(cc)) || 'Asia'; }
+    if (zoom === 3) return ad.country || j.name || null;
+    if (zoom === 5) return ad.state || ad.region || ad.province || j.name || ad.country || null;
+    return ad.city || ad.town || ad.village || ad.county || j.name || ad.state || null;
+  } catch (_) { return null; }
 }
 function reliefSaveHTML() {
   const j = M.rsJob;
@@ -118,7 +137,7 @@ document.addEventListener('input', ev => {
   const r = ev.target.closest?.('input[data-rsz]'); if (!r || !M.rsv) return;
   M.rsv.z = +r.value; reliefSaveInfo();
 });
-document.addEventListener('input', ev => { if (ev.target.id === 'rsName' && M.rsv) M.rsv.name = ev.target.value; });
+document.addEventListener('input', ev => { if (ev.target.id === 'rsName' && M.rsv) { M.rsv.name = ev.target.value; M.rsv.edited = true; } });
 async function reliefSaveClick(b) {
   const d = b.dataset;
   if (b.id === 'mapSaveBtn') { reliefSavePop(); return true; }

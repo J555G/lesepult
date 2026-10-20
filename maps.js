@@ -715,8 +715,9 @@ async function showMap1() {
     M.map.on('mouseenter', 'pl', () => { M.map.getCanvas().style.cursor = 'pointer'; });
     M.map.on('mouseleave', 'pl', () => { M.map.getCanvas().style.cursor = ''; });
     M.step = 'loading the map'; const ok = await Promise.race([new Promise(r => M.map.once('load', () => r(true))), new Promise(r => setTimeout(() => r(false), 20000))]);
-    if (!ok) return mapFailed('The map did not finish loading.' + (M.lastErr ? ' Last error: ' + M.lastErr : ''));
-    imgCredit(); compassUpd(); sunClock();
+    // (slow tiles – e.g. the relief over a weak connection – are no failure: the map goes on once its style stands)
+    if (!ok && !M.map.style?._loaded) return mapFailed('The map did not finish loading.' + (M.lastErr ? ' Last error: ' + M.lastErr : ''));
+    imgCredit(); compassUpd(); sunClock(); obelUpd(); sunMoveHook();
     wireMapUI(); wireTime(); wireDraw(); mapInfo();
   } else M.map.resize();
   M.step = 'places'; renderTime();
