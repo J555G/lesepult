@@ -192,18 +192,31 @@ function obelUpd() {
   } else { m.getSource('obel').setData(body); m.getSource('obelsh').setData(sh); }
 }
 const obelShadow = () => { if (M.cfg?.gnomon && M.map?.getSource('obel') && M.obZ == null) obelUpd(); };   // (after the size slider; its size stays at every zoom)
-// dragging it: a finger or the mouse on the obelisk moves it (and not the map)
+// dragging it: a finger or the mouse on the obelisk moves it (and not the map). Caught before the map engine sees the touch
+// (capture phase), with some room around the thin shape and its foot – the engine's own layer events missed it at times (v332)
 function obelDragHook(m) {
   if (m._obDrag) return; m._obDrag = true;
-  const start = e => {
-    if (e.originalEvent?.touches?.length > 1) return;
-    e.preventDefault(); m.dragPan.disable(); M.obDrag = true;
-    const mv = ev => { const ll = ev.lngLat; M.cfg.gnomon = { lng: ((ll.lng + 540) % 360) - 180, lat: ll.lat, h: M.cfg.gnomon?.h }; obelUpd(); sunApply(); };
-    const end = () => { m.off('mousemove', mv); m.off('touchmove', mv); m.off('mouseup', end); m.off('touchend', end); m.off('touchcancel', end); m.dragPan.enable(); M.obDrag = false; saveMapCfg(); };
-    m.on('mousemove', mv); m.on('touchmove', mv); m.on('mouseup', end); m.on('touchend', end); m.on('touchcancel', end);
+  const box = m.getCanvasContainer(), canvas = m.getCanvas();
+  const pt = e => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  const hit = ([x, y]) => {
+    const g = M.cfg?.gnomon; if (!g || !m.getLayer('obel')) return false;
+    try { if (m.queryRenderedFeatures([[x - 14, y - 14], [x + 14, y + 14]], { layers: ['obel'] }).length) return true; } catch (_) {}
+    const f = m.project([g.lng, g.lat]); return Math.hypot(f.x - x, f.y - y) < 24;    // (the foot)
   };
-  m.on('mousedown', 'obel', start); m.on('touchstart', 'obel', start);
-  m.on('mouseenter', 'obel', () => { m.getCanvas().style.cursor = 'grab'; }); m.on('mouseleave', 'obel', () => { m.getCanvas().style.cursor = ''; });
+  box.addEventListener('pointerdown', e => {
+    if (M.obGrab || !e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0) || !hit(pt(e))) return;
+    e.stopPropagation(); e.preventDefault(); M.obGrab = e.pointerId; M.obDrag = true;
+    try { box.setPointerCapture(e.pointerId); } catch (_) {}
+    box.style.cursor = 'grabbing';
+    const mv = ev => { if (ev.pointerId !== M.obGrab) return; ev.preventDefault(); const ll = m.unproject(pt(ev));
+      M.cfg.gnomon = { lng: ((ll.lng + 540) % 360) - 180, lat: ll.lat, h: M.cfg.gnomon?.h }; obelUpd(); sunApply(); };
+    const end = ev => { if (ev.pointerId !== M.obGrab) return; M.obGrab = null; M.obDrag = false; box.style.cursor = ''; M.obNoClick = Date.now() + 400;
+      removeEventListener('pointermove', mv, true); removeEventListener('pointerup', end, true); removeEventListener('pointercancel', end, true); saveMapCfg(); };
+    addEventListener('pointermove', mv, true); addEventListener('pointerup', end, true); addEventListener('pointercancel', end, true);
+  }, true);
+  // (the touch and mouse events that follow the same press: kept from the map, so it does not pan meanwhile)
+  for (const t of ['touchstart', 'touchmove', 'mousedown', 'mousemove']) box.addEventListener(t, e => { if (M.obGrab != null) { e.stopPropagation(); if (e.cancelable) e.preventDefault(); } }, { capture: true, passive: false });
+  m.on('mousemove', e => { if (M.obGrab == null) box.style.cursor = hit([e.point.x, e.point.y]) ? 'grab' : ''; });
 }
 // "Here": the next tap on the map sets the obelisk; when one stands, "Here" takes it away
 async function sunHere() {

@@ -703,7 +703,8 @@ async function showMap1() {
     M.map.on('moveend', () => { const c = M.map.getCenter(), z = M.map.getZoom(), v = { c: [+c.lng.toFixed(4), +c.lat.toFixed(4)], z: +z.toFixed(2) }; setting('mpos|last', v); if (M.posKey) setting('mpos|' + M.posKey, v); });
     M.map.on('mouseenter', 'sites', () => { M.map.getCanvas().style.cursor = 'pointer'; });
     M.map.on('mouseleave', 'sites', () => { M.map.getCanvas().style.cursor = ''; });
-    M.map.on('click', e => { if (M.pick) { const p = M.pick; M.pick = null; $('#mapCanvas').classList.remove('picking'); p(e.lngLat); return; }
+    M.map.on('click', e => { if (M.obNoClick > Date.now()) return;      // (the end of dragging the obelisk is no click)
+      if (M.pick) { const p = M.pick; M.pick = null; $('#mapCanvas').classList.remove('picking'); p(e.lngLat); return; }
       { const pop = $('#mapPop'); if (!pop.hidden && ['layers', 'save'].includes(pop.dataset.k)) { pop.hidden = true; return; } }   // a tap (not a drag or pinch) closes these menus
       if (drawClick(e)) return;                                   // drawing (mapdraw.js)
       if ($('#mapChoose') && !$('#mapChoose').hidden) { $('#mapChoose').hidden = true; return; }
