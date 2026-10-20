@@ -43,7 +43,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--acc); outli
 .results small { color: var(--mut); display: block; font-size: 12px; }
 main { flex: 1; display: flex; min-height: 0; position: relative; }
 #stage { flex: 1; min-width: 0; position: relative; }
-svg#cv { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+svg#cv, #cv3 { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+#cv3:active { cursor: grabbing; }
 #panel { width: 380px; max-width: 42vw; border-left: 1px solid var(--line); background: var(--surface); overflow: auto; padding: 16px 18px; padding-right: max(18px, env(safe-area-inset-right, 0px)); box-sizing: border-box; }
 #panel h2 { font: 700 22px/1.15 var(--display); margin: 0 0 4px; text-wrap: balance; }
 #panel h3 { font: 600 11px var(--ui); text-transform: uppercase; letter-spacing: .07em; color: var(--mut); margin: 18px 0 6px; }
@@ -102,7 +103,7 @@ footer input[type=range] { width: 100%; accent-color: var(--acc); }
 <header>
   <h1>Pult Component Atlas<small id="hdrVer"></small></h1>
   <div class="search"><input id="q" type="search" placeholder="Find a part or function…" autocomplete="off" aria-label="Find a part"><div class="results" id="res" hidden></div></div>
-  <div class="grp"><span class="lab">Layout</span><div class="seg" id="segLayout"><button data-v="layers" aria-pressed="true">Layers</button><button data-v="web" aria-pressed="false">Web</button></div></div>
+  <div class="grp"><span class="lab">Layout</span><div class="seg" id="segLayout"><button data-v="layers" aria-pressed="true">Layers</button><button data-v="web" aria-pressed="false">Web</button><button data-v="3d" aria-pressed="false">3D</button></div></div>
   <div class="grp"><span class="lab">Colour</span><div class="seg" id="segMetric"><button data-v="part" aria-pressed="true">Part</button><button data-v="mem" aria-pressed="false">Memory</button><button data-v="store" aria-pressed="false">Storage</button><button data-v="cpu" aria-pressed="false">CPU</button><button data-v="gpu" aria-pressed="false">GPU</button></div></div>
   <div class="grp">
     <label class="chk"><input type="checkbox" id="ind" checked> Indicators</label>
@@ -113,7 +114,7 @@ footer input[type=range] { width: 100%; accent-color: var(--acc); }
   </div>
 </header>
 <main>
-  <div id="stage"><svg id="cv" aria-label="Components of Pult and how they connect"></svg><div class="hint" id="hint">Tap a part to see it; double-tap or ▸ to open it</div><div class="tip" id="tip" hidden></div></div>
+  <div id="stage"><svg id="cv" aria-label="Components of Pult and how they connect"></svg><canvas id="cv3" hidden aria-label="Components of Pult in three dimensions"></canvas><div class="hint" id="hint">Tap a part to see it; double-tap or ▸ to open it</div><div class="tip" id="tip" hidden></div></div>
   <aside id="panel"></aside>
 </main>
 <footer>
@@ -237,6 +238,10 @@ function draw(refit) {
   const vis = visible(), visSet = new Set(vis), edges = visEdges(visSet);
   let L = { groups: [], tiers: [] };
   if (sim) { sim.stop(); sim = null; }
+  const three = S.layout === '3d'; $('#cv').style.display = three ? 'none' : ''; $('#cv3').hidden = !three;
+  $('#hint').textContent = three ? 'Drag to turn, pinch or scroll to zoom, drag a part to pull it; double-tap to open it' : 'Tap a part to see it; double-tap or ▸ to open it';
+  if (three) { draw3d(vis, edges, refit); renderPanel(); return; }
+  stop3d();
   if (S.layout === 'layers') L = layoutLayers(vis);
   else { // the web: the parts pull on each other along their connections, each kind towards its own corner
     const old = POS; POS = new Map(); const l1s = MODEL.l1.map(l => l.id);
@@ -318,6 +323,7 @@ function highlight(edges) {
   });
 }
 function fit(id) {
+  if (S.layout === '3d') return fit3d(id);
   const b = gN.node().getBBox(), g = gGrp.node().getBBox(); let x0 = Math.min(b.x, g.x || b.x) - 30, y0 = Math.min(b.y, g.y || b.y) - 30, x1 = Math.max(b.x + b.width, g.x + g.width) + 30, y1 = Math.max(b.y + b.height, g.y + g.height) + 30;
   if (id && POS.get(id)) { const p = POS.get(id); x0 = p.x - 260; x1 = p.x + p.w + 260; y0 = p.y - 180; y1 = p.y + p.h + 180; }
   if (S.layout === 'layers' && !id) x0 = Math.min(x0, -10);
@@ -331,6 +337,144 @@ function tip(ev, id) {
   t.innerHTML = `<b>${esc(c.name)}</b><br>${esc(c.desc || '')}`; t.hidden = false;
   t.style.left = Math.min(r.width - 290, ev.clientX - r.left + 14) + 'px'; t.style.top = (ev.clientY - r.top + 14) + 'px';
 }
+
+// ---------------------------------------------------------------- the 3D web (v2): flat cards that always face you, hanging in
+// space on the strings of their connections; they sway and bounce a little when they are moved or pulled, like leaves
+const T3 = { nodes: new Map(), edges: [], cam: { yaw: 0.5, pitch: -0.25, dist: 2600, tx: 0, ty: 0, tz: 0 }, camTo: null, alpha: 0, raf: 0, drawn: [], drag: null, ptrs: new Map(), last: 0 };
+const cv3 = document.getElementById('cv3'), c3 = cv3.getContext('2d');
+function anchor3(l1) {   // each main part has its own direction in space (spread evenly on a sphere)
+  const ids = MODEL.l1.map(l => l.id), i = ids.indexOf(l1), n = ids.length, y = 1 - 2 * (i + 0.5) / n, r = Math.sqrt(1 - y * y), a = i * 2.39996;
+  return [Math.cos(a) * r * 900, y * 700, Math.sin(a) * r * 900];
+}
+function draw3d(vis, edges, refit) {
+  const old = T3.nodes, nn = new Map();
+  for (const id of vis) {
+    let o = old.get(id);
+    if (!o) { let p = N.get(id).parent, from = null; while (p && !from) { from = old.get(p); p = N.get(p).parent; }
+      // a part opened: its parts start where it was; others in their own region of space
+      if (!from) { for (const [k, v] of old) if (k.startsWith(id + '.')) { from = v; break; } }
+      const a = from ? [from.x, from.y, from.z] : anchor3(N.get(id).l1), j = from ? 60 : 260;
+      o = { id, x: a[0] + (Math.random() - .5) * j, y: a[1] + (Math.random() - .5) * j, z: a[2] + (Math.random() - .5) * j, vx: 0, vy: 0, vz: 0, th: 0, om: 0, sc: 1, sv: 0, px: null, py: null }; }
+    nn.set(id, o);
+  }
+  const changed = nn.size !== old.size || [...nn.keys()].some(k => !old.has(k));
+  T3.nodes = nn; T3.edges = edges; if (changed) T3.alpha = Math.max(T3.alpha, old.size ? 0.5 : 1);   // (a new selection only redraws)
+  if (refit || !old.size) T3.fitNext = true;
+  run3d();
+}
+function stop3d() { cancelAnimationFrame(T3.raf); T3.raf = 0; }
+function run3d() { if (!T3.raf) T3.raf = requestAnimationFrame(frame3d); }
+function tick3d() {   // the forces: parts push each other apart, strings pull connected parts together, each main part keeps to its region
+  const ns = [...T3.nodes.values()], a = T3.alpha, n = ns.length;
+  for (let i = 0; i < n; i++) { const p = ns[i];
+    for (let j = i + 1; j < n; j++) { const q = ns[j]; let dx = p.x - q.x, dy = p.y - q.y, dz = p.z - q.z; const r2 = dx * dx + dy * dy + dz * dz + 400, r = Math.sqrt(r2), f = 9e5 * a / r2 / r;
+      p.vx += dx * f; p.vy += dy * f; p.vz += dz * f; q.vx -= dx * f; q.vy -= dy * f; q.vz -= dz * f; } }
+  for (const e of T3.edges) { const p = T3.nodes.get(e.a), q = T3.nodes.get(e.b); if (!p || !q) continue;
+    const dx = q.x - p.x, dy = q.y - p.y, dz = q.z - p.z, r = Math.hypot(dx, dy, dz) || 1, L = e.kind === 'flow' ? 330 : 280, f = 0.012 * a * (r - L) / r * Math.min(3, 1 + Math.log2(e.n));
+    p.vx += dx * f; p.vy += dy * f; p.vz += dz * f; q.vx -= dx * f; q.vy -= dy * f; q.vz -= dz * f; }
+  for (const p of ns) { const an = anchor3(N.get(p.id).l1), k = 0.004 * a;
+    p.vx += (an[0] - p.x) * k; p.vy += (an[1] - p.y) * k; p.vz += (an[2] - p.z) * k;
+    if (T3.drag?.id === p.id) { p.vx = p.vy = p.vz = 0; continue; }
+    p.vx *= 0.8; p.vy *= 0.8; p.vz *= 0.8; p.x += p.vx; p.y += p.vy; p.z += p.vz; }
+  T3.alpha = Math.max(0, a * 0.985 - 0.0005);
+}
+function camBasis() { const c = T3.cam, cy = Math.cos(c.yaw), sy = Math.sin(c.yaw), cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
+  return { right: [cy, 0, -sy], up: [-sy * sp, cp, -cy * sp], fwd: [sy * cp, sp, cy * cp] }; }
+function proj(B, p, W, H, f) {   // world → screen (x, y), depth, scale
+  const c = T3.cam, dx = p.x - c.tx, dy = p.y - c.ty, dz = p.z - c.tz;
+  const x = dx * B.right[0] + dy * B.right[1] + dz * B.right[2], y = dx * B.up[0] + dy * B.up[1] + dz * B.up[2], z = c.dist - (dx * B.fwd[0] + dy * B.fwd[1] + dz * B.fwd[2]);
+  if (z < 60) return null; const s = f / z; return { x: W / 2 + x * s, y: H / 2 - y * s, z, s };
+}
+function frame3d(now) {
+  T3.raf = 0;
+  const dpr = devicePixelRatio || 1, W = cv3.clientWidth, H = cv3.clientHeight; if (!W || !H || S.layout !== '3d') return;
+  if (cv3.width !== Math.round(W * dpr) || cv3.height !== Math.round(H * dpr)) { cv3.width = Math.round(W * dpr); cv3.height = Math.round(H * dpr); }
+  if (T3.alpha > 0.002) tick3d();
+  if (T3.fitNext) { T3.fitNext = false; fit3d(null, true); }
+  const c = T3.cam;
+  if (T3.camTo) { const t = T3.camTo; let done = true; for (const k of ['tx', 'ty', 'tz', 'dist']) { c[k] += (t[k] - c[k]) * 0.12; if (Math.abs(t[k] - c[k]) > 1) done = false; } if (done) T3.camTo = null; }
+  const f = H * 0.95, B = camBasis(), x = c3; x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, W, H);
+  // where each card is, and how it swings: its sideways speed on the screen tips it, a spring rights it (a leaf on a string)
+  const P = new Map(); let moving = false;
+  for (const p of T3.nodes.values()) { const q = proj(B, p, W, H, f); if (!q) continue; P.set(p.id, q);
+    if (p.px != null) { const vx = q.x - p.px, vy = q.y - p.py;
+      p.om += -0.07 * p.th - 0.16 * p.om + 0.0022 * vx; p.th = Math.max(-0.4, Math.min(0.4, p.th + p.om));
+      p.sv += -0.12 * (p.sc - 1) - 0.18 * p.sv - 0.0009 * vy; p.sc = Math.max(0.9, Math.min(1.1, p.sc + p.sv));
+      if (Math.abs(p.om) > 2e-4 || Math.abs(p.sv) > 2e-4 || Math.abs(p.th) > 1e-3) moving = true; }
+    p.px = q.x; p.py = q.y; }
+  const sel = S.sel && T3.nodes.has(S.sel) ? S.sel : null, r = sel ? reach(sel, T3.edges) : null;
+  const zs = [...P.values()].map(q => q.z), z0 = Math.min(...zs), z1 = Math.max(...zs), fog = z => 1 - 0.45 * Math.max(0, Math.min(1, (z - z0) / Math.max(1, z1 - z0)));
+  const hw = q => BW * q.s / 2, hh = q => BH * q.s / 2;
+  const clip = (a, b) => { // where the line from a to b meets b's card
+    const dx = a.x - b.x, dy = a.y - b.y, sx = hw(b) / Math.max(1e-6, Math.abs(dx)), sy = hh(b) / Math.max(1e-6, Math.abs(dy)), t = Math.min(1, Math.min(sx, sy)); return [b.x + dx * t, b.y + dy * t]; };
+  // the strings
+  const dep = e => e.kind === 'code' ? [e.a, e.b] : [e.b, e.a];
+  for (const e of T3.edges) { const a = P.get(e.a), b = P.get(e.b); if (!a || !b) continue;
+    let col = e.kind === 'flow' ? css('--flow') : css('--mut'), al = 0.28 * Math.min(fog(a.z), fog(b.z)), w = Math.min(3, 0.6 + Math.log2(1 + e.n) * 0.4) * Math.sqrt(Math.min(a.s, b.s) * 3);
+    if (sel) { const [u, v] = dep(e), up = (u === sel && r.up.has(v)) || (r.up.has(u) && r.up.has(v) && r.up.get(v) > r.up.get(u)), dn = (v === sel && r.down.has(u)) || (r.down.has(u) && r.down.has(v) && r.down.get(u) > r.down.get(v));
+      if (up) { col = css('--up'); al = 0.95; } else if (dn) { col = css('--down'); al = 0.95; } else al *= 0.15; }
+    const [ex, ey] = clip(a, b); x.globalAlpha = al; x.strokeStyle = col; x.lineWidth = w;
+    x.setLineDash(e.kind === 'flow' ? [6, 4] : []); x.beginPath(); x.moveTo(a.x, a.y); x.lineTo(ex, ey); x.stroke(); x.setLineDash([]);
+    const an = Math.atan2(ey - a.y, ex - a.x), ah = 5 + w * 2; x.fillStyle = col; x.beginPath(); x.moveTo(ex, ey); x.lineTo(ex - ah * Math.cos(an - 0.4), ey - ah * Math.sin(an - 0.4)); x.lineTo(ex - ah * Math.cos(an + 0.4), ey - ah * Math.sin(an + 0.4)); x.fill();
+    if (sel && e.kind === 'flow' && (e.a === sel || e.b === sel)) { moving = true;   // what flows along the selected part's strings
+      for (let k = 0; k < 3; k++) { const t = ((now / 2600) + k / 3) % 1; x.globalAlpha = 1; x.beginPath(); x.arc(a.x + (ex - a.x) * t, a.y + (ey - a.y) * t, 2.5, 0, 7); x.fill(); } }
+    if ((S.lbl || (sel && (e.a === sel || e.b === sel))) && e.kind === 'flow' && al > 0.5) { x.globalAlpha = 1; x.font = '11px "Source Sans 3", sans-serif'; x.textAlign = 'center'; x.lineWidth = 3; x.strokeStyle = css('--bg'); const tx = (a.x + ex) / 2, ty = (a.y + ey) / 2, lab = e.labels[0] + (e.n > 1 ? ` (+${e.n - 1})` : ''); x.strokeText(lab, tx, ty); x.fillStyle = css('--ink'); x.fillText(lab, tx, ty); }
+  }
+  // the cards, far ones first
+  const order = [...P.entries()].sort((a, b) => b[1].z - a[1].z); T3.drawn = [];
+  for (const [id, q] of order) { const p = T3.nodes.get(id), cn = N.get(id);
+    let al = fog(q.z); if (sel && id !== sel && !r.up.has(id) && !r.down.has(id)) al *= 0.18; if (S.offv && netOf(id) === 'online') al *= 0.35;
+    x.save(); x.globalAlpha = al; x.translate(q.x, q.y); x.rotate(p.th); const k = q.s * p.sc; x.scale(k, k);
+    x.beginPath(); x.roundRect(-BW / 2, -BH / 2, BW, BH, 9); x.fillStyle = fill(id); x.fill();
+    x.lineWidth = (id === sel ? 3 : V.chg.has(id) && S.ver > 0 ? 2 : 1) / k * Math.min(1, k * 1.5); x.strokeStyle = id === sel ? css('--acc') : V.chg.has(id) && S.ver > 0 ? css('--flow') : css('--line'); x.setLineDash(V.chg.has(id) && S.ver > 0 && id !== sel ? [4, 3] : []); x.stroke(); x.setLineDash([]);
+    if (BW * k > 70) {   // the writing, once the card is big enough to read
+      x.fillStyle = css('--ink'); x.textAlign = 'left'; x.font = '600 12.5px "Source Sans 3", sans-serif';
+      let nm = cn.name; while (nm.length > 4 && x.measureText(nm).width > BW - 50) nm = nm.slice(0, -1); if (nm !== cn.name) nm = nm.trimEnd() + '…';
+      x.fillText(nm, -BW / 2 + 10, -BH / 2 + 19);
+      const b = V.tot(id, V.code), ad = V.tot(id, V.asset), kids = cn.children.filter(c => V.ex.has(c)).length;
+      x.font = '10.5px "IBM Plex Mono", monospace'; x.fillStyle = css('--mut'); x.fillText([b ? fmtB(b) + ' code' : '', ad ? fmtB(ad) + ' data' : '', kids ? kids + ' parts' : ''].filter(Boolean).slice(0, 2).join(' · '), -BW / 2 + 10, -BH / 2 + 34);
+      if (kids) { x.fillStyle = css('--ink'); x.font = '13px sans-serif'; x.fillText('▸', BW / 2 - 15, -BH / 2 + 19); }
+      const n = netOf(id); x.beginPath(); x.arc(BW / 2 - 28, -BH / 2 + 15, 4.5, 0, 7); x.lineWidth = 1.2; x.strokeStyle = css('--ink'); x.stroke(); if (n === 'offline') { x.fillStyle = css('--ink'); x.fill(); } else if (n === 'both') { x.beginPath(); x.arc(BW / 2 - 28, -BH / 2 + 15, 4.5, Math.PI / 2, -Math.PI / 2); x.fillStyle = css('--ink'); x.fill(); }
+      if (S.ind) Object.keys(METRICS).forEach((m, i) => { x.fillStyle = css('--h' + rating(id, m)); x.fillRect(-BW / 2 + 10 + i * 26, BH / 2 - 10, 23, 5); });
+    }
+    x.restore(); T3.drawn.push({ id, x: q.x, y: q.y, w: hw(q) * p.sc, h: hh(q) * p.sc });
+  }
+  x.globalAlpha = 1;
+  if (T3.alpha > 0.002 || moving || T3.camTo || T3.drag) run3d();
+}
+function hit3d(ex, ey) { for (let i = T3.drawn.length - 1; i >= 0; i--) { const d = T3.drawn[i]; if (Math.abs(ex - d.x) <= d.w && Math.abs(ey - d.y) <= d.h) return d.id; } return null; }
+function fit3d(id, now) {   // the camera to a part, or to all
+  const ns = [...T3.nodes.values()]; if (!ns.length) return;
+  let t;
+  if (id && T3.nodes.has(id)) { const p = T3.nodes.get(id); t = { tx: p.x, ty: p.y, tz: p.z, dist: 1100 }; }
+  else { const cx = ns.reduce((a, p) => a + p.x, 0) / ns.length, cy = ns.reduce((a, p) => a + p.y, 0) / ns.length, cz = ns.reduce((a, p) => a + p.z, 0) / ns.length;
+    const R = Math.max(400, ...ns.map(p => Math.hypot(p.x - cx, p.y - cy, p.z - cz))); t = { tx: cx, ty: cy, tz: cz, dist: R * 1.55 + 450 }; }
+  if (now) Object.assign(T3.cam, t); else T3.camTo = t; run3d();
+}
+cv3.addEventListener('pointerdown', e => {
+  cv3.setPointerCapture(e.pointerId); T3.ptrs.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+  if (T3.ptrs.size === 2) { const [a, b] = [...T3.ptrs.values()]; T3.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), dist: T3.cam.dist }; T3.drag = null; return; }
+  const id = hit3d(e.offsetX, e.offsetY); T3.drag = { id, x: e.offsetX, y: e.offsetY, x0: e.offsetX, y0: e.offsetY, moved: false }; $('#tip').hidden = true;
+});
+cv3.addEventListener('pointermove', e => {
+  if (T3.ptrs.has(e.pointerId)) T3.ptrs.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+  if (T3.pinch && T3.ptrs.size === 2) { const [a, b] = [...T3.ptrs.values()]; T3.cam.dist = Math.max(300, Math.min(20000, T3.pinch.dist * T3.pinch.d / Math.max(10, Math.hypot(a.x - b.x, a.y - b.y)))); T3.camTo = null; run3d(); return; }
+  const d = T3.drag;
+  if (!d) { const id = hit3d(e.offsetX, e.offsetY); if (id) tip(e, id); else $('#tip').hidden = true; return; }
+  const dx = e.offsetX - d.x, dy = e.offsetY - d.y; d.x = e.offsetX; d.y = e.offsetY; if (Math.hypot(e.offsetX - d.x0, e.offsetY - d.y0) > 4) d.moved = true;
+  if (d.id) {   // pulling a part: it follows the finger, its strings pull the others
+    const p = T3.nodes.get(d.id), B = camBasis(), H = cv3.clientHeight, q = proj(B, p, cv3.clientWidth, H, H * 0.95); if (!q) return; const u = 1 / q.s;
+    p.x += (B.right[0] * dx - B.up[0] * dy) * u; p.y += (B.right[1] * dx - B.up[1] * dy) * u; p.z += (B.right[2] * dx - B.up[2] * dy) * u; T3.alpha = Math.max(T3.alpha, 0.25);
+  } else { T3.cam.yaw -= dx * 0.006; T3.cam.pitch = Math.max(-1.45, Math.min(1.45, T3.cam.pitch + dy * 0.006)); }
+  run3d();
+});
+const up3 = e => { T3.ptrs.delete(e.pointerId); if (T3.ptrs.size < 2) T3.pinch = null; const d = T3.drag; T3.drag = null; if (!d || d.moved) { run3d(); return; }
+  const now = Date.now(), id = d.id;
+  if (id && T3.lastTap?.id === id && now - T3.lastTap.t < 350) { T3.lastTap = null; toggle(id); return; }
+  T3.lastTap = { id, t: now }; select(id && S.sel !== id ? id : null); };
+cv3.addEventListener('pointerup', up3); cv3.addEventListener('pointercancel', e => { T3.ptrs.delete(e.pointerId); T3.drag = null; T3.pinch = null; });
+cv3.addEventListener('wheel', e => { e.preventDefault(); T3.cam.dist = Math.max(300, Math.min(20000, T3.cam.dist * Math.exp(e.deltaY * 0.0012))); T3.camTo = null; run3d(); }, { passive: false });
+cv3.addEventListener('pointerleave', () => { $('#tip').hidden = true; });
 
 // ---------------------------------------------------------------- the panel
 function bars(v) { return `<div class="bar">${[1, 2, 3, 4, 5].map(i => `<i style="background:${i <= v ? css('--h' + v) : ''}"></i>`).join('')}</div>`; }

@@ -802,7 +802,7 @@
    "id": "map.sky.layer",
    "name": "Sky behind the map",
    "desc": "Paints a sky behind the globe and tilted views - Flammarion-style blue with stars, zodiac lines, the sun and the moon where they truly stand from the place shown.",
-   "detail": "`skyHook` adds an empty custom layer `skybodies` whose render callback runs `skyDraw` every map frame. `skyDraw` keeps a full-size canvas `#skyBg` behind the map canvas (so the earth hides what lies behind it), fills a blue gradient, projects each sky direction 'at infinity' with the map's own camera matrix (`mat4v`, `skyDir`), turns the stars with sidereal time, and - with sunlight on - draws the sun (coloured by its height above the visible horizon, `sunSeen`) and the moon (phase, lit side towards the sun), both kept upright relative to the earth's centre. Sizes follow the setting skySize (1-24).",
+   "detail": "`skyHook` adds an empty custom layer `skybodies` whose render callback runs `skyDraw` every map frame; frames where view, time and settings are unchanged are skipped (v347). `skyDraw` keeps a full-size canvas `#skyBg` behind the map canvas (so the earth hides what lies behind it), fills a blue gradient, projects each sky direction 'at infinity' with the map's own camera matrix (`mat4v`, `skyDir`), turns the stars with sidereal time, and - with sunlight on - draws the sun (coloured by its height above the visible horizon, `sunSeen`) and the moon (phase, lit side towards the sun), both kept upright relative to the earth's centre. Sizes follow the setting skySize (1-24).",
    "decls": [
     "mapsun.js|SKY",
     "mapsun.js|mat4v",
@@ -821,8 +821,8 @@
      "code only (part of the app files)"
     ],
     "cpu": [
-     4,
-     "every map frame: ~1,600 star transforms and canvas drawing on the main thread"
+     2,
+     "per map frame while the view or time changes: one matrix for all ~1,600 stars (a dozen multiplications each, v347); unchanged frames are skipped"
     ],
     "gpu": [
      2,
@@ -856,8 +856,8 @@
      "~45 KB data in the app cache"
     ],
     "cpu": [
-     3,
-     "every star drawn as a path each frame"
+     2,
+     "stars projected by one combined matrix (v347); only those on screen are drawn"
     ],
     "gpu": [
      0,
@@ -1059,8 +1059,8 @@
      "~285 KB of sky files in the app cache"
     ],
     "cpu": [
-     4,
-     "redrawn every map frame on the main thread"
+     2,
+     "redrawn when the view or the time changes; star positions by one matrix (v347)"
     ],
     "gpu": [
      2,

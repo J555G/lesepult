@@ -622,16 +622,16 @@
    "netNote": "syncPackages needs the website; importFiles works offline",
    "res": {
     "mem": [
-     5,
-     "a whole package in memory and its unpacked JSON (up to ~99 MB text for Greek morphology) while installing, est. several hundred MB peak"
+     3,
+     "the compressed package collected in memory (up to 14 MB), then installed streamed: measured peak ~35–55 MB (v348)"
     ],
     "store": [
      5,
      "writes each dictionary's database: ~3-100 MB per package unpacked"
     ],
     "cpu": [
-     4,
-     "gzip, JSON.parse and IndexedDB writes on the main thread, seconds to a minute"
+     3,
+     "download, then unpacking and IndexedDB writes bucket by bucket on the main thread"
     ],
     "gpu": [
      0,
@@ -807,16 +807,16 @@
    "net": "online",
    "res": {
     "mem": [
-     5,
-     "compressed package (up to 14 MB) plus unpacked JSON text and objects (up to ~99 MB text for Greek morphology), est. 200-500 MB peak"
+     3,
+     "the compressed package collected in memory (up to 14 MB), then installed streamed: measured peak ~35–55 MB (v348)"
     ],
     "store": [
      5,
      "one IndexedDB database per package, ~3-100 MB each unpacked"
     ],
     "cpu": [
-     4,
-     "gunzip + JSON.parse + IndexedDB writes on the main thread"
+     3,
+     "download, then unpacking and IndexedDB writes bucket by bucket on the main thread"
     ],
     "gpu": [
      0,
@@ -1084,7 +1084,7 @@
    "id": "settings.housekeeping",
    "name": "Silent housekeeping",
    "desc": "About 20 s after each start Pult quietly removes what can no longer be used, so storage does not fill up with leftovers.",
-   "detail": "`housekeep()` runs independent steps, each failing silently: delete databases of dictionaries that are no longer installed and the pre-v3 `greekdict` database (not while a dictionary downloads); delete all but the newest `lesepult-v*` app cache; delete map download parts older than 7 days from `pult-dl-parts` (not while a map downloads); remove search-index entries of texts that are gone; drop the place index when the places package is gone; empty the 7-day bin of works and old revisions (`trashLoad`, `revPrevLoad`).",
+   "detail": "`housekeep()` runs independent steps, each failing silently: delete databases of dictionaries that are no longer installed and the pre-v3 `greekdict` database (not while a dictionary downloads or is being imported from a file – v348); delete all but the newest `lesepult-v*` app cache; delete map download parts older than 7 days from `pult-dl-parts` (not while a map downloads); remove search-index entries of texts that are gone; drop the place index when the places package is gone; empty the 7-day bin of works and old revisions (`trashLoad`, `revPrevLoad`).",
    "decls": [
     "dialogs.js|housekeep"
    ],
@@ -1281,7 +1281,7 @@
    "id": "offline.routes.libs",
    "name": "Large libraries: cache first",
    "desc": "Large libraries under lib/ (three.js, versioned in the file name) are fetched once and then always served from their own cache, across app updates.",
-   "detail": "Any same-site path containing `/lib/` is answered from `pult-lib`, or fetched and stored. This also catches `maps/base/lib/` (pmtiles.js and MapLibre 4.7) before the map rule, so those two come from the app site's own copy via `pult-lib`, not from the downloaded base package in `pult-maps`; if the map was never opened online, pmtiles.js is missing offline and PMTiles layers do not load (apparent limit from reading the code). MapLibre 5 (`base/lib5/`) is not affected.",
+   "detail": "Only the app's own `lib/` folder (three.js) is answered from `pult-lib`, or fetched once and stored, and kept across app updates. Until v347 the rule matched any path containing `/lib/`, so the map package's `maps/base/lib/pmtiles.js` came from the app site instead of the downloaded package and could be missing offline; fixed in v347.",
    "decls": [],
    "net": "both",
    "netNote": "first use needs the network, afterwards offline",
@@ -1292,7 +1292,7 @@
     ],
     "store": [
      2,
-     "pult-lib: three.js 0.69 MB (+ pmtiles.js, MapLibre 4.7 when used)"
+     "pult-lib: three.js 0.69 MB"
     ],
     "cpu": [
      0,
@@ -2145,7 +2145,7 @@
    "id": "storage.cache_lib",
    "name": "Library cache (pult-lib)",
    "desc": "Large libraries fetched once and kept across app updates.",
-   "detail": "Cache Storage `pult-lib`, filled only by the offline helper's lib/ rule: three.js (lib/three-0.169.0.module.min.js, imported by the sundial's obelisk) and, because the rule matches any /lib/ path, maps/base/lib/pmtiles.js and MapLibre 4.7 when they are loaded.",
+   "detail": "Cache Storage `pult-lib`, filled only by the offline helper's lib/ rule: three.js (lib/three-0.169.0.module.min.js, imported by the sundial's obelisk). (Before v347 also pmtiles.js and MapLibre 4.7 from maps/base/lib/.)",
    "decls": [],
    "net": "both",
    "netNote": "filled on first use online",
@@ -2156,7 +2156,7 @@
     ],
     "store": [
      2,
-     "~0.7 MB three.js, up to ~1.5 MB with pmtiles.js and MapLibre 4.7"
+     "~0.7 MB three.js"
     ],
     "cpu": [
      0,
@@ -3123,7 +3123,7 @@
    "id": "data.fonts",
    "name": "Fonts and icons",
    "desc": "The typefaces of the text and interface, and the app icons.",
-   "detail": "WOFF2 subsets in fonts/ (≈670 kB, 23 files; 19 precached, the Gentium 700-italic ones unused) declared in fonts.css, plus three PNG icons; the @font-face rules are fonts.css (shell.fonts). Everything is precached, so text renders the same offline.",
+   "detail": "WOFF2 subsets in fonts/ (≈670 kB, 23 files; all precached; the four Gentium bold-italic files wired in since v348) declared in fonts.css, plus three PNG icons; the @font-face rules are fonts.css (shell.fonts). Everything is precached, so text renders the same offline.",
    "decls": [],
    "net": "offline",
    "res": {
@@ -3855,7 +3855,7 @@
   {
    "from": "offline.routes.libs",
    "to": "engine.pmtiles",
-   "label": "pmtiles.js (maps/base/lib/ matches the lib rule)",
+   "label": "pmtiles.js (from the downloaded map package since v347)",
    "kind": "data"
   },
   {

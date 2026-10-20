@@ -1247,7 +1247,7 @@
    "id": "shell.fonts.gentium",
    "name": "Gentium Book Plus (text)",
    "desc": "The reading face for Greek and Latin, in regular, bold and italic.",
-   "detail": "Twelve faces: Greek, Greek Extended, Latin and Latin Extended subsets for 400 normal, 700 normal and 400 italic (`--greek` in style.css). These rules have no `unicode-range`, so a browser may fetch several subsets of a style even for one script (est.). Four 700-italic files in fonts/ (~117 KB) are not referenced by fonts.css.",
+   "detail": "Sixteen faces: Greek, Greek Extended, Latin and Latin Extended subsets for 400 normal, 700 normal, 400 italic and (since v348) 700 italic (`--greek` in style.css). These rules have no `unicode-range`, so a browser may fetch several subsets of a style even for one script (est.).",
    "decls": [],
    "net": "offline",
    "res": {
@@ -2246,16 +2246,16 @@
    "netNote": "receives packages that Instruments has downloaded or that you picked",
    "res": {
     "mem": [
-     5,
-     "a whole package is decompressed and parsed at once: morph ~99 MB, L&S ~71 MB of JSON; est. 200-500 MB peak"
+     2,
+     "streamed install (v348): measured ~35–55 MB at peak; the Library still reads its (small) works whole with `readPackage`"
     ],
     "store": [
      5,
      "all installed dictionaries, est. ~300 MB for the free set"
     ],
     "cpu": [
-     4,
-     "decompression, JSON parsing and IndexedDB writes during install"
+     3,
+     "unpacking, parsing and writing during install (seconds to ~25 s)"
     ],
     "gpu": [
      0,
@@ -2267,23 +2267,23 @@
    "id": "reader.packages.read",
    "name": "Reading a package file",
    "desc": "Unpacks a .gz file and parses its JSON.",
-   "detail": "`readPackage` checks for the gzip header and pipes the file through `DecompressionStream`, reads the whole text, records its length as the size on the device and returns `JSON.parse` of it. The Library uses it for its gzipped works too.",
+   "detail": "`readPackage` checks for the gzip header and pipes the file through `DecompressionStream`, reads the whole text, records its length as the size on the device and returns `JSON.parse` of it. Used for the Library's gzipped works (small); dictionaries are streamed instead (`scanPackage`, v348).",
    "decls": [
     "analysis.js|readPackage"
    ],
    "net": "offline",
    "res": {
     "mem": [
-     5,
-     "the full uncompressed JSON string plus the parsed objects"
+     2,
+     "the whole unpacked JSON of one work (median ~0.1 MB, largest ~9.5 MB)"
     ],
     "store": [
      0,
      "none"
     ],
     "cpu": [
-     4,
-     "decompression + parse of up to ~100 MB"
+     2,
+     "decompression + parse of one work"
     ],
     "gpu": [
      0,
@@ -2295,24 +2295,26 @@
    "id": "reader.packages.import",
    "name": "Writing a package",
    "desc": "Stores a parsed package in its dictionary database without ever leaving the dictionary missing.",
-   "detail": "`importPackage` handles three kinds: the Latin engine (`latmorph`, one `engine` record), the hints (`morphhints`: preferred lemmata and word classes into settings) and bucketed dictionaries/morphology, written 300 buckets per transaction with progress, then the headword list (`#hw`) for search, then stale buckets deleted. It records the package in the `dicts` store (name, source, licence, version, size). `bulkPut` writes main-database stores in chunks of 2,000 (used by the migration and backups).",
+   "detail": "`importPackage` handles three kinds: the Latin engine (`latmorph`, one `engine` record), the hints (`morphhints`: preferred lemmata and word classes into settings) and bucketed dictionaries/morphology, written 300 buckets per transaction with progress, then the headword list (`#hw`) for search, then stale buckets deleted. It records the package in the `dicts` store (name, source, licence, version, size). `bulkPut` writes main-database stores in chunks of 2,000 (used by the migration and backups). Since v348 a package is read as it streams in (`scanPackage`): unpacked bit by bit, split at its top level, each bucket parsed alone and stored in batches of 300 – never the whole package in memory (measured in Chrome: Greek morphology peak ~45 MB instead of ~1,040 MB; LSJ ~35 MB instead of ~98 MB).",
    "decls": [
     "analysis.js|importPackage",
-    "analysis.js|bulkPut"
+    "analysis.js|bulkPut",
+    "analysis.js|scanPackage",
+    "analysis.js|importPackage1"
    ],
    "net": "offline",
    "res": {
     "mem": [
-     4,
-     "the parsed buckets while writing"
+     2,
+     "measured in Chrome: ~35–55 MB at peak while installing (streamed, v348); before: up to ~1 GB for Greek morphology"
     ],
     "store": [
      5,
-     "'greekreader-dict-<id>' databases"
+     "all installed dictionaries, est. ~300 MB for the free set"
     ],
     "cpu": [
-     4,
-     "many IndexedDB transactions"
+     3,
+     "unpacking, parsing bucket by bucket and IndexedDB writes: ~22 s for Greek morphology, ~8 s for LSJ (desktop Chrome)"
     ],
     "gpu": [
      0,
