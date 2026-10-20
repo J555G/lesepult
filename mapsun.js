@@ -650,8 +650,8 @@ function skyAt(alt, eve) {
   if (alt >= K[0][0]) return K[0].slice(1); if (alt <= K[K.length - 1][0]) return K[K.length - 1].slice(1);
   for (let i = 0; i < K.length - 1; i++) if (alt <= K[i][0] && alt >= K[i + 1][0]) { const t = (K[i][0] - alt) / (K[i][0] - K[i + 1][0]); return [hexMix(K[i][1], K[i + 1][1], t), hexMix(K[i][2], K[i + 1][2], t)]; }
 }
-const SD = { H: 198, cx: 92, cy: 82, R: 64, P: 50, ZR: 48, ZI: 33, ZW: 540 };   // the panel's height, the dial's centre, ring and plate radii;
-                                                                    // the zodiac wheel's radii, and the least width of the panel that shows it
+const SD = { H: 198, cx: 92, cy: 82, R: 64, P: 50, ZR: 80, ZY: 92, ZW: 640 };   // the panel's height, the dial's centre, ring and plate radii;
+                                                                    // the zodiac wheel's radius and centre height, and the least width of the panel that shows it
 const sdAng = h => (h - 12) / 24 * 2 * Math.PI;                        // (clockwise, as the day goes on; noon at the top – v330)
 const sdXY = (h, r) => [SD.cx + Math.sin(sdAng(h)) * r, SD.cy - Math.cos(sdAng(h)) * r];
 const OWL = '<g class="sdowl"><g class="owlw"><ellipse cx="-6" cy="2" rx="4" ry="7" transform="rotate(25 -6 2)"/><ellipse cx="6" cy="2" rx="4" ry="7" transform="rotate(-25 6 2)"/></g>'
@@ -680,8 +680,17 @@ function sdPanelHTML() {
     <text id="sdLab" class="sdlab" x="${SD.cx}" y="${SD.H - 12}" text-anchor="middle"></text></svg>
     <div class="sdctl" id="sunCtl"></div><button type="button" class="sdx" id="sdSwap" data-sdswap="1"></button></div>`;
 }
-// the zodiac wheel: the signs anticlockwise, as in the sky; the wheel turns so that the sun's place stands at the top, under
-// the pointer (turned clockwise, the year goes on)
+// the zodiac wheel: the wheel of Ptolemy's Handy Tables (Vat. gr. 1291, fol. 9r, Constantinople, early 9th c.) – the signs
+// anticlockwise, as in the sky, the months, the hours, and Helios in his chariot (v350). The rings turn so that the sun's
+// place stands at the top, under the pointer (turned clockwise, the year goes on); Helios in the middle stays upright.
+// sky/zodiac-rings.webp: the disc, straightened, with Aries–Taurus at the top, the middle cut out; sky/zodiac-helios.webp: the
+// middle (139 of 512). A tap opens the wheel large over the map; there, too, a finger turns it.
+const ZOD_HL = 139 / 512;
+function zodDiscSVG(R, ptr) {
+  return `<circle r="${R + 4}" class="sdrim"/><g class="zrot"><image href="sky/zodiac-rings.webp" x="${-R}" y="${-R}" width="${2 * R}" height="${2 * R}" transform="rotate(-30)"/></g>
+    <image href="sky/zodiac-helios.webp" x="${(-R * ZOD_HL).toFixed(2)}" y="${(-R * ZOD_HL).toFixed(2)}" width="${(2 * R * ZOD_HL).toFixed(2)}" height="${(2 * R * ZOD_HL).toFixed(2)}"/>
+    <path class="sdzptr" d="M${-ptr} ${-(R + ptr * 1.9)}h${2 * ptr}L0 ${-(R - ptr * 0.3)}z"/>`;
+}
 // where the panel is narrow, the controls and the wheel take turns; the button shows where it leads: the wheel, or day and night
 const SWAP_ZOD = '<svg width="18" height="18" viewBox="-10 -10 20 20" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.1"><circle r="8.2"/><circle r="4.6"/>'
   + Array.from({ length: 12 }, (_, i) => { const a = i * 30 * RAD; return `<path d="M${(Math.sin(a) * 4.6).toFixed(2)} ${(-Math.cos(a) * 4.6).toFixed(2)}L${(Math.sin(a) * 8.2).toFixed(2)} ${(-Math.cos(a) * 8.2).toFixed(2)}" stroke-width=".7"/>`; }).join('')
@@ -690,15 +699,36 @@ const SWAP_DN = '<svg width="18" height="18" viewBox="-10 -10 20 20" aria-hidden
   + '<circle r="8" fill="none" stroke="currentColor" stroke-width="1.1"/></svg>';
 const zXY = (a, r) => [(Math.sin(a * RAD) * r).toFixed(2), (-Math.cos(a * RAD) * r).toFixed(2)];
 function zodWheelHTML() {
-  const { ZR: R, ZI: I } = SD, rm = (R + I) / 2;
-  const div = Array.from({ length: 12 }, (_, i) => { const [a, b] = zXY(-30 * i, I), [c, d] = zXY(-30 * i, R); return `<line x1="${a}" y1="${b}" x2="${c}" y2="${d}"/>`; }).join('');
-  const dec = Array.from({ length: 36 }, (_, k) => k % 3 ? (() => { const [a, b] = zXY(-10 * k, R - 3), [c, d] = zXY(-10 * k, R); return `<line x1="${a}" y1="${b}" x2="${c}" y2="${d}"/>`; })() : '').join('');
-  const gl = ZOD.map((z, i) => { const a = -(30 * i + 15), [x, y] = zXY(a, rm); return `<path class="sdzg" data-z="${i}" transform="translate(${x} ${y}) rotate(${a}) scale(.9)" d="${z[4]}"/>`; }).join('');
-  return `<g id="sdZod" class="sdzod"><circle r="${R + 4}" class="sdrim"/><circle r="${R}" class="sdzband"/>
-      <g id="sdZodRot"><g class="sdzdiv">${div}</g><g class="sdzdec">${dec}</g>${gl}</g>
-      <circle r="${I}" fill="url(#sdStone)" class="sdplate"/><text id="sdZName" class="sdzname" y="4" text-anchor="middle"></text>
-      <path class="sdzptr" d="M-4.5 ${-(R + 12)}h9L0 ${-(R + 3)}z"/></g>
-    <text id="sdZLab" class="sdlab sdzlab" y="${SD.H - 12}" text-anchor="middle"></text>`;
+  return `<g id="sdZod" class="sdzod">${zodDiscSVG(SD.ZR, 4.5)}</g>
+    <text id="sdZLab" class="sdlab sdzlab" y="${SD.H - 6}" text-anchor="middle"></text>`;
+}
+// the wheel large, over the map
+function zodBigOpen() {
+  if ($('#zodBig')) return;
+  const d = document.createElement('div'); d.id = 'zodBig'; d.className = 'zodbig';
+  d.innerHTML = `<svg viewBox="-262 -278 524 540" aria-label="The zodiac wheel">${zodDiscSVG(250, 11)}</svg><div class="zl" id="zodBigLab"></div>
+    <button type="button" class="zx" aria-label="Close">✕</button>`;
+  document.body.append(d); sundialPaint();
+  d.addEventListener('pointerdown', ev => {
+    const svg = d.querySelector('svg'), r = svg.getBoundingClientRect(), k = r.width / 524, c = { x: r.left + r.width / 2, y: r.top + 278 * k };
+    if (ev.target.closest('.zx') || Math.hypot(ev.clientX - c.x, ev.clientY - c.y) > 262 * k) { d.remove(); return; }   // (outside the wheel: closed)
+    zodTurn(ev, () => c);
+  });
+}
+// a finger turning the wheel sets the day of the year (the hour kept); a tap without turning – on the small wheel – opens it large
+function zodTurn(ev, centre, onTap) {
+  ev.preventDefault(); ev.target.setPointerCapture?.(ev.pointerId);
+  const za = e => { const c = centre(); return Math.atan2(e.clientX - c.x, -(e.clientY - c.y)) / RAD; };
+  const T0 = sunTime(), e0 = sunPos(T0).ecl, x0 = ev.clientX, y0 = ev.clientY; let prev = za(ev), turn = 0, moved = false;
+  const mv = e => {
+    if (!moved) { if (Math.hypot(e.clientX - x0, e.clientY - y0) < 5) return; moved = true; M.sunDrag = true;
+      const mode = M.cfg.sunMode || 'now'; if (mode === 'now' || mode === 'anim') { M.cfg.sunMode = 'set'; saveMapCfg(); sunClock(); const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML(); } }
+    const a = za(e); turn += ((a - prev) % 360 + 540) % 360 - 180; prev = a;
+    let t = T0 + turn / 360 * 365.2422 * 864e5;
+    for (let k = 0; k < 3; k++) t += (((e0 + turn - sunPos(t).ecl) % 360 + 540) % 360 - 180) / 0.98565 * 864e5;
+    M.sunT = T0 + Math.round((t - T0) / 864e5) * 864e5; sunApply(); };
+  const up = () => { M.sunDrag = false; removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); if (!moved) onTap?.(); };
+  addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);
 }
 function sdCtlHTML() {
   const mode = M.cfg.sunMode || 'now', spd = M.cfg.sunSpeed || 20, yr = M.cfg.sunYear || 20;
@@ -757,12 +787,13 @@ function sundialPaint() {
   // the zodiac wheel, where there is room: at the right, beside the controls; else in turn with them
   const zw = W >= SD.ZW, zp = !zw && M.sdPage === 'zod', pn = $('#sunPanel'); pn?.classList.toggle('zw', zw); pn?.classList.toggle('zp', zp);
   const sw = $('#sdSwap'); if (sw) { sw.hidden = zw; const t = zp ? 'Day and night' : 'Time of year'; if (sw.title !== t) { sw.title = t; sw.setAttribute('aria-label', t); sw.innerHTML = zp ? SWAP_DN : SWAP_ZOD; } }
-  if (zw || zp) { const zx = zw ? W - SD.ZR - 16 : 2 * SD.cx + (W - 2 * SD.cx) / 2, e = sunPos(sunTime()).ecl, i = Math.floor(e / 30), fmt = M.cfg.sunFmt || 'modern';
-    M.zc = { x: zx, y: SD.cy };
-    $('#sdZod').setAttribute('transform', `translate(${zx.toFixed(1)} ${SD.cy})`); $('#sdZodRot').setAttribute('transform', `rotate(${e.toFixed(2)})`);
-    svg.querySelectorAll('.sdzg').forEach(p => p.classList.toggle('cur', +p.dataset.z === i));
-    $('#sdZName').textContent = ZOD[i][fmt === 'greek' ? 2 : fmt === 'roman' ? 1 : 0];
-    const zl = $('#sdZLab'); zl.textContent = l.sub; let tw = 0; try { tw = zl.getComputedTextLength(); } catch (_) {}
+  const e = sunPos(sunTime()).ecl, zn = ZOD[Math.floor(e / 30)][(M.cfg.sunFmt || 'modern') === 'greek' ? 2 : M.cfg.sunFmt === 'roman' ? 1 : 0];
+  document.querySelectorAll('.zrot').forEach(g => g.setAttribute('transform', `rotate(${e.toFixed(2)})`));   // (the small wheel and the large one)
+  const bl = $('#zodBigLab'); if (bl) bl.textContent = `${zn} · ${l.sub}`;
+  if (zw || zp) { const zx = zw ? W - SD.ZR - 16 : 2 * SD.cx + (W - 2 * SD.cx) / 2;
+    M.zc = { x: zx, y: SD.ZY };
+    $('#sdZod').setAttribute('transform', `translate(${zx.toFixed(1)} ${SD.ZY})`);
+    const zl = $('#sdZLab'); zl.textContent = `${zn} · ${l.sub}`; let tw = 0; try { tw = zl.getComputedTextLength(); } catch (_) {}
     zl.setAttribute('x', Math.min(zx, W - 8 - tw / 2).toFixed(1)); }     // (a long date kept inside the panel)
 }
 // a finger (or the mouse) on the dial sets the hour; the day stays
@@ -770,18 +801,9 @@ document.addEventListener('pointerdown', ev => {
   const svg = ev.target.closest?.('#sunSvg'); if (!svg) return;
   const near = e => { const r = svg.getBoundingClientRect(), x = e.clientX - r.left - SD.cx, y = e.clientY - r.top - SD.cy; return { x, y, d: Math.hypot(x, y) }; };
   const mode = M.cfg.sunMode || 'now', pn = $('#sunPanel'), zc = (pn?.classList.contains('zw') || pn?.classList.contains('zp')) && M.zc;
-  if (zc) { const r = svg.getBoundingClientRect(), za = e => Math.atan2(e.clientX - r.left - zc.x, -(e.clientY - r.top - zc.y)) / RAD;
-    if (Math.hypot(ev.clientX - r.left - zc.x, ev.clientY - r.top - zc.y) <= SD.ZR + 12) {   // the wheel: the day of the year (the hour kept)
-      ev.preventDefault(); svg.setPointerCapture?.(ev.pointerId);
-      if (mode === 'now' || mode === 'anim') { M.cfg.sunMode = 'set'; saveMapCfg(); sunClock(); $('#sunCtl').innerHTML = sdCtlHTML(); }
-      const T0 = sunTime(), e0 = sunPos(T0).ecl; let prev = za(ev), turn = 0; M.sunDrag = true;
-      const mv = e => { const a = za(e); turn += ((a - prev) % 360 + 540) % 360 - 180; prev = a;
-        let t = T0 + turn / 360 * 365.2422 * 864e5;
-        for (let k = 0; k < 3; k++) t += (((e0 + turn - sunPos(t).ecl) % 360 + 540) % 360 - 180) / 0.98565 * 864e5;
-        M.sunT = T0 + Math.round((t - T0) / 864e5) * 864e5; sunApply(); };
-      const up = () => { M.sunDrag = false; removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); };
-      addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);
-      return; } }
+  if (zc) { const r = svg.getBoundingClientRect();
+    if (Math.hypot(ev.clientX - r.left - zc.x, ev.clientY - r.top - zc.y) <= SD.ZR + 8) {   // the wheel: turned, the day of the year; tapped, large
+      zodTurn(ev, () => { const q = svg.getBoundingClientRect(); return { x: q.left + M.zc.x, y: q.top + M.zc.y }; }, zodBigOpen); return; } }
   if (near(ev).d > SD.R + 22) return;                                   // (only on and around the dial)
   ev.preventDefault(); svg.setPointerCapture?.(ev.pointerId);
   const setT = e => { const { x, y } = near(e), h = ((12 + Math.atan2(x, -y) / (2 * Math.PI) * 24) % 24 + 24) % 24, { lst } = sunHour();

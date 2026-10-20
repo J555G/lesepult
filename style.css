@@ -1900,7 +1900,7 @@ dialog .sortpair button{transition:border-color .15s}
 .sdmark svg{display:block}
 #mapCanvas.picking{cursor:crosshair}
 /* (the upper edge fades into the map; the band above the dial takes the sky's colour) */
-.msdial{position:absolute;left:50%;transform:translateX(-50%);bottom:8px;width:calc(100% - 16px);max-width:560px;height:218px;z-index:4;border-radius:0 0 14px 14px;overflow:hidden;border:1px solid color-mix(in srgb,var(--line) 70%,transparent);border-top:0;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 20px);mask-image:linear-gradient(to bottom,transparent 0,#000 20px)}
+.msdial{position:absolute;left:50%;transform:translateX(-50%);bottom:8px;width:calc(100% - 16px);max-width:660px;height:218px;z-index:4;border-radius:0 0 14px 14px;overflow:hidden;border:1px solid color-mix(in srgb,var(--line) 70%,transparent);border-top:0;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 20px);mask-image:linear-gradient(to bottom,transparent 0,#000 20px)}
 .msdial .sdsvg{position:absolute;top:20px;left:0;width:100%;height:198px;display:block;touch-action:none;-webkit-user-select:none;user-select:none}
 .msdial .sdstars circle{fill:#fff;animation:sdtw 3.4s ease-in-out infinite alternate}
 @keyframes sdtw{from{opacity:1}to{opacity:.35}}
@@ -1946,7 +1946,7 @@ dialog .sortpair button{transition:border-color .15s}
 .msdial .sdtg button.on{opacity:1;background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.8)}
 .msdial .sdzod{display:none}
 .msdial.zw .sdzod{display:inline}
-.msdial.zw .sdctl{right:130px}
+.msdial.zw .sdctl{right:196px}
 .msdial.zw .sdsub{display:none}
 .msdial.zp .sdzod{display:inline}
 .msdial.zp .sdctl{display:none}
@@ -2024,3 +2024,12 @@ dialog .sortpair button{transition:border-color .15s}
 .msdial .sdtg .obsz{flex:1 1 56px;min-width:36px;max-width:72px;width:auto}
 .skycv{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
 .skybg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+
+/* the zodiac wheel large, over the map (v350) */
+.zodbig{position:fixed;inset:0;z-index:3000;background:rgba(6,9,24,.66);display:flex;flex-direction:column;align-items:center;justify-content:center;touch-action:none;-webkit-user-select:none;user-select:none}
+.zodbig svg{width:min(88vw,78vh,720px);height:auto;overflow:visible;cursor:grab}
+.zodbig .sdrim{fill:rgba(20,16,10,.5);stroke:rgba(255,255,255,.45);stroke-width:2}
+.zodbig .sdzptr{fill:#ffd166;stroke:#7a5a10;stroke-width:1.4}
+.zodbig .zl{color:#fff;font:600 17px var(--ui);margin-top:12px;text-align:center;text-shadow:0 1px 3px #000}
+.zodbig .zx{position:absolute;top:max(14px,env(safe-area-inset-top));right:max(14px,env(safe-area-inset-right));width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.5);background:rgba(0,0,0,.35);color:#fff;font-size:18px;cursor:pointer}
+.msdial .sdzod{cursor:pointer}
