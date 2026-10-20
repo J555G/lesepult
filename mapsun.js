@@ -327,7 +327,7 @@ async function sunHere() {
 // ---------------------------------------------------------------- the sun and the moon in the sky (v334)
 // Drawn where they truly stand as seen from the place the dial shows: tilted towards the horizon, in the sky; zoomed out, in space
 // beside the globe – a direction "at infinity" projected by the map's own camera, hidden where the earth lies before it. Larger
-// than true (settings: skySize, 1 … 6, 3), the sun with a glow, the moon in its real phase. Switches: skySun, skyMoon.
+// than true (settings: skySize, 1 … 24, 10 – v336), the sun with a glow, the moon in its real phase. Switches: skySun, skyMoon.
 const mat4v = (m, v) => [0, 1, 2, 3].map(i => m[i] * v[0] + m[4 + i] * v[1] + m[8 + i] * v[2] + m[12 + i] * v[3]);
 const skyDir = (az, alt) => [Math.cos(alt * RAD) * Math.sin(az * RAD), Math.sin(alt * RAD), -Math.cos(alt * RAD) * Math.cos(az * RAD)];   // (x east, y up, z south)
 // Behind the map, wherever no earth is seen (around the globe, above the horizon of a tilted view): dark blue space with stars,
@@ -361,7 +361,7 @@ function skyDraw(args) {
   const behindEarth = d => { if (!globe) return d[1] < 0;
     const o = [eye[0], eye[1] + RE, eye[2]], b = o[0] * d[0] + o[1] * d[1] + o[2] * d[2], c = o[0] ** 2 + o[1] ** 2 + o[2] ** 2 - RE * RE, disc = b * b - c;
     return disc > 0 && -b - Math.sqrt(disc) > 0; };
-  const f = H / 2 / Math.tan((m.transform.fovInRadians || 0.6435) / 2), size = M.cfg.skySize || 3;
+  const f = H / 2 / Math.tan((m.transform.fovInRadians || 0.6435) / 2), size = M.cfg.skySize || 10;
   // the stars: each a direction in the sky (right ascension, declination), turned with the sidereal time to the place shown
   { const gm = ((18.697374558 + 24.06570982441908 * (t / 864e5 - 10957.5)) % 24 + 24) % 24 * 15;
     for (const st of STARS) { const a = sunAt({ dec: st.dec, lon: ((st.ra - gm + 540) % 360) - 180 }, ref.lng, ref.lat), d = skyDir(a.az, a.alt), p = scr(d);
