@@ -24,7 +24,7 @@
 html, body { height: 100%; }
 [hidden] { display: none !important; }
 body { background: var(--bg); color: var(--ink); font: 14px/1.4 var(--ui); display: flex; flex-direction: column; overflow: hidden; }
-header { display: flex; flex-wrap: nowrap; align-items: center; gap: 10px; overflow-x: auto; scrollbar-width: none; padding-block: 5px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); border-bottom: 1px solid var(--line); background: var(--surface); }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding-block: 5px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); border-bottom: 1px solid var(--line); background: var(--surface); }
 h1 { font: 700 17px/1.1 var(--display); flex: none; margin: 0; letter-spacing: .01em; white-space: nowrap; }
 h1 small { font: 400 12px var(--ui); color: var(--mut); margin-left: 6px; }
 .grp { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -40,14 +40,18 @@ button.plain { flex: none; border: 1px solid var(--line); background: transparen
 .menu .row { display: flex; gap: 8px; }
 button:focus-visible, input:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 .chk { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; cursor: pointer; user-select: none; }
-.search { position: relative; flex: 1 0 150px; min-width: 150px; max-width: 280px; }
+.search { position: relative; flex: 1 1 150px; min-width: 90px; max-width: 280px; }
+select.sm { display: none; flex: 0 1 auto; min-width: 64px; max-width: 120px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--ink); font: 600 12.5px var(--ui); padding: 3px 4px; }
+@media (max-width: 1100px) { header .seg { display: none; } select.sm { display: block; } h1 { display: none; } .rng input { width: 80px; } }
+@media (max-width: 560px) { .rng span { display: none; } .rng input { width: 56px; } #optBtn .t { display: none; } header { gap: 5px 6px; } }
+#fsBtn .t { display: none; }
 .search input { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 7px; padding: 3px 9px; background: var(--bg); color: var(--ink); font: 14px var(--ui); }
 .results { position: fixed; width: 300px; z-index: 20; top: 100%; left: 0; right: 0; margin-top: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.18); max-height: 50vh; overflow: auto; }
 .results button { display: block; width: 100%; text-align: left; border: 0; background: transparent; color: var(--ink); padding: 7px 10px; cursor: pointer; font: 14px var(--ui); }
 .results button:hover, .results button.on { background: var(--soft); }
 .results small { color: var(--mut); display: block; font-size: 12px; }
 main { flex: 1; display: flex; min-height: 0; position: relative; }
-#stage { flex: 1; min-width: 0; position: relative; }
+#stage { flex: 1; min-width: 0; position: relative; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 svg#cv, #cv3 { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
 #cv3:active { cursor: grabbing; }
 #panel { width: 380px; max-width: 42vw; border-left: 1px solid var(--line); background: var(--surface); overflow: auto; padding: 16px 18px; padding-right: max(18px, env(safe-area-inset-right, 0px)); box-sizing: border-box; }
@@ -106,7 +110,7 @@ footer input[type=range] { accent-color: var(--acc); }
   h1 small { display: none; }
 }
 /* full screen: only the drawing; the panel of a selected part floats over its lower edge */
-body.full header, body.full footer { display: none; }
+body.full footer { display: none; }
 body.full #panel { position: absolute; left: max(12px, env(safe-area-inset-left, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); bottom: max(12px, env(safe-area-inset-bottom, 0px)); width: auto; max-width: 560px; height: auto; max-height: 38%; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.22); z-index: 6; }
 body.full.nosel #panel { display: none; }
 body.full .hint { display: none; }
@@ -120,9 +124,12 @@ body.full .hint { display: none; }
   <div class="seg" id="segLayout" title="Layout"><button data-v="layers" aria-pressed="true">Layers</button><button data-v="web" aria-pressed="false">Web</button><button data-v="3d" aria-pressed="false">3D</button></div>
   <div class="seg" id="segMetric" title="Colour by"><button data-v="part" aria-pressed="true">Part</button><button data-v="mem" aria-pressed="false" title="Memory">Mem</button><button data-v="store" aria-pressed="false" title="Storage">Store</button><button data-v="cpu" aria-pressed="false">CPU</button><button data-v="gpu" aria-pressed="false">GPU</button></div>
   <div class="seg" id="segFocus" title="With a part selected, show only…"><button data-v="all" aria-pressed="true">All</button><button data-v="up" aria-pressed="false" title="only what the selected part relies on">Relies on</button><button data-v="down" aria-pressed="false" title="only what relies on the selected part">Relied on by</button><button data-v="both" aria-pressed="false" title="only the selected part's connections">Both</button></div>
-  <label class="rng" title="How far apart the parts are">Spacing <input type="range" id="spread" min="0.4" max="3" step="0.05" value="1"></label>
-  <button class="plain" id="optBtn" aria-expanded="false">Options ▾</button>
-  <button class="plain" id="fsBtn" title="Full screen">⛶ Full screen</button>
+  <select class="sm" id="selLayout" aria-label="Layout"><option value="layers">Layers</option><option value="web">Web</option><option value="3d">3D</option></select>
+  <select class="sm" id="selMetric" aria-label="Colour by"><option value="part">Part</option><option value="mem">Memory</option><option value="store">Storage</option><option value="cpu">CPU</option><option value="gpu">GPU</option></select>
+  <select class="sm" id="selFocus" aria-label="Show"><option value="all">All</option><option value="up">Relies on</option><option value="down">Relied on by</option><option value="both">Both</option></select>
+  <label class="rng" title="How far apart the parts are"><span>Spacing</span> <input type="range" id="spread" min="0.4" max="3" step="0.05" value="1" aria-label="Spacing"></label>
+  <button class="plain" id="optBtn" aria-expanded="false" title="Options"><span class="t">Options </span>▾</button>
+  <button class="plain" id="fsBtn" title="Full screen">⛶<span class="t"> Full screen</span></button>
 </header>
 <div class="menu" id="opts" hidden>
   <label class="chk"><input type="checkbox" id="ind" checked> Load indicators</label>
@@ -132,7 +139,7 @@ body.full .hint { display: none; }
   <div class="row"><button class="plain" id="expAll">Expand all</button><button class="plain" id="colAll">Collapse</button></div>
 </div>
 <main>
-  <div id="stage"><svg id="cv" aria-label="Components of Pult and how they connect"></svg><canvas id="cv3" hidden aria-label="Components of Pult in three dimensions"></canvas><button class="plain fsx" id="fsExit" hidden title="Leave full screen">✕ Leave full screen</button><div class="hint" id="hint">Tap a part to see it; double-tap or ▸ to open it</div><div class="tip" id="tip" hidden></div></div>
+  <div id="stage"><svg id="cv" aria-label="Components of Pult and how they connect"></svg><canvas id="cv3" hidden aria-label="Components of Pult in three dimensions"></canvas><div class="hint" id="hint">Tap a part to see it; double-tap or ▸ to open it</div><div class="tip" id="tip" hidden></div></div>
   <aside id="panel"></aside>
 </main>
 <footer>
@@ -607,17 +614,22 @@ $('#play').onclick = () => { if (playT) { clearInterval(playT); playT = 0; $('#p
 $('#ver').oninput = e => setVer(+e.target.value, true);
 
 // ---------------------------------------------------------------- controls
-function seg(sel, key, cb) { $(sel).onclick = e => { const b = e.target.closest('button'); if (!b) return; S[key] = b.dataset.v; [...$(sel).children].forEach(x => x.setAttribute('aria-pressed', x === b)); keep(); cb?.(); draw(); }; [...$(sel).children].forEach(x => x.setAttribute('aria-pressed', x.dataset.v === S[key])); }
+function seg(sel, key, cb) {
+  const dd = $(sel.replace('#seg', '#sel')), set = v => { S[key] = v; [...$(sel).children].forEach(x => x.setAttribute('aria-pressed', x.dataset.v === v)); if (dd) dd.value = v; };
+  $(sel).onclick = e => { const b = e.target.closest('button'); if (!b) return; set(b.dataset.v); keep(); cb?.(); draw(); };
+  if (dd) dd.onchange = () => { set(dd.value); keep(); cb?.(); draw(); };
+  set(S[key]);
+}
 seg('#segLayout', 'layout', () => { fitted = ''; }); seg('#segMetric', 'metric'); seg('#segFocus', 'focus', () => { if (S.focus !== 'all' && !S.sel) note2('Select a part first'); T3.fitNext = true; fitted = ''; setTimeout(() => S.layout !== '3d' && fit(), 60); });
 function note2(t) { const h = $('#hint'), o = h.textContent; h.textContent = t; setTimeout(() => { h.textContent = o; }, 1800); }
 $('#spread').value = S.spread;
 $('#spread').oninput = e => { S.spread = +e.target.value; keep(); if (S.layout === '3d') { T3.alpha = Math.max(T3.alpha, 0.6); run3d(); } else draw(); };
 function setFull(on) {
-  document.body.classList.toggle('full', on); $('#fsExit').hidden = !on;
+  document.body.classList.toggle('full', on); $('#fsBtn').innerHTML = on ? '✕' : '⛶'; $('#fsBtn').title = on ? 'Leave full screen' : 'Full screen';
   try { if (on && !document.fullscreenElement) document.documentElement.requestFullscreen?.()?.catch?.(() => {}); else if (!on && document.fullscreenElement) document.exitFullscreen?.(); } catch (_) {}
   setTimeout(() => { draw(); if (S.layout !== '3d') fit(); else { T3.fitNext = true; run3d(); } }, 120);
 }
-$('#fsBtn').onclick = () => setFull(true); $('#fsExit').onclick = () => setFull(false);
+$('#fsBtn').onclick = () => setFull(!document.body.classList.contains('full'));
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.body.classList.contains('full')) setFull(false); });
 addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('full')) setFull(false); });
 $('#optBtn').onclick = () => { const m = $('#opts'), open = m.hidden; m.hidden = !open; $('#optBtn').setAttribute('aria-expanded', open); if (open) m.style.top = ($('header').getBoundingClientRect().bottom + 6) + 'px'; };
