@@ -1,0 +1,2947 @@
+{
+ "components": [
+  {
+   "id": "net.ghpages",
+   "name": "GitHub Pages: the app's website",
+   "desc": "The website https://j555g.github.io/lesepult/ that serves the app itself, the texts, the dictionary packages and the list of map packages.",
+   "detail": "Every request is relative to the app's own address, so the same files work from any host. The offline helper (sw.js) fetches the app files network-first with a time limit (4 s for pages, 8 s otherwise) and keeps a copy; texts and dictionary packages bypass it and go straight into IndexedDB. A small HEAD request for texts/catalog.json (`netCheck` in dialogs.js, at most 3.5 s) is how the app decides whether it is online.",
+   "decls": [],
+   "net": "online",
+   "netNote": "the source of everything that later works offline",
+   "res": {
+    "mem": [
+     1,
+     "received data is handed straight on; nothing held here"
+    ],
+    "store": [
+     0,
+     "nothing stored by the source itself"
+    ],
+    "cpu": [
+     1,
+     "network transfers only (decoding happens in the parts that use the data)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "net.ghpages.app",
+   "name": "App files",
+   "desc": "index.html, the scripts, style sheet, fonts, icons, sky pictures and the three.js library.",
+   "detail": "The service worker caches the fixed list `FILES` on install (cache 'lesepult-vNNN') and afterwards serves each file network-first, falling back to the copy. Files under lib/ (three.js, with the version in the name) go to the separate cache 'pult-lib' and are fetched only once, across app updates. About 1.3 MB of code plus ~0.7 MB fonts and the 0.7 MB three.js module.",
+   "decls": [],
+   "net": "online",
+   "netNote": "cached for offline use by the offline helper",
+   "res": {
+    "mem": [
+     1,
+     "received data is handed straight on; nothing held here"
+    ],
+    "store": [
+     0,
+     "nothing stored by the source itself"
+    ],
+    "cpu": [
+     1,
+     "network transfers only (decoding happens in the parts that use the data)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "net.ghpages.texts",
+   "name": "Texts catalogue and works",
+   "desc": "texts/catalog.json (about 1 MB) and one gzip-compressed JSON per work in texts/works/ (about 200 MB in total).",
+   "detail": "The Library fetches the catalogue with `fetchCatalog` (no-cache) and downloads a work with `downloadWork`, streaming the body to show progress before `installWork` unpacks it into IndexedDB. The revision view (librev.js) downloads a work again to compare versions. HEAD requests on the catalogue serve as the online check.",
+   "decls": [],
+   "net": "online",
+   "netNote": "downloaded works are kept in IndexedDB 'greekreader-lib'",
+   "res": {
+    "mem": [
+     1,
+     "received data is handed straight on; nothing held here"
+    ],
+    "store": [
+     0,
+     "nothing stored by the source itself"
+    ],
+    "cpu": [
+     1,
+     "network transfers only (decoding happens in the parts that use the data)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "net.ghpages.packages",
+   "name": "Dictionary packages",
+   "desc": "packages/packages.json and the free dictionary and morphology packages (*.gdpkg.gz, 0.15-14 MB each, about 63 MB together).",
+   "detail": "Instruments → Dictionaries reads the manifest with `fetchManifest` and fetches a package with `pkgFetch`; the version (a 12-character hash) drives the update check `updCheck`. The service worker deliberately lets these requests pass to the network uncached, because the unpacked contents go into one IndexedDB database per dictionary.",
+   "decls": [],
+   "net": "online",
+   "netNote": "installed packages live in IndexedDB 'greekreader-dict-<id>'",
+   "res": {
+    "mem": [
+     1,
+     "received data is handed straight on; nothing held here"
+    ],
+    "store": [
+     0,
+     "nothing stored by the source itself"
+    ],
+    "cpu": [
+     1,
+     "network transfers only (decoding happens in the parts that use the data)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "net.ghpages.mapslist",
+   "name": "Map package list",
+   "desc": "maps/maps.json: the list of map packages with their files, sizes, versions, parts and download address.",
+   "detail": "`mapManifest` (maps.js) reads it with a 6 s limit and stores a copy in the cache 'pult-maps'; the service worker also answers it network-first from that copy. Each entry names the site its files come from (`url`: the lesepult-maps site), so only this small list lives on the app's own site.",
+   "decls": [],
+   "net": "both",
+   "netNote": "the last copy is used offline",
+   "res": {
+    "mem": [
+     1,
+     "received data is handed straight on; nothing held here"
+    ],
+    "store": [
+     0,
+     "nothing stored by the source itself"
+    ],
+    "cpu": [
+     1,
+     "network transfers only (decoding happens in the parts that use the data)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "net.ghmaps",
+   "name": "GitHub Pages: lesepult-maps",
+   "desc": "The second website https://j555g.github.io/lesepult-maps/ that holds the map package files (about 3.9 GB in the repository, much of it retired relief and Natural Earth II packages).",
+   "detail": "`downloadMapPkg` fetches each file of a package from the package's `url`, with up to three tries per file. Files over 16 MB are published in parts (f.0, f.1 …, because GitHub refuses files over 100 MB and large downloads proved unreliable); each part is kept in the cache 'pult-dl-parts' as it arrives so a broken download resumes, and the parts are joined into one blob stored in 'pult-maps' under the app's own maps/ address. The service worker never intercepts this site (other path on the same host).",
+   "decls": [],
+   "net": "online",
+   "netNote": "downloaded packages are used offline from the cache 'pult-maps'",
+   "res": {
+    "mem": [
+     1,
+     "received data is handed straight on; nothing held here"
+    ],
+    "store": [
+     0,
+     "nothing stored by the source itself"
+    ],
+    "cpu": [
+     1,
+     "network transfers only (decoding happens in the parts that use the data)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "net.ghmaps.engine",
+   "name": "Map engine files",
+   "desc": "base/lib5 (MapLibre GL JS 5.24), base/lib (MapLibre 4.7.1 and pmtiles.js 4.4.1): part of the Base map package.",
+   "detail": "The map engine is not shipped with the app but downloaded with the Base map package (about 21 MB including Blue Marble), so the app stays small until the map is wanted. Once in the cache, `loadMapLib` loads the scripts from there through the service worker.",
+   "decls": [],
+   "net": "online",
+   "netNote": "cached in 'pult-maps' with the Base map",
+   "res": {
+    "mem": [
+     1,
+     "received data is handed straight on; nothing held here"
+    ],
+    "store": [
+     0,
+     "nothing stored by the source itself"
+    ],
+    "cpu": [
+     1,
+     "network transfers only (decoding happens in the parts that use the data)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "net.ghmaps.geojson",
+   "name": "GeoJSON layers",
+   "desc": "Plain GeoJSON files: base land, lakes, rivers and borders; the ancient layers (AWMC); the Pleiades gazetteer places/places.json.",
+   "detail": "These are whole files (0.2-3.7 MB each) read directly as MapLibre GeoJSON sources or, for the gazetteer, indexed into IndexedDB 'pult-places'.",
+   "decls": [],
+   "net": "online",
+   "netNote": "cached in 'pult-maps'",
+   "res": {
+    "mem": [
+     1,
+     "received data is handed straight on; nothing held here"
+    ],
+    "store": [
+     0,
+     "nothing stored by the source itself"
+    ],
+    "cpu": [
+     1,
+     "network transfers only (decoding happens in the parts that use the data)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "net.ghmaps.pmtiles",
+   "name": "PMTiles packages",
+   "desc": "Single-file tile archives: Blue Marble imagery (base), Landscape – detailed, Itiner-e Roman roads, and retired relief / Natural Earth II packages.",
+   "detail": "The app downloads the whole archive (joined from 16 MB parts where needed) instead of reading ranges over the network, so the archive works offline; pmtiles.js later reads byte ranges from the cached blob. Retired packages stay listed only so installed copies can be removed.",
+   "decls": [],
+   "net": "online",
+   "netNote": "cached in 'pult-maps'",
+   "res": {
+    "mem": [
+     1,
+     "received data is handed straight on; nothing held here"
+    ],
+    "store": [
+     0,
+     "nothing stored by the source itself"
+    ],
+    "cpu": [
+     1,
+     "network transfers only (decoding happens in the parts that use the data)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "net.github_api",
+   "name": "GitHub API (private dictionaries)",
+   "desc": "api.github.com, used to read Frisk, Bailly and other non-public dictionary packages from the user's private repository.",
+   "detail": "`privFetch` (dialogs.js) requests repos/<repo>/contents/<path> with a fine-grained personal access token stored only on the device (setting 'privRepo') and the raw media type. The private packages.json is merged into the public manifest, so private packages appear and update like the others. The service worker never caches these cross-origin requests.",
+   "decls": [],
+   "net": "online",
+   "netNote": "needs a token; packages are kept in IndexedDB once imported",
+   "res": {
+    "mem": [
+     1,
+     "received data is handed straight on; nothing held here"
+    ],
+    "store": [
+     0,
+     "nothing stored by the source itself"
+    ],
+    "cpu": [
+     1,
+     "network transfers only (decoding happens in the parts that use the data)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "net.mapterhorn",
+   "name": "Mapterhorn elevation tiles",
+   "desc": "tiles.mapterhorn.com: worldwide terrain tiles (Terrarium-encoded WebP, 512 px, zoom 0-12) for shading, height colours, contour lines, 3D terrain, heights and profiles.",
+   "detail": "The tile address `MH_URL` is handed to MapLibre (raster-dem source) and to maplibre-contour's `DemSource`. Every request for this host passes through the service worker's `reliefServe` (reliefsw.js): tiles of saved areas come from the cache 'pult-relief', others from the network with an 8 s limit, and offline a deeper tile is enlarged from the nearest saved one. Saving an area requests tiles with ?pult-save so only the network answers.",
+   "decls": [],
+   "net": "both",
+   "netNote": "online for anywhere; offline only in areas saved in the Globe menu",
+   "res": {
+    "mem": [
+     1,
+     "tiles held by MapLibre and maplibre-contour (see those)"
+    ],
+    "store": [
+     0,
+     "nothing stored by the source itself"
+    ],
+    "cpu": [
+     1,
+     "network transfers only (decoding happens in the parts that use the data)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "net.esri",
+   "name": "Esri World Imagery",
+   "desc": "Esri's satellite and aerial imagery (to under 1 m): the current imagery with a free ArcGIS key, or the dated 'Wayback' captures without one.",
+   "detail": "Chosen in the map menu as the imagery 'Esri'. `imgOnline` (mapimg.js) picks the current service when a key is set, otherwise the newest (or chosen) Wayback capture. Offline the map falls back to Blue Marble from the Base map package.",
+   "decls": [],
+   "net": "online",
+   "res": {
+    "mem": [
+     1,
+     "received data is handed straight on; nothing held here"
+    ],
+    "store": [
+     0,
+     "nothing stored by the source itself"
+    ],
+    "cpu": [
+     1,
+     "network transfers only (decoding happens in the parts that use the data)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "net.esri.current",
+   "name": "Current imagery (ArcGIS key)",
+   "desc": "ibasemaps-api.arcgis.com World_Imagery tiles, requested with the user's ArcGIS key as token.",
+   "detail": "`ESRI_CUR` builds the tile template with the key from the setting 'esriKey' (entered in Settings → Map, kept on the device). 256 px raster tiles to zoom 19.",
+   "decls": [],
+   "net": "online",
+   "netNote": "needs a free ArcGIS key",
+   "res": {
+    "mem": [
+     1,
+     "received data is handed straight on; nothing held here"
+    ],
+    "store": [
+     0,
+     "nothing stored by the source itself"
+    ],
+    "cpu": [
+     1,
+     "network transfers only (decoding happens in the parts that use the data)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "net.esri.wayback_config",
+   "name": "Wayback list",
+   "desc": "waybackconfig.json on Amazon S3 (s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com): the list of dated Wayback captures and their tile addresses.",
+   "detail": "`imgCatalogs` fetches it at most once a week (in the background, when online) and keeps the parsed list [id, date, tile URL] in the setting 'imgCat', so the version menu works offline too.",
+   "decls": [],
+   "net": "online",
+   "netNote": "the last list is kept in settings",
+   "res": {
+    "mem": [
+     1,
+     "received data is handed straight on; nothing held here"
+    ],
+    "store": [
+     0,
+     "nothing stored by the source itself"
+    ],
+    "cpu": [
+     1,
+     "network transfers only (decoding happens in the parts that use the data)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "net.esri.wayback",
+   "name": "Wayback tiles",
+   "desc": "Tiles of a dated capture of World Imagery, from the address given in the Wayback list (no key needed).",
+   "detail": "The template's {level}/{row}/{col} are rewritten to MapLibre's {z}/{y}/{x}; the capture date is shown in the credits line (`imgCredit`).",
+   "decls": [],
+   "net": "online",
+   "res": {
+    "mem": [
+     1,
+     "received data is handed straight on; nothing held here"
+    ],
+    "store": [
+     0,
+     "nothing stored by the source itself"
+    ],
+    "cpu": [
+     1,
+     "network transfers only (decoding happens in the parts that use the data)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "net.gibs",
+   "name": "NASA GIBS (Blue Marble)",
+   "desc": "gibs.earthdata.nasa.gov WMTS: Blue Marble shaded relief and bathymetry tiles to zoom 8.",
+   "detail": "Used when the imagery is 'Blue Marble' and the device is online (`GIBS_BM`); the offline copy from the Base map package (zoom 0-6) always lies beneath it, so gaps show the package rather than nothing.",
+   "decls": [],
+   "net": "online",
+   "netNote": "offline: Blue Marble from the Base map package",
+   "res": {
+    "mem": [
+     1,
+     "received data is handed straight on; nothing held here"
+    ],
+    "store": [
+     0,
+     "nothing stored by the source itself"
+    ],
+    "cpu": [
+     1,
+     "network transfers only (decoding happens in the parts that use the data)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "net.eox",
+   "name": "EOX Sentinel-2 cloudless",
+   "desc": "tiles.maps.eox.at: Sentinel-2 cloudless mosaics (10 m) for 2016 and 2018-2024.",
+   "detail": "A WMS service: MapLibre fills {bbox-epsg-3857} in a GetMap request per 256 px tile. The list of available years comes from the service's capabilities.",
+   "decls": [],
+   "net": "online",
+   "res": {
+    "mem": [
+     1,
+     "received data is handed straight on; nothing held here"
+    ],
+    "store": [
+     0,
+     "nothing stored by the source itself"
+    ],
+    "cpu": [
+     1,
+     "network transfers only (decoding happens in the parts that use the data)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "net.eox.tiles",
+   "name": "Sentinel-2 tiles (WMS GetMap)",
+   "desc": "Image tiles of the chosen year's cloudless mosaic.",
+   "detail": "`EOX_WMS(layer)` builds the request; zoom limited to 15. Credits (s2maps.eu by EOX, Copernicus data with year) are shown on the map as the licence asks.",
+   "decls": [],
+   "net": "online",
+   "res": {
+    "mem": [
+     1,
+     "received data is handed straight on; nothing held here"
+    ],
+    "store": [
+     0,
+     "nothing stored by the source itself"
+    ],
+    "cpu": [
+     1,
+     "network transfers only (decoding happens in the parts that use the data)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "net.eox.caps",
+   "name": "Sentinel-2 year list (GetCapabilities)",
+   "desc": "The WMS capabilities document, read to find which yearly layers exist.",
+   "detail": "`imgCatalogs` extracts layer names s2cloudless[-YYYY]_3857 by regular expression, at most once a week; `S2_DEF` is the built-in fallback list.",
+   "decls": [],
+   "net": "online",
+   "netNote": "the last list is kept in settings",
+   "res": {
+    "mem": [
+     1,
+     "received data is handed straight on; nothing held here"
+    ],
+    "store": [
+     0,
+     "nothing stored by the source itself"
+    ],
+    "cpu": [
+     1,
+     "network transfers only (decoding happens in the parts that use the data)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "net.openfreemap",
+   "name": "OpenFreeMap vector tiles",
+   "desc": "tiles.openfreemap.org/planet: OpenStreetMap vector tiles (OpenMapTiles schema), used for rivers, streams, canals and lakes at every zoom.",
+   "detail": "`rivStyle` adds the source 'osm' (TileJSON at `OFM`) with the layers 'osm-lakes' (water, not ocean) and 'osm-rivers' (waterway, no tunnels) while online and rivers are on; offline the base map's Natural Earth waters are shown instead. A tap on a river shows its names (`waterTap`).",
+   "decls": [],
+   "net": "online",
+   "netNote": "offline: the base map's rivers and lakes",
+   "res": {
+    "mem": [
+     1,
+     "received data is handed straight on; nothing held here"
+    ],
+    "store": [
+     0,
+     "nothing stored by the source itself"
+    ],
+    "cpu": [
+     1,
+     "network transfers only (decoding happens in the parts that use the data)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "net.nominatim",
+   "name": "Nominatim place names",
+   "desc": "nominatim.openstreetmap.org reverse geocoding, used once per saved relief area to give it a name.",
+   "detail": "`areaName` (maprelief.js) asks for the centre of the area with a zoom matched to its size (country, region or town; continents from the country code) and gives up after 6 s.",
+   "decls": [],
+   "net": "online",
+   "netNote": "optional; without it the area keeps a default name",
+   "res": {
+    "mem": [
+     1,
+     "received data is handed straight on; nothing held here"
+    ],
+    "store": [
+     0,
+     "nothing stored by the source itself"
+    ],
+    "cpu": [
+     1,
+     "network transfers only (decoding happens in the parts that use the data)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "engine.maplibre",
+   "name": "MapLibre GL JS",
+   "desc": "The open-source WebGL map renderer that draws the whole map: vector and raster layers, globe, 3D terrain, hillshade, labels.",
+   "detail": "Downloaded with the Base map package (not part of the app files) and loaded on demand by `loadMapLib` (maps.js) from the cache 'pult-maps'. Version 5.24.0 (base/lib5) is used; 4.7.1 (base/lib) only if an older download lacks version 5. Pult hooks into it through custom protocols (pmtiles://, pultglyph://, maplibre-contour's), custom layers (sky bodies, three.js obelisk) and two small source patches.",
+   "decls": [],
+   "net": "offline",
+   "netNote": "needs the Base map package (downloaded once)",
+   "res": {
+    "mem": [
+     4,
+     "est. 30-150 MB: parsed engine, tile caches, GeoJSON sources, style"
+    ],
+    "store": [
+     2,
+     "about 1.1 MB (v5) + 0.9 MB (v4 + pmtiles) in 'pult-maps'"
+    ],
+    "cpu": [
+     3,
+     "tile parsing in its worker pool; style rebuilds on setting changes; per-frame layout"
+    ],
+    "gpu": [
+     5,
+     "every map frame: all layers, globe, terrain"
+    ]
+   }
+  },
+  {
+   "id": "engine.maplibre.v5",
+   "name": "MapLibre 5.24",
+   "desc": "The map engine in use: globe projection, 3D terrain, hillshade, color-relief, fill-extrusion and custom WebGL layers.",
+   "detail": "Loaded from maps/base/lib5 (script + CSS) via a patched blob URL (see the patches). The map is created in `showMap1` with globe or Mercator projection, max pitch 85, zoom 0-16; a 'webglcontextlost' listener reports lost graphics memory on phones. Version 5 is required for color-relief (height colours) and the globe atmosphere.",
+   "decls": [],
+   "assets": [
+    "maps/base/lib5/maplibre-gl.js",
+    "maps/base/lib5/maplibre-gl.css",
+    "maps/base/lib5/LICENSE.txt"
+   ],
+   "net": "offline",
+   "netNote": "from the Base map package",
+   "res": {
+    "mem": [
+     4,
+     "est. 30-150 MB with tile caches and GeoJSON sources"
+    ],
+    "store": [
+     2,
+     "1.06 MB script + 70 KB CSS in 'pult-maps'"
+    ],
+    "cpu": [
+     3,
+     "worker-pool tile parsing; main-thread layout and placement per frame"
+    ],
+    "gpu": [
+     5,
+     "renders every frame while the map moves; terrain and globe add cost"
+    ]
+   }
+  },
+  {
+   "id": "engine.maplibre.v4",
+   "name": "MapLibre 4.7 (fallback)",
+   "desc": "The previous engine version, used only when a Base map downloaded before v295 lacks version 5.",
+   "detail": "`engineDir` checks the cache for base/lib5/maplibre-gl.js and otherwise loads base/lib unpatched. Features that need version 5 (height colours, the sun-shading patch) are then missing; `engineMajor` lets the relief code tell.",
+   "decls": [],
+   "assets": [
+    "maps/base/lib/maplibre-gl.js",
+    "maps/base/lib/maplibre-gl.css",
+    "maps/base/lib/LICENSE.txt"
+   ],
+   "net": "offline",
+   "netNote": "from the Base map package",
+   "res": {
+    "mem": [
+     4,
+     "as v5 when in use (est.)"
+    ],
+    "store": [
+     2,
+     "803 KB script + 66 KB CSS in 'pult-maps'"
+    ],
+    "cpu": [
+     3,
+     "as v5"
+    ],
+    "gpu": [
+     4,
+     "renders every frame (no globe)"
+    ]
+   }
+  },
+  {
+   "id": "engine.maplibre.patches",
+   "name": "Pult's patches to MapLibre",
+   "desc": "Small text replacements in the MapLibre 5 script so hillshading follows the real sun at every point, and the obelisk is lit by its own sun.",
+   "detail": "`shadePatchedLib` (maprelief.js) fetches the script text, applies `SHADE_PATCH` (new uniforms u_lngrange, u_sun, u_sun2 and per-pixel sun azimuth and night fade in the hillshade shader, fed from self.__pultSun) and `OB_PATCH` (fill-extrusion light from self.__pultObLight), and loads the result from a blob URL. `enginePatch` applies each group whole or not at all: if a piece is not found exactly (another version), that group is skipped and the engine runs unchanged.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     2,
+     "a second copy of the ~1 MB script as a string and blob while loading"
+    ],
+    "store": [
+     0,
+     "nothing stored (patched in memory at each start)"
+    ],
+    "cpu": [
+     2,
+     "once per map start: string splits over 1 MB"
+    ],
+    "gpu": [
+     1,
+     "a few extra shader instructions per hillshade pixel"
+    ]
+   }
+  },
+  {
+   "id": "engine.maplibre.protocols",
+   "name": "Custom tile protocols",
+   "desc": "Address schemes MapLibre calls back into for data: pmtiles:// (map packages), pultglyph:// (contour figures) and maplibre-contour's DEM and contour schemes.",
+   "detail": "Registered with `maplibregl.addProtocol`: `pmInit` (maps.js) for PMTiles, `glyphInit` (maprelief.js) for the self-made glyphs, and `DemSource.setupMaplibre` for elevation and contour tiles. They let fully offline data and in-app generated data appear to the engine as ordinary tile URLs.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     1,
+     "small handler state"
+    ],
+    "store": [
+     0,
+     "none"
+    ],
+    "cpu": [
+     1,
+     "per tile request: dispatch only"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "engine.three",
+   "name": "three.js",
+   "desc": "The 3D library (r169) used to draw the porphyry obelisk as a lit, textured model inside the map.",
+   "detail": "Imported lazily as an ES module (`threeLib` in mapsun.js) only when the obelisk is shown; if it cannot load, MapLibre's fill-extrusion blocks stand in. The service worker keeps lib/ in the cache 'pult-lib' across app updates.",
+   "decls": [],
+   "assets": [
+    "lib/three-0.169.0.module.min.js",
+    "lib/LICENSE-three.txt"
+   ],
+   "net": "both",
+   "netNote": "fetched once from the app's site, then from the cache 'pult-lib'",
+   "res": {
+    "mem": [
+     2,
+     "est. 3-8 MB: parsed module + one scene"
+    ],
+    "store": [
+     2,
+     "687 KB in 'pult-lib'"
+    ],
+    "cpu": [
+     2,
+     "parse once; scene update per frame while shown"
+    ],
+    "gpu": [
+     2,
+     "one small mesh per map frame"
+    ]
+   }
+  },
+  {
+   "id": "engine.three.module",
+   "name": "Module loading",
+   "desc": "Loads lib/three-0.169.0.module.min.js by dynamic import, once.",
+   "detail": "`threeLib` memoises the import promise; failures are logged and return null so the map keeps the extrusion fallback. The service worker's lib/ rule serves the file cache-first from 'pult-lib' (the version is in the file name, so no revalidation is needed).",
+   "decls": [],
+   "net": "both",
+   "netNote": "first use needs the network",
+   "res": {
+    "mem": [
+     2,
+     "~3 MB parsed code (est.)"
+    ],
+    "store": [
+     2,
+     "687 KB in 'pult-lib'"
+    ],
+    "cpu": [
+     2,
+     "one parse at first use"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "engine.three.renderer",
+   "name": "Renderer in the map's GL context",
+   "desc": "A three.js WebGLRenderer drawing into MapLibre's own canvas and WebGL context as a custom 3D layer.",
+   "detail": "`obel3dLayer` (mapsun.js) creates the renderer with MapLibre's gl context (autoClear off), a camera fed from the map's projection matrix, MeshStandardMaterial with a 256 px procedural porphyry texture, and sun and sky lights. The depth buffer is shared, so hills and the globe hide the model.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     1,
+     "one mesh group + 256 px texture"
+    ],
+    "store": [
+     0,
+     "none"
+    ],
+    "cpu": [
+     1,
+     "matrix update per frame"
+    ],
+    "gpu": [
+     2,
+     "a few hundred triangles with PBR shading per frame"
+    ]
+   }
+  },
+  {
+   "id": "engine.contour",
+   "name": "maplibre-contour",
+   "desc": "Library (Michael Barry, BSD-3) that turns elevation tiles into contour lines on the fly and serves elevation data to the app.",
+   "detail": "Loaded as a classic script (`addScript('maplibre-contour.js')` in `reliefInit`) only when relief is available (online, or an area is saved). One `DemSource` for Mapterhorn is created per session with worker on, a cache of 24 tiles and a 30 s timeout.",
+   "decls": [],
+   "net": "both",
+   "netNote": "works offline from saved relief areas",
+   "res": {
+    "mem": [
+     3,
+     "est. ~25-40 MB: up to 24 decoded 512 px DEM tiles + contour tiles"
+    ],
+    "store": [
+     1,
+     "31 KB script (app cache)"
+    ],
+    "cpu": [
+     3,
+     "in a worker: WebP decode + isoline tracing per tile"
+    ],
+    "gpu": [
+     0,
+     "lines are drawn by MapLibre"
+    ]
+   }
+  },
+  {
+   "id": "engine.contour.source",
+   "name": "DEM source",
+   "desc": "The library entry point: `mlcontour.DemSource`, which fetches and decodes elevation tiles and plugs itself into MapLibre.",
+   "detail": "The whole bundled library (one minified UMD script defining the global `mlcontour`, with its worker code embedded as a blob) is this declaration. `setupMaplibre` registers its protocols; `getDemTile` returns decoded heights, which Pult uses for heights on tap and profiles of drawn lines (`profileOf`).",
+   "decls": [
+    "maplibre-contour.js|(top level)"
+   ],
+   "assets": [
+    "maplibre-contour.js",
+    "LICENSE-maplibre-contour.txt"
+   ],
+   "net": "both",
+   "netNote": "tiles from Mapterhorn or the saved-relief cache",
+   "res": {
+    "mem": [
+     2,
+     "LRU cache of decoded tiles (24)"
+    ],
+    "store": [
+     1,
+     "31 KB script"
+    ],
+    "cpu": [
+     1,
+     "request bookkeeping on the main thread"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "engine.contour.worker",
+   "name": "Contour worker",
+   "desc": "A Web Worker that decodes the WebP tiles and traces the contour lines away from the page.",
+   "detail": "Started from a blob URL built from the bundled worker code; decodes with createImageBitmap and OffscreenCanvas, then runs marching-squares isolines at the levels Pult asks for (spacing from `contSpacing`, units from the settings).",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     2,
+     "decoded tiles in the worker (est. 1 MB per 512 px tile)"
+    ],
+    "store": [
+     0,
+     "none"
+    ],
+    "cpu": [
+     3,
+     "per new tile while panning/zooming"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "engine.contour.tiles",
+   "name": "Contour vector tiles",
+   "desc": "Contour lines delivered to MapLibre as vector tiles through `contourProtocolUrl`.",
+   "detail": "maprelief.js builds the source 'contours' (layer 'contours', keys 'ele' and 'level', overzoom 1, multiplier for feet or metres); the numbers are labelled with the self-made glyphs from TinySDF.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     1,
+     "encoded vector tiles"
+    ],
+    "store": [
+     0,
+     "none"
+    ],
+    "cpu": [
+     2,
+     "tile encoding in the worker"
+    ],
+    "gpu": [
+     0,
+     "drawn by MapLibre"
+    ]
+   }
+  },
+  {
+   "id": "engine.pmtiles",
+   "name": "pmtiles.js",
+   "desc": "Library (Protomaps, 4.4.1) that reads tiles out of single-file PMTiles archives.",
+   "detail": "Shipped in the Base map package (base/lib/pmtiles.js) and loaded after MapLibre when present; `pmInit` registers its `Protocol` as pmtiles://. Instead of HTTP range requests, Pult gives it a `CacheSource` that slices the whole archive blob kept in the cache 'pult-maps', so every PMTiles package works offline.",
+   "decls": [],
+   "assets": [
+    "maps/base/lib/pmtiles.js"
+   ],
+   "net": "offline",
+   "netNote": "archives come from downloaded map packages",
+   "res": {
+    "mem": [
+     2,
+     "archive directories + the blob handle per package (est. a few MB)"
+    ],
+    "store": [
+     1,
+     "20 KB script in 'pult-maps'"
+    ],
+    "cpu": [
+     1,
+     "directory decompression and lookups per tile"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "engine.pmtiles.protocol",
+   "name": "pmtiles:// protocol",
+   "desc": "Answers MapLibre's tile requests for pmtiles:// sources.",
+   "detail": "`pmUrl` (maps.js) adds one `PMTiles` instance per downloaded archive and returns its pmtiles:// address for the style; the protocol finds the archive and returns the tile bytes.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     1,
+     "small"
+    ],
+    "store": [
+     0,
+     "none"
+    ],
+    "cpu": [
+     1,
+     "per tile"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "engine.pmtiles.reader",
+   "name": "Archive reader",
+   "desc": "Reads the archive header and directories and locates each tile's byte range.",
+   "detail": "Reads through `CacheSource.getBytes` (blob.slice of the cached file); directories are gzip-compressed and unpacked with DecompressionStream.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     2,
+     "cached directories (est.)"
+    ],
+    "store": [
+     0,
+     "reads 'pult-maps'"
+    ],
+    "cpu": [
+     1,
+     "decompression of directories"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "engine.tinysdf",
+   "name": "TinySDF",
+   "desc": "Mapbox's small library (2.3.0, BSD-2) that draws letters as signed distance fields in a canvas; Pult uses it for the figures of contour numbers.",
+   "detail": "Imported as a module by `pultGlyphs` (maprelief.js), it renders 15 characters (digits, comma, minus, point, space) in Source Sans 3 600 at 24 px, which Pult packs into a glyph protocol buffer for MapLibre. This avoids a glyph server and keeps contour labels offline in the app's own font.",
+   "decls": [],
+   "assets": [
+    "tinysdf.js",
+    "LICENSE-tiny-sdf.txt"
+   ],
+   "net": "offline",
+   "res": {
+    "mem": [
+     1,
+     "15 small glyph bitmaps"
+    ],
+    "store": [
+     1,
+     "7.6 KB script (app cache)"
+    ],
+    "cpu": [
+     1,
+     "once per session"
+    ],
+    "gpu": [
+     0,
+     "none (2D canvas)"
+    ]
+   }
+  },
+  {
+   "id": "engine.tinysdf.draw",
+   "name": "Glyph drawing",
+   "desc": "Draws one character into a canvas and converts its alpha into a distance field.",
+   "detail": "The `TinySDF` class (module top level) uses one 2D canvas of font size + 4 × buffer (36 px here), draws the glyph, and maps alpha through the gamma-corrected `alphaTable` into inner and outer distance grids before running the transform.",
+   "decls": [
+    "tinysdf.js|(top level)",
+    "tinysdf.js|alphaTable"
+   ],
+   "net": "offline",
+   "res": {
+    "mem": [
+     1,
+     "one 36 px canvas"
+    ],
+    "store": [
+     0,
+     "none"
+    ],
+    "cpu": [
+     1,
+     "per glyph, once"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "engine.tinysdf.edt",
+   "name": "Distance transform",
+   "desc": "The Felzenszwalb-Huttenlocher Euclidean distance transform behind the distance fields.",
+   "detail": "`edt` runs `edt1d` over columns and then rows of the glyph area; `INF` (1e20) marks unset cells.",
+   "decls": [
+    "tinysdf.js|edt",
+    "tinysdf.js|edt1d",
+    "tinysdf.js|INF"
+   ],
+   "net": "offline",
+   "res": {
+    "mem": [
+     1,
+     "Float64 grids per glyph"
+    ],
+    "store": [
+     0,
+     "none"
+    ],
+    "cpu": [
+     1,
+     "linear in pixels, once per glyph"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "engine.browser",
+   "name": "Browser platform",
+   "desc": "The web platform features the app depends on: WebGL, IndexedDB, Cache Storage, the service worker, compression streams, Web Workers and canvas.",
+   "detail": "Pult has no server-side logic: storage, offline use, decompression and all graphics run on these browser APIs. Missing features are reported rather than worked around (e.g. no DecompressionStream → a message asking to update iPadOS).",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     2,
+     "see children"
+    ],
+    "store": [
+     3,
+     "the quota of the site's origin (usage shown in Instruments)"
+    ],
+    "cpu": [
+     2,
+     "see children"
+    ],
+    "gpu": [
+     3,
+     "see WebGL"
+    ]
+   }
+  },
+  {
+   "id": "engine.browser.webgl",
+   "name": "WebGL",
+   "desc": "The GPU drawing API under the map: MapLibre's renderer and the three.js obelisk share one WebGL context.",
+   "detail": "Custom layers ('skybodies' 2D, 'obel3d' 3D) draw into MapLibre's context. When the system takes the graphics memory back (common on phones), the 'webglcontextlost' event is turned into a readable error with a retry button.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     2,
+     "GPU buffers and textures mirrored in RAM (est.)"
+    ],
+    "store": [
+     0,
+     "none"
+    ],
+    "cpu": [
+     1,
+     "draw-call submission"
+    ],
+    "gpu": [
+     5,
+     "all map rendering"
+    ]
+   }
+  },
+  {
+   "id": "engine.browser.indexeddb",
+   "name": "IndexedDB",
+   "desc": "The browser database holding settings, texts, dictionaries, the library, places and the search index.",
+   "detail": "Opened with `indexedDB.open` in core.js (settings and one database per dictionary), library.js, maps.js (places) and search.js. The app asks for persistent storage (`navigator.storage.persist`) at start and before downloads, and shows usage and free space from `navigator.storage.estimate`.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     1,
+     "transaction buffers"
+    ],
+    "store": [
+     4,
+     "hundreds of MB with several dictionaries and texts"
+    ],
+    "cpu": [
+     2,
+     "bulk inserts on import"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "engine.browser.cache",
+   "name": "Cache Storage",
+   "desc": "Named HTTP response caches: the app files, map packages, saved relief, libraries and download parts.",
+   "detail": "Used both by the service worker and directly from the page (`caches.open` in maps.js, maprelief.js, dialogs.js). Responses are stored under their real addresses, so cached map files and Mapterhorn tiles can be requested as ordinary URLs.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     1,
+     "responses streamed"
+    ],
+    "store": [
+     5,
+     "map packages and saved relief: up to GBs"
+    ],
+    "cpu": [
+     1,
+     "I/O only"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "engine.browser.sw",
+   "name": "Service worker",
+   "desc": "The background script that makes the app work offline and answers requests from the caches.",
+   "detail": "Registered in app.js (`navigator.serviceWorker.register('sw.js')`, not on file://); it imports reliefsw.js and routes requests by path and host. Activation deletes old app caches but keeps 'pult-maps', 'pult-relief' and 'pult-lib'.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     1,
+     "a separate small JS context (+ up to 48 enlarged relief tiles)"
+    ],
+    "store": [
+     0,
+     "uses Cache Storage"
+    ],
+    "cpu": [
+     1,
+     "per request routing; tile enlarging offline"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "engine.browser.streams",
+   "name": "Compression streams",
+   "desc": "Built-in gzip / deflate (de)compression used for packages, texts and documents.",
+   "detail": "DecompressionStream('gzip') unpacks .gdpkg.gz dictionary packages and .json.gz works in `readPackage` (analysis.js); 'deflate-raw' reads .docx/.odt entries in `zipEntry` (dialogs.js); CompressionStream('deflate-raw') writes zipped exports (export.js). pmtiles.js also uses it for archive directories.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     3,
+     "a package is unpacked to one text string (tens of MB for LSJ) before parsing"
+    ],
+    "store": [
+     0,
+     "none"
+    ],
+    "cpu": [
+     3,
+     "decompression + JSON.parse on import"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "engine.browser.workers",
+   "name": "Web Workers",
+   "desc": "Background threads for heavy map work, so the page stays responsive.",
+   "detail": "MapLibre runs a worker pool (sized from hardwareConcurrency) for tile parsing; maplibre-contour runs its own worker; both are created from blob URLs. Pult's own scripts run on the main thread.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     2,
+     "one JS context per worker (est. 5-20 MB each)"
+    ],
+    "store": [
+     0,
+     "none"
+    ],
+    "cpu": [
+     3,
+     "tile parsing and contours off the main thread"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "engine.browser.canvas",
+   "name": "Canvas 2D",
+   "desc": "2D drawing for the timeline, map overlays and exports, textures, glyphs and offline relief tiles.",
+   "detail": "getContext('2d') appears in nine scripts (app, library, timeline, map layers, saved maps, sun/sky, relief, TinySDF); OffscreenCanvas and createImageBitmap decode Mapterhorn tiles in the service worker (`enlargeDem`) and in maplibre-contour.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     2,
+     "canvases while open (map exports can be large)"
+    ],
+    "store": [
+     0,
+     "none"
+    ],
+    "cpu": [
+     2,
+     "redraws on interaction"
+    ],
+    "gpu": [
+     1,
+     "browser-composited"
+    ]
+   }
+  },
+  {
+   "id": "tools.cli",
+   "name": "Toolkit entry point",
+   "desc": "`python gd.py <command>`: one command line on the user's Windows PC for every build step of the dictionaries, texts and map packages.",
+   "detail": "Everything (code, raw data, caches, projects, a private Python environment) lives inside the greekdict folder; nothing is installed system-wide. Subcommands dispatch to the modules of the greekdict package.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     1,
+     "small"
+    ],
+    "store": [
+     1,
+     "code only"
+    ],
+    "cpu": [
+     1,
+     "dispatch"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.cli.dispatch",
+   "name": "Command dispatcher",
+   "desc": "gd.py maps each subcommand (packages, latin, whitaker, texts, annotate, maps, relief, itinere, fetch-maps, scanocr, scanproof, scanclean, lemmas, fetch, build, html) to its module.",
+   "detail": "`reexec` reruns itself inside the private .venv when it exists; project commands check projects/<name>. latin and whitaker also rewrite packages.json afterwards.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     1,
+     "small"
+    ],
+    "store": [
+     1,
+     "5 KB"
+    ],
+    "cpu": [
+     1,
+     "none"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.cli.setup",
+   "name": "Private Python environment",
+   "desc": "`gd.py setup` creates .venv in the folder and installs lxml and python-docx.",
+   "detail": "The map and relief steps additionally need rasterio, numpy, Pillow, mercantile, pyogrio and shapely (imported on demand with hints), plus the external programs mapshaper and tippecanoe and the npm packages maplibre-gl and pmtiles.",
+   "decls": [],
+   "net": "online",
+   "netNote": "only for installing",
+   "res": {
+    "mem": [
+     1,
+     "small"
+    ],
+    "store": [
+     2,
+     "the venv (tens of MB)"
+    ],
+    "cpu": [
+     1,
+     "once"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.cli.launchers",
+   "name": "Windows launchers",
+   "desc": "run_fetch_maps.bat and run_phaedros.bat: double-click starters on the PC.",
+   "detail": "run_fetch_maps.bat runs the long, resumable raw-data download for the maps; run_phaedros.bat runs setup, lemmas, fetch and build for the Phaedros project.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     0,
+     "none"
+    ],
+    "store": [
+     1,
+     "tiny"
+    ],
+    "cpu": [
+     0,
+     "none"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.cli.tests",
+   "name": "Tests",
+   "desc": "`gd.py test`: unit tests of normalisation keys, Beta Code and tokenising.",
+   "detail": "tests/test_basic.py runs with unittest.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     1,
+     "small"
+    ],
+    "store": [
+     1,
+     "tiny"
+    ],
+    "cpu": [
+     1,
+     "seconds"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.sources",
+   "name": "Raw data downloads",
+   "desc": "Scripts that download the open source data the builds start from into data/.",
+   "detail": "Downloads are resumable or cached so they run once; only these steps and the CLD fetcher need the internet.",
+   "decls": [],
+   "net": "online",
+   "res": {
+    "mem": [
+     2,
+     "streams; DEM mosaics in memory"
+    ],
+    "store": [
+     5,
+     "data/: GBs (DEM, Natural Earth II, Blue Marble)"
+    ],
+    "cpu": [
+     2,
+     "mostly waiting on the network"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.sources.lexical",
+   "name": "Treebanks, LSJ XML and Eulexis",
+   "desc": "fetch_data.py: UD Ancient Greek treebanks (PROIEL, Perseus), Perseus LSJ XML and the Eulexis Pape/LSJ/analyses files from raw.githubusercontent.com.",
+   "detail": "Afterwards it builds the LSJ entry index (`lsj`) and the form→lemma table (`build_table`). Frisk ships already parsed (data/frisk).",
+   "decls": [],
+   "net": "online",
+   "res": {
+    "mem": [
+     1,
+     "small"
+    ],
+    "store": [
+     3,
+     "data/treebanks, data/lsj, data/eulexis"
+    ],
+    "cpu": [
+     1,
+     "parsing once"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.sources.maps",
+   "name": "Map raw data",
+   "desc": "fetchdata.py (gd.py fetch-maps): Copernicus GLO-90 elevation from AWS S3, Natural Earth II and bathymetry from naciscdn.org, Itiner-e roads from Zenodo.",
+   "detail": "Defines the map area `AREA` (-20..80 E, 0..62 N) and the detail `REGIONS` (Greece, Italy, Asia Minor, Levant); reads Copernicus' built-in overviews for the 15\" base so only a fraction is downloaded; multi-threaded and resumable.",
+   "decls": [],
+   "net": "online",
+   "res": {
+    "mem": [
+     3,
+     "mosaics of up to tens of thousands of pixels"
+    ],
+    "store": [
+     5,
+     "GBs in data/maps"
+    ],
+    "cpu": [
+     3,
+     "hours, mostly network; reprojection"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.sources.cld",
+   "name": "Pape and Bailly from the CLD",
+   "desc": "fetch_cld.py: Pape and Bailly entries per lemma from the BBAW Corpus Lexicographicum Digitale JSON API (cld.bbaw.de).",
+   "detail": "Polite by design: one request at a time with a pause (3 s), backoff on HTTP 429, everything cached in data/cache/cld and reused by later projects and by the Bailly package.",
+   "decls": [],
+   "net": "online",
+   "res": {
+    "mem": [
+     1,
+     "small"
+    ],
+    "store": [
+     2,
+     "JSON cache per lemma"
+    ],
+    "cpu": [
+     1,
+     "slow by design (pauses)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.printed",
+   "name": "Printed dictionary projects",
+   "desc": "The toolkit's original purpose: a printed (Word) or offline-HTML dictionary for one Greek text, one lemma per page, Frisk – Pape – LSJ – Bailly.",
+   "detail": "A project lives in projects/<name>/ (e.g. phaedros): text.txt in, lemmas.csv, master.json, dictionary.docx and dictionary.html out. Independent of the app; it shares the parsers and caches with the package builds.",
+   "decls": [],
+   "net": "offline",
+   "netNote": "the fetch step needs the internet",
+   "res": {
+    "mem": [
+     2,
+     "dictionary indexes in memory"
+    ],
+    "store": [
+     2,
+     "project folder"
+    ],
+    "cpu": [
+     2,
+     "seconds to minutes"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.printed.lemmas",
+   "name": "Lemmatising",
+   "desc": "lemmatize.py and lemmas.py: text tokens → candidate lemmata from the UD treebank tables, merged with the user's lemma_overrides.csv.",
+   "detail": "Unknown forms are listed for manual entry; the user's overrides always win and survive reruns; lemmas.py checks every lemma is found in the dictionaries.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     2,
+     "form→lemma table"
+    ],
+    "store": [
+     1,
+     "CSV files"
+    ],
+    "cpu": [
+     1,
+     "seconds"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.printed.merge",
+   "name": "Merging the sources",
+   "desc": "merge.py: Frisk, Pape, LSJ and Bailly entries per lemma into master.json.",
+   "detail": "Uses the Frisk index (frisk_index.py over data/frisk), the LSJ adapter (lsj.py, Beta Code via betacode.py) and the CLD cache; accent-insensitive keys from norm.py.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     2,
+     "all sources loaded"
+    ],
+    "store": [
+     1,
+     "master.json"
+    ],
+    "cpu": [
+     1,
+     "seconds"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.printed.output",
+   "name": "Word and HTML output",
+   "desc": "build_docx.py (python-docx) and build_html.py: the printable dictionary and a self-contained offline HTML version.",
+   "detail": "Regenerated from master.json at any time (hand edits in the .docx are lost); the HTML sorts by text order or alphabet, folds each lemma and source, and filters accent-insensitively.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     1,
+     "small"
+    ],
+    "store": [
+     1,
+     "one file each"
+    ],
+    "cpu": [
+     1,
+     "seconds"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.dicts",
+   "name": "Greek dictionary packages",
+   "desc": "packages.py (gd.py packages): builds the Greek dictionary and morphology packages (*.gdpkg.gz) the app imports, and their manifest.",
+   "detail": "Format 'greekdict-pkg-2': gzip-compressed JSON whose entries are grouped into buckets by accent-free key prefix, so the app stores few large IndexedDB records. Public packages are written to packages/ (copied into the app's packages/); Frisk and Bailly, which may not be published, go to private/ for the private repository.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     3,
+     "whole dictionaries in memory while building (hundreds of MB, est.)"
+    ],
+    "store": [
+     3,
+     "packages/ ~60 MB + private/"
+    ],
+    "cpu": [
+     3,
+     "minutes per package"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.dicts.format",
+   "name": "Package writer and buckets",
+   "desc": "`write`, `make_buckets`, `write_dict`: the shared package format used by every dictionary builder.",
+   "detail": "A bucket is an accent-free key prefix of at least 3 letters, lengthened where it holds more than a limit (150 for dictionaries, 400 for morphology); the split list must match `bucketOf` in the app's analysis.js. `add_headwords` adds headword lists for the app's search to existing packages (gd.py packages --headwords).",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     2,
+     "one package"
+    ],
+    "store": [
+     1,
+     "code"
+    ],
+    "cpu": [
+     2,
+     "gzip level 9"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.dicts.sources",
+   "name": "Frisk, Pape, LSJ, Bailly",
+   "desc": "One builder per dictionary: `pkg_frisk` (parsed Frisk HTML, with 'mentioned under' links), `pkg_pape` and `pkg_lsj` (Eulexis tab files), `pkg_bailly` (CLD cache or a project's master.json).",
+   "detail": "frisk.py parses the IEED/Leiden HTML once into data/frisk; Eulexis supplies Pape 3.1 and LSJ 6.5.1. Adding a dictionary means one function yielding entries {i, h, k, html}.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     3,
+     "a whole dictionary"
+    ],
+    "store": [
+     3,
+     "lsj 14 MB, pape 10 MB, frisk, bailly"
+    ],
+    "cpu": [
+     3,
+     "minutes"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.dicts.morph",
+   "name": "Morphology and hints",
+   "desc": "`pkg_morph`: the Greek form → [lemma, analysis] package (Eulexis/Diogenes analyses, GPL) and the separate morphhints package (preferred lemma per form and word class per lemma from the UD treebanks, CC BY-NC-SA).",
+   "detail": "Handles Beta Code forms with preverbs; the two licences are kept in separate packages.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     3,
+     "~1 million forms (est.)"
+    ],
+    "store": [
+     3,
+     "morph 10 MB, morphhints 0.15 MB"
+    ],
+    "cpu": [
+     3,
+     "minutes"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.dicts.manifest",
+   "name": "Package manifest",
+   "desc": "`manifest`: packages/packages.json with id, file, name, kind, source, licence, size and a 12-character content hash as version.",
+   "detail": "The app compares these versions to offer updates. Called with dest=private/ it copies Frisk and Bailly with their own packages.json for the private repository.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     1,
+     "small"
+    ],
+    "store": [
+     1,
+     "3 KB"
+    ],
+    "cpu": [
+     1,
+     "hashing the packages"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.latin",
+   "name": "Latin packages",
+   "desc": "latin.py and whitaker.py: Latin morphology and dictionaries (Collatinus, Lewis & Short, Georges, Whitaker's Words).",
+   "detail": "Lookup keys: lower case, no diacritics, j→i, v→u (`latkey`). Both commands rewrite packages.json afterwards.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     3,
+     "all generated forms in memory (est. hundreds of MB)"
+    ],
+    "store": [
+     3,
+     "~32 MB of packages"
+    ],
+    "cpu": [
+     3,
+     "minutes"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.latin.collatinus",
+   "name": "Collatinus morphology",
+   "desc": "Generates every form of every lemma from the Collatinus models and lexicon, as Collatinus does, into morph-la and the collatinus dictionary.",
+   "detail": "`load_models`, `generate`, `engine`, `translations` re-implement Collatinus' modele/lemme logic in Python; `pkg_morph_latin` writes form → [lemma, analysis] (GPL-3.0).",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     3,
+     "all forms"
+    ],
+    "store": [
+     2,
+     "morph-la 1.7 MB, collatinus 1.3 MB"
+    ],
+    "cpu": [
+     3,
+     "minutes"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.latin.lexica",
+   "name": "Lewis & Short and Georges",
+   "desc": "`pkg_ls` and `pkg_georges` convert the TEI XML of Lewis & Short (Perseus) and Georges into dictionary packages.",
+   "detail": "`tei_html` turns TEI elements into the app's entry HTML; `tei_entries` keys them by Latin key.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     3,
+     "whole XML trees (lxml)"
+    ],
+    "store": [
+     3,
+     "ls 13.5 MB, georges 9.3 MB"
+    ],
+    "cpu": [
+     3,
+     "minutes"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.latin.whitaker",
+   "name": "Whitaker's Words",
+   "desc": "whitaker.py: stem + ending tables as a second Latin analyser (morph-la-ww) and the English meanings as a small dictionary (whitaker).",
+   "detail": "Parses DICTLINE.GEN, INFLECTS.LAT and UNIQUES.LAT; the app analyses a form as stem + ending whose inflection must fit the entry.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     2,
+     "tables"
+    ],
+    "store": [
+     2,
+     "0.6 MB + 1.7 MB"
+    ],
+    "cpu": [
+     2,
+     "seconds to minutes"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.scans",
+   "name": "Scanned dictionaries",
+   "desc": "A re-runnable pipeline that turns page scans of copyrighted dictionaries (Walde–Hofmann, Chantraine) into private packages.",
+   "detail": "Separate stages per CONVERSION.md: recognition once, proofreading by page and line, cheap clean-up rules re-run whenever a rule changes, hand corrections applied last so a rebuild never erases them. Output goes only to the private repository.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     3,
+     "page images at 300 dpi"
+    ],
+    "store": [
+     4,
+     "scans/ (OCR JSON, images, proofs)"
+    ],
+    "cpu": [
+     5,
+     "≈15 s per page per core for OCR; ~2,000 pages"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.scans.ocr",
+   "name": "Text recognition",
+   "desc": "scanocr.py: renders PDF pages, trims and splits double pages, and runs Tesseract (deu/lat/grc/fra) into one JSON per page with lines, words, confidence and ink density.",
+   "detail": "The expensive stage, run once per page; nothing is merged or corrected here so line-end hyphens can be judged later.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     3,
+     "page images"
+    ],
+    "store": [
+     3,
+     "scans/ocr"
+    ],
+    "cpu": [
+     5,
+     "OCR"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.scans.proof",
+   "name": "Proofreading",
+   "desc": "scanproof.py: prepares page images with numbered lines and review pages (scan beside text, changes marked) for full proofreading.",
+   "detail": "Proofread text is kept per page and line in scans/proof so the clean-up rules still apply; scans/progress.py and sync_pc.py feed a progress dashboard and sync changes to the PC.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     2,
+     "images as base64"
+    ],
+    "store": [
+     3,
+     "scans/proof, scans/review"
+    ],
+    "cpu": [
+     2,
+     "per page"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.scans.clean",
+   "name": "Clean-up and package",
+   "desc": "scanclean.py: rules for hyphens, running heads, abbreviations and Latin vowel lengths, entry splitting, then `write_dict` → walde.gdpkg.gz.",
+   "detail": "Long vowels lost by Tesseract are restored by checking words against German (wordfreq) and all Collatinus forms; hand fixes from scans/fixes/<book>.txt are applied on every run.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     2,
+     "the book's lines"
+    ],
+    "store": [
+     2,
+     "one package (private/)"
+    ],
+    "cpu": [
+     3,
+     "minutes"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.texts",
+   "name": "Text packages",
+   "desc": "texts.py, authormeta.py and annotate.py: build the Library's works and catalogue from the open corpora.",
+   "detail": "Licence of all texts: CC BY-SA 4.0 (Perseus, Open Greek and Latin); GLAUx readings CC BY-SA 4.0.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     3,
+     "one TEI file + catalogue"
+    ],
+    "store": [
+     5,
+     "texts/: ~200 MB of works"
+    ],
+    "cpu": [
+     4,
+     "long batch over thousands of files"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.texts.convert",
+   "name": "Corpus conversion",
+   "desc": "texts.py (gd.py texts): Perseus canonical-greekLit and -latinLit, First1KGreek and CSEL TEI → one gzip JSON per work (format 'greekdict-work-1').",
+   "detail": "Splits works into books (top-level divisions or groups of small ones) with blocks of paragraphs, verse lines, headings and speakers; gzip with mtime 0 so unchanged texts keep identical files and versions.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     2,
+     "one TEI tree"
+    ],
+    "store": [
+     5,
+     "texts/works"
+    ],
+    "cpu": [
+     4,
+     "batch over the corpora"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.texts.catalog",
+   "name": "Catalogue and author data",
+   "desc": "catalog.json: authors with date, period and genres (authormeta.py from the TLG canon of CLTK, plus hand additions) and their works with size, word count and version hash.",
+   "detail": "The app's Library, timeline and filters are built from this file.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     1,
+     "small"
+    ],
+    "store": [
+     2,
+     "~1 MB"
+    ],
+    "cpu": [
+     1,
+     "seconds"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.texts.annotate",
+   "name": "Context readings (GLAUx)",
+   "desc": "annotate.py: adds lemma + morphological tag of every word from the GLAUx corpus into the Greek work packages.",
+   "detail": "Uses the app's own tokeniser regex so word counts match; updates each work's size, version and share of annotated words in the catalogue.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     2,
+     "one work + its GLAUx XML"
+    ],
+    "store": [
+     3,
+     "rewrites works"
+    ],
+    "cpu": [
+     3,
+     "batch"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.maps",
+   "name": "Map packages",
+   "desc": "maps.py (gd.py maps) and itinere.py: build the map packages and the list maps.json.",
+   "detail": "Default output is the app repo's maps/ folder; the published files live in the lesepult-maps repository and maps.json carries that site's address (--url).",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     3,
+     "GeoJSON layers in memory"
+    ],
+    "store": [
+     5,
+     "lesepult-maps: ~3.9 GB"
+    ],
+    "cpu": [
+     3,
+     "mapshaper/tippecanoe runs, minutes"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.maps.base",
+   "name": "Base map and engines",
+   "desc": "`build_base`: Natural Earth land, lakes, rivers and borders simplified with mapshaper to GeoJSON; `copy_engines`: MapLibre 5.24.0 into base/lib5 and pmtiles.js 4.4.1 into base/lib (MapLibre 4.7 into base/lib).",
+   "detail": "The engines are copied from npm package dist folders (npm pack maplibre-gl@5.24.0 / pmtiles@4.4.1).",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     2,
+     "GeoJSON"
+    ],
+    "store": [
+     2,
+     "~5.6 MB (+ Blue Marble from relief.py)"
+    ],
+    "cpu": [
+     2,
+     "mapshaper"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.maps.ancient",
+   "name": "Ancient world layers",
+   "desc": "`build_ancient`: AWMC data → water, empires, provinces, labels, areas, roads, urban, aqueducts, walls, canals (GeoJSON) with period spans.",
+   "detail": "Periods follow the Barrington Atlas codes (A, C, H, R, L → year ranges, `span_of`).",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     2,
+     "GeoJSON"
+    ],
+    "store": [
+     2,
+     "~4 MB"
+    ],
+    "cpu": [
+     2,
+     "mapshaper"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.maps.places",
+   "name": "Pleiades gazetteer",
+   "desc": "`build_places`: the Pleiades places with types, names in original script and romanised, and attested years → places/places.json.",
+   "detail": "`corpus_mentions` checks the names against the texts' works so the app can weight places that the corpus mentions; `TEXT_TYPES` lists the place types searched in a text.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     3,
+     "40,000 places + corpus scan"
+    ],
+    "store": [
+     2,
+     "3.7 MB"
+    ],
+    "cpu": [
+     3,
+     "minutes (corpus scan)"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.maps.vector_tiles",
+   "name": "Vector tile packages",
+   "desc": "`build_landscape_hd` (Landscape – detailed, zoom 4-10, tippecanoe) and itinere.py (Itiner-e Roman roads in two levels of detail) → PMTiles.",
+   "detail": "itinere.py reads the GeoPackage, reprojects and keeps name, main/secondary, certainty, dates, itineraries and builder.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     3,
+     "large GeoJSON"
+    ],
+    "store": [
+     3,
+     "landscape 25 MB, roads 7 + 39 MB"
+    ],
+    "cpu": [
+     3,
+     "tippecanoe"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.maps.manifest",
+   "name": "maps.json and parts",
+   "desc": "`manifest`: the package list with files, size, content hash version, groups and levels, retired flags and the download site; splits files over 16 MB into parts.",
+   "detail": "Whole large files are listed in .gitignore so only their parts are published; relief and Natural Earth II packages are marked retired (replaced by Mapterhorn and Blue Marble).",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     1,
+     "small"
+    ],
+    "store": [
+     1,
+     "20 KB + parts"
+    ],
+    "cpu": [
+     2,
+     "hashing GBs"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.relief",
+   "name": "Raster tile packages",
+   "desc": "relief.py (gd.py relief): Blue Marble imagery, sea depths and the (now retired) relief and Natural Earth II packages as PMTiles.",
+   "detail": "`build_bluemarble` makes base/bluemarble.pmtiles (WebP, zoom 0-6) from NASA's 21600×10800 April image; `build_bathy` makes relief/bathy.pmtiles from Natural Earth depth zones.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     4,
+     "full-resolution rasters (est. 1-3 GB)"
+    ],
+    "store": [
+     5,
+     "GBs of PMTiles"
+    ],
+    "cpu": [
+     5,
+     "hours for the relief pyramids"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.relief.dem",
+   "name": "Elevation tiles (retired)",
+   "desc": "`build`, `terrarium`, `mosaic`, `fill_pits`, `pyramid`: Copernicus GLO-90 → Terrarium WebP tiles in PMTiles, overview and four regions.",
+   "detail": "Replaced in the app by Mapterhorn plus areas saved on the device (v317); the packages remain listed as retired.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     4,
+     "large float32 mosaics"
+    ],
+    "store": [
+     5,
+     "~0.8 GB of packages"
+    ],
+    "cpu": [
+     5,
+     "hours"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.relief.imagery",
+   "name": "Blue Marble and Natural Earth II",
+   "desc": "`build_bluemarble` (in use) and `build_ne2` (retired) reproject the source images to Web Mercator image tiles.",
+   "detail": "Uses rasterio reprojection, mercantile tile bounds and Pillow WebP encoding.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     4,
+     "21600×10800 image"
+    ],
+    "store": [
+     3,
+     "bluemarble.pmtiles"
+    ],
+    "cpu": [
+     4,
+     "minutes"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  },
+  {
+   "id": "tools.relief.bathy",
+   "name": "Sea depths",
+   "desc": "`build_bathy`: Natural Earth bathymetry shapefiles → one vector layer 'depth' (property d) via mapshaper and tippecanoe.",
+   "detail": "Shallow zones first so deeper ones draw above them.",
+   "decls": [],
+   "net": "offline",
+   "res": {
+    "mem": [
+     2,
+     "shapes"
+    ],
+    "store": [
+     2,
+     "bathy.pmtiles"
+    ],
+    "cpu": [
+     2,
+     "tippecanoe"
+    ],
+    "gpu": [
+     0,
+     "none"
+    ]
+   }
+  }
+ ],
+ "flows": [
+  {
+   "from": "net.ghpages.app",
+   "to": "offline",
+   "label": "app files: installed and refreshed network-first by the offline helper",
+   "kind": "data"
+  },
+  {
+   "from": "net.ghpages.app",
+   "to": "storage.cache_app",
+   "label": "copies of the app files",
+   "kind": "data"
+  },
+  {
+   "from": "net.ghpages.app",
+   "to": "storage.cache_lib",
+   "label": "lib/three (once, kept across updates)",
+   "kind": "data"
+  },
+  {
+   "from": "net.ghpages.texts",
+   "to": "library",
+   "label": "catalog.json + works/<id>.json.gz downloads",
+   "kind": "data"
+  },
+  {
+   "from": "net.ghpages.texts",
+   "to": "settings",
+   "label": "HEAD texts/catalog.json: online check (netCheck)",
+   "kind": "calls"
+  },
+  {
+   "from": "net.ghpages.packages",
+   "to": "settings",
+   "label": "packages.json + *.gdpkg.gz (Instruments → Dictionaries)",
+   "kind": "data"
+  },
+  {
+   "from": "net.ghpages.mapslist",
+   "to": "map",
+   "label": "maps.json: the list of map packages",
+   "kind": "data"
+  },
+  {
+   "from": "net.ghpages.mapslist",
+   "to": "storage.cache_maps",
+   "label": "last copy of maps.json",
+   "kind": "data"
+  },
+  {
+   "from": "net.ghmaps.engine",
+   "to": "map",
+   "label": "MapLibre + pmtiles.js files (Base map package)",
+   "kind": "data"
+  },
+  {
+   "from": "net.ghmaps.geojson",
+   "to": "map",
+   "label": "GeoJSON layers and the Pleiades gazetteer",
+   "kind": "data"
+  },
+  {
+   "from": "net.ghmaps.pmtiles",
+   "to": "map",
+   "label": "PMTiles archives (joined from 16 MB parts)",
+   "kind": "data"
+  },
+  {
+   "from": "net.ghmaps",
+   "to": "storage.cache_dlparts",
+   "label": "parts kept while a download runs (resumable)",
+   "kind": "data"
+  },
+  {
+   "from": "net.ghmaps",
+   "to": "storage.cache_maps",
+   "label": "finished package files",
+   "kind": "data"
+  },
+  {
+   "from": "net.github_api",
+   "to": "settings",
+   "label": "private packages.json + Frisk/Bailly packages (token)",
+   "kind": "data"
+  },
+  {
+   "from": "net.mapterhorn",
+   "to": "map.relief",
+   "label": "elevation tiles (Terrarium WebP, 512 px, z0-12)",
+   "kind": "data"
+  },
+  {
+   "from": "net.mapterhorn",
+   "to": "engine.contour.source",
+   "label": "DEM tiles for contours, heights and profiles",
+   "kind": "data"
+  },
+  {
+   "from": "net.mapterhorn",
+   "to": "storage.cache_relief",
+   "label": "tiles of areas saved in the Globe menu",
+   "kind": "data"
+  },
+  {
+   "from": "net.esri.current",
+   "to": "map",
+   "label": "current World Imagery tiles (with ArcGIS key)",
+   "kind": "data"
+  },
+  {
+   "from": "net.esri.wayback_config",
+   "to": "map",
+   "label": "list of Wayback captures (weekly, kept in settings)",
+   "kind": "data"
+  },
+  {
+   "from": "net.esri.wayback",
+   "to": "map",
+   "label": "dated World Imagery tiles",
+   "kind": "data"
+  },
+  {
+   "from": "net.gibs",
+   "to": "map",
+   "label": "Blue Marble tiles to zoom 8 (online)",
+   "kind": "data"
+  },
+  {
+   "from": "net.eox.tiles",
+   "to": "map",
+   "label": "Sentinel-2 cloudless tiles by year",
+   "kind": "data"
+  },
+  {
+   "from": "net.eox.caps",
+   "to": "map",
+   "label": "available Sentinel-2 years (weekly)",
+   "kind": "data"
+  },
+  {
+   "from": "net.openfreemap",
+   "to": "map",
+   "label": "OpenStreetMap rivers and lakes (vector tiles)",
+   "kind": "data"
+  },
+  {
+   "from": "net.nominatim",
+   "to": "map.relief",
+   "label": "a name for a saved relief area",
+   "kind": "data"
+  },
+  {
+   "from": "data.dicts",
+   "to": "net.ghpages.packages",
+   "label": "published with the app repository",
+   "kind": "data"
+  },
+  {
+   "from": "data.texts",
+   "to": "net.ghpages.texts",
+   "label": "published with the app repository",
+   "kind": "data"
+  },
+  {
+   "from": "data.maps",
+   "to": "net.ghmaps",
+   "label": "package files published in lesepult-maps",
+   "kind": "data"
+  },
+  {
+   "from": "data.maps",
+   "to": "net.ghpages.mapslist",
+   "label": "maps.json published in the app's maps/",
+   "kind": "data"
+  },
+  {
+   "from": "map",
+   "to": "engine.maplibre",
+   "label": "builds the style and the map (loadMapLib, showMap)",
+   "kind": "calls"
+  },
+  {
+   "from": "storage.cache_maps",
+   "to": "engine.maplibre",
+   "label": "engine script and CSS from the Base map package",
+   "kind": "data"
+  },
+  {
+   "from": "engine.maplibre.v5",
+   "to": "engine.browser.webgl",
+   "label": "draws the map every frame",
+   "kind": "render"
+  },
+  {
+   "from": "engine.maplibre.v4",
+   "to": "engine.browser.webgl",
+   "label": "draws the map (fallback)",
+   "kind": "render"
+  },
+  {
+   "from": "engine.maplibre.patches",
+   "to": "engine.maplibre.v5",
+   "label": "patched script loaded from a blob URL",
+   "kind": "calls"
+  },
+  {
+   "from": "map.relief",
+   "to": "engine.maplibre.patches",
+   "label": "shadePatchedLib applies SHADE_PATCH / OB_PATCH",
+   "kind": "calls"
+  },
+  {
+   "from": "map.sun",
+   "to": "engine.maplibre.patches",
+   "label": "sun position (self.__pultSun) for the hillshade shader",
+   "kind": "data"
+  },
+  {
+   "from": "map.obelisk",
+   "to": "engine.maplibre.patches",
+   "label": "light for the obelisk (self.__pultObLight)",
+   "kind": "data"
+  },
+  {
+   "from": "engine.maplibre.v5",
+   "to": "engine.browser.workers",
+   "label": "worker pool parses tiles",
+   "kind": "calls"
+  },
+  {
+   "from": "engine.pmtiles.protocol",
+   "to": "engine.maplibre.protocols",
+   "label": "pmtiles:// tiles",
+   "kind": "data"
+  },
+  {
+   "from": "storage.cache_maps",
+   "to": "engine.pmtiles.reader",
+   "label": "byte ranges of whole archives (CacheSource)",
+   "kind": "data"
+  },
+  {
+   "from": "engine.pmtiles.reader",
+   "to": "engine.browser.streams",
+   "label": "unpacks archive directories",
+   "kind": "calls"
+  },
+  {
+   "from": "map",
+   "to": "engine.pmtiles",
+   "label": "pmInit / pmUrl register archives",
+   "kind": "calls"
+  },
+  {
+   "from": "map.relief",
+   "to": "engine.contour",
+   "label": "reliefInit creates the DemSource",
+   "kind": "calls"
+  },
+  {
+   "from": "engine.contour.source",
+   "to": "engine.contour.worker",
+   "label": "tile jobs",
+   "kind": "calls"
+  },
+  {
+   "from": "engine.contour.worker",
+   "to": "engine.browser.workers",
+   "label": "runs in its own worker",
+   "kind": "calls"
+  },
+  {
+   "from": "engine.contour.worker",
+   "to": "engine.contour.tiles",
+   "label": "isolines",
+   "kind": "data"
+  },
+  {
+   "from": "engine.contour.tiles",
+   "to": "engine.maplibre.protocols",
+   "label": "contour vector tiles",
+   "kind": "data"
+  },
+  {
+   "from": "engine.contour.source",
+   "to": "engine.maplibre.protocols",
+   "label": "elevation tiles for hillshade, colours, terrain",
+   "kind": "data"
+  },
+  {
+   "from": "engine.contour.source",
+   "to": "map",
+   "label": "decoded heights for heights on tap and line profiles (getDemTile)",
+   "kind": "data"
+  },
+  {
+   "from": "map.relief",
+   "to": "engine.tinysdf",
+   "label": "pultGlyphs imports TinySDF",
+   "kind": "calls"
+  },
+  {
+   "from": "engine.tinysdf.edt",
+   "to": "engine.tinysdf.draw",
+   "label": "distance grids",
+   "kind": "calls"
+  },
+  {
+   "from": "engine.tinysdf.draw",
+   "to": "map.relief",
+   "label": "SDF bitmaps of the contour figures (→ pultglyph://)",
+   "kind": "data"
+  },
+  {
+   "from": "engine.tinysdf.draw",
+   "to": "engine.browser.canvas",
+   "label": "draws glyphs in a 2D canvas",
+   "kind": "render"
+  },
+  {
+   "from": "map.obelisk",
+   "to": "engine.three",
+   "label": "obel3dLayer: model of the obelisk",
+   "kind": "calls"
+  },
+  {
+   "from": "storage.cache_lib",
+   "to": "engine.three.module",
+   "label": "three.js module (cache-first)",
+   "kind": "data"
+  },
+  {
+   "from": "engine.three.module",
+   "to": "engine.three.renderer",
+   "label": "THREE namespace",
+   "kind": "calls"
+  },
+  {
+   "from": "engine.three.renderer",
+   "to": "engine.browser.webgl",
+   "label": "draws into MapLibre's GL context",
+   "kind": "render"
+  },
+  {
+   "from": "map.sky",
+   "to": "engine.browser.webgl",
+   "label": "custom layer 'skybodies'",
+   "kind": "render"
+  },
+  {
+   "from": "engine.browser.sw",
+   "to": "offline",
+   "label": "runs sw.js and reliefsw.js",
+   "kind": "calls"
+  },
+  {
+   "from": "engine.browser.indexeddb",
+   "to": "storage",
+   "label": "hosts the IndexedDB databases",
+   "kind": "data"
+  },
+  {
+   "from": "engine.browser.cache",
+   "to": "storage",
+   "label": "hosts the named caches",
+   "kind": "data"
+  },
+  {
+   "from": "engine.browser.streams",
+   "to": "dict",
+   "label": "gunzips .gdpkg.gz packages on import (readPackage)",
+   "kind": "data"
+  },
+  {
+   "from": "engine.browser.streams",
+   "to": "library",
+   "label": "gunzips downloaded works (readPackage)",
+   "kind": "data"
+  },
+  {
+   "from": "engine.browser.streams",
+   "to": "export",
+   "label": "deflate-raw for zipped exports",
+   "kind": "data"
+  },
+  {
+   "from": "engine.browser.streams",
+   "to": "settings",
+   "label": "reads .docx/.odt imports (zipEntry)",
+   "kind": "data"
+  },
+  {
+   "from": "engine.browser.canvas",
+   "to": "map",
+   "label": "overlays, exports, textures",
+   "kind": "render"
+  },
+  {
+   "from": "engine.browser.canvas",
+   "to": "offline",
+   "label": "OffscreenCanvas enlarges saved relief tiles (enlargeDem)",
+   "kind": "calls"
+  },
+  {
+   "from": "shell",
+   "to": "engine.browser.sw",
+   "label": "registers the service worker",
+   "kind": "calls"
+  },
+  {
+   "from": "tools.sources.lexical",
+   "to": "tools.printed.lemmas",
+   "label": "treebank form→lemma tables",
+   "kind": "data"
+  },
+  {
+   "from": "tools.sources.lexical",
+   "to": "tools.dicts.sources",
+   "label": "Eulexis Pape/LSJ, LSJ XML",
+   "kind": "data"
+  },
+  {
+   "from": "tools.sources.lexical",
+   "to": "tools.dicts.morph",
+   "label": "Eulexis analyses + treebanks",
+   "kind": "data"
+  },
+  {
+   "from": "tools.sources.cld",
+   "to": "tools.printed.merge",
+   "label": "Pape/Bailly entries per lemma (cache)",
+   "kind": "data"
+  },
+  {
+   "from": "tools.sources.cld",
+   "to": "tools.dicts.sources",
+   "label": "Bailly from the CLD cache",
+   "kind": "data"
+  },
+  {
+   "from": "tools.sources.maps",
+   "to": "tools.relief",
+   "label": "Copernicus DEM, Natural Earth II, bathymetry",
+   "kind": "data"
+  },
+  {
+   "from": "tools.sources.maps",
+   "to": "tools.maps.vector_tiles",
+   "label": "Itiner-e GeoPackage",
+   "kind": "data"
+  },
+  {
+   "from": "tools.printed.lemmas",
+   "to": "tools.printed.merge",
+   "label": "lemma list",
+   "kind": "data"
+  },
+  {
+   "from": "tools.printed.merge",
+   "to": "tools.printed.output",
+   "label": "master.json",
+   "kind": "data"
+  },
+  {
+   "from": "tools.printed.merge",
+   "to": "tools.dicts.sources",
+   "label": "a project's master.json (Bailly, optional)",
+   "kind": "data"
+  },
+  {
+   "from": "tools.dicts.format",
+   "to": "tools.latin",
+   "label": "shared package writer",
+   "kind": "calls"
+  },
+  {
+   "from": "tools.dicts.format",
+   "to": "tools.scans.clean",
+   "label": "shared package writer",
+   "kind": "calls"
+  },
+  {
+   "from": "tools.dicts.sources",
+   "to": "data.dicts",
+   "label": "pape, lsj .gdpkg.gz",
+   "kind": "data"
+  },
+  {
+   "from": "tools.dicts.morph",
+   "to": "data.dicts",
+   "label": "morph, morphhints .gdpkg.gz",
+   "kind": "data"
+  },
+  {
+   "from": "tools.dicts.manifest",
+   "to": "data.dicts",
+   "label": "packages/packages.json",
+   "kind": "data"
+  },
+  {
+   "from": "tools.dicts.manifest",
+   "to": "net.github_api",
+   "label": "frisk, bailly + private packages.json (copied to the private repo)",
+   "kind": "data"
+  },
+  {
+   "from": "tools.latin",
+   "to": "data.dicts",
+   "label": "morph-la, collatinus, ls, georges, morph-la-ww, whitaker",
+   "kind": "data"
+  },
+  {
+   "from": "tools.scans.ocr",
+   "to": "tools.scans.proof",
+   "label": "OCR lines per page",
+   "kind": "data"
+  },
+  {
+   "from": "tools.scans.proof",
+   "to": "tools.scans.clean",
+   "label": "proofread lines",
+   "kind": "data"
+  },
+  {
+   "from": "tools.latin.collatinus",
+   "to": "tools.scans.clean",
+   "label": "Latin forms for vowel lengths",
+   "kind": "data"
+  },
+  {
+   "from": "tools.scans.clean",
+   "to": "net.github_api",
+   "label": "walde.gdpkg.gz (private repository only)",
+   "kind": "data"
+  },
+  {
+   "from": "tools.texts.convert",
+   "to": "data.texts",
+   "label": "texts/works/*.json.gz",
+   "kind": "data"
+  },
+  {
+   "from": "tools.texts.catalog",
+   "to": "data.texts",
+   "label": "texts/catalog.json",
+   "kind": "data"
+  },
+  {
+   "from": "tools.texts.annotate",
+   "to": "data.texts",
+   "label": "GLAUx readings added to works + catalogue",
+   "kind": "data"
+  },
+  {
+   "from": "tools.texts.convert",
+   "to": "tools.maps.places",
+   "label": "works for corpus mentions of places",
+   "kind": "data"
+  },
+  {
+   "from": "tools.maps.base",
+   "to": "data.maps",
+   "label": "base GeoJSON + engines",
+   "kind": "data"
+  },
+  {
+   "from": "tools.maps.base",
+   "to": "engine.maplibre",
+   "label": "copies MapLibre 5.24.0 / 4.7.1 dist",
+   "kind": "data"
+  },
+  {
+   "from": "tools.maps.base",
+   "to": "engine.pmtiles",
+   "label": "copies pmtiles.js 4.4.1",
+   "kind": "data"
+  },
+  {
+   "from": "tools.maps.ancient",
+   "to": "data.maps",
+   "label": "ancient/*.json",
+   "kind": "data"
+  },
+  {
+   "from": "tools.maps.places",
+   "to": "data.maps",
+   "label": "places/places.json",
+   "kind": "data"
+  },
+  {
+   "from": "tools.maps.vector_tiles",
+   "to": "data.maps",
+   "label": "landscape + itinere PMTiles",
+   "kind": "data"
+  },
+  {
+   "from": "tools.relief.imagery",
+   "to": "data.maps",
+   "label": "base/bluemarble.pmtiles (ne2: retired)",
+   "kind": "data"
+  },
+  {
+   "from": "tools.relief.bathy",
+   "to": "data.maps",
+   "label": "relief/bathy.pmtiles",
+   "kind": "data"
+  },
+  {
+   "from": "tools.relief.dem",
+   "to": "data.maps",
+   "label": "relief/*.pmtiles (retired)",
+   "kind": "data"
+  },
+  {
+   "from": "tools.maps.manifest",
+   "to": "data.maps",
+   "label": "maps.json + 16 MB parts",
+   "kind": "data"
+  }
+ ]
+}
