@@ -11,7 +11,9 @@ it grew version by version. Published as a private Claude artifact (see ARTIFACT
 - `merge.py` – joins the parts with the inventory into `out/model.json`; declarations not placed in `parts/` go to the
   main part of their file, and are listed in its report.
 - `atlas.html` – the page (d3 from cdnjs); reads `model.json` and `history.json` beside it.
-- `build.sh` – all of the above.
+- `build.sh` – all of the above; `build.sh --site` also writes the web app into `atlas/` (`site.py`, `site/`).
+- The web app: https://j555g.github.io/lesepult/atlas/ – installable, offline, rebuilt by GitHub after every push
+  (`.github/workflows/atlas.yml`, commits only `atlas/`). Pull before pushing: the bot commits to main.
 
 After each change to the app: `tools/arch/build.sh`, read the merge report (new functions to place in `parts/`), then
 republish `out/atlas.html` with `model.json` and `history.json` to the artifact.

@@ -1,6 +1,6 @@
 // Offline cache for the app shell (dictionaries and texts live in IndexedDB, not here).
 importScripts('reliefsw.js');                                        // (the saved relief: reliefServe)
-const CACHE = 'lesepult-v348';
+const CACHE = 'lesepult-v349';
 const FILES = ['./', 'index.html', 'core.js', 'analysis.js', 'text.js', 'dictview.js', 'dialogs.js', 'export.js', 'library.js', 'libtime.js', 'libmenu.js', 'librev.js', 'glosses.js', 'search.js', 'app.js', 'maps.js', 'maplibre-contour.js', 'reliefsw.js', 'maplayers.js', 'mapsaved.js', 'mapdraw.js', 'maprelief.js', 'tinysdf.js', 'mapimg.js', 'mapsun.js', 'sky/sun.webp', 'sky/moonface.webp', 'sky/zodiac.json', 'sky/stars.json', 'style.css', 'fonts.css', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'fonts/roboto-condensed-latin-400-normal.woff2', ...['latin', 'latin-ext', 'greek', 'greek-ext'].map(x => `fonts/source-sans-3-${x}-wght-normal.woff2`), 'fonts/source-sans-3-latin-wght-italic.woff2', 'fonts/source-sans-3-latin-ext-wght-italic.woff2',
   ...['greek', 'greek-ext', 'latin', 'latin-ext'].flatMap(s => ['400-normal', '700-normal', '400-italic', '700-italic'].map(w => `fonts/gentium-book-plus-${s}-${w}.woff2`))];
 
@@ -33,7 +33,7 @@ self.addEventListener('fetch', e => {
   if (url.hostname === MH_HOST) { e.respondWith(reliefServe(req)); return; }   // Mapterhorn: the saved areas first
   if (url.origin !== self.location.origin) return;   // e.g. the private repository (GitHub API): never cached
   if (!path.startsWith(new URL(self.registration.scope).pathname)) return;   // other sites on the same host (the map packages, lesepult-maps): straight to the network
-  if (path.includes('/packages/') || path.includes('/texts/')) return;
+  if (path.includes('/packages/') || path.includes('/texts/') || path.includes('/atlas/')) return;   // (the atlas web app has its own helper – v349)
   // large libraries (lib/, their version in the name): kept apart, across updates of the app – fetched once, then from the cache
   // (only the app's own lib/ – not maps/base/lib/, which belongs to the downloaded map package below – v347)
   if (path.startsWith(new URL(self.registration.scope).pathname + 'lib/')) { e.respondWith(caches.open('pult-lib').then(async c => (await c.match(url.href)) || fetch(req).then(r => { if (r.ok) c.put(url.href, r.clone()); return r; }))); return; }   // dictionary and text downloads go straight to the network (stored in IndexedDB)

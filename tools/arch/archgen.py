@@ -42,7 +42,7 @@ def group_path(p):
     """root files one by one; folders summed two levels deep (texts/works, packages/x.gdpkg.gz, maps/base …)"""
     parts = p.split('/')
     if len(parts) == 1: return p
-    if parts[0] in ('tools', '.github'): return None
+    if parts[0] in ('tools', '.github', 'atlas'): return None    # (the atlas itself and its tools are not part of the app)
     d = 3 if parts[0] == 'maps' else 2                               # (the map folders one level deeper: maps/base/lib5/ …)
     return '/'.join(parts[:d]) + ('/' if len(parts) > d else '')
 
@@ -85,6 +85,7 @@ def main():
                     if g != f: fedges[f'{f}>{g}'] += 1
         snap = {'files': dict(files), 'decls': decls, 'fedges': dict(fedges), 'du': {k: sorted(v) for k, v in dedges.items()}}
         delta = {k: {n: x for n, x in snap[k].items() if prev[k].get(n) != x} | {n: None for n in prev[k] if n not in snap[k]} for k in snap}
+        if hist and not any(delta.values()): continue                # (commits that change nothing of the app – the atlas, tools)
         hist.append({'h': h[:7], 'd': date, 'm': msg, 'v': v, **delta})
         prev = snap
         cur = {'h': h[:7], 'd': date, 'v': v, 'files': dict(files),
