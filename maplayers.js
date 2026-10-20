@@ -557,7 +557,7 @@ function layersPop() { rightPop('layers', 'Layers', layersHTML()); }
 // after a change: the counts in the group headings are brought up to date (scroll position kept)
 function refreshLayersPop() {
   const pop = $('#mapPop'); if (pop.hidden || !['layers', 'mapopts'].includes(pop.dataset.k)) return;
-  const m = pop.dataset.k === 'mapopts', y = pop.scrollTop; pop.innerHTML = `<div class="mph"><span class="navh">${m ? 'Map' : 'Layers'}</span></div>${m ? mapOptsHTML() : layersHTML()}`; pop.scrollTop = y;
+  const m = pop.dataset.k === 'mapopts', y = pop.scrollTop; pop.innerHTML = `<div class="mph"><span class="navh">${m ? 'Globe' : 'Layers'}</span></div>${m ? mapOptsHTML() : layersHTML()}`; pop.scrollTop = y;
   if (m) sundialPaint();
 }
 // hold the map button: the map settings as one menu (like the colours and the grammar line)

@@ -1,156 +1,200 @@
 // ================================================================ Pult · relief: shading, colours by height, contour lines, heights
-// The packages "Relief – overview" (zoom 0–8, the whole map area) and "Relief – <region>" (zoom 9–10/11, about 90 m)
-// hold elevation tiles (Terrarium, WebP) in PMTiles files. One elevation source is made of all installed packages: the most
-// detailed one that covers a tile gives it; deeper than a package reaches, its tiles are enlarged (smoothly).
-// The map engine shades them (hillshade, in the colours of the theme), colours them by height (MapLibre 5: color-relief),
-// and maplibre-contour draws contour lines from them; the numbers of the contour lines are drawn with the other labels.
-// Sea depths: Natural Earth (relief/bathy.pmtiles, vector). Settings (mapCfg): relShade, relColor, relContours, relBathy.
+// The heights come from Mapterhorn (terrain tiles of 512 pixels, Terrarium, WebP, zoom 0–12). The map engine reads them
+// straight from Mapterhorn's address and shades them (hillshade, in the colours of the theme) and colours them by height
+// (MapLibre 5: color-relief); maplibre-contour draws contour lines from them in its own worker. Online, the tiles come from
+// the network; areas saved in the Globe menu lie in the offline helper's cache (reliefsw.js), which also serves them offline –
+// deeper than an area was saved, enlarged from the nearest saved tile. (The relief packages of before are retired, v317.)
+// Sea depths: Natural Earth (relief/bathy.pmtiles, vector), while installed. Settings (mapCfg): relShade, relColor, relContours, relBathy.
 const REL_DEF = { relShade: true, relColor: false, relContours: true, relBathy: true };
 const engineMajor = () => parseInt((window.maplibregl?.getVersion?.() || window.maplibregl?.version || '4'), 10);
 const relOn = k => M.cfg?.[k] ?? REL_DEF[k];
-const relFiles = () => [...(M.pkFiles || [])].filter(f => /^relief\/.*\.pmtiles$/.test(f) && !/bathy\.pmtiles$/.test(f));
-const tileLon = (x, z) => x / 2 ** z * 360 - 180;
-const tileLat = (y, z) => Math.atan(Math.sinh(Math.PI * (1 - 2 * y / 2 ** z))) * 180 / Math.PI;
+const MH_URL = 'https://tiles.mapterhorn.com/{z}/{x}/{y}.webp', MH_Z = 12, RELIEF_C = 'pult-relief';
+const mhTileUrl = (z, x, y) => `https://tiles.mapterhorn.com/${z}/${x}/${y}.webp`;
 
-// the installed elevation packages (called while the map is built; needs pmtiles.js and maplibre-contour)
-// Online, Mapterhorn alone, read straight from its address by the map engine (its own background threads) and by
-// maplibre-contour in its worker: nothing of the heights is done on the page itself. Offline, the packages (v315).
+// the elevation source (called while the map is built): online always; offline when an area is saved
 async function reliefInit() {
-  const online = isOnline(), files = online ? [] : relFiles();
-  if (!online && (!files.length || !window.pmtiles)) { M.rel = null; return; }
-  if (!window.mlcontour) { try { await addScript(MAPS + 'relief/lib/maplibre-contour.js'); } catch (_) {
-    try { if (!online) throw 0; await addScript(MH_LIB); } catch (_) { M.rel = null; return; } } }
-  const key = online ? 'mh' : files.join('|');
-  if (M.rel?.key === key) return;
-  if (online) {
-    M.rel = { key, arch: [], online, direct: true, maxz: MH_Z, cache: new Map() };
-    M.relDem = new mlcontour.DemSource({ url: MH_URL, encoding: 'terrarium', maxzoom: MH_Z, worker: true, cacheSize: 100, timeoutMs: 30000 });
-    M.relDem.setupMaplibre(maplibregl); return;
-  }
-  const arch = [];
-  for (const f of files) {
-    const pm = new pmtiles.PMTiles(new CacheSource(new URL(MAPS + f, location.href).href));
-    try { arch.push({ f, pm, h: await pm.getHeader() }); } catch (e) { console.warn('relief', f, e); }
-  }
-  if (!arch.length) { M.rel = null; return; }
-  arch.sort((a, b) => b.h.maxZoom - a.h.maxZoom);                   // the most detailed first
-  M.rel = { key, arch, online, maxz: Math.max(...arch.map(a => a.h.maxZoom)), cache: new Map() };
-  const dem = new mlcontour.DemSource({ url: 'pultdem://{z}/{x}/{y}', encoding: 'terrarium', maxzoom: M.rel.maxz, worker: false, cacheSize: 200, timeoutMs: 30000 });
-  dem.manager.getTile = async url => { const [z, x, y] = url.match(/(\d+)\/(\d+)\/(\d+)$/).slice(1).map(Number); return { data: await demBlob(z, x, y) }; };
-  dem.setupMaplibre(maplibregl);
-  M.relDem = dem;
+  const online = isOnline(), saved = (await reliefAreas()).some(a => a.tiles > 0);
+  if (!online && !saved) { M.rel = M.relDem = null; return; }
+  if (!window.mlcontour) { try { await addScript('maplibre-contour.js'); } catch (_) { M.rel = M.relDem = null; return; } }
+  M.rel = { key: 'mh', maxz: MH_Z };
+  M.relDem = M.relDemSrc ??= (() => { const d = new mlcontour.DemSource({ url: MH_URL, encoding: 'terrarium', maxzoom: MH_Z, worker: true, cacheSize: 100, timeoutMs: 30000 }); d.setupMaplibre(maplibregl); return d; })();
 }
-const inArch = (h, z, x, y) => tileLon(x + 1, z) > h.minLon && tileLon(x, z) < h.maxLon && tileLat(y, z) > h.minLat && tileLat(y + 1, z) < h.maxLat;
-// a region's tile only when the tile lies wholly inside the region: at its edge a region tile is flat (0 m) beyond the border,
-// which showed as a strip without relief (e.g. at 47° N, the north edge of Italy) – there the overview (enlarged) is used
-const inside = (h, z, x, y) => tileLon(x, z) >= h.minLon - 1e-9 && tileLon(x + 1, z) <= h.maxLon + 1e-9 && tileLat(y + 1, z) >= h.minLat - 1e-9 && tileLat(y, z) <= h.maxLat + 1e-9;
-function demBlob(z, x, y) {
-  const c = M.rel.cache, k = `${z}/${x}/${y}`;
+
+// ---------------------------------------------------------------- saved areas
+// The list lies beside the tiles: [{ id, name, w, s, e, n (degrees), z (deepest zoom), world, total, tiles, bytes, at, state }]
+const areasKey = () => new URL('pult-relief-areas.json', location.href).href;
+async function reliefAreas() {
+  if (M.relAreas) return M.relAreas;
+  try { const r = await (await caches.open(RELIEF_C)).match(areasKey()); M.relAreas = r ? await r.json() : []; } catch (_) { M.relAreas = []; }
+  return M.relAreas;
+}
+async function putAreas(list) {
+  M.relAreas = list;
+  await (await caches.open(RELIEF_C)).put(areasKey(), new Response(JSON.stringify(list), { headers: { 'content-type': 'application/json' } }));
+}
+const MERC_LAT = 85.0511;
+const lon2x = (lon, z) => Math.floor((lon + 180) / 360 * 2 ** z);
+const lat2y = (lat, z) => { const s = Math.sin(lat * Math.PI / 180); return Math.floor((0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * 2 ** z); };
+function areaRanges(a, z) {                                           // the tiles of an area at a zoom: [x0, x1, y0, y1] (across 180°: two)
+  const n = 2 ** z, cl = v => Math.max(0, Math.min(n - 1, v)), y0 = cl(lat2y(a.n, z)), y1 = cl(lat2y(a.s, z));
+  if (a.world) return [[0, n - 1, 0, n - 1]];
+  return a.w <= a.e ? [[cl(lon2x(a.w, z)), cl(lon2x(a.e, z)), y0, y1]] : [[cl(lon2x(a.w, z)), n - 1, y0, y1], [0, cl(lon2x(a.e, z)), y0, y1]];
+}
+const areaCountZ = (a, z) => areaRanges(a, z).reduce((t, [x0, x1, y0, y1]) => t + (x1 - x0 + 1) * (y1 - y0 + 1), 0);
+const areaCount = (a, z) => { let t = 0; for (let k = 0; k <= z; k++) t += areaCountZ(a, k); return t; };
+const areaHas = (a, z, x, y) => z <= a.z && areaRanges(a, z).some(([x0, x1, y0, y1]) => x >= x0 && x <= x1 && y >= y0 && y <= y1);
+const mPerPx = (z, lat) => 40075016.7 * Math.cos(lat * Math.PI / 180) / (512 * 2 ** z);
+const fmtM = m => m >= 950 ? `${(m / 1000).toFixed(m >= 9500 ? 0 : 1)} km` : `${Math.round(m / (m >= 95 ? 10 : 1)) * (m >= 95 ? 10 : 1)} m`;
+const fmtBytes = b => b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.max(0.1, b / 1e6).toFixed(b >= 1e8 ? 0 : 1)} MB`;
+
+// the area on screen: the whole world when the globe lies wholly in view (or the flat map shows all of it)
+function viewArea() {
+  const m = M.map, c = m.getCanvas(), w = c.clientWidth, h = c.clientHeight, ctr = m.getCenter();
+  if (viewOn('globe')) {
+    const r = 512 * 2 ** m.getZoom() / (2 * Math.PI * Math.max(0.2, Math.cos(ctr.lat * Math.PI / 180)));   // (the globe's radius on screen, about)
+    if (2 * r <= Math.min(w, h)) return { world: true, w: -180, s: -MERC_LAT, e: 180, n: MERC_LAT };
+  }
+  const b = m.getBounds(); let W = b.getWest(), E = b.getEast();
+  if (E - W >= 359) return { world: true, w: -180, s: -MERC_LAT, e: 180, n: MERC_LAT };
+  W = ((W + 540) % 360) - 180; E = ((E + 540) % 360) - 180;
+  return { world: false, w: W, e: E, s: Math.max(-MERC_LAT, b.getSouth()), n: Math.min(MERC_LAT, b.getNorth()) };
+}
+const areaKm = a => { const lat = (a.s + a.n) / 2, dl = (a.e - a.w + 360) % 360 || 360; return [Math.round(dl * 111.32 * Math.cos(lat * Math.PI / 180)), Math.round((a.n - a.s) * 110.6)]; };
+const coordName = a => { const lat = (a.s + a.n) / 2, lon = a.w <= a.e ? (a.w + a.e) / 2 : (((a.w + a.e + 360) / 2 + 540) % 360) - 180;
+  return `${Math.abs(Math.round(lat))}° ${lat < 0 ? 'S' : 'N'} ${Math.abs(Math.round(lon))}° ${lon < 0 ? 'W' : 'E'}`; };
+
+// the size: a few tiles of the chosen detail fetched to see how large they are
+async function areaSample(a, z) {
+  const k = `${a.world}|${a.w}|${a.s}|${a.e}|${a.n}|${z}`, c = (M.rsEst ??= new Map());
   if (c.has(k)) return c.get(k);
   const p = (async () => {
-    const last = M.rel.arch[M.rel.arch.length - 1];
-    for (const a of M.rel.arch) {
-      if (z < a.h.minZoom || !(a === last ? inArch : inside)(a.h, z, x, y)) continue;
-      if (z <= a.h.maxZoom) { const r = await a.pm.getZxy(z, x, y); if (r?.data) return new Blob([r.data], { type: 'image/webp' }); continue; }
-      const dz = z - a.h.maxZoom, px = x >> dz, py = y >> dz, r = await a.pm.getZxy(a.h.maxZoom, px, py);   // deeper: a part of the deepest tile, enlarged
-      if (r?.data) return enlarge(r.data, dz, x - (px << dz), y - (py << dz), undefined, `${a.f}/${a.h.maxZoom}/${px}/${py}`);
-    }
-    return flatTile();                                               // sea, or outside every package
+    const [[x0, x1, y0, y1]] = areaRanges(a, z), pts = [[0.5, 0.5], [0.25, 0.3], [0.75, 0.7], [0.3, 0.75], [0.7, 0.25]], seen = new Set(); let n = 0, b = 0;
+    await Promise.all(pts.map(async ([fx, fy]) => {
+      const x = Math.round(x0 + (x1 - x0) * fx), y = Math.round(y0 + (y1 - y0) * fy), u = mhTileUrl(z, x, y); if (seen.has(u)) return; seen.add(u);
+      try { const r = await fetch(u + '?pult-save', { mode: 'cors' }); if (r.ok) { b += (await r.arrayBuffer()).byteLength; n++; } } catch (_) {}
+    }));
+    return n ? b / n : null;
   })();
-  c.set(k, p); if (c.size > 400) c.delete(c.keys().next().value);
-  return p;
+  c.set(k, p); return p;
 }
-const relCanvas = n => typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(n, n) : Object.assign(document.createElement('canvas'), { width: n, height: n });
-const canvasBlob = cv => cv.convertToBlob ? cv.convertToBlob({ type: 'image/png' }) : new Promise(r => cv.toBlob(r, 'image/png'));
-// Some browsers (privacy protection against fingerprinting, e.g. Brave, Firefox, some Chrome extensions) add noise to what a
-// canvas gives back: a few pixels off by one in a colour – in red that is 256 m, so the relief got sharp pits and spikes, in
-// green small bumps (even in the sea). The map engine itself checks for this and then reads the pixels as a video frame;
-// so do we.
-let canvasNoisy = null;
-function noisyCanvas() {
-  if (canvasNoisy != null) return canvasNoisy;
-  canvasNoisy = false;
-  try {
-    const n = 5, ctx = relCanvas(n).getContext('2d', { willReadFrequently: true });
-    for (let i = 0; i < n * n; i++) { const b = i * 4; ctx.fillStyle = `rgb(${b},${b + 1},${b + 2})`; ctx.fillRect(i % n, Math.floor(i / n), 1, 1); }
-    const d = ctx.getImageData(0, 0, n, n).data;
-    for (let i = 0; i < n * n * 4; i++) if (i % 4 !== 3 && d[i] !== i) { canvasNoisy = true; break; }
-  } catch (_) {}
-  return canvasNoisy;
+
+// ---------------------------------------------------------------- the save view (from the Globe menu)
+function reliefSavePop() {
+  if (!M.map) return;
+  const a = M.rsJob ? M.rsJob.a : viewArea();
+  if (!M.rsJob) { let z = 2; while (z < MH_Z && areaCount(a, z + 1) <= 3000) z++; M.rsv = { a, z, name: a.world ? 'Whole world' : coordName(a) }; }
+  rightPop('mapsave', 'Save relief offline', reliefSaveHTML());
+  reliefSaveInfo();
 }
-async function framePixels(bm) {
-  const f = new VideoFrame(bm, { timestamp: 0 });
-  try {
-    const fmt = f.format || '';
-    if (!/^(RGB|BGR)/.test(fmt)) throw new Error('format ' + fmt);
-    const px = new Uint8ClampedArray(bm.width * bm.height * 4);
-    await f.copyTo(px, { rect: { x: 0, y: 0, width: bm.width, height: bm.height }, layout: [{ offset: 0, stride: bm.width * 4 }] });
-    if (fmt.startsWith('BGR')) for (let i = 0; i < px.length; i += 4) { const t = px[i]; px[i] = px[i + 2]; px[i + 2] = t; }
-    return px;
-  } finally { f.close(); }
+function reliefSaveHTML() {
+  const j = M.rsJob;
+  if (j) return `<div class="rsave"><p>Saving <b>${esc(j.a.name)}</b> …</p><div class="rsbar"><i id="rsBar" style="width:${(j.done / j.a.total * 100).toFixed(1)}%"></i></div>
+    <p class="rsinfo" id="rsInfo"></p><div class="rsbtns"><button type="button" data-rsstop="1">Stop</button></div>
+    <small class="hint">You can close this menu; saving goes on while Pult is open.</small></div>`;
+  const { a, z, name } = M.rsv, [kw, kh] = areaKm(a);
+  return `<div class="rsave"><p>${a.world ? '<b>The whole world</b> will be saved (the globe is wholly in view).' : `The area on screen will be saved: about ${kw.toLocaleString('en')} × ${kh.toLocaleString('en')} km.`}</p>
+    <label class="mrow"><span>Detail</span><input type="range" min="2" max="${MH_Z}" step="1" value="${z}" data-rsz="1" aria-label="Detail"></label>
+    <p class="rsinfo" id="rsInfo"></p>
+    <label class="mrow"><span>Name</span><input type="text" id="rsName" value="${esc(name)}" maxlength="60"></label>
+    <div class="rsbtns"><button type="button" data-rsback="1">Back</button><button type="button" class="acc" data-rsgo="1" id="rsGo">Save</button></div>
+    <small class="hint">Heights from Mapterhorn. Coarser levels are saved with it, for zooming out. Saved areas are listed in Settings → Maps.</small></div>`;
 }
-async function decodeDem(data) {
-  const bm = await createImageBitmap(new Blob([data]), { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
-  const n = bm.width, h = new Float32Array(n * n);
-  let px = null;
-  if (noisyCanvas() && typeof VideoFrame !== 'undefined') try { px = await framePixels(bm); } catch (_) {}
-  if (!px) { const ctx = relCanvas(n).getContext('2d', { willReadFrequently: true }); ctx.drawImage(bm, 0, 0); px = ctx.getImageData(0, 0, n, n).data; }
-  for (let i = 0; i < n * n; i++) h[i] = px[i * 4] * 256 + px[i * 4 + 1] + px[i * 4 + 2] / 256 - 32768;
-  return { n, h };
+const rsRedraw = () => { const pop = $('#mapPop'); if (!pop || pop.hidden || pop.dataset.k !== 'mapsave') return;
+  pop.innerHTML = `<div class="mph"><span class="navh">Save relief offline</span></div>${reliefSaveHTML()}`; reliefSaveInfo(); };
+const RS_MAX_TILES = 400000;
+async function reliefSaveInfo() {
+  const el = $('#rsInfo'); if (!el) return;
+  const j = M.rsJob;
+  if (j) { el.textContent = `${j.done.toLocaleString('en')} of ${j.a.total.toLocaleString('en')} tiles · ${fmtBytes(j.bytes)}`; const b = $('#rsBar'); if (b) b.style.width = (j.done / j.a.total * 100).toFixed(1) + '%'; return; }
+  const { a, z } = M.rsv, lat = a.world ? 0 : (a.s + a.n) / 2, n = areaCount(a, z), go = $('#rsGo');
+  const det = `about ${fmtM(mPerPx(z, Math.min(70, Math.abs(lat))))} · ${n.toLocaleString('en')} tiles`;
+  if (n > RS_MAX_TILES) { el.innerHTML = `${det} · <b>too large</b> – less detail, or a smaller area`; if (go) go.disabled = true; return; }
+  el.textContent = det + ' · size: estimating …'; if (go) go.disabled = false;
+  const avg = await areaSample(a, z); if (!M.rsv || M.rsv.z !== z || $('#rsInfo') !== el) return;
+  let free = ''; try { const q = await navigator.storage?.estimate?.(); if (q?.quota) free = ` (free: about ${fmtBytes(q.quota - (q.usage || 0))})`; } catch (_) {}
+  el.textContent = det + (avg ? ` · about ${fmtBytes(avg * n)}${free}` : ' · size unknown (Mapterhorn not reached)');
 }
-// the heights as a PNG of our own making (Terrarium; the fraction of a metre in blue), without colour information: read exactly
-const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
-function pngChunk(type, data) {
-  const out = new Uint8Array(12 + data.length), dv = new DataView(out.buffer);
-  dv.setUint32(0, data.length); for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i); out.set(data, 8);
-  let c = 0xffffffff; for (let i = 4; i < 8 + data.length; i++) c = CRC[(c ^ out[i]) & 255] ^ (c >>> 8);
-  dv.setUint32(8 + data.length, (c ^ 0xffffffff) >>> 0); return out;
+document.addEventListener('input', ev => {
+  const r = ev.target.closest?.('input[data-rsz]'); if (!r || !M.rsv) return;
+  M.rsv.z = +r.value; reliefSaveInfo();
+});
+document.addEventListener('input', ev => { if (ev.target.id === 'rsName' && M.rsv) M.rsv.name = ev.target.value; });
+async function reliefSaveClick(b) {
+  const d = b.dataset;
+  if (b.id === 'mapSaveBtn') { reliefSavePop(); return true; }
+  if (d.rsback) { mapOptsPop(); return true; }
+  if (d.rsstop) { if (M.rsJob) M.rsJob.stop = true; return true; }
+  if (d.rsgo) { const { a, z } = M.rsv, name = ($('#rsName')?.value || '').trim() || (a.world ? 'Whole world' : coordName(a));
+    reliefSave({ id: 'a' + Date.now().toString(36), name, w: a.w, s: a.s, e: a.e, n: a.n, world: a.world, z }); return true; }
+  return false;
 }
-// stored (uncompressed) deflate: deflating saves only ~10 % on heights but costs 5× the time; the tile lives a moment only
-function zlib(raw) {
-  const blocks = Math.ceil(raw.length / 65535), out = new Uint8Array(2 + raw.length + blocks * 5 + 4);
-  out[0] = 0x78; out[1] = 0x01; let o = 2, a = 1, b = 0;
-  for (let i = 0; i < raw.length; i += 65535) { const n = Math.min(65535, raw.length - i); out[o++] = i + n >= raw.length ? 1 : 0; out[o++] = n & 255; out[o++] = n >> 8; out[o++] = ~n & 255; out[o++] = (~n >> 8) & 255; out.set(raw.subarray(i, i + n), o); o += n; }
-  for (let i = 0; i < raw.length;) { const e = Math.min(raw.length, i + 5552); for (; i < e; i++) { a += raw[i]; b += a; } a %= 65521; b %= 65521; }   // (Adler-32, reduced every 5552 bytes)
-  new DataView(out.buffer).setUint32(o, ((b << 16) | a) >>> 0); return out;
+// the download: six at a time; tiles already saved (by another area) are counted, not fetched again
+async function reliefSave(a) {
+  if (M.rsJob) return;
+  try { navigator.storage?.persist?.(); } catch (_) {}
+  a.total = areaCount(a, a.z); a.tiles = a.tiles || 0; a.bytes = a.bytes || 0; a.at = Date.now(); a.state = 'saving';
+  const list = (await reliefAreas()).filter(x => x.id !== a.id); list.push(a); await putAreas(list);
+  const j = M.rsJob = { a, done: 0, bytes: 0, stop: false, fail: 0 };
+  rsRedraw();
+  const c = await caches.open(RELIEF_C);
+  const tiles = (function* () { for (let z = 0; z <= a.z; z++) for (const [x0, x1, y0, y1] of areaRanges(a, z)) for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) yield [z, x, y]; })();
+  let lastUi = 0, lastPut = 0;
+  const one = async ([z, x, y]) => {
+    const u = mhTileUrl(z, x, y), have = await c.match(u);
+    if (have) return +(have.headers.get('x-size') || 0);
+    for (let t = 0; t < 3; t++) {
+      try { const r = await fetch(u + '?pult-save', { mode: 'cors', cache: 'no-store' });
+        if (r.status === 404) return 0;
+        if (r.ok) { const buf = await r.arrayBuffer(); await c.put(u, new Response(buf, { headers: { 'content-type': 'image/webp', 'x-size': String(buf.byteLength) } })); return buf.byteLength; }
+      } catch (_) {}
+      await new Promise(res => setTimeout(res, 800 * (t + 1)));
+    }
+    j.fail++; return 0;
+  };
+  const worker = async () => { for (;;) { if (j.stop || j.fail > 50) return; const n = tiles.next(); if (n.done) return;
+    const got = await one(n.value); j.bytes += got; j.done++;          // (awaited first: the six run side by side)
+    const now = Date.now(); if (now - lastUi > 300) { lastUi = now; reliefSaveInfo(); }
+    if (now - lastPut > 5000) { lastPut = now; a.tiles = j.done; a.bytes = j.bytes; await putAreas(await reliefAreas()); } } };
+  await Promise.all(Array.from({ length: 6 }, worker));
+  a.tiles = j.done; a.bytes = j.bytes; a.state = j.done >= a.total ? 'done' : 'stopped'; await putAreas(await reliefAreas());
+  M.rsJob = null;
+  if (a.state === 'done') note(`${a.name}: relief saved (${fmtBytes(a.bytes)})`);
+  else toast(j.fail > 50 ? `${a.name}: saving stopped – Mapterhorn could not be reached. Resume it in Settings → Maps.` : `${a.name}: saving stopped. Resume it in Settings → Maps.`, 5000);
+  if ($('#mapPop')?.dataset.k === 'mapsave' && !$('#mapPop').hidden) mapOptsPop();
+  redrawMapSection?.();
 }
-async function encodeDem(h, n) {
-  const raw = new Uint8Array(n * (1 + 3 * n));
-  for (let y = 0; y < n; y++) {
-    let o = y * (1 + 3 * n) + 1;                                   // (filter byte 0)
-    for (let x = 0; x < n; x++) { const v = Math.max(0, Math.min(65535.996, h[y * n + x] + 32768)), w = Math.floor(v); raw[o++] = w >> 8; raw[o++] = w & 255; raw[o++] = Math.floor((v - w) * 256); }
+// deleting an area: its tiles go, unless another area also holds them
+async function reliefDelete(id) {
+  if (M.rsJob?.a.id === id) { M.rsJob.stop = true; while (M.rsJob) await new Promise(r => setTimeout(r, 200)); }
+  const all = await reliefAreas(), gone = all.find(a => a.id === id); if (!gone) return;
+  const rest = all.filter(a => a.id !== id); await putAreas(rest);
+  const c = await caches.open(RELIEF_C);
+  for (const req of await c.keys()) {
+    const m = req.url.match(/mapterhorn\.com\/(\d+)\/(\d+)\/(\d+)\.webp$/); if (!m) continue;
+    const [z, x, y] = m.slice(1).map(Number);
+    if (areaHas(gone, z, x, y) && !rest.some(a => areaHas(a, z, x, y))) await c.delete(req);
   }
-  const ihdr = new Uint8Array(13), dv = new DataView(ihdr.buffer); dv.setUint32(0, n); dv.setUint32(4, n); ihdr[8] = 8; ihdr[9] = 2;   // 8 bit, RGB
-  const parts = [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), pngChunk('IHDR', ihdr), pngChunk('IDAT', zlib(raw)), pngChunk('IEND', new Uint8Array(0))];
-  return new Blob(parts, { type: 'image/png' });
+  if (!isOnline() && !rest.some(a => a.tiles > 0) && M.map) { await reliefInit(); imgNetChange(); }
 }
-// a quarter (eighth …) of a tile, enlarged to a whole tile (heights interpolated between the pixel centres)
-// decoded tiles kept for a while: the 4, 16 or 64 enlarged tiles cut from one deeper tile decode it only once
-function decodeOnce(data, key) {
-  const c = (M.decC ??= new Map()); key ??= data;
-  if (c.has(key)) { const v = c.get(key); c.delete(key); c.set(key, v); return v; }
-  const p = decodeDem(data); c.set(key, p); if (c.size > 48) c.delete(c.keys().next().value);
-  return p;
+// the list in Settings → Maps
+async function reliefAreasHTML() {
+  const list = await reliefAreas();
+  const rows = list.map(a => { const lat = a.world ? 0 : (a.s + a.n) / 2, busy = M.rsJob?.a.id === a.id;
+    const st = busy ? ` · <i>saving … ${Math.round(M.rsJob.done / a.total * 100)} %</i>` : a.state !== 'done' ? ` · <i>incomplete (${Math.round((a.tiles || 0) / a.total * 100)} %)</i>` : '';
+    return `<div class="mpk rsrow"><div><b>${esc(a.name)}</b><small class="hint">about ${fmtM(mPerPx(a.z, Math.min(70, Math.abs(lat))))} · ${fmtBytes(a.bytes || 0)} · ${new Date(a.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}${st}</small></div>`
+      + `<span class="rsact">${!busy && a.state !== 'done' ? `<button type="button" data-rsresume="${a.id}">Resume</button>` : ''}<button type="button" data-rsdel="${a.id}">Delete</button></span></div>`; }).join('');
+  return `<div class="navh2">Relief saved for offline use</div><div class="list plain">${rows || '<p class="hint small">None yet. Save an area from the Globe menu on the map (needs a connection).</p>'}</div>`;
 }
-async function enlarge(data, dz, ox, oy, N, key) {
-  const { n, h } = await decodeOnce(data, key), s = n / 2 ** dz; N ??= n; const out = new Float32Array(N * N);
-  const at = (x, y) => h[Math.max(0, Math.min(n - 1, y)) * n + Math.max(0, Math.min(n - 1, x))];
-  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
-    const fx = ox * s + (i + 0.5) * s / N - 0.5, fy = oy * s + (j + 0.5) * s / N - 0.5, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
-    out[j * N + i] = (at(x0, y0) * (1 - tx) + at(x0 + 1, y0) * tx) * (1 - ty) + (at(x0, y0 + 1) * (1 - tx) + at(x0 + 1, y0 + 1) * tx) * ty;
-  }
-  return encodeDem(out, N);
-}
-// Mapterhorn (online): terrain tiles of 512 pixels (Terrarium, WebP), zoom 0–12
-const MH_URL = 'https://tiles.mapterhorn.com/{z}/{x}/{y}.webp', MH_Z = 12;
-const MH_LIB = 'https://j555g.github.io/lesepult-maps/relief/lib/maplibre-contour.js';
-let flatP = null;
-const flatTile = () => flatP ??= encodeDem(new Float32Array(256 * 256), 256);
+document.addEventListener('click', async ev => {
+  const d = ev.target.closest?.('[data-rsdel]'), r = ev.target.closest?.('[data-rsresume]');
+  if (d) { d.disabled = true; const a = (await reliefAreas()).find(x => x.id === d.dataset.rsdel); await reliefDelete(d.dataset.rsdel); redrawMapSection(); if (a) note(`${a.name} deleted`); return; }
+  if (r) { if (!isOnline()) { toast('Saving needs a connection.', 3000); return; } const a = (await reliefAreas()).find(x => x.id === r.dataset.rsresume); if (a) { reliefSave(a); redrawMapSection(); } }
+});
 
 // the height at a point (m), from the most detailed tile (null without relief)
 async function heightAt(lon, lat, z) {
   if (!M.relDem) return null;
-  z = Math.min(z ?? M.rel.maxz, M.rel.maxz);
+  z = Math.min(z ?? MH_Z, MH_Z);
   const n = 2 ** z, fx = (lon + 180) / 360 * n, s = Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)), fy = (1 - s / Math.PI) / 2 * n;
   const x = Math.floor(fx), y = Math.floor(fy);
   try {
@@ -195,8 +239,7 @@ function reliefStyle(st, C) {
       paint: { 'fill-color': ['step', ['get', 'd'], deep[0], 200, deep[1], 1000, deep[2], 2000, deep[3], 4000, deep[4]], 'fill-opacity': hd ? ['interpolate', ['linear'], ['zoom'], 6, 1, 8.5, 0] : 1, 'fill-antialias': false } });
   }
   if (!M.relDem || M.cfg.elev === false) return;                    // (Elevation switched off in the Globe menu)
-  const dsrc = () => M.rel.direct ? { type: 'raster-dem', tiles: [MH_URL], encoding: 'terrarium', tileSize: 512, maxzoom: MH_Z }
-    : { type: 'raster-dem', tiles: [M.relDem.sharedDemProtocolUrl], encoding: 'terrarium', tileSize: 256, maxzoom: M.rel.maxz };
+  const dsrc = () => ({ type: 'raster-dem', tiles: [MH_URL], encoding: 'terrarium', tileSize: 512, maxzoom: MH_Z });
   st.sources.reldem = dsrc(); st.sources.terrdem = dsrc();           // (3D: its own source, as MapLibre advises)
   if (viewOn('t3d')) st.terrain = T3D();
   const below = ['a-water', 'a-areas', 'a-emp', 'lakes'].map(at).find(k => k >= 0) ?? at('lakes');

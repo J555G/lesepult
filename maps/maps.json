@@ -76,7 +76,8 @@
    "parts": {
     "relief/overview7.pmtiles": 3
    },
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "relief8",
@@ -93,7 +94,8 @@
    "parts": {
     "relief/overview8.pmtiles": 9
    },
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "relief-greece10",
@@ -108,7 +110,8 @@
    "parts": {
     "relief/greece10.pmtiles": 2
    },
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "relief-greece11",
@@ -123,7 +126,8 @@
    "parts": {
     "relief/greece11.pmtiles": 4
    },
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "relief-italy10",
@@ -138,7 +142,8 @@
    "parts": {
     "relief/italy10.pmtiles": 3
    },
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "relief-italy11",
@@ -153,7 +158,8 @@
    "parts": {
     "relief/italy11.pmtiles": 7
    },
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "relief-asiaminor10",
@@ -168,7 +174,8 @@
    "parts": {
     "relief/asiaminor10.pmtiles": 4
    },
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "relief-asiaminor11",
@@ -183,7 +190,8 @@
    "parts": {
     "relief/asiaminor11.pmtiles": 11
    },
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "relief-levant10",
@@ -198,7 +206,8 @@
    "parts": {
     "relief/levant10.pmtiles": 4
    },
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "relief-levant11",
@@ -213,7 +222,8 @@
    "parts": {
     "relief/levant11.pmtiles": 11
    },
-   "url": "https://j555g.github.io/lesepult-maps/"
+   "url": "https://j555g.github.io/lesepult-maps/",
+   "retired": true
   },
   {
    "id": "itinere",

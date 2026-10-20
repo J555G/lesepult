@@ -1991,3 +1991,16 @@ dialog .sortpair button{transition:border-color .15s}
 .mpop .mib svg{width:15px;height:15px;display:block}
 .mpop .mib small{font:9.5px/1.05 var(--ui);letter-spacing:.01em}
 #mapOptsBtn svg.globeic{width:30px;height:30px}
+/* saving relief for offline use (Globe menu; Settings → Maps) */
+.mpop .mrsave{display:block;width:100%;margin:.15rem 0 .35rem;font:13px var(--ui);padding:.35rem .5rem;text-align:left}
+.mpop .rsave p{margin:.2rem 0 .5rem;font:13.5px var(--ui)}
+.mpop .rsave .rsinfo{font:12.5px var(--ui);color:var(--mut);min-height:2.6em}
+.mpop .rsave input[type=range]{flex:1;max-width:12rem}
+.mpop .rsave input[type=text]{flex:1;min-width:0;max-width:12rem;font:14px var(--ui);padding:.25rem .4rem}
+.mpop .rsbtns{display:flex;gap:.5rem;justify-content:flex-end;margin:.5rem 0}
+.mpop .rsbar{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.mpop .rsbar i{display:block;height:100%;background:var(--acc);transition:width .3s}
+.rsrow{display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.4rem 0}
+.rsrow small{display:block}
+.rsrow .rsact{display:flex;gap:.4rem;flex:none}
+.mpop .rsave small.hint{font:12px var(--ui);display:block}

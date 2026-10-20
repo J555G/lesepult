@@ -141,7 +141,7 @@ async function mapSectionHTML() {
       : ps.length > 1 ? '' : dlIcon('map:' + p0.id, { size: p0.bytes, off: document.body.classList.contains('netoff') });
     return `<div class="mpk${cur ? '' : ' avail'}" data-mk="${esc(k)}">` + pkRow({
       sw: cur && k !== 'base' ? SW(`data-mapsw="${cur.id}" aria-label="Use ${esc(name)}"`, !off[cur.id]) : '<span class="swsp"></span>',
-      name: esc(name) + (p0.retired ? ' <small class="hint">– no longer used</small>' : ''), desc: (p0.retired ? 'Replaced by Blue Marble; remove it to free the space. ' : '') + esc(p0.desc) + (ps.length > 1 ? '' : ' · ' + mbs(p0.bytes)) + (cur && off[cur.id] ? ' · <i>switched off</i>' : ''),
+      name: esc(name) + (p0.retired ? ' <small class="hint">– no longer used</small>' : ''), desc: (p0.retired ? (/^relief/.test(p0.id) ? 'Replaced by relief saved from Mapterhorn (Globe menu on the map); remove it to free the space. ' : 'Replaced by Blue Marble; remove it to free the space. ') : '') + esc(p0.desc) + (ps.length > 1 ? '' : ' · ' + mbs(p0.bytes)) + (cur && off[cur.id] ? ' · <i>switched off</i>' : ''),
       right, del: '', more: cur && k === 'places' ? (`<button type="button" data-pidx="1">Rebuild place index</button><small class="hint" id="pidxInfo">${pinfo?.built ? 'built ' + new Date(pinfo.built).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ` · ${pinfo.n.toLocaleString('en')} places` : 'not built yet – it is built when first needed'}</small>`) : '' }) + lv + '</div>';
   };
   // regions (relief, Natural Earth II): folded together, each region a row with its levels of detail
@@ -151,7 +151,7 @@ async function mapSectionHTML() {
   const group = ([h, keys]) => `<div class="navh2">${h}</div><div class="list plain">` + keys.map(k => k === 'relief-*' ? regFold('relief-', 'Relief – regions', 'map-reg')
     : k === 'ne2-*' ? regFold('ne2-', 'Natural Earth II – regions', 'map-ne2reg') : row(k)).join('') + '</div>';
   return `<section class="dsec mapsec">`
-    + `<div class="mapgroups">${MAP_GROUPS.map(group).join('')}<p class="hint small">Only <b>Base map</b> is needed; everything else adds to it. Where there are two levels of detail, one is enough – the detailed one is for zooming in close.</p></div></section>`;
+    + `<div class="mapgroups">${MAP_GROUPS.map(group).join('')}${await reliefAreasHTML()}<p class="hint small">Only <b>Base map</b> is needed; everything else adds to it. Where there are two levels of detail, one is enough – the detailed one is for zooming in close.</p></div></section>`;
 }
 async function mapSummary() { const n = Object.keys(await mapInstalled()).length; return `${n} package${n === 1 ? '' : 's'} installed`; }
 async function redrawMapSection() {
@@ -941,7 +941,7 @@ function wireMapUI() {
       else for (const [i, h] of M.hits) if (i !== s0.i && exKey(h.name) === exKey(s0.name)) await setting(`pl|${t.id}|${i}`, Object.assign({ name: h.name }, v));
       $('#mapAlso').innerHTML = ''; M.workCache = null; M.anyCache = null; await placesForText(); await refreshMapData(); note('Applied.'); return;
     }
-    if (await mapOptsClick(b) || await drawUIClick(b) || await layerClick(b) || await savedClick(b)) return;
+    if (await mapOptsClick(b) || await reliefSaveClick(b) || await drawUIClick(b) || await layerClick(b) || await savedClick(b)) return;
     if (b.id === 'mapScope') return scopePop();
     if (b.id === 'mapLayersBtn') return layersPop();
     if (b.id === 'mapSaveBtn') return savePop();
