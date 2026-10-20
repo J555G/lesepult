@@ -258,11 +258,16 @@ function obel3dLayer(T) {
       this.sun = new T.DirectionalLight(0xfff4e0, 3); this.scene.add(this.sun, this.sun.target);
       this.sky = new T.HemisphereLight(0xbcd2ff, 0x5a4a3a, 0.8); this.scene.add(this.sky);
     },
-    render(gl, args) {
+    // (drawn when the map has finished its frame, after the glow of the atmosphere, which the engine lays over everything – so the
+    // stone covers the glow; the depth of the frame is still there, so hills and the globe still hide it – v338)
+    render(gl, args) { this.mm = args.defaultProjectionData.mainMatrix.slice ? args.defaultProjectionData.mainMatrix.slice() : Array.from(args.defaultProjectionData.mainMatrix); this.gl = gl; this.dr = gl.getParameter(gl.DEPTH_RANGE);   // (the engine's depth range for 3D: used again when drawing)
+      if (!this.hooked) { this.hooked = () => { if (this.mm) { this.draw(this.gl, this.mm); this.mm = null; } }; this.map.on('render', this.hooked); } },
+    onRemove() { if (this.hooked) this.map.off('render', this.hooked); this.hooked = null; },
+    draw(gl, mainMatrix) {
       const g = M.cfg?.gnomon, map = this.map; if (!g) return;
       const H = (g.h || 1) * obelK(), ter = map.getTerrain();
       let alt = 0; if (ter) { try { alt = map.queryTerrainElevation([g.lng, g.lat]) || 0; } catch (_) {} }
-      const P = new T.Matrix4().fromArray(args.defaultProjectionData.mainMatrix).multiply(new T.Matrix4().fromArray(map.transform.getMatrixForModel([g.lng, g.lat], alt)));
+      const P = new T.Matrix4().fromArray(mainMatrix).multiply(new T.Matrix4().fromArray(map.transform.getMatrixForModel([g.lng, g.lat], alt)));
       this.cam.projectionMatrix = P.clone().multiply(new T.Matrix4().makeScale(H, H, H)); this.P = this.cam.projectionMatrix;
       // the sun where it stands (model: x east, y up, z south), or without sunlight from the north-west; dusk and night dimmer
       const sa = sunAt(sunPos(sunTime()), g.lng, g.lat), on = sunOn(), sm = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -276,7 +281,7 @@ function obel3dLayer(T) {
         const lx = Math.cos(e) * Math.sin(a), ly = Math.sin(e), lz = -Math.cos(e) * Math.cos(a);
         sg.matrix.set(1, -lx / ly, 0, 0, 0, 0, 0, 0.001, 0, -lz / ly, 1, 0, 0, 0, 0, 1); sg.matrixWorldNeedsUpdate = true; sg.children[0].material.opacity = a1; });
       this.r.setViewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
-      this.r.resetState(); gl.clearStencil(0); gl.clear(gl.STENCIL_BUFFER_BIT); if (plane) this.r.render(this.shScene, this.cam); this.r.render(this.scene, this.cam);
+      this.r.resetState(); if (this.dr) gl.depthRange(this.dr[0], this.dr[1]); gl.clearStencil(0); gl.clear(gl.STENCIL_BUFFER_BIT); if (plane) this.r.render(this.shScene, this.cam); this.r.render(this.scene, this.cam);
     } };
 }
 // where the model stands on the screen: its foot and its top (for grabbing it)
