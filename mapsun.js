@@ -431,14 +431,20 @@ function skyDraw(args) {
       if (!p || p[0] < -2 * R || p[1] < -2 * R || p[0] > W + 2 * R || p[1] > H + 2 * R) continue;
       skyStar(y, p[0], p[1], Math.max(2, R), st); } }
   if (!sunOn()) return;                                              // (the sun and the moon: with day and night)
+  // the faces of the sun and the moon are upright to the local vertical of the place shown – part of the world, not of the screen:
+  // turning the globe turns them with it; seen from the ground they stand upright over the horizon (v341). The screen angle of "up"
+  // at a direction d: towards a point a little above it (straight up at the zenith itself: towards the north)
+  const upAng = (d, p) => { let u = [-d[0] * d[1], 1 - d[1] * d[1], -d[2] * d[1]], l = Math.hypot(...u); if (l < 1e-4) { u = [0, 0, -1]; l = 1; }
+    const q = scr(d.map((v, i) => v + 0.02 * u[i] / l)); return q ? Math.atan2(q[1] - p[1], q[0] - p[0]) + Math.PI / 2 : 0; };
   const s = sunAt(sunPos(t), ref.lng, ref.lat), ds = skyDir(s.az, s.alt);
   if (M.cfg.skySun !== false) {
     const p = scr(ds), im = skyImg('sun');
     if (p && im) {
       // the disc of the sprite (radius 73 of 300) as large as the sun is drawn; the rays around it
-      const r = Math.max(3, 0.2666 * RAD * size * f), h = r * 300 / 73, low = Math.max(0, Math.min(1, 1 - s.alt / 8));   // (redder when low)
-      y.drawImage(im, p[0] - h, p[1] - h, 2 * h, 2 * h);
-      const lo = low > 0.02 && skySunLow(); if (lo) { y.globalAlpha = low; y.drawImage(lo, p[0] - h, p[1] - h, 2 * h, 2 * h); y.globalAlpha = 1; }
+      const r = Math.max(3, 0.2666 * RAD * size * f), h = r * 300 / 73, low = Math.max(0, Math.min(1, 1 - s.alt / 8, (s.alt + 6) / 5));   // (redder when low – not when seen from space, below the horizon of the place)
+      y.save(); y.translate(p[0], p[1]); y.rotate(upAng(ds, p)); y.drawImage(im, -h, -h, 2 * h, 2 * h);
+      const lo = low > 0.02 && skySunLow(); if (lo) { y.globalAlpha = low; y.drawImage(lo, -h, -h, 2 * h, 2 * h); }
+      y.restore();
     }
   }
   if (M.cfg.skyMoon !== false) {
@@ -448,9 +454,10 @@ function skyDraw(args) {
       // the bright side turned to the sun: a direction a little towards it, seen on the screen
       const dot = ds[0] * dm[0] + ds[1] * dm[1] + ds[2] * dm[2], pe = ds.map((v, i) => v - dm[i] * dot), pl = Math.hypot(...pe) || 1;
       const q = scr(dm.map((v, i) => v + 0.02 * pe[i] / pl)), th = q ? Math.atan2(q[1] - p[1], q[0] - p[0]) : 0;
-      // the face stays upright (v340): only whether the right or the left side is lit follows the sun
-      const sd = Math.cos(th) >= 0 ? 1 : -1;
-      y.save(); y.translate(p[0], p[1]);
+      // the face stays upright (to the local vertical, as the sun's – v340/341): only whether its right or its left side is lit
+      // follows the sun
+      const up = upAng(dm, p), sd = Math.cos(th - up) >= 0 ? 1 : -1;
+      y.save(); y.translate(p[0], p[1]); y.rotate(up);
       // the dark side, a deeper blue
       y.beginPath(); y.arc(0, 0, r, 0, 7); y.fillStyle = '#0c2257'; y.fill();
       y.lineWidth = Math.max(0.6, r * 0.02); y.strokeStyle = 'rgba(10,8,6,.6)'; y.stroke();
