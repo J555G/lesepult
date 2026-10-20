@@ -144,11 +144,15 @@ function obelGeo() {
   const H = g.h * obelK();
   // the light on it: the sun where it stands (or, without sunlight, from the north-west); dim at night
   const sp = ([r, a, p]) => { a = (a + 90) * RAD; p *= RAD; return [r * Math.cos(a) * Math.sin(p), r * Math.sin(a) * Math.sin(p), r * Math.cos(p)]; };
-  const sa = sunAt(sunPos(sunTime()), g.lng, g.lat);
-  self.__pultObLight = !sunOn() ? [...sp([1.15, 315, 45]), 0.6] : sa.alt > 0 ? [...sp([1.15, sa.az, 90 - sa.alt]), 0.75] : [...sp([1.15, 0, 0]), 0.12];
+  // (the engine's "intensity" sets only the contrast between the faces – a low one makes all faces bright; so the dusk and the
+  // night darken the stone's colour itself, as the night shade darkens the ground, and the light keeps its contrast – v331)
+  const sa = sunAt(sunPos(sunTime()), g.lng, g.lat), sm = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const lit = !sunOn() ? 1 : 0.3 + 0.7 * sm(-6, 8, sa.alt);
+  self.__pultObLight = !sunOn() ? [...sp([1.15, 315, 45]), 0.6] : sa.alt > -4 ? [...sp([1.15, sa.az, 90 - Math.max(1, sa.alt)]), 0.6] : [...sp([1.15, 0, 0]), 0.6];
+  const dim = c => '#' + [1, 3, 5].map(i => Math.round(parseInt(c.substr(i, 2), 16) * lit).toString(16).padStart(2, '0')).join('');
   const dLat = d => d / 111320, dLon = d => d / (111320 * Math.max(0.05, Math.cos(lat)));
   const sq = h => [[[g.lng - dLon(h), g.lat - dLat(h)], [g.lng + dLon(h), g.lat - dLat(h)], [g.lng + dLon(h), g.lat + dLat(h)], [g.lng - dLon(h), g.lat + dLat(h)], [g.lng - dLon(h), g.lat - dLat(h)]]];
-  const f = [], piece = (h, b, t, c) => f.push({ type: 'Feature', properties: { b, t, c }, geometry: { type: 'Polygon', coordinates: sq(h) } });
+  const f = [], piece = (h, b, t, c) => f.push({ type: 'Feature', properties: { b, t, c: dim(c) }, geometry: { type: 'Polygon', coordinates: sq(h) } });
   piece(0.17 * H, 0, 0.05 * H, '#3e1524'); piece(0.13 * H, 0.05 * H, 0.08 * H, '#4a1a2b');            // (the plinth, in two steps)
   for (let i = 0; i < 20; i++) { const a = (i + 0.5) / 20; piece((0.088 - 0.036 * a) * H, (0.08 + 0.72 * i / 20) * H, (0.08 + 0.72 * (i + 1) / 20) * H, '#6e2b3e'); }   // (the shaft, tapering in fine steps)
   for (let i = 0; i < 10; i++) { const a = (i + 0.5) / 10; piece((0.052 * (1 - a) + 0.002) * H, (0.8 + 0.2 * i / 10) * H, (0.8 + 0.2 * (i + 1) / 10) * H, '#743044'); }   // (the pointed top)
