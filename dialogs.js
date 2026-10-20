@@ -1001,7 +1001,7 @@ const ACKS = [
     ['OpenStreetMap contributors, via OpenFreeMap (OpenMapTiles)', 'https://www.openstreetmap.org/copyright', 'rivers, streams and lakes online', 'ODbL 1.0'],
     ['Natural Earth bathymetry', 'https://www.naturalearthdata.com/', 'the depths of the seas', 'public domain'],
     ['Itiner-e – P. de Soto, A. Pažout, T. Brughmans et al., a high-resolution dataset of roads of the Roman Empire (2025)', 'https://itiner-e.org/', 'the Roman roads of the map packages “Roman roads (Itiner-e)”', 'CC BY 4.0'],
-    ['Camille Flammarion, L’atmosphère: météorologie populaire (1888), the wood engraving “Un missionnaire du moyen âge…”', 'https://commons.wikimedia.org/wiki/File:Flammarion.jpg', 'the sun and the moon of the sky, cut from the engraving and coloured; the style of the sky and its stars', 'public domain'],
+    ['Camille Flammarion, L’atmosphère: météorologie populaire (1888), the wood engraving “Un missionnaire du moyen âge…”', 'https://commons.wikimedia.org/wiki/File:Flammarion.jpg', 'the sun of the sky, cut from the engraving and coloured, and its face for the moon; the style of the sky and its stars', 'public domain'],
     ['The Hipparcos catalogue (ESA, 1997), as prepared by d3-celestial (Olaf Frohn)', 'https://github.com/ofrohn/d3-celestial', 'the stars of the sky, down to the fifth magnitude, where they stand', 'BSD-3-Clause'],
     ['three.js (the three.js authors)', 'https://threejs.org', 'the obelisk of the sundial as a 3D model, with its light and shadow', 'MIT'],
     ['maplibre-contour (Michael Barry) and pmtiles.js (Protomaps)', 'https://github.com/onthegomap/maplibre-contour', 'contour lines drawn from the elevation; reading the map packages', 'BSD-3-Clause'],

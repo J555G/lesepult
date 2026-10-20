@@ -338,8 +338,9 @@ const skyDir = (az, alt) => [Math.cos(alt * RAD) * Math.sin(az * RAD), Math.sin(
 // Behind the map, wherever no earth is seen (around the globe, above the horizon of a tilted view): the sky of Flammarion's
 // engraving (1888) – blue, deeper higher up – with yellow six-pointed stars outlined in black: the real stars, down to the fifth
 // magnitude (Hipparcos, via d3-celestial: sky/stars.json – [right ascension, declination, magnitude, HIP number], J2000), so that
-// they form the constellations where they stand, turning with the sky. The sun and the moon are cut from the engraving and coloured
-// (sky/sun.webp – its right side, hidden there by the frame, completed from the left, the face set upright; sky/moon.webp – v339/340).
+// they form the constellations where they stand, turning with the sky; the twelve of the zodiac joined by fine silver lines. The sun
+// is cut from the engraving and coloured (sky/sun.webp – its right side, hidden there by the frame, completed from the left, the face
+// set upright); its face, in cream, is the moon's (sky/moonface.webp), the crescent drawn with a face in profile (v339/340).
 const SKY = { img: {} };
 function skyStars() {                                               // (loaded once; the map is redrawn when they arrive)
   if (SKY.stars !== undefined) return SKY.stars; SKY.stars = null;
@@ -359,6 +360,11 @@ function skySunLow() {                                              // (the sun,
     x.globalCompositeOperation = 'destination-in'; x.drawImage(im, 0, 0); SKY.low = c; }
   return SKY.low;
 }
+function skyZodiac() {                                              // the twelve constellations of the zodiac, as lines (d3-celestial)
+  if (SKY.zod !== undefined) return SKY.zod; SKY.zod = null;
+  fetch('sky/zodiac.json').then(r => r.json()).then(a => { SKY.zod = a; M.map?.triggerRepaint(); }).catch(() => { SKY.zod = undefined; });
+  return null;
+}
 function skyStar(y, x0, y0, R, st) {
   y.beginPath();
   for (let i = 0; i < 12; i++) { const a = (st.rot + i * 30) * RAD, q = i % 2 ? 0.42 * R : R * st.j[i / 2]; y[i ? 'lineTo' : 'moveTo'](x0 + q * Math.sin(a), y0 - q * Math.cos(a)); }
@@ -366,6 +372,36 @@ function skyStar(y, x0, y0, R, st) {
   if (st.h) { y.lineWidth = Math.max(0.6, R * 0.06); y.beginPath();       // (a few with a crown of rays, as in the engraving)
     for (let i = 0; i < 28; i++) { const a = i / 28 * 2 * Math.PI, l = 1.25 + 0.35 * ((i * 7) % 5) / 4; y.moveTo(x0 + 1.12 * R * Math.cos(a), y0 + 1.12 * R * Math.sin(a)); y.lineTo(x0 + l * R * Math.cos(a), y0 + l * R * Math.sin(a)); }
     y.stroke(); }
+}
+// the crescent moon, with a face in profile on its inner edge, drawn in the manner of the engraving (lit side to the right;
+// radius 100 units – v340)
+const MOON_PROF = [[-8, -99.7], [10, -88], [24, -70], [31, -50], [30, -38], [26, -31], [33, -23], [29, -14], [17, -4], [6, 6], [14, 10], [24, 12], [19, 19], [27, 24], [20, 30], [27, 37], [19, 46], [17, 56], [26, 64], [40, 72], [44, 84], [30, 94], [-8, 99.7]];
+function moonProfPath() {
+  const p = new Path2D(), a0 = Math.atan2(-99.7, -8), a1 = Math.atan2(99.7, -8);
+  p.moveTo(-8, -99.7); p.arc(0, 0, 100, a0, a1 + 2 * Math.PI * 0, false);
+  const P = MOON_PROF.slice().reverse();                        // (up the face again: Catmull-Rom through the points)
+  for (let i = 0; i < P.length - 1; i++) { const a = P[Math.max(0, i - 1)], b = P[i], c = P[i + 1], d = P[Math.min(P.length - 1, i + 2)];
+    p.bezierCurveTo(b[0] + (c[0] - a[0]) / 6, b[1] + (c[1] - a[1]) / 6, c[0] - (d[0] - b[0]) / 6, c[1] - (d[1] - b[1]) / 6, c[0], c[1]); }
+  p.closePath(); return p;
+}
+function moonProfile(y, r, ink, cream) {
+  const s = r / 100, P = moonProfPath(); y.save(); y.scale(s, s);
+  y.fillStyle = cream; y.fill(P);
+  y.save(); y.clip(P); y.strokeStyle = ink; y.lineCap = 'round';
+  y.lineWidth = 1.1; y.beginPath();                              // (shading along the outer rim, as on the sun's face)
+  for (let v = -80; v <= 84; v += 4.2) { const x = Math.sqrt(10000 - v * v), l = 7 + 9 * Math.cos(v / 100 * 1.4) * (0.75 + 0.25 * Math.sin(v * 1.7)); y.moveTo(x - l, v + 1.2); y.lineTo(x, v); }
+  y.stroke();
+  y.lineWidth = 1.7; y.beginPath();
+  y.moveTo(37, -33); y.quadraticCurveTo(47, -39, 58, -34);       // (the brow)
+  y.moveTo(38, -23); y.quadraticCurveTo(47, -30, 56, -23); y.quadraticCurveTo(47, -18, 38, -23);   // (the eye)
+  y.moveTo(22, 4); y.quadraticCurveTo(28, 2, 29, 8);             // (the nostril)
+  y.moveTo(27, 24); y.quadraticCurveTo(33, 26, 38, 23);          // (the mouth)
+  y.moveTo(24, 46); y.quadraticCurveTo(30, 50, 26, 56);          // (the chin)
+  y.moveTo(34, -6); y.quadraticCurveTo(40, 4, 36, 14);           // (the cheek)
+  y.stroke(); y.fillStyle = ink; y.beginPath(); y.arc(45, -23.5, 2.6, 0, 7); y.fill();
+  y.restore();
+  y.lineWidth = 2.4; y.strokeStyle = ink; y.lineJoin = 'round'; y.stroke(P);
+  y.restore();
 }
 function skyHook() {
   const m = M.map; if (!m || !m.style?._loaded) return;
@@ -386,6 +422,11 @@ function skyDraw(args) {
   const f = H / 2 / Math.tan((m.transform.fovInRadians || 0.6435) / 2), size = M.cfg.skySize || 10;
   // the stars: each a direction in the sky (right ascension, declination), turned with the sidereal time to the place shown
   { const gm = ((18.697374558 + 24.06570982441908 * (t / 864e5 - 10957.5)) % 24 + 24) % 24 * 15;
+    const at = (ra, dec) => { const a = sunAt({ dec: dec * RAD, lon: ((ra - gm + 540) % 360) - 180 }, ref.lng, ref.lat); return scr(skyDir(a.az, a.alt)); };
+    // the zodiac: fine silver lines joining its stars, beneath them (a line breaks where it would pass behind the eye)
+    y.beginPath(); y.lineWidth = 1.1; y.strokeStyle = 'rgba(214,222,232,.75)'; y.lineJoin = y.lineCap = 'round';
+    for (const ln of skyZodiac() || []) { let on = false; for (const [ra, dec] of ln) { const q = at(ra, dec); if (!q) { on = false; continue; } y[on ? 'lineTo' : 'moveTo'](q[0], q[1]); on = true; } }
+    y.stroke();
     for (const st of skyStars() || []) { const a = sunAt({ dec: st.dec, lon: ((st.ra - gm + 540) % 360) - 180 }, ref.lng, ref.lat), p = scr(skyDir(a.az, a.alt)), R = st.s * RAD * f;
       if (!p || p[0] < -2 * R || p[1] < -2 * R || p[0] > W + 2 * R || p[1] > H + 2 * R) continue;
       skyStar(y, p[0], p[1], Math.max(2, R), st); } }
@@ -407,23 +448,26 @@ function skyDraw(args) {
       // the bright side turned to the sun: a direction a little towards it, seen on the screen
       const dot = ds[0] * dm[0] + ds[1] * dm[1] + ds[2] * dm[2], pe = ds.map((v, i) => v - dm[i] * dot), pl = Math.hypot(...pe) || 1;
       const q = scr(dm.map((v, i) => v + 0.02 * pe[i] / pl)), th = q ? Math.atan2(q[1] - p[1], q[0] - p[0]) : 0;
-      y.save(); y.translate(p[0], p[1]); y.rotate(th);
+      // the face stays upright (v340): only whether the right or the left side is lit follows the sun
+      const sd = Math.cos(th) >= 0 ? 1 : -1;
+      y.save(); y.translate(p[0], p[1]);
       // the dark side, a deeper blue
       y.beginPath(); y.arc(0, 0, r, 0, 7); y.fillStyle = '#0c2257'; y.fill();
       y.lineWidth = Math.max(0.6, r * 0.02); y.strokeStyle = 'rgba(10,8,6,.6)'; y.stroke();
-      if (k > 0.02) {
+      if (k > 0.03) {
         // a crown of short strokes around the bright limb, as engraved
         y.beginPath(); y.lineWidth = Math.max(0.6, r * 0.022); y.strokeStyle = ink;
-        for (let i = -26; i <= 26; i++) { const b = i * 3.8 * RAD, l = 1.2 + 0.1 * ((i * 7 + 26) % 5) / 4 + 0.06 * Math.cos(b * 2); y.moveTo(1.1 * r * Math.cos(b), 1.1 * r * Math.sin(b)); y.lineTo(l * r * Math.cos(b), l * r * Math.sin(b)); }
+        for (let i = -26; i <= 26; i++) { const b = i * 3.8 * RAD, l = 1.2 + 0.1 * ((i * 7 + 26) % 5) / 4 + 0.06 * Math.cos(b * 2); y.moveTo(sd * 1.1 * r * Math.cos(b), 1.1 * r * Math.sin(b)); y.lineTo(sd * l * r * Math.cos(b), l * r * Math.sin(b)); }
         y.stroke();
-        const im = skyImg('moon');
-        if (k < 0.25 && im) {                                         // a crescent: the engraved crescent (lit towards 45°, radius 115 of 130)
-          const h = r * 130 / 115; y.rotate(-45 * RAD); y.drawImage(im, -h, -h, 2 * h, 2 * h);
-        } else {                                                      // otherwise the bright part in cream, its edge a little rough
-          y.beginPath(); y.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, false);
-          const e = r * (2 * k - 1);                                  // (the terminator: an ellipse, x = e · cos)
-          for (let i = 1; i < 40; i++) { const b = Math.PI / 2 - i / 40 * Math.PI, w = 1 + 0.035 * Math.sin(i * 2.3) * Math.sin(i * 0.7); y.lineTo(-e * Math.cos(b) * w, r * Math.sin(b)); }
-          y.closePath(); y.fillStyle = '#f6ecc8'; y.fill(); y.lineWidth = Math.max(0.8, r * 0.028); y.strokeStyle = ink; y.stroke();
+        const face = skyImg('moonface');
+        if (k < 0.35 || !face) { y.scale(sd, 1); moonProfile(y, r, ink, '#f4ecce'); }   // a crescent: a face in profile on its inner edge
+        else {                                                        // more: the sun's engraved face, in cream, as much of it as is lit
+          const e = r * (2 * k - 1), P = new Path2D();                // (the terminator: an ellipse, x = e · cos)
+          P.moveTo(0, -r); P.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, sd < 0);
+          for (let i = 1; i <= 40; i++) { const b = Math.PI / 2 - i / 40 * Math.PI; P.lineTo(-sd * e * Math.cos(b), r * Math.sin(b)); }
+          P.closePath();
+          y.save(); y.clip(P); const h = r * 80 / 74.5; y.drawImage(face, -h, -h, 2 * h, 2 * h); y.restore();
+          y.lineWidth = Math.max(0.8, r * 0.024); y.strokeStyle = ink; y.stroke(P);
         }
       }
       y.restore();
