@@ -11,7 +11,7 @@ self.addEventListener('fetch', e => {
   e.respondWith((async () => {
     const c = await caches.open(CACHE);
     try { const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 5000);
-      const r = await fetch(req, { signal: ctl.signal, cache: 'no-cache' }); clearTimeout(t); if (r.ok) c.put(key, r.clone()); return r;
+      const r = await fetch(req.mode === 'navigate' ? req.url : req, { signal: ctl.signal, cache: 'no-cache' });   // (Safari: a page request cannot be re-made with options) clearTimeout(t); if (r.ok) c.put(key, r.clone()); return r;
     } catch (_) { return (await c.match(key)) || Response.error(); }
   })());
 });
