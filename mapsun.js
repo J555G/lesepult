@@ -344,7 +344,7 @@ const SKY = { img: {} };
 function skyStars() {                                               // (loaded once; the map is redrawn when they arrive)
   if (SKY.stars !== undefined) return SKY.stars; SKY.stars = null;
   fetch('sky/stars.json').then(r => r.json()).then(a => { SKY.stars = a.map(([ra, dec, mag, id]) => { let sd = id * 7919 % 2147483647 || 1; const r = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
-    return { ra, dec: dec * RAD, s: Math.max(0.16, 0.2 + 0.15 * (5 - mag)), rot: r() * 60, j: Array.from({ length: 6 }, () => 0.88 + 0.24 * r()), h: mag < 0.6 }; }); M.map?.triggerRepaint(); })
+    return { ra, dec: dec * RAD, v: [Math.cos(dec * RAD) * Math.cos(ra * RAD), Math.cos(dec * RAD) * Math.sin(ra * RAD), Math.sin(dec * RAD)], s: Math.max(0.16, 0.2 + 0.15 * (5 - mag)), rot: r() * 60, j: Array.from({ length: 6 }, () => 0.88 + 0.24 * r()), h: mag < 0.6 }; }); M.map?.triggerRepaint(); })
     .catch(() => { SKY.stars = undefined; });
   return null;
 }
@@ -392,7 +392,7 @@ function skySunTinted(rgb) {
 }
 function skyZodiac() {                                              // the twelve constellations of the zodiac, as lines (d3-celestial)
   if (SKY.zod !== undefined) return SKY.zod; SKY.zod = null;
-  fetch('sky/zodiac.json').then(r => r.json()).then(a => { SKY.zod = a; M.map?.triggerRepaint(); }).catch(() => { SKY.zod = undefined; });
+  fetch('sky/zodiac.json').then(r => r.json()).then(a => { SKY.zod = a.map(ln => ln.map(([ra, dec]) => [Math.cos(dec * RAD) * Math.cos(ra * RAD), Math.cos(dec * RAD) * Math.sin(ra * RAD), Math.sin(dec * RAD)])); M.map?.triggerRepaint(); }).catch(() => { SKY.zod = undefined; });
   return null;
 }
 function skyStar(y, x0, y0, R, st) {
@@ -445,19 +445,32 @@ function skyDraw(args) {
   let bg = $('#skyBg');                                              // (the sky behind the map)
   if (!bg || bg.parentNode !== box) { bg?.remove(); bg = document.createElement('canvas'); bg.id = 'skyBg'; bg.className = 'skybg'; box.prepend(bg); }
   if (bg.width !== Math.round(W * dpr) || bg.height !== Math.round(H * dpr)) { bg.width = Math.round(W * dpr); bg.height = Math.round(H * dpr); }
+  const ref0 = sunRef(), P0 = args.defaultProjectionData.mainMatrix;
+  // nothing to draw anew when the view, the time and the settings are as at the last frame (frames for other reasons: tiles
+  // arriving, the obelisk …) – v347
+  const key = [...P0, W, H, dpr, ref0.lng, ref0.lat, Math.round(sunTime() / 6e4), M.cfg.skySize, sunOn(), M.cfg.skySun, M.cfg.skyMoon, !!M.cfg.gnomon, !!SKY.stars, !!SKY.zod, !!SKY.img.sun?.complete, !!SKY.img.moonface?.complete].join();
+  if (key === SKY.key) return; SKY.key = key;
   const y = bg.getContext('2d'); y.setTransform(dpr, 0, 0, dpr, 0, 0);
   const sp = y.createLinearGradient(0, 0, 0, H); sp.addColorStop(0, '#0f2a66'); sp.addColorStop(1, '#3a73bb'); y.fillStyle = sp; y.fillRect(0, 0, W, H);
-  const ref = sunRef(), t = sunTime(), P = args.defaultProjectionData.mainMatrix, MM = m.transform.getMatrixForModel([ref.lng, ref.lat], 0);
+  const ref = ref0, t = sunTime(), P = P0, MM = m.transform.getMatrixForModel([ref.lng, ref.lat], 0);
   const scr = d => { const c = mat4v(P, mat4v(MM, [...d, 0])); return c[3] > 1e-9 ? [(c[0] / c[3] + 1) / 2 * W, (1 - c[1] / c[3]) / 2 * H] : null; };
   const f = H / 2 / Math.tan((m.transform.fovInRadians || 0.6435) / 2), size = M.cfg.skySize || 10;
   // the stars: each a direction in the sky (right ascension, declination), turned with the sidereal time to the place shown
   { const gm = ((18.697374558 + 24.06570982441908 * (t / 864e5 - 10957.5)) % 24 + 24) % 24 * 15;
-    const at = (ra, dec) => { const a = sunAt({ dec: dec * RAD, lon: ((ra - gm + 540) % 360) - 180 }, ref.lng, ref.lat); return scr(skyDir(a.az, a.alt)); };
+    // one matrix for all: the sky turned by the local sidereal time and tilted by the latitude (x east, y up, z south), then the
+    // camera – a dozen multiplications a star instead of its height and direction worked out one by one (v347)
+    const L0 = (gm + ref.lng) * RAD, la = ref.lat * RAD, cL = Math.cos(L0), sL = Math.sin(L0), cp = Math.cos(la), sp2 = Math.sin(la);
+    const Lm = [[-sL, cL, 0], [cp * cL, cp * sL, sp2], [sp2 * cL, sp2 * sL, -cp]];
+    const A = new Array(16).fill(0); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) A[c * 4 + r] += P[k * 4 + r] * MM[c * 4 + k];
+    const B = [0, 1, 2, 3].map(r => [0, 1, 2].map(j => A[r] * Lm[0][j] + A[4 + r] * Lm[1][j] + A[8 + r] * Lm[2][j]));
+    const [b0, b1, , b3] = B;
+    const at = v => { const w = b3[0] * v[0] + b3[1] * v[1] + b3[2] * v[2]; if (w <= 1e-9) return null;
+      return [((b0[0] * v[0] + b0[1] * v[1] + b0[2] * v[2]) / w + 1) / 2 * W, (1 - (b1[0] * v[0] + b1[1] * v[1] + b1[2] * v[2]) / w) / 2 * H]; };
     // the zodiac: fine silver lines joining its stars, beneath them (a line breaks where it would pass behind the eye)
     y.beginPath(); y.lineWidth = 1.1; y.strokeStyle = 'rgba(214,222,232,.75)'; y.lineJoin = y.lineCap = 'round';
-    for (const ln of skyZodiac() || []) { let on = false; for (const [ra, dec] of ln) { const q = at(ra, dec); if (!q) { on = false; continue; } y[on ? 'lineTo' : 'moveTo'](q[0], q[1]); on = true; } }
+    for (const ln of skyZodiac() || []) { let on = false; for (const v of ln) { const q = at(v); if (!q) { on = false; continue; } y[on ? 'lineTo' : 'moveTo'](q[0], q[1]); on = true; } }
     y.stroke();
-    for (const st of skyStars() || []) { const a = sunAt({ dec: st.dec, lon: ((st.ra - gm + 540) % 360) - 180 }, ref.lng, ref.lat), p = scr(skyDir(a.az, a.alt)), R = st.s * RAD * f;
+    for (const st of skyStars() || []) { const p = at(st.v), R = st.s * RAD * f;
       if (!p || p[0] < -2 * R || p[1] < -2 * R || p[0] > W + 2 * R || p[1] > H + 2 * R) continue;
       skyStar(y, p[0], p[1], Math.max(2, R), st); } }
   if (!sunOn()) return;                                              // (the sun and the moon: with day and night)
