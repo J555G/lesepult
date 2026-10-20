@@ -358,8 +358,13 @@ function skyImg(n) {                                                // (the spri
 const SUN_GOLD = [255, 210, 70];
 const SUN_RISE = [[-30, SUN_GOLD], [-18, [196, 34, 30]], [-5, [222, 58, 46]], [-1, [246, 112, 112]], [4, [255, 156, 138]], [9, [255, 190, 100]], [14, SUN_GOLD]];
 const SUN_SET = [[-30, SUN_GOLD], [-18, [150, 14, 44]], [-5, [178, 22, 48]], [-1, [232, 84, 34]], [4, [255, 140, 36]], [9, [255, 182, 56]], [14, SUN_GOLD]];
-function sunTint(alt, rising) {
-  const T = rising ? SUN_RISE : SUN_SET; if (alt <= T[0][0]) return T[0][1];
+// Without an obelisk (v346) the height is taken above the horizon the camera sees – the real one from the ground (a little lowered
+// when the camera is high), the rim of the globe from space – and the scale starts there, at its deepest: rising red, then rose,
+// gold; setting gold, orange, crimson.
+const SUN_RISE_V = [[0, [206, 40, 32]], [3, [246, 112, 112]], [7, [255, 160, 130]], [11, [255, 190, 100]], [14, SUN_GOLD]];
+const SUN_SET_V = [[0, [168, 18, 46]], [3, [232, 84, 34]], [7, [255, 140, 36]], [11, [255, 182, 56]], [14, SUN_GOLD]];
+function sunTint(alt, rising, T = rising ? SUN_RISE : SUN_SET) {
+  if (alt <= T[0][0]) return T[0][1];
   for (let i = 1; i < T.length; i++) if (alt <= T[i][0]) { const [a0, c0] = T[i - 1], [a1, c1] = T[i], u = (alt - a0) / (a1 - a0); return c0.map((v, k) => Math.round(v + (c1[k] - v) * u)); }
   return SUN_GOLD;
 }
@@ -466,13 +471,33 @@ function skyDraw(args) {
     if (C && Math.hypot(p[0] - C[0], p[1] - C[1]) > 1) return Math.atan2(p[1] - C[1], p[0] - C[0]) + Math.PI / 2;
     let u = [-d[0] * d[1], 1 - d[1] * d[1], -d[2] * d[1]], l = Math.hypot(...u); if (l < 1e-4) { u = [0, 0, -1]; l = 1; }
     const q = scr(d.map((v, i) => v + 0.02 * u[i] / l)); return q ? Math.atan2(q[1] - p[1], q[0] - p[0]) + Math.PI / 2 : 0; };
+  // the sun as the camera sees it (v346): its height above the visible horizon (degrees), and whether it rises or sets for the people
+  // on that horizon beneath it. The camera's place in the frame of the place shown (metres; x east, y up, z south): the point the
+  // projection sends to the eye (x = y = w = 0 in clip space)
+  const sunSeen = d => {
+    const A = new Array(16).fill(0); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) A[c * 4 + r] += P[k * 4 + r] * MM[c * 4 + k];
+    const row = r => [A[r], A[4 + r], A[8 + r], -A[12 + r]], [a, b, e] = [row(0), row(1), row(3)];
+    const det3 = (u, v, w) => u[0] * (v[1] * w[2] - v[2] * w[1]) - u[1] * (v[0] * w[2] - v[2] * w[0]) + u[2] * (v[0] * w[1] - v[1] * w[0]);
+    const D = det3(a, b, e), col = i => [a, b, e].map(q => { const z = q.slice(0, 3); z[i] = q[3]; return z; });
+    const N = [0, Math.sin(ref.lat * RAD), -Math.cos(ref.lat * RAD)], rise = q => { const w = [N[1] * q[2] - N[2] * q[1], N[2] * q[0] - N[0] * q[2], N[0] * q[1] - N[1] * q[0]]; return d[0] * w[0] + d[1] * w[1] + d[2] * w[2] > 0; };
+    if (!viewOn('globe') || Math.abs(D) < 1e-30) return { alt: Math.asin(d[1]) / RAD, rising: rise([0, 1, 0]) };   // (the flat map: the horizon level)
+    const R = 6371008.8, cam = [0, 1, 2].map(i => det3(...col(i)) / D), C = [cam[0], cam[1] + R, cam[2]], r = Math.max(R, Math.hypot(...C)), Cn = C.map(v => v / r);
+    const beta = Math.asin(Math.min(1, R / r)), gam = Math.acos(Math.max(-1, Math.min(1, -(d[0] * Cn[0] + d[1] * Cn[1] + d[2] * Cn[2]))));
+    // the people on the rim beneath the sun: from the point under the camera, towards the sun, as far round as the rim lies
+    const dc = d[0] * Cn[0] + d[1] * Cn[1] + d[2] * Cn[2], wv = d.map((v, i) => v - dc * Cn[i]), wl = Math.hypot(...wv) || 1, th = Math.acos(Math.min(1, R / r));
+    const Pn = Cn.map((v, i) => v * Math.cos(th) + wv[i] / wl * Math.sin(th));
+    return { alt: (gam - beta) / RAD, rising: rise(Pn) };
+  };
   const s = sunAt(sunPos(t), ref.lng, ref.lat), ds = skyDir(s.az, s.alt);
   if (M.cfg.skySun !== false) {
     const p = scr(ds), im = skyImg('sun');
     if (p && im) {
       // the disc of the sprite (radius 73 of 300) as large as the sun is drawn; the rays around it
       const r = Math.max(3, 0.2666 * RAD * size * f), h = r * 300 / 73;
-      const sun = skySunTinted(sunTint(s.alt, s.az < 180)) || im;                     // (rising: the sun in the east)
+      let col;
+      if (M.cfg.gnomon) col = sunTint(s.alt, s.az < 180);                           // (the obelisk's place: rising, the sun in the east)
+      else { const v = sunSeen(ds); col = sunTint(v.alt, v.rising, v.rising ? SUN_RISE_V : SUN_SET_V); }
+      const sun = skySunTinted(col) || im;
       y.save(); y.translate(p[0], p[1]); y.rotate(upAng(ds, p)); y.drawImage(sun, -h, -h, 2 * h, 2 * h); y.restore();
     }
   }
