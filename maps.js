@@ -628,7 +628,8 @@ function mapStyle(C) {
   glyphInit(); const st = mapStyle0(C);
   st.glyphs = 'pultglyph://{fontstack}/{range}';                   // (the figures of the contour numbers – maprelief.js)
   st.projection = { type: viewOn('globe') ? 'globe' : 'mercator' };
-  st.sky = { 'atmosphere-blend': sunOn() && M.cfg.sunAtm !== false ? ['interpolate', ['linear'], ['zoom'], 0, 0.33, 5, 0.33, 7, 0] : 0 };   // (only with day and night, faint: it hazes the lit half)   // (the globe's halo, fading as one zooms in)
+  st.sky = { 'sky-color': 'rgba(0,0,0,0)', 'horizon-color': 'rgba(0,0,0,0)',   // (above the horizon, Pult's own sky behind the map shows – v354)
+    'atmosphere-blend': sunOn() && M.cfg.sunAtm !== false ? ['interpolate', ['linear'], ['zoom'], 0, 0.33, 5, 0.33, 7, 0] : 0 };   // (only with day and night, faint: it hazes the lit half)   // (the globe's halo, fading as one zooms in)
   return st;
 }
 function mapStyle0(C) {
@@ -681,7 +682,7 @@ async function showMap1() {
   if (!M.map) {
     box.innerHTML = `<div id="mapCanvas"></div><div class="mlabels" id="mapLabels"></div>
       <div class="mtop"><button type="button" class="mscope" id="mapScope"></button><button type="button" class="mcheck" id="mapCheck" hidden></button></div>
-      <div class="mctl"><button type="button" class="mico" id="mapSaveBtn" title="Saved maps and export" aria-label="Saved maps and export">${SAVE_ICON}</button><button type="button" class="mico" id="mapDrawBtn" title="Draw on the map" aria-label="Draw on the map">${PEN_ICON}</button><button type="button" class="mico" id="mapTimeBtn" title="Period filter" aria-label="Period filter">${CLOCK_ICON}</button><button type="button" class="mico" id="mapSunBtn" title="Sundial: day and night" aria-label="Sundial">${SUNDIAL_ICON}</button><button type="button" class="mico" id="mapLayersBtn" title="Layers" aria-label="Layers">${LAYERS_ICON}</button><button type="button" class="mico" id="mapOptsBtn" title="Globe: projection, 3D, map, elevation" aria-label="Globe">${GLOBE_EU_ICON}</button></div><button type="button" class="mico mnorth" id="mapNorth" title="North up" aria-label="North up">${COMPASS_ICON}</button>
+      <div class="mctl"><button type="button" class="mico" id="mapSaveBtn" title="Saved maps and export" aria-label="Saved maps and export">${SAVE_ICON}</button><button type="button" class="mico" id="mapDrawBtn" title="Draw on the map" aria-label="Draw on the map">${PEN_ICON}</button><button type="button" class="mico" id="mapTimeBtn" title="Period filter" aria-label="Period filter">${CLOCK_ICON}</button><button type="button" class="mico" id="mapSunBtn" title="Sundial: day and night" aria-label="Sundial">${SUNDIAL_ICON}</button><button type="button" class="mico" id="mapLayersBtn" title="Layers" aria-label="Layers">${LAYERS_ICON}</button><button type="button" class="mico" id="mapCamBtn" title="Camera: free movement, other points of view" aria-label="Camera">${CAM_ICON}</button><button type="button" class="mico" id="mapOptsBtn" title="Globe: projection, 3D, map, elevation" aria-label="Globe">${GLOBE_EU_ICON}</button></div><button type="button" class="mico mnorth" id="mapNorth" title="North up" aria-label="North up">${COMPASS_ICON}</button>
       <div class="mhandles" id="mapHandles"></div>
       <div class="mtime" id="mapTime" hidden>${timeBarHTML()}</div><div class="mdraw" id="mapDraw" hidden></div>
       <div class="minfo" id="mapInfo" hidden><span class="mscale" id="mapScale"><i></i><b></b></span><span class="mzoom" id="mapZoom"></span></div>
@@ -721,7 +722,7 @@ async function showMap1() {
     M.step = 'loading the map'; const ok = await Promise.race([new Promise(r => M.map.once('load', () => r(true))), new Promise(r => setTimeout(() => r(false), 20000))]);
     // (slow tiles – e.g. the relief over a weak connection – are no failure: the map goes on once its style stands)
     if (!ok && !M.map.style?._loaded) return mapFailed('The map did not finish loading.' + (M.lastErr ? ' Last error: ' + M.lastErr : ''));
-    imgCredit(); compassUpd(); sunClock(); obelUpd(); sunMoveHook();
+    imgCredit(); compassUpd(); sunClock(); obelUpd(); sunMoveHook(); camInit();
     wireMapUI(); wireTime(); wireDraw(); mapInfo();
   } else M.map.resize();
   M.step = 'places'; renderTime();
@@ -946,7 +947,7 @@ function wireMapUI() {
       else for (const [i, h] of M.hits) if (i !== s0.i && exKey(h.name) === exKey(s0.name)) await setting(`pl|${t.id}|${i}`, Object.assign({ name: h.name }, v));
       $('#mapAlso').innerHTML = ''; M.workCache = null; M.anyCache = null; await placesForText(); await refreshMapData(); note('Applied.'); return;
     }
-    if (await mapOptsClick(b) || await reliefSaveClick(b) || await drawUIClick(b) || await layerClick(b) || await savedClick(b)) return;
+    if (await camClick(b) || await mapOptsClick(b) || await reliefSaveClick(b) || await drawUIClick(b) || await layerClick(b) || await savedClick(b)) return;
     if (b.id === 'mapScope') return scopePop();
     if (b.id === 'mapLayersBtn') return layersPop();
     if (b.id === 'mapSaveBtn') return savePop();

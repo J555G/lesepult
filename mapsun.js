@@ -207,6 +207,7 @@ function obelUpd() {
   // short; else the shadow laid on the ground (3D terrain, the curve of the globe), as before
   if (!M.three && !M.threeTried) { M.threeTried = true; threeLib().then(T => { if (T) { M.three = T; obelUpd(); } }); }
   const ob3 = !!M.three, plane = ob3 && !m.getTerrain() && g.h * obelK() * 8 < 3e5, sh = plane ? { type: 'FeatureCollection', features: [] } : sh0;
+  if (!ob3 && m.getLayer('obel')) m.setLayoutProperty('obel', 'visibility', M.cam?.mode === 'obel' ? 'none' : 'visible');
   if (ob3) { if (m.getLayer('obel')) m.setLayoutProperty('obel', 'visibility', 'none'); if (!m.getLayer('obel3d')) { m.addLayer(obel3dLayer(M.three)); obelDragHook(m); } M.ob3Plane = plane; m.triggerRepaint(); }
   if (!m.getSource('obel')) {
     m.addSource('obelsh', { type: 'geojson', data: sh }); m.addSource('obel', { type: 'geojson', data: body });
@@ -263,7 +264,7 @@ function obel3dLayer(T) {
       if (!this.hooked) { this.hooked = () => { if (this.mm) { this.draw(this.gl, this.mm); this.mm = null; } }; this.map.on('render', this.hooked); } },
     onRemove() { if (this.hooked) this.map.off('render', this.hooked); this.hooked = null; },
     draw(gl, mainMatrix) {
-      const g = M.cfg?.gnomon, map = this.map; if (!g) return;
+      const g = M.cfg?.gnomon, map = this.map; if (!g || M.cam?.mode === 'obel') return;   // (not while one looks out from its tip)
       const H = (g.h || 1) * obelK(), ter = map.getTerrain();
       let alt = 0; if (ter) { try { alt = map.queryTerrainElevation([g.lng, g.lat]) || 0; } catch (_) {} }
       const P = new T.Matrix4().fromArray(mainMatrix).multiply(new T.Matrix4().fromArray(map.transform.getMatrixForModel([g.lng, g.lat], alt)));
@@ -298,7 +299,7 @@ function obelDragHook(m) {
   const box = m.getCanvasContainer(), canvas = m.getCanvas();
   const pt = e => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
   const hit = ([x, y]) => {
-    const g = M.cfg?.gnomon; if (!g || !m.getLayer('obel')) return false;
+    const g = M.cfg?.gnomon; if (!g || !m.getLayer('obel') || M.cam) return false;
     const ax = m.getLayer('obel3d') && obel3dAxis();
     if (ax?.[0] && ax[1]) { const [a, b] = ax, dx = b[0] - a[0], dy = b[1] - a[1], t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy || 1)));
       if (Math.hypot(a[0] + dx * t - x, a[1] + dy * t - y) < Math.max(16, Math.hypot(dx, dy) * 0.1)) return true; }
@@ -392,7 +393,7 @@ function skySunTinted(rgb) {
 }
 function skyZodiac() {                                              // the twelve constellations of the zodiac, as lines (d3-celestial)
   if (SKY.zod !== undefined) return SKY.zod; SKY.zod = null;
-  fetch('sky/zodiac.json').then(r => r.json()).then(a => { SKY.zod = a.map(ln => ln.map(([ra, dec]) => [Math.cos(dec * RAD) * Math.cos(ra * RAD), Math.cos(dec * RAD) * Math.sin(ra * RAD), Math.sin(dec * RAD)])); M.map?.triggerRepaint(); }).catch(() => { SKY.zod = undefined; });
+  fetch('sky/zodiac.json').then(r => r.json()).then(a => { SKY.zodRaw = a; SKY.zod = a.map(ln => ln.map(([ra, dec]) => [Math.cos(dec * RAD) * Math.cos(ra * RAD), Math.cos(dec * RAD) * Math.sin(ra * RAD), Math.sin(dec * RAD)])); M.map?.triggerRepaint(); }).catch(() => { SKY.zod = undefined; });
   return null;
 }
 function skyStar(y, x0, y0, R, st) {
@@ -432,6 +433,29 @@ function moonProfile(y, r, ink, cream) {
   y.restore();
   y.lineWidth = 2.4; y.strokeStyle = ink; y.lineJoin = 'round'; y.stroke(P);
   y.restore();
+}
+// the moon at the origin, its face upright (the drawing turned beforehand): radius r, lit fraction k, lit side sd (1 right,
+// −1 left) – the sky behind the map and the all-sky view (mapcam.js)
+function skyMoonDraw(y, r, k, sd, ink = '#17110b') {
+  // the dark side, a deeper blue
+  y.beginPath(); y.arc(0, 0, r, 0, 7); y.fillStyle = '#0c2257'; y.fill();
+  y.lineWidth = Math.max(0.6, r * 0.02); y.strokeStyle = 'rgba(10,8,6,.6)'; y.stroke();
+  if (k > 0.03) {
+    // a crown of short strokes around the bright limb, as engraved
+    y.beginPath(); y.lineWidth = Math.max(0.6, r * 0.022); y.strokeStyle = ink;
+    for (let i = -26; i <= 26; i++) { const b = i * 3.8 * RAD, l = 1.2 + 0.1 * ((i * 7 + 26) % 5) / 4 + 0.06 * Math.cos(b * 2); y.moveTo(sd * 1.1 * r * Math.cos(b), 1.1 * r * Math.sin(b)); y.lineTo(sd * l * r * Math.cos(b), l * r * Math.sin(b)); }
+    y.stroke();
+    const face = skyImg('moonface');
+    if (k < 0.35 || !face) { y.scale(sd, 1); moonProfile(y, r, ink, '#f4ecce'); }   // a crescent: a face in profile on its inner edge
+    else {                                                        // more: the sun's engraved face, in cream, as much of it as is lit
+      const e = r * (2 * k - 1), P = new Path2D();                // (the terminator: an ellipse, x = e · cos)
+      P.moveTo(0, -r); P.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, sd < 0);
+      for (let i = 1; i <= 40; i++) { const b = Math.PI / 2 - i / 40 * Math.PI; P.lineTo(-sd * e * Math.cos(b), r * Math.sin(b)); }
+      P.closePath();
+      y.save(); y.clip(P); const h = r * 80 / 74.5; y.drawImage(face, -h, -h, 2 * h, 2 * h); y.restore();
+      y.lineWidth = Math.max(0.8, r * 0.024); y.strokeStyle = ink; y.stroke(P);
+    }
+  }
 }
 function skyHook() {
   const m = M.map; if (!m || !m.style?._loaded) return;
@@ -525,25 +549,7 @@ function skyDraw(args) {
       // follows the sun
       const up = upAng(dm, p), sd = Math.cos(th - up) >= 0 ? 1 : -1;
       y.save(); y.translate(p[0], p[1]); y.rotate(up);
-      // the dark side, a deeper blue
-      y.beginPath(); y.arc(0, 0, r, 0, 7); y.fillStyle = '#0c2257'; y.fill();
-      y.lineWidth = Math.max(0.6, r * 0.02); y.strokeStyle = 'rgba(10,8,6,.6)'; y.stroke();
-      if (k > 0.03) {
-        // a crown of short strokes around the bright limb, as engraved
-        y.beginPath(); y.lineWidth = Math.max(0.6, r * 0.022); y.strokeStyle = ink;
-        for (let i = -26; i <= 26; i++) { const b = i * 3.8 * RAD, l = 1.2 + 0.1 * ((i * 7 + 26) % 5) / 4 + 0.06 * Math.cos(b * 2); y.moveTo(sd * 1.1 * r * Math.cos(b), 1.1 * r * Math.sin(b)); y.lineTo(sd * l * r * Math.cos(b), l * r * Math.sin(b)); }
-        y.stroke();
-        const face = skyImg('moonface');
-        if (k < 0.35 || !face) { y.scale(sd, 1); moonProfile(y, r, ink, '#f4ecce'); }   // a crescent: a face in profile on its inner edge
-        else {                                                        // more: the sun's engraved face, in cream, as much of it as is lit
-          const e = r * (2 * k - 1), P = new Path2D();                // (the terminator: an ellipse, x = e · cos)
-          P.moveTo(0, -r); P.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, sd < 0);
-          for (let i = 1; i <= 40; i++) { const b = Math.PI / 2 - i / 40 * Math.PI; P.lineTo(-sd * e * Math.cos(b), r * Math.sin(b)); }
-          P.closePath();
-          y.save(); y.clip(P); const h = r * 80 / 74.5; y.drawImage(face, -h, -h, 2 * h, 2 * h); y.restore();
-          y.lineWidth = Math.max(0.8, r * 0.024); y.strokeStyle = ink; y.stroke(P);
-        }
-      }
+      skyMoonDraw(y, r, k, sd, ink);
       y.restore();
     }
   }
