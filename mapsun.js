@@ -464,6 +464,54 @@ function skyHook() {
   const m = M.map; if (!m || !m.style?._loaded) return;
   if (!m.getLayer('skybodies')) m.addLayer({ id: 'skybodies', type: 'custom', renderingMode: '2d', render(gl, args) { skyDraw(args); } });
 }
+// The glow of the air along the earth's edge (502a, v365): the rim of the globe seen from afar, the horizon seen in flight. Each
+// place on it glows by the sun's height there – where the sun rises, red, rose, gold; where it sets, gold, orange, crimson; by
+// day a pale blue; after twilight nothing. Drawn on the sky behind the map, so the earth hides its inner half.
+const GLOW_DAY = [150, 192, 255];
+function skyGlow(y, m, P, W, H, t) {
+  const tr = m.transform, vp = tr._verticalPerspectiveTransform, globe = !!(vp && tr.isGlobeRendering && vp._cameraPosition);
+  let lng, lat, h;
+  if (globe) { const c = vp._cameraPosition, r = Math.hypot(c[0], c[1], c[2]); lat = Math.asin(c[1] / r) / RAD; lng = Math.atan2(c[0], c[2]) / RAD; h = (r - 1) * 6371008.8; }
+  else { const ll = tr.getCameraLngLat(); lng = ll.lng; lat = ll.lat; h = tr.getCameraAltitude(); }
+  if (!(h > 1)) h = 1;
+  const ER0 = 6371008.8, MM = tr.getMatrixForModel([lng, lat], 0), A = new Array(16).fill(0);
+  for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) A[c * 4 + r] += P[k * 4 + r] * MM[c * 4 + k];
+  const th = Math.acos(ER0 / (ER0 + h)), dist = Math.sqrt((ER0 + h) ** 2 - ER0 * ER0);   // (the edge: how far round the earth, and how far off)
+  // where it is drawn: on the globe the true edge; on the flat map (no curve) a ring far off at sea level – just under the level line
+  const D = globe ? ER0 * Math.sin(th) : Math.max(2e5, dist * 3), up = globe ? ER0 * Math.cos(th) - ER0 : h - D * 0.003;   // (flat: just under the level line, where the flat land ends)
+  // how deep the glow reaches above the edge: from afar some 500 km (the air's height, widened to be seen), low over the horizon
+  // some 8°
+  const dH = globe ? Math.min(5e5, 0.15 * dist) : 0.15 * D;
+  const scr = v => { const cx = A[0] * v[0] + A[4] * v[1] + A[8] * v[2] + A[12], cy = A[1] * v[0] + A[5] * v[1] + A[9] * v[2] + A[13], cw = A[3] * v[0] + A[7] * v[1] + A[11] * v[2] + A[15];
+    return cw > 1e-9 ? [(cx / cw + 1) / 2 * W, (1 - cy / cw) / 2 * H] : null; };
+  const s = sunPos(t), la = lat * RAD, N = 120, pts = [];
+  for (let i = 0; i <= N; i++) {
+    const a = i / N * 2 * Math.PI, e = D * Math.sin(a), n = D * Math.cos(a), v = [e, up, -n];
+    // the edge, and the air above it (along the upright there: away from the earth's centre, on the flat map straight up)
+    const nr = globe ? [e / ER0, (up + ER0) / ER0, -n / ER0] : [0, 1, 0], p = scr(v), o = scr([v[0] + nr[0] * dH, v[1] + nr[1] * dH, v[2] + nr[2] * dH]);
+    if (!p || !o) { pts.push(null); continue; }
+    // the place on the earth's edge in that direction, and the sun's height there; brightest towards the sun
+    const pl = Math.asin(Math.sin(la) * Math.cos(th) + Math.cos(la) * Math.sin(th) * Math.cos(a)), pg = lng * RAD + Math.atan2(Math.sin(a) * Math.sin(th) * Math.cos(la), Math.cos(th) - Math.sin(la) * Math.sin(pl));
+    const sa = sunAt(s, pg / RAD, pl / RAD), toward = 0.55 + 0.45 * Math.cos((sa.az - a / RAD) * RAD);
+    let col, al;
+    if (sa.alt >= 14) { col = GLOW_DAY; al = 0.38; }
+    else { const tint = sunTint(sa.alt, sa.az < 180), u = Math.max(0, Math.min(1, (sa.alt - 6) / 8));
+      col = tint.map((x, k) => Math.round(x + (GLOW_DAY[k] - x) * u)); al = sa.alt > -12 ? 0.38 + 0.52 * (1 - u) * toward : 0.9 * toward * Math.max(0, (sa.alt + 18) / 6); }
+    pts.push({ p, o, col, al });
+  }
+  // a strip of four-sided pieces, each fading from the edge outwards (pieces side by side, not overlapping: no seams of doubled light)
+  y.save();
+  for (let i = 0; i < N; i++) { const A1 = pts[i], B1 = pts[i + 1]; if (!A1 || !B1 || A1.al <= 0.01) continue;
+    if (Math.abs(A1.p[0] - B1.p[0]) > W * 2 || Math.abs(A1.p[1] - B1.p[1]) > H * 2) continue;   // (a piece thrown across the screen)
+    const mx = (A1.p[0] + B1.p[0]) / 2, my = (A1.p[1] + B1.p[1]) / 2, ox = (A1.o[0] + B1.o[0]) / 2, oy = (A1.o[1] + B1.o[1]) / 2;
+    const ix = mx - (ox - mx) * 0.25, iy = my - (oy - my) * 0.25, g = y.createLinearGradient(ix, iy, ox, oy), c = A1.col.join(',');
+    g.addColorStop(0, `rgba(${c},0)`); g.addColorStop(0.2, `rgba(${c},${A1.al.toFixed(3)})`); g.addColorStop(0.55, `rgba(${c},${(A1.al * 0.6).toFixed(3)})`); g.addColorStop(1, `rgba(${c},0)`);
+    const bx = (q, r, k) => [q[0] + (q[0] - r[0]) * k, q[1] + (q[1] - r[1]) * k];   // (a hair wider, so the pieces meet)
+    const a0 = bx(A1.p, A1.o, 0.25), b0 = bx(B1.p, B1.o, 0.25);
+    y.fillStyle = g; y.beginPath(); y.moveTo(a0[0], a0[1]); y.lineTo(b0[0], b0[1]); y.lineTo(B1.o[0], B1.o[1]); y.lineTo(A1.o[0], A1.o[1]); y.closePath(); y.fill();
+  }
+  y.restore();
+}
 function skyDraw(args) {
   const m = M.map, box = m.getContainer(), W = box.clientWidth, H = box.clientHeight, dpr = devicePixelRatio || 1;
   $('#skyCv')?.remove();                                             // (before v337 the sun and the moon lay over the map)
@@ -479,6 +527,7 @@ function skyDraw(args) {
   if (key === SKY.key) return; SKY.key = key;
   const y = bg.getContext('2d'); y.setTransform(dpr, 0, 0, dpr, 0, 0);
   const sp = y.createLinearGradient(0, 0, 0, H); sp.addColorStop(0, '#0f2a66'); sp.addColorStop(1, '#3a73bb'); y.fillStyle = sp; y.fillRect(0, 0, W, H);
+  if (sunOn()) skyGlow(y, m, P0, W, H, sunTime());
   const ref = ref0, t = sunTime(), P = P0, MM = m.transform.getMatrixForModel([ref.lng, ref.lat], 0);
   const scr = d => { const c = mat4v(P, mat4v(MM, [...d, 0])); return c[3] > 1e-9 ? [(c[0] / c[3] + 1) / 2 * W, (1 - c[1] / c[3]) / 2 * H] : null; };
   const f = H / 2 / Math.tan((m.transform.fovInRadians || 0.6435) / 2), size = M.cfg.skySize || 10;
