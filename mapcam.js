@@ -5,9 +5,8 @@
 //   Deep zoom    – zoom in to 20 (otherwise 16)
 //   Lens         – the field of view, 10° (telephoto) … 150° (wide angle); otherwise the engine's ~37°
 //   Roll         – the horizon tilted sideways (a slider; twirling with two fingers in flight and from the obelisk)
-//   Free flight  – the camera flies itself instead of circling a point on the ground: drag to look round, two fingers to fly
-//                  (pinch forward and back, slide sideways and up, twirl to roll), the mouse wheel forward and back, keys
-//                  W A S D / arrows, Q E down and up
+//   Free flight  – a craft of one's own: two sticks at the bottom (left: forward, back, sideways; right: climb, dive, bank –
+//                  banked, it turns), dragging elsewhere turns the head; keys W A S D and the arrows (v355)
 //   From the obelisk – the camera at the tip of the obelisk (its height as placed, times its size): drag to look round, pinch
 //                  for the lens, twirl to roll; the obelisk itself hidden meanwhile
 //   All-sky view – a fisheye straight up: the whole sky down to the horizon, the mountains cutting into it worked out from the
@@ -37,7 +36,7 @@ function camHTML() {
     + (c.lens ? `<label class="mrow msub"><span>Field of view <output id="camFovOut">${Math.round(c.fov || 60)}°</output></span><input type="range" min="10" max="150" step="1" value="${c.fov || 60}" data-camfov="1" aria-label="Field of view"></label>` : '')
     + sw('roll', 'Roll', 'the horizon tilted sideways')
     + (c.roll ? `<label class="mrow msub"><span>Roll <output id="camRollOut">${Math.round(c.rollv || 0)}°</output></span><input type="range" min="-180" max="180" step="1" value="${c.rollv || 0}" data-camroll="1" aria-label="Roll"></label>` : '')
-    + sw('fly', 'Free flight', 'drag to look round, two fingers to fly')
+    + sw('fly', 'Free flight', 'two sticks: move with the left, steer with the right')
     + `<button type="button" class="mrsave" data-camobel="1"${g ? '' : ' disabled'}>${M.cam?.mode === 'obel' ? 'Leave the obelisk' : 'View from the obelisk’s tip'}</button>`
     + (g ? '' : '<small class="hint mrow">Place an obelisk first: Here, in the sundial.</small>')
     + `<button type="button" class="mrsave" data-camsky="1">All-sky view${g ? ' from the obelisk' : ''}</button>`;
@@ -49,6 +48,7 @@ async function camClick(b) {
   if (b.id === 'mapCamBtn') { camPop(); return true; }
   if (d.camobel) { if (M.cam?.mode === 'obel') camLeave(); else camObelisk(); camPopRefresh(); return true; }
   if (d.camsky) { allSkyOpen(); return true; }
+  if (d.flyfwd) { if (M.cam?.look) { M.cam.look = { y: 0, p: 0 }; } return true; }
   if (d.camleave) { camLeave(); camPopRefresh(); return true; }
   if (d.camnorth) { if (M.cam) { M.cam.br = 0; camApply(); } return true; }
   if (d.camzen) { if (M.cam) { M.cam.pt = 178; camApply(); } return true; }
@@ -98,14 +98,67 @@ function camTake(mode, c) {
   M.cam = { mode, ...c }; m.setCenterClampedToGround?.(false); camLimits(); camGestures(); camApply(); obelUpd(); m.triggerRepaint();
 }
 function camLeave() {
-  const m = M.map; if (!M.cam || !m) return; const was = M.camWas; M.cam = null;
+  const m = M.map; if (!M.cam || !m) return; const was = M.camWas; M.cam = null; cancelAnimationFrame(FLY.raf); $('#flyUI')?.remove(); FLY.L = { x: 0, y: 0 }; FLY.R = { x: 0, y: 0 }; FLY.keys.clear();
   for (const h of ['dragPan', 'dragRotate', 'scrollZoom', 'touchZoomRotate', 'touchPitch', 'keyboard', 'doubleClickZoom', 'boxZoom']) m[h]?.enable();
   m.setCenterClampedToGround?.(true); camLimits();
   if (camCfg().fly) camCfg().fly = false, saveMapCfg();
   if (was) m.jumpTo({ center: was.center, zoom: was.zoom, bearing: was.bearing, pitch: Math.min(was.pitch, m.getMaxPitch()), roll: camCfg().roll ? camCfg().rollv || 0 : 0 });
   camBar(); obelUpd(); m.triggerRepaint();
 }
-function camFly() { if (!M.map) return; const c = camNow(); camTake('fly', { ...c, pt: c.pt < 20 ? 45 : Math.min(179, c.pt) }); }   // (from straight above: looking ahead and down, to fly)
+// Free flight (v355): a craft that hovers – the left stick sets how fast it goes forward, back or sideways (let go, it glides
+// to a stop); the right stick sets its attitude – how steeply it climbs or dives, how far it banks; banked, it turns of itself
+// (let go, it levels out). Level flight keeps the height above the sea; a floor keeps it 5 m above the ground. Full speed is
+// about its own height above the ground each second, so the land always passes calmly. The view looks ahead with the horizon a
+// third down the screen (the ground in front filling the rest); dragging elsewhere turns the head, ↺ brings it back.
+function camFly() {
+  if (!M.map) return; const c = camNow();
+  camTake('fly', { lng: c.lng, lat: c.lat, alt: c.alt, hd: c.br, ptA: 0, bank: 0, vF: 0, vR: 0, look: { y: 0, p: 0 }, br: c.br, pt: 70, roll: 0 });
+  flyUI(); flyLoop();
+}
+// how far below level the eye looks, for the horizon to stand a third down the screen (with the lens as it is)
+function flyDown() { const m = M.map, H = m.getContainer().clientHeight || 600, f = H / 2 / Math.tan((m.getVerticalFieldOfView() || 37) * RAD / 2); return Math.atan(H / 6 / f) / RAD; }
+const FLY = { L: { x: 0, y: 0 }, R: { x: 0, y: 0 }, keys: new Set() };
+function flyLoop() {
+  cancelAnimationFrame(FLY.raf); let last = performance.now();
+  const step = now => {
+    const c = M.cam; if (!c || c.mode !== 'fly') return; const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    const K = FLY.keys, kx = (K.has('d') ? 1 : 0) - (K.has('a') ? 1 : 0), ky = (K.has('s') ? 1 : 0) - (K.has('w') ? 1 : 0), rx = (K.has('arrowright') ? 1 : 0) - (K.has('arrowleft') ? 1 : 0), ry = (K.has('arrowdown') ? 1 : 0) - (K.has('arrowup') ? 1 : 0);
+    const L = { x: FLY.L.x || kx, y: FLY.L.y || ky }, R = { x: FLY.R.x || rx, y: FLY.R.y || ry };
+    const hgt = Math.max(5, c.alt - groundAt(c.lng, c.lat)), vmax = Math.min(3e5, Math.max(8, hgt)), ease = (v, t, tau) => v + (t - v) * Math.min(1, dt / tau);
+    // the sticks: a gentle curve, fine near the middle; the speed glides, the attitude follows
+    const cv = x => Math.sign(x) * x * x;
+    c.vF = ease(c.vF, -cv(L.y) * vmax, 0.7); c.vR = ease(c.vR, cv(L.x) * vmax, 0.7);
+    c.ptA = ease(c.ptA, -R.y * 30, 0.5); c.bank = ease(c.bank, R.x * 35, 0.5);
+    c.hd += Math.tan(c.bank * RAD) / Math.tan(35 * RAD) * 25 * dt;      // (banked, it turns: up to 25° a second)
+    const a = c.ptA * RAD, b = c.hd * RAD, fH = c.vF * Math.cos(a) * dt, up = c.vF * Math.sin(a) * dt, sd = c.vR * dt;
+    const north = fH * Math.cos(b) - sd * Math.sin(b), east = fH * Math.sin(b) + sd * Math.cos(b);
+    c.lat += north / mPerDeg; c.lng += east / (mPerDeg * Math.max(0.05, Math.cos(c.lat * RAD))); c.alt = Math.max(groundAt(c.lng, c.lat) + 5, c.alt + up);
+    flyView(); camApply(); flyPaint();
+    FLY.raf = requestAnimationFrame(step);
+  };
+  FLY.raf = requestAnimationFrame(step);
+}
+// the eye: where the craft points, the head turned on top, the horizon a third down; rolled with the bank
+// (the eye follows the climb and the bank only in part, so the ground stays in view and the picture calm)
+function flyView() { const c = M.cam; c.br = c.hd + c.look.y; c.pt = 90 - flyDown() + c.ptA * 0.35 + c.look.p; c.roll = c.bank * 0.6; }
+// the two sticks, at the bottom corners of the map
+function flyUI() {
+  const box = M.map?.getContainer(); if (!box || $('#flyUI')) return;
+  const d = document.createElement('div'); d.id = 'flyUI';
+  d.innerHTML = '<div class="joy" data-j="L" aria-label="Forward, back, sideways"><i></i><b>⇡</b></div><div class="joy" data-j="R" aria-label="Climb, dive, bank"><i></i><b>✈</b></div>';
+  box.append(d);
+  for (const j of d.querySelectorAll('.joy')) {
+    const k = j.dataset.j, knob = j.querySelector('i');
+    const set = e => { const r = j.getBoundingClientRect(), R = r.width / 2; let x = (e.clientX - r.left - R) / R, y = (e.clientY - r.top - R) / R; const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; }
+      FLY[k] = { x, y }; knob.style.transform = `translate(${x * R * 0.62}px, ${y * R * 0.62}px)`; };
+    j.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); j.setPointerCapture(e.pointerId); j.classList.add('on'); set(e); });
+    j.addEventListener('pointermove', e => { if (j.hasPointerCapture(e.pointerId)) set(e); });
+    const end = e => { FLY[k] = { x: 0, y: 0 }; knob.style.transform = ''; j.classList.remove('on'); };
+    j.addEventListener('pointerup', end); j.addEventListener('pointercancel', end);
+  }
+}
+function flyPaint() { const c = M.cam, s = $('#flyInfo'); if (!s) return; const h = c.alt - groundAt(c.lng, c.lat);
+  s.textContent = `${fmtEle(Math.max(0, h))} above the ground · ${Math.round(Math.abs(c.vF) * 3.6).toLocaleString('en')} km/h`; }
 // the tip of the obelisk: the ground where it stands and its height as placed (times its size)
 function obelTip() { const g = M.cfg.gnomon; if (!g || !M.map) return null; const eye = (g.h || 30) * obelK(); return { lng: g.lng, lat: g.lat, alt: groundAt(g.lng, g.lat) + eye, eye }; }
 function camObelisk() {
@@ -118,7 +171,8 @@ function camBar() {
   const box = M.map?.getContainer(); if (!box) return; let b = $('#camBar');
   if (!M.cam) { b?.remove(); return; }
   if (!b) { b = document.createElement('div'); b.id = 'camBar'; b.className = 'cambar'; box.append(b); }
-  const o = M.cam.mode === 'obel', h = `<span>${o ? 'From the obelisk' : 'Free flight'}</span><button type="button" data-camnorth="1" title="Face north">N</button><button type="button" data-camzen="1" title="Look straight up">⤒</button><button type="button" data-camsky="1" title="All-sky view">◎</button><button type="button" data-camleave="1" title="Back to the map">✕</button>`;
+  const o = M.cam.mode === 'obel', h = o ? `<span>From the obelisk</span><button type="button" data-camnorth="1" title="Face north">N</button><button type="button" data-camzen="1" title="Look straight up">⤒</button><button type="button" data-camsky="1" title="All-sky view">◎</button><button type="button" data-camleave="1" title="Back to the map">✕</button>`
+    : `<span>Free flight</span><small id="flyInfo"></small><button type="button" data-flyfwd="1" title="Look ahead again">↺</button><button type="button" data-camleave="1" title="Back to the map">✕</button>`;
   if (b.dataset.m !== M.cam.mode) { b.innerHTML = h; b.dataset.m = M.cam.mode; }
 }
 document.addEventListener('click', ev => { const b = ev.target.closest?.('#camBar button, #allSky button'); if (b) camClick(b); });
@@ -132,36 +186,28 @@ function camGestures() {
   el.addEventListener('pointerdown', e => { if (!M.cam) return; P.set(e.pointerId, { x: e.clientX, y: e.clientY }); el.setPointerCapture?.(e.pointerId); if (P.size === 2) g0 = { ...two(), fov: m.getVerticalFieldOfView(), roll: M.cam.roll || 0 }; }, true);
   el.addEventListener('pointermove', e => {
     if (!M.cam || !P.has(e.pointerId)) return; const q = P.get(e.pointerId), dx = e.clientX - q.x, dy = e.clientY - q.y;
-    if (P.size === 1) { const k = degPx(); M.cam.br -= dx * k; M.cam.pt += dy * k; P.set(e.pointerId, { x: e.clientX, y: e.clientY }); camApply(); return; }   // (look round: the world follows the finger)
+    if (P.size === 1) { const k = degPx(); P.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (M.cam.mode === 'fly') { M.cam.look.y -= dx * k; M.cam.look.p = Math.max(-85, Math.min(85, M.cam.look.p + dy * k)); return; }   // (the head turned; the flight goes on)
+      M.cam.br -= dx * k; M.cam.pt += dy * k; camApply(); return; }   // (look round: the world follows the finger)
     P.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (P.size !== 2 || !g0) return;
+    if (M.cam.mode === 'fly') return;
     const t = two(); M.cam.roll = g0.roll + (t.a - g0.a) / RAD;
-    if (M.cam.mode === 'obel') { const f = Math.max(10, Math.min(150, g0.fov * g0.d / Math.max(10, t.d))); m.setVerticalFieldOfView(f); camCfg().fov = Math.round(f); }
-    else { camMove(Math.log(t.d / g0.d) * camStep() * 3, -(t.x - g0.x) * camStep() / 150, (t.y - g0.y) * camStep() / 150); g0 = { ...g0, ...t, roll: M.cam.roll }; }
+    const f = Math.max(10, Math.min(150, g0.fov * g0.d / Math.max(10, t.d))); m.setVerticalFieldOfView(f); camCfg().fov = Math.round(f);
     camApply();
   }, true);
   const up = e => { P.delete(e.pointerId); if (P.size < 2) g0 = null; };
   el.addEventListener('pointerup', up, true); el.addEventListener('pointercancel', up, true);
   el.addEventListener('wheel', e => { if (!M.cam) return; e.preventDefault(); e.stopPropagation();
-    if (M.cam.mode === 'obel') { const f = Math.max(10, Math.min(150, m.getVerticalFieldOfView() * Math.exp(e.deltaY * 0.001))); m.setVerticalFieldOfView(f); camCfg().fov = Math.round(f); }
-    else { camMove(-e.deltaY / 400 * camStep(), 0, 0); camApply(); } }, { capture: true, passive: false });
+    const f = Math.max(10, Math.min(150, m.getVerticalFieldOfView() * Math.exp(e.deltaY * 0.001))); m.setVerticalFieldOfView(f); camCfg().fov = Math.round(f); if (M.cam.mode !== 'fly') camApply(); }, { capture: true, passive: false });
   addEventListener('keydown', e => {
-    if (!M.cam || e.target.closest?.('input, textarea, select, [contenteditable]')) return; const k = e.key.toLowerCase(), s = camStep() * (e.shiftKey ? 4 : 1) / 6;
-    const mv = { w: [s, 0, 0], s: [-s, 0, 0], a: [0, -s, 0], d: [0, s, 0], q: [0, 0, -s], e: [0, 0, s] }[k];
-    if (mv && M.cam.mode === 'fly') { camMove(...mv); camApply(); e.preventDefault(); return; }
+    if (!M.cam || e.target.closest?.('input, textarea, select, [contenteditable]')) return; const k = e.key.toLowerCase();
+    if (M.cam.mode === 'fly' && ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { FLY.keys.add(k); e.preventDefault(); return; }   // (the keys as the sticks)
     const tn = { arrowleft: [-3, 0], arrowright: [3, 0], arrowup: [0, 3], arrowdown: [0, -3] }[k];
     if (tn) { M.cam.br += tn[0]; M.cam.pt += tn[1]; camApply(); e.preventDefault(); }
     if (k === 'escape') camLeave();
   });
+  addEventListener('keyup', e => FLY.keys.delete(e.key.toLowerCase())); addEventListener('blur', () => FLY.keys.clear());
 }
-// a step for flying: about the height above the ground (from 10 m up), so that slow near the ground, fast high up
-function camStep() { const c = M.cam; return Math.max(10, Math.min(2e6, (c.alt - groundAt(c.lng, c.lat)) * 0.6)); }
-// moved by f metres forward (where it looks), r to the right, u up
-function camMove(f, r, u) {
-  const c = M.cam, b = c.br * RAD, e = (c.pt - 90) * RAD;
-  const east = f * Math.sin(b) * Math.cos(e) + r * Math.cos(b), north = f * Math.cos(b) * Math.cos(e) - r * Math.sin(b), upm = f * Math.sin(e) + u;
-  c.lat += north / mPerDeg; c.lng += east / (mPerDeg * Math.max(0.05, Math.cos(c.lat * RAD))); c.alt += upm;
-}
-
 // ---------------------------------------------------------------- the all-sky view (a fisheye straight up)
 // Drawn by Pult itself: the zenith in the middle, the horizon at nine tenths of the radius, a little below it to the rim (from
 // high up the horizon sinks); north at the top and east at the left, as one sees the sky lying on one's back – turned by a

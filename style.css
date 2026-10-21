@@ -2044,3 +2044,14 @@ dialog .sortpair button{transition:border-color .15s}
 .allsky .asbar span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .allsky .asbar button{pointer-events:auto;width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.5);background:rgba(0,0,0,.4);color:#fff;font-size:16px;cursor:pointer;flex:none}
 .mlayers .cmh{display:block;font-size:11.5px;font-weight:400;opacity:.65;margin-top:1px}
+
+/* free flight: two sticks at the bottom corners (v355) */
+#flyUI{position:absolute;inset:auto 0 0 0;height:0;z-index:6}
+#flyUI .joy{position:absolute;bottom:calc(84px + env(safe-area-inset-bottom,0px));width:128px;height:128px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.08),rgba(10,14,24,.42));border:1.5px solid rgba(255,255,255,.45);touch-action:none;-webkit-user-select:none;user-select:none;cursor:grab}
+#flyUI .joy[data-j=L]{left:calc(18px + env(safe-area-inset-left,0px))}
+#flyUI .joy[data-j=R]{right:calc(18px + env(safe-area-inset-right,0px))}
+#flyUI .joy i{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:rgba(255,255,255,.82);box-shadow:0 2px 8px rgba(0,0,0,.4);transition:transform .18s ease-out}
+#flyUI .joy.on i{transition:none}
+#flyUI .joy b{position:absolute;left:0;right:0;top:-22px;text-align:center;color:#fff;font:600 13px var(--ui);text-shadow:0 1px 2px #000;pointer-events:none}
+.cambar small{font:12px var(--ui);opacity:.8;margin-right:4px;white-space:nowrap}
+@media (max-width:560px){.cambar small{display:none}#flyUI .joy{width:110px;height:110px}}
