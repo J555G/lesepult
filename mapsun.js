@@ -468,12 +468,16 @@ function skyHook() {
 // place on it glows by the sun's height there – where the sun rises, red, rose, gold; where it sets, gold, orange, crimson; by
 // day a pale blue; after twilight nothing. Drawn on the sky behind the map, so the earth hides its inner half.
 const GLOW_DAY = [150, 192, 255];
-function skyGlow(y, m, P, W, H, t) {
+// where the camera is: the place beneath it and its height above the sea (metres); on the globe from its own position
+function skyEye(m) {
   const tr = m.transform, vp = tr._verticalPerspectiveTransform, globe = !!(vp && tr.isGlobeRendering && vp._cameraPosition);
   let lng, lat, h;
   if (globe) { const c = vp._cameraPosition, r = Math.hypot(c[0], c[1], c[2]); lat = Math.asin(c[1] / r) / RAD; lng = Math.atan2(c[0], c[2]) / RAD; h = (r - 1) * 6371008.8; }
   else { const ll = tr.getCameraLngLat(); lng = ll.lng; lat = ll.lat; h = tr.getCameraAltitude(); }
-  if (!(h > 1)) h = 1;
+  return { globe, lng, lat, h: h > 1 ? h : 1 };
+}
+function skyGlow(y, m, P, W, H, t) {
+  const tr = m.transform, { globe, lng, lat, h } = skyEye(m);
   const ER0 = 6371008.8, MM = tr.getMatrixForModel([lng, lat], 0), A = new Array(16).fill(0);
   for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) A[c * 4 + r] += P[k * 4 + r] * MM[c * 4 + k];
   const th = Math.acos(ER0 / (ER0 + h)), dist = Math.sqrt((ER0 + h) ** 2 - ER0 * ER0);   // (the edge: how far round the earth, and how far off)
@@ -526,7 +530,9 @@ function skyDraw(args) {
   const key = [...P0, W, H, dpr, ref0.lng, ref0.lat, Math.round(sunTime() / 6e4), M.cfg.skySize, sunOn(), M.cfg.skySun, M.cfg.skyMoon, !!M.cfg.gnomon, !!SKY.stars, !!SKY.zod, !!SKY.img.sun?.complete, !!SKY.img.moonface?.complete].join();
   if (key === SKY.key) return; SKY.key = key;
   const y = bg.getContext('2d'); y.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const sp = y.createLinearGradient(0, 0, 0, H); sp.addColorStop(0, '#0f2a66'); sp.addColorStop(1, '#3a73bb'); y.fillStyle = sp; y.fillRect(0, 0, W, H);
+  // the sky's blue, going over into the black of space as the camera rises – from 25 km to 400 km above the sea (505a, v366)
+  const kz = Math.max(0, Math.min(1, Math.log(skyEye(m).h / 25e3) / Math.log(400 / 25))), ks = kz * kz * (3 - 2 * kz);
+  const sp = y.createLinearGradient(0, 0, 0, H); sp.addColorStop(0, hexMix('#0f2a66', '#02040a', ks)); sp.addColorStop(1, hexMix('#3a73bb', '#04070f', ks)); y.fillStyle = sp; y.fillRect(0, 0, W, H);
   if (sunOn()) skyGlow(y, m, P0, W, H, sunTime());
   const ref = ref0, t = sunTime(), P = P0, MM = m.transform.getMatrixForModel([ref.lng, ref.lat], 0);
   const scr = d => { const c = mat4v(P, mat4v(MM, [...d, 0])); return c[3] > 1e-9 ? [(c[0] / c[3] + 1) / 2 * W, (1 - c[1] / c[3]) / 2 * H] : null; };
