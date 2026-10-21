@@ -592,8 +592,8 @@ async function sunSet(patch) {
 // the sun or moon beneath it. Behind the dial the sky follows the sun's height; at night the stars come out and an owl
 // sits on the gnomon. Settings (mapCfg): sunFmt ('modern' | 'roman' | 'greek').
 const GR_NUM = ['αʹ', 'βʹ', 'γʹ', 'δʹ', 'εʹ', 'ϛʹ', 'ζʹ', 'ηʹ', 'θʹ', 'ιʹ', 'ιαʹ', 'ιβʹ'], RO_NUM = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
-function sunHour() {                                                 // sun time (hours), sunrise and sunset, the sun's height
-  const c = sunRef(), t = sunTime(), s = sunPos(t);
+function sunHour(t = sunTime()) {                                    // sun time (hours), sunrise and sunset, the sun's height
+  const c = sunRef(), s = sunPos(t);
   const lst = ((12 + (c.lng - s.lon) / 15) % 24 + 24) % 24;          // (noon: the sun due south)
   const cosH = (Math.sin(-0.833 * RAD) - Math.sin(c.lat * RAD) * Math.sin(s.dec)) / (Math.cos(c.lat * RAD) * Math.cos(s.dec));
   const half = cosH <= -1 ? 12 : cosH >= 1 ? 0 : Math.acos(cosH) / RAD / 15;     // half the day, in hours
@@ -722,18 +722,26 @@ function zodBigOpen() {
     zodTurn(ev, () => c);
   });
 }
-// a finger turning the wheel sets the day of the year (the hour kept); a tap without turning – on the small wheel – opens it large
+// a finger turning the wheel sets the day of the year (the hour kept – as a share of the day or night since v363); a tap without turning – on the small wheel – opens it large
 function zodTurn(ev, centre, onTap) {
   ev.preventDefault(); ev.target.setPointerCapture?.(ev.pointerId);
   const za = e => { const c = centre(); return Math.atan2(e.clientX - c.x, -(e.clientY - c.y)) / RAD; };
   const T0 = sunTime(), e0 = sunPos(T0).ecl, x0 = ev.clientX, y0 = ev.clientY; let prev = za(ev), turn = 0, moved = false;
+  const ph = (() => { const h = sunHour(T0), len = h.set - h.rise; if (!(len > 0 && len < 24)) return null;
+    const day = h.lst >= h.rise && h.lst < h.set; return { day, f: day ? (h.lst - h.rise) / len : ((h.lst - h.set + 24) % 24) / (24 - len) }; })();
   const mv = e => {
     if (!moved) { if (Math.hypot(e.clientX - x0, e.clientY - y0) < 5) return; moved = true; M.sunDrag = true;
       const mode = M.cfg.sunMode || 'now'; if (mode === 'now' || mode === 'anim') { M.cfg.sunMode = 'set'; saveMapCfg(); sunClock(); const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML(); } }
     const a = za(e); turn += ((a - prev) % 360 + 540) % 360 - 180; prev = a;
     let t = T0 + turn / 360 * 365.2422 * 864e5;
     for (let k = 0; k < 3; k++) t += (((e0 + turn - sunPos(t).ecl) % 360 + 540) % 360 - 180) / 0.98565 * 864e5;
-    M.sunT = T0 + Math.round((t - T0) / 864e5) * 864e5; sunApply(); };
+    t = T0 + Math.round((t - T0) / 864e5) * 864e5;
+    // the hour kept as the ancients counted it (499a): the same share of the day – or of the night – gone since sunrise (sunset),
+    // however long the day has grown; where the sun neither rises nor sets, the clock's hour
+    if (ph) for (let k = 0; k < 2; k++) { const h = sunHour(t), len = h.set - h.rise; if (!(len > 0 && len < 24)) break;
+      const want = ph.day ? h.rise + ph.f * len : h.set + ph.f * (24 - len);
+      t += (((want - h.lst) % 24 + 36) % 24 - 12) * 36e5; }
+    M.sunT = t; sunApply(); };
   const up = () => { M.sunDrag = false; removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); if (!moved) onTap?.(); };
   addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);
 }

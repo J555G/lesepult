@@ -12,7 +12,7 @@
 //   All-sky view – a fisheye straight up: the whole sky down to the horizon, the mountains cutting into it worked out from the
 //                  elevation – from the obelisk's tip, or without one from the middle of the map (on the ground)
 // The engine places a camera by its own position and the point it looks at (calculateCameraOptionsFromTo); the free camera and
-// the obelisk view set it so on every movement. Settings (mapCfg): cam { tilt, deep, lens, fov, roll, rollv, fly }.
+// the obelisk view set it so on every movement. Settings (mapCfg): cam { tilt, deep, lens, fov, roll, rollv } (free flight is not kept – v363).
 
 // the icons: an eye (the menu), Icarus (free flight), an obelisk with an eye on its tip (the view from it) – v356
 const CAM_ICON = '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M2.3 12c2.4-3.9 5.7-5.9 9.7-5.9s7.3 2 9.7 5.9c-2.4 3.9-5.7 5.9-9.7 5.9S4.7 15.9 2.3 12z"/><circle cx="12" cy="12" r="3.3"/></g><circle cx="12" cy="12" r="1.35" fill="currentColor"/></svg>';
@@ -31,6 +31,7 @@ function camLimits() {
   if (!free) m.setRoll?.(c.roll ? (c.rollv || 0) : 0);
 }
 function camInit() {
+  if ('fly' in camCfg()) { delete camCfg().fly; saveMapCfg(); }   // (the switch kept until v362: the app never starts in flight)
   camLimits();
   // the globe made to keep the height of the point the camera looks at – for the free camera and the map alike (496b): set up as
   // soon as the map is a globe (at start or once switched to it)
@@ -46,7 +47,8 @@ function camHTML() {
     + (c.lens ? `<label class="mrow msub"><span>Field of view <output id="camFovOut">${Math.round(c.fov || 60)}°</output></span><span class="cmr"><input type="range" min="10" max="150" step="1" value="${c.fov || 60}" data-camfov="1" aria-label="Field of view"><button type="button" class="cmrz" data-camfovreset="1" title="Back to normal (37°)" aria-label="Reset the field of view">↺</button></span></label>` : '')
     + sw('roll', 'Roll', 'the horizon tilted sideways')
     + (c.roll ? `<label class="mrow msub"><span>Roll <output id="camRollOut">${Math.round(c.rollv || 0)}°</output></span><span class="cmr"><input type="range" min="-180" max="180" step="1" value="${c.rollv || 0}" data-camroll="1" aria-label="Roll"><button type="button" class="cmrz" data-camrollreset="1" title="Level (0°)" aria-label="Reset the roll">↺</button></span></label>` : '')
-    + sw('fly', 'Free flight', 'two sticks: move with the left, steer with the right', ICARUS_ICON)
+    // (free flight: the icon is the button – on and off; not kept for the next start – v363)
+    + `<div class="mrow"><span>Free flight<small class="cmh">two sticks: move with the left, steer with the right</small></span><button type="button" class="cmfly${M.cam?.mode === 'fly' ? ' on' : ''}" data-camfly="1" aria-pressed="${M.cam?.mode === 'fly'}" title="${M.cam?.mode === 'fly' ? 'Land: back to the map' : 'Take off'}" aria-label="Free flight">${ICARUS_ICON}</button></div>`
     + `<button type="button" class="mrsave cmb" data-camobel="1"${g ? '' : ' disabled'}>${OBEL_EYE_ICON}${M.cam?.mode === 'obel' ? 'Leave the obelisk' : 'View from the obelisk’s tip'}</button>`
     + (g ? '' : '<small class="hint mrow">Place an obelisk first: Here, in the sundial.</small>')
     + `<button type="button" class="mrsave" data-camsky="1">All-sky view${g ? ' from the obelisk' : ''}</button>`;
@@ -58,6 +60,7 @@ async function camClick(b) {
   if (b.id === 'mapCamBtn') { camPop(); return true; }
   if (d.camobel) { if (M.cam?.mode === 'obel') camLeave(); else camObelisk(); camPopRefresh(); return true; }
   if (d.camsky) { allSkyOpen(); return true; }
+  if (d.camfly) { if (M.cam?.mode === 'fly') camLeave(); else camFly(); camPopRefresh(); return true; }
   if (d.camfovreset) { const c = camCfg(); c.fov = 37; camLimits(); if (M.cam) camApply(); await saveMapCfg(); camPopRefresh(); return true; }
   if (d.camrollreset) { const c = camCfg(); c.rollv = 0; if (M.cam) M.cam.roll = 0; camLimits(); if (M.cam) camApply(); await saveMapCfg(); camPopRefresh(); return true; }
   if (d.flyfwd) { if (M.cam?.look) { M.cam.look = { y: 0, p: 0 }; } return true; }
@@ -69,7 +72,6 @@ async function camClick(b) {
 document.addEventListener('change', async ev => {
   const k = ev.target.dataset?.camopt; if (!k) return;
   camCfg()[k] = ev.target.checked; await saveMapCfg();
-  if (k === 'fly') { if (ev.target.checked) camFly(); else if (M.cam?.mode === 'fly') camLeave(); }
   camLimits(); if (M.cam) camApply(); camPopRefresh();
 });
 document.addEventListener('input', ev => {
@@ -187,20 +189,27 @@ function camTake(mode, c) {
   // (the engine lifts a camera it thinks is inside the terrain onto the ground, pointing at the centre – with the camera looking up
   // it misjudged that and set it down on the ground: switched off while the camera is ours, which keeps its own floor – v360)
   if (typeof m._elevateCameraIfInsideTerrain === 'function' && !m._elevOrig) { m._elevOrig = m._elevateCameraIfInsideTerrain; m._elevateCameraIfInsideTerrain = function (t) { return M.cam ? {} : this._elevOrig(t); }; }
-  M.cam = { mode, ...c }; m.setCenterClampedToGround?.(false); camLimits(); camGestures(); camApply(); obelUpd(); m.triggerRepaint();
+  M.cam = { mode, ...c }; camFog(); m.setCenterClampedToGround?.(false); camLimits(); camGestures(); camApply(); obelUpd(); m.triggerRepaint();
+}
+// the engine's fog – always white, also at night – over the distant land in the flat view: off while flying (500c, v363)
+const FOG_OFF = { 'fog-color': 'rgba(0,0,0,0)', 'fog-ground-blend': 1, 'horizon-fog-blend': 0, 'sky-horizon-blend': 0 }, FOG_ON = { 'fog-color': '#ffffff', 'fog-ground-blend': 0.5, 'horizon-fog-blend': 0.8, 'sky-horizon-blend': 0.8 };
+function camFog() {
+  const m = M.map; if (!m?.setSky) return; const sky = { ...(m.getStyle()?.sky || {}) }, fly = M.cam?.mode === 'fly';
+  Object.assign(sky, fly ? FOG_OFF : FOG_ON);   // (the engine changes only what is named: its defaults named back)
+  try { m.setSky(sky); } catch (_) {}
 }
 function camLeave() {
   const m = M.map; if (!M.cam || !m) return; const was = M.camWas; M.cam = null; cancelAnimationFrame(FLY.raf); $('#flyUI')?.remove(); FLY.L = { x: 0, y: 0 }; FLY.R = { x: 0, y: 0 }; FLY.keys.clear();
   for (const h of ['dragPan', 'dragRotate', 'scrollZoom', 'touchZoomRotate', 'touchPitch', 'keyboard', 'doubleClickZoom', 'boxZoom']) m[h]?.enable();
-  m.setCenterClampedToGround?.(true); camLimits();
-  if (camCfg().fly) camCfg().fly = false, saveMapCfg();
+  m.setCenterClampedToGround?.(true); camLimits(); camFog();
   if (was) m.jumpTo({ center: was.center, zoom: was.zoom, bearing: was.bearing, pitch: Math.min(was.pitch, m.getMaxPitch()), roll: camCfg().roll ? camCfg().rollv || 0 : 0 });
   camBar(); obelUpd(); m.triggerRepaint();
 }
 // Free flight (v355): a craft that hovers – the left stick sets how fast it goes forward, back or sideways (let go, it glides
 // to a stop); the right stick sets its attitude – how steeply it climbs or dives, how far it banks; banked, it turns of itself
 // (let go, it levels out). Level flight keeps the height above the sea; a floor keeps it 5 m above the ground. Full speed is
-// about its own height above the ground each second, so the land always passes calmly. The view looks ahead with the horizon a
+// ten times the square root of its height above the ground, metres a second (360 km/h at 100 m, 3,600 km/h at 10 km – 498a,
+// v363), so the land passes calmly high up, and low down not too slowly. The view looks ahead with the horizon a
 // third down the screen (the ground in front filling the rest); dragging elsewhere turns the head, ↺ brings it back.
 function camFly() {
   if (!M.map) return; const c = camNow();
@@ -216,14 +225,14 @@ function flyLoop() {
     const c = M.cam; if (!c || c.mode !== 'fly') return; const dt = Math.min(0.1, (now - last) / 1000); last = now;
     const K = FLY.keys, kx = (K.has('d') ? 1 : 0) - (K.has('a') ? 1 : 0), ky = (K.has('s') ? 1 : 0) - (K.has('w') ? 1 : 0), rx = (K.has('arrowright') ? 1 : 0) - (K.has('arrowleft') ? 1 : 0), ry = (K.has('arrowdown') ? 1 : 0) - (K.has('arrowup') ? 1 : 0);
     const L = { x: FLY.L.x || kx, y: FLY.L.y || ky }, R = { x: FLY.R.x || rx, y: FLY.R.y || ry };
-    const hgt = Math.max(5, c.alt - groundAt(c.lng, c.lat)), vmax = Math.min(3e5, Math.max(8, hgt)), ease = (v, t, tau) => v + (t - v) * Math.min(1, dt / tau);
+    const hgt = Math.max(5, c.alt - groundAt(c.lng, c.lat)), vmax = Math.min(3e5, 10 * Math.sqrt(hgt)), ease = (v, t, tau) => v + (t - v) * Math.min(1, dt / tau);
     // the sticks: a gentle curve, fine near the middle; the speed glides, the attitude follows
     const cv = x => Math.sign(x) * x * x;
     c.vF = ease(c.vF, -cv(L.y) * vmax, 0.7); c.vR = ease(c.vR, cv(L.x) * vmax, 0.7);
     // pitch without limit (v359): held up or down, the nose keeps turning – a full loop in 4 s at full push; let go, it returns
     // to level the shortest way – past the vertical, first rolled upright (half a roll, shown as the view turning over)
     const wrap = x => ((x + 180) % 360 + 360) % 360 - 180;
-    if (Math.abs(R.y) > 0.04) c.ptA = wrap(c.ptA + cv(R.y) * 90 * dt);   // (as an aircraft: pulled back – down – the nose rises – v360)
+    if (Math.abs(R.y) > 0.04) c.ptA = wrap(c.ptA + R.y * R.y * R.y * 25 * dt);   // (25° a second at full push, very fine near the middle – 497a, v363)   // (as an aircraft: pulled back – down – the nose rises – v360)
     else { if (Math.abs(c.ptA) > 90) { c.hd += 180; c.ptA = Math.sign(c.ptA) * 180 - c.ptA; c.flip = (c.flip || 0) + 180; }
       c.ptA = ease(c.ptA, 0, 0.8); }
     c.flip = ease(c.flip || 0, 0, 0.6); if (Math.abs(c.flip) < 0.05) c.flip = 0;
@@ -323,16 +332,18 @@ function allSkyView() { const t = obelTip(); if (t) return { ...t, from: 'the ob
 function allSkyOpen() {
   if (!M.map || $('#allSky')) return; const pop = $('#mapPop'); if (pop && pop.dataset.k === 'camera') pop.hidden = true;
   const box = M.map.getContainer(), d = document.createElement('div'); d.id = 'allSky'; d.className = 'allsky';
-  d.innerHTML = `<canvas></canvas><div class="asbar"><span id="asFrom"></span><button type="button" data-asclose="1" title="Close">✕</button></div>`;
+  d.innerHTML = `<canvas></canvas><div class="asbar"><span id="asFrom"></span><button type="button" data-assun="1" class="${M.sdOpen ? 'on' : ''}" title="Sundial: the time of day and year" aria-label="Sundial" aria-pressed="${!!M.sdOpen}">${SUNDIAL_ICON}</button><button type="button" data-asclose="1" title="Close">✕</button></div>`;
   box.append(d); AS.v = allSkyView(); AS.prof = null; AS.key = ''; $('#asFrom').textContent = 'All sky from ' + AS.v.from;
   d.querySelector('[data-asclose]').onclick = () => { d.remove(); cancelAnimationFrame(AS.raf); };
+  // the sundial beside the sky (v363): opened and closed here, the sky above it – turning its hand moves sun, moon and stars
+  d.querySelector('[data-assun]').onclick = async e => { const b = e.currentTarget; await sdOpen(!M.sdOpen); b.classList.toggle('on', !!M.sdOpen); b.setAttribute('aria-pressed', !!M.sdOpen); allSkyDraw(true); };
   const cv = d.querySelector('canvas'); let p0 = null, r0 = 0, a0 = 0; const P = new Map();
   const ang = e => { const r = cv.getBoundingClientRect(); return Math.atan2(e.clientY - r.top - r.height / 2, e.clientX - r.left - r.width / 2); };
   cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); P.set(e.pointerId, e); p0 = ang(e); r0 = AS.rot; });
   cv.addEventListener('pointermove', e => { if (!P.has(e.pointerId) || P.size > 1) return; AS.rot = r0 + (ang(e) - p0); allSkyDraw(true); });   // (turned round the zenith)
   const up = e => P.delete(e.pointerId); cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
   allSkyHorizon(AS.v).then(p => { AS.prof = p; allSkyDraw(true); });
-  const loop = () => { allSkyDraw(); AS.raf = requestAnimationFrame(loop); }; loop();
+  const sb = d.querySelector('[data-assun]'), loop = () => { sb.classList.toggle('on', !!M.sdOpen); allSkyDraw(); AS.raf = requestAnimationFrame(loop); }; loop();
 }
 // the highest angle of the land for each half degree (degrees; below 0 where the horizon sinks)
 async function allSkyHorizon(v) {
