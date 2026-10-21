@@ -30,7 +30,12 @@ function camLimits() {
   m.setVerticalFieldOfView(c.lens ? (c.fov || 60) : 36.87);
   if (!free) m.setRoll?.(c.roll ? (c.rollv || 0) : 0);
 }
-function camInit() { camLimits(); }
+function camInit() {
+  camLimits();
+  // the globe made to keep the height of the point the camera looks at – for the free camera and the map alike (496b): set up as
+  // soon as the map is a globe (at start or once switched to it)
+  const m = M.map; if (m && !globeElev(m)) { const f = () => { if (globeElev(m)) m.off('render', f); }; m.on('render', f); }
+}
 
 // ---------------------------------------------------------------- the menu
 function camHTML() {
@@ -127,21 +132,21 @@ function camApply() {
   camBar();
 }
 // The globe mode of the engine (vertical perspective, below zoom 12) keeps the point the camera looks at on the sea-level sphere,
-// whatever height it is given – so a camera looking up would sit beneath the ground. While the camera is ours, its matrices are
-// set afresh after the engine's own: the sphere moved back along the centre's vertical by the centre's height (the same as
+// whatever height it is given – so a camera looking up would sit beneath the ground, and over mountains the map's own camera looked
+// at the sea beneath them. Its matrices are set afresh after the engine's own (for the free camera since v361, always since v362): the sphere moved back along the centre's vertical by the centre's height (the same as
 // putting the centre that high), and with it the camera's position, the plane that cuts off the far side of the globe and the
 // frustum that picks the tiles (v361).
 function globeElev(m) {
-  const vp = m.transform?._verticalPerspectiveTransform; if (!vp) return;
-  const proto = Object.getPrototypeOf(vp); if (proto._pultElev) return;
-  const orig = proto._calcMatrices; if (typeof orig !== 'function' || !vp._globeViewProjMatrixNoCorrection) return;
+  const vp = m.transform?._verticalPerspectiveTransform; if (!vp) return false;
+  const proto = Object.getPrototypeOf(vp); if (proto._pultElev) return true;
+  const orig = proto._calcMatrices; if (typeof orig !== 'function' || !vp._globeViewProjMatrixNoCorrection) return false;
   // M · T(t): gl-matrix order (column-major)
   const trans = (a, t) => { const o = Float64Array.from(a); for (let i = 0; i < 4; i++) o[12 + i] = a[i] * t[0] + a[4 + i] * t[1] + a[8 + i] * t[2] + a[12 + i]; return o; };
   const sv = (lng, lat) => { const l = lat * RAD, g = lng * RAD; return [Math.sin(g) * Math.cos(l), Math.sin(l), Math.cos(g) * Math.cos(l)]; };
   proto._calcMatrices = function () {
     orig.call(this);
     const el = this.elevation;
-    if (!M.cam || !el || !this._globeViewProjMatrixNoCorrection || !this._cameraPosition) return;
+    if (!el || !this._globeViewProjMatrixNoCorrection || !this._cameraPosition) return;
     try {
       const k = el / ER, c = this.center, n = sv(c.lng, c.lat), t = n.map(x => -k * x);
       const nc = sv(c.lng, c.lat - (this._globeLatitudeErrorCorrectionRadians || 0) / RAD), tc = nc.map(x => -k * x);
@@ -158,7 +163,15 @@ function globeElev(m) {
       if (F?.fromInvProjectionMatrix) { const fm = Float64Array.from(inv); for (let i = 8; i < 12; i++) fm[i] = -fm[i]; this._cachedFrustum = F.fromInvProjectionMatrix(fm, 1, 0, this._cachedClippingPlane, true); }
     } catch (e) { console.warn('globe height:', e.message); }
   };
-  proto._pultElev = true;
+  // when a movement ends, the engine puts the centre on the ground beneath the middle of the screen, the camera staying where it
+  // is: the globe mode set it on the sea instead (height 0) – now on the ground, as the flat mode does
+  const rz = proto.recalculateZoomAndCenter;
+  if (typeof rz === 'function' && vp._helper?.recalculateZoomAndCenter) proto.recalculateZoomAndCenter = function (terrain) {
+    if (!terrain) return rz.call(this, terrain);
+    try { const ctr = this.screenPointToLocation(this.centerPoint, terrain); this._helper.recalculateZoomAndCenter(ctr ? terrain.getElevationForLngLatZoom(ctr, this._helper._tileZoom) : 0); }
+    catch (_) { rz.call(this, terrain); }
+  };
+  proto._pultElev = true; return true;
 }
 // where the map's camera is now (to take over into free flight)
 function camNow() {
