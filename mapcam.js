@@ -135,7 +135,7 @@ function flyLoop() {
     // the sticks: a gentle curve, fine near the middle; the speed glides, the attitude follows
     const cv = x => Math.sign(x) * x * x;
     c.vF = ease(c.vF, -cv(L.y) * vmax, 0.7); c.vR = ease(c.vR, cv(L.x) * vmax, 0.7);
-    c.ptA = ease(c.ptA, -R.y * 30, 0.5); c.bank = ease(c.bank, R.x * 35, 0.5);
+    c.ptA = ease(c.ptA, -cv(R.y) * 90, 0.5);   // (up to straight up or down at full push; fine near the middle – v358) c.bank = ease(c.bank, R.x * 35, 0.5);
     c.hd += Math.tan(c.bank * RAD) / Math.tan(35 * RAD) * 25 * dt;      // (banked, it turns: up to 25° a second)
     const a = c.ptA * RAD, b = c.hd * RAD, fH = c.vF * Math.cos(a) * dt, up = c.vF * Math.sin(a) * dt, sd = c.vR * dt;
     const north = fH * Math.cos(b) - sd * Math.sin(b), east = fH * Math.sin(b) + sd * Math.cos(b);
