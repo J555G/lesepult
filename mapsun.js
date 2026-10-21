@@ -74,7 +74,10 @@ const nightPolys = (s, h) => nightPolysAll(s, [h])[0];
 // Mercator spacing; each pixel as dark as the sun is low there – from sunset (0°) to the end of twilight (18° below)
 const NW = 512, NH = 256, NLAT = 85.0511;
 function nightCanvas() {
-  if (!M.nCv) { M.nCv = document.createElement('canvas'); M.nCv.width = NW; M.nCv.height = NH;
+  // (in the page, hidden, and named in the style by its id: the canvas itself in the style made the engine's comparison of two
+  // styles run round the page's elements without end – each change then rebuilt the whole style, and with 3D terrain the first
+  // frame of it failed – v364)
+  if (!M.nCv) { M.nCv = document.createElement('canvas'); M.nCv.width = NW; M.nCv.height = NH; M.nCv.id = 'pultNightCv'; M.nCv.hidden = true; M.nCv.setAttribute('aria-hidden', 'true'); document.body.append(M.nCv);
     const y2lat = y => Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) / RAD, top = 0.5 - Math.log(Math.tan(Math.PI / 4 + NLAT * RAD / 2)) / (2 * Math.PI);
     M.nRow = Array.from({ length: NH }, (_, r) => { const lat = y2lat(top + (r + 0.5) / NH * (1 - 2 * top)) * RAD; return [Math.sin(lat), Math.cos(lat)]; }); }
   return M.nCv;
@@ -96,7 +99,7 @@ const sunTime = () => (M.sunT ??= Date.now());
 function sunStyle(st) {                                             // (called by layerStyle)
   st.light = sunLight();
   if (!sunOn()) return;
-  nightPaint(sunTime()); st.sources.sunnight = { type: 'canvas', canvas: nightCanvas(), animate: false, coordinates: [[-180, NLAT], [180, NLAT], [180, -NLAT], [-180, -NLAT]] };
+  nightPaint(sunTime()); st.sources.sunnight = { type: 'canvas', canvas: (nightCanvas(), 'pultNightCv'), animate: false, coordinates: [[-180, NLAT], [180, NLAT], [180, -NLAT], [-180, -NLAT]] };
   const k = st.layers.findIndex(l => l.id === 'pl-region');
   st.layers.splice(k < 0 ? st.layers.length : k, 0,
     { id: 'sun-night', type: 'raster', source: 'sunnight', layout: { visibility: M.cfg.sunNight !== false ? 'visible' : 'none' }, paint: { 'raster-fade-duration': 0, 'raster-resampling': 'linear' } });

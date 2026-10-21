@@ -695,6 +695,9 @@ async function showMap1() {
     const v = (await setting('mpos|last')) || { c: [24, 38], z: 4 };
     M.step = 'map'; try {
       M.map = new maplibregl.Map({ container: 'mapCanvas', style: mapStyle(M.colors), center: v.c, zoom: v.z, attributionControl: false, dragRotate: true, pitchWithRotate: true, maxPitch: 85, maxZoom: 16, minZoom: 0 });
+      // (a style rebuilt from scratch has no projection until it has loaded; with 3D terrain the engine still drew a frame then and
+      // failed: such frames are skipped – v364)
+      { const m = M.map, r0 = m._render; if (typeof r0 === 'function') m._render = function (t) { if (this.style && !this.style.projection && this.terrain) { this.triggerRepaint(); return this; } return r0.call(this, t); }; }
     } catch (e) { M.map = null; return mapFailed(e.message || String(e)); }
     // problems are shown instead of an empty map: errors while loading, the graphics memory lost (phones)
     M.map.on('error', e => { M.lastErr = e?.error?.message || String(e?.error || e); console.warn('map:', M.lastErr); });
