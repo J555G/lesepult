@@ -77,16 +77,33 @@ document.addEventListener('input', ev => {
 
 // ---------------------------------------------------------------- a camera of its own: position and direction
 // M.cam = { mode: 'fly' | 'obel', lng, lat, alt (metres above sea level), br (bearing), pt (0 down, 90 level, 180 up), roll }
-function groundAt(lng, lat) { const m = M.map; if (!m?.getTerrain()) return 0; try { return m.queryTerrainElevation([lng, lat]) || 0; } catch (_) { return 0; } }
+// the ground under the camera, as the map draws it: flat at 0 without 3D terrain; with it, the height from the elevation tiles
+// (times the exaggeration) – read from the tiles directly, not from what the view happens to have loaded (that gave 0 when the
+// camera looked up, away from the ground beneath it – v360)
+const GTILE = new Map();
+function demHeight(lng, lat) {
+  const dem = M.relDem; if (!dem) return null; const z = 10, n = 2 ** z, fx = (lng + 180) / 360 * n, fy = (1 - Math.log(Math.tan(Math.PI / 4 + lat * RAD / 2)) / Math.PI) / 2 * n;
+  const k = `${Math.floor(fx)}/${Math.floor(fy)}`; let t = GTILE.get(k);
+  if (t === undefined) { GTILE.set(k, null); dem.getDemTile(z, Math.floor(fx), Math.floor(fy)).then(d => { GTILE.set(k, d); if (GTILE.size > 24) GTILE.delete(GTILE.keys().next().value); }).catch(() => GTILE.delete(k)); return null; }
+  if (!t) return null; const w = t.width; return t.data[Math.min(w - 1, Math.floor(fy % 1 * w)) * w + Math.min(w - 1, Math.floor(fx % 1 * w))];
+}
+function groundAt(lng, lat) {
+  const m = M.map, T = m?.getTerrain(); if (!T) return 0;
+  const h = demHeight(lng, lat); if (h != null) return Math.max(0, h) * (T.exaggeration ?? 1);
+  try { return m.queryTerrainElevation([lng, lat]) || 0; } catch (_) { return 0; }
+}
 function camApply() {
   const m = M.map, c = M.cam; if (!m || !c) return;
   c.pt = Math.max(0.5, Math.min(179.5, c.pt)); c.br = ((c.br % 360) + 360) % 360; c.lat = Math.max(-85, Math.min(85, c.lat)); c.lng = ((c.lng + 540) % 360) - 180;
   if (c.mode === 'fly') c.alt = Math.max(groundAt(c.lng, c.lat) + 2, c.alt);
-  // the engine wants a point the camera looks at ("the centre"): where its line of sight meets the ground – or, looking level
-  // or up, a point some way along it, above the ground. (Left to choose by itself, the engine may put that point far
-  // beneath the ground, and then the near ground is not drawn.)
+  // the engine wants a point the camera looks at ("the centre"), a little way ahead along the line of sight – near enough that
+  // the engine stays in its flat (mercator) mode, zoom 12.6 or more: the globe mode puts the centre on the ground whatever height
+  // it is given, and so it set a camera that looked up down beneath the ground, and one that looked level kilometres too low
+  // (v360). Its distance is about the height above the ground, so the map's details suit the height, as in a view from above.
   const e = (c.pt - 90) * RAD, g = groundAt(c.lng, c.lat), h = Math.max(1, c.alt - g);
-  const L = e < -0.03 ? Math.min(30000, h / Math.sin(-e)) : Math.max(300, Math.min(20000, h * 8));
+  const Lmax = m.transform.cameraToCenterDistance * 40075016.7 * Math.cos(c.lat * RAD) / (512 * 2 ** 12.6);
+  let L = Math.max(30, Math.min(Lmax, h));
+  if (e < -0.01) L = Math.min(L, Math.max(5, 0.9 * h / Math.sin(-e)));   // (not beneath the ground)
   const D = L * Math.cos(e), b = c.br * RAD, tlat = c.lat + D * Math.cos(b) / mPerDeg, tlng = c.lng + D * Math.sin(b) / (mPerDeg * Math.max(0.05, Math.cos(c.lat * RAD)));
   try { const o = m.calculateCameraOptionsFromTo({ lng: c.lng, lat: c.lat }, c.alt, { lng: tlng, lat: tlat }, c.alt + L * Math.sin(e)); o.roll = (((c.roll || 0) + 180) % 360 + 360) % 360 - 180; m.jumpTo(o); } catch (_) {}
   camBar();
@@ -102,6 +119,9 @@ function camTake(mode, c) {
   if (!M.cam) { M.camWas = { center: m.getCenter(), zoom: m.getZoom(), bearing: m.getBearing(), pitch: m.getPitch(), roll: m.getRoll?.() || 0 };
     for (const h of ['dragPan', 'dragRotate', 'scrollZoom', 'touchZoomRotate', 'touchPitch', 'keyboard', 'doubleClickZoom', 'boxZoom']) m[h]?.disable(); }
   const pop = $('#mapPop'); if (pop && pop.dataset.k === 'camera') pop.hidden = true;   // (the menu out of the way)
+  // (the engine lifts a camera it thinks is inside the terrain onto the ground, pointing at the centre – with the camera looking up
+  // it misjudged that and set it down on the ground: switched off while the camera is ours, which keeps its own floor – v360)
+  if (typeof m._elevateCameraIfInsideTerrain === 'function' && !m._elevOrig) { m._elevOrig = m._elevateCameraIfInsideTerrain; m._elevateCameraIfInsideTerrain = function (t) { return M.cam ? {} : this._elevOrig(t); }; }
   M.cam = { mode, ...c }; m.setCenterClampedToGround?.(false); camLimits(); camGestures(); camApply(); obelUpd(); m.triggerRepaint();
 }
 function camLeave() {
@@ -138,7 +158,7 @@ function flyLoop() {
     // pitch without limit (v359): held up or down, the nose keeps turning – a full loop in 4 s at full push; let go, it returns
     // to level the shortest way – past the vertical, first rolled upright (half a roll, shown as the view turning over)
     const wrap = x => ((x + 180) % 360 + 360) % 360 - 180;
-    if (Math.abs(R.y) > 0.04) c.ptA = wrap(c.ptA - cv(R.y) * 90 * dt);
+    if (Math.abs(R.y) > 0.04) c.ptA = wrap(c.ptA + cv(R.y) * 90 * dt);   // (as an aircraft: pulled back – down – the nose rises – v360)
     else { if (Math.abs(c.ptA) > 90) { c.hd += 180; c.ptA = Math.sign(c.ptA) * 180 - c.ptA; c.flip = (c.flip || 0) + 180; }
       c.ptA = ease(c.ptA, 0, 0.8); }
     c.flip = ease(c.flip || 0, 0, 0.6); if (Math.abs(c.flip) < 0.05) c.flip = 0;
@@ -164,7 +184,7 @@ function flyView() {
 function flyUI() {
   const box = M.map?.getContainer(); if (!box || $('#flyUI')) return;
   const d = document.createElement('div'); d.id = 'flyUI';
-  d.innerHTML = '<div class="joy" data-j="L" aria-label="Forward, back, sideways"><i></i><b>⇡</b></div><div class="joy" data-j="R" aria-label="Climb, dive, bank"><i></i><b>✈</b></div>';
+  d.innerHTML = '<div class="joy" data-j="L" aria-label="Forward, back, sideways"><i></i><b>⇡</b></div><div class="joy" data-j="R" aria-label="Pull back to climb, push to dive, sideways to bank"><i></i><b>✈</b></div>';
   box.append(d);
   for (const j of d.querySelectorAll('.joy')) {
     const k = j.dataset.j, knob = j.querySelector('i');
