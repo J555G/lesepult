@@ -96,17 +96,69 @@ function camApply() {
   const m = M.map, c = M.cam; if (!m || !c) return;
   c.pt = Math.max(0.5, Math.min(179.5, c.pt)); c.br = ((c.br % 360) + 360) % 360; c.lat = Math.max(-85, Math.min(85, c.lat)); c.lng = ((c.lng + 540) % 360) - 180;
   if (c.mode === 'fly') c.alt = Math.max(groundAt(c.lng, c.lat) + 2, c.alt);
-  // the engine wants a point the camera looks at ("the centre"), a little way ahead along the line of sight – near enough that
-  // the engine stays in its flat (mercator) mode, zoom 12.6 or more: the globe mode puts the centre on the ground whatever height
-  // it is given, and so it set a camera that looked up down beneath the ground, and one that looked level kilometres too low
-  // (v360). Its distance is about the height above the ground, so the map's details suit the height, as in a view from above.
-  const e = (c.pt - 90) * RAD, g = groundAt(c.lng, c.lat), h = Math.max(1, c.alt - g);
-  const Lmax = m.transform.cameraToCenterDistance * 40075016.7 * Math.cos(c.lat * RAD) / (512 * 2 ** 12.6);
-  let L = Math.max(30, Math.min(Lmax, h));
-  if (e < -0.01) L = Math.min(L, Math.max(5, 0.9 * h / Math.sin(-e)));   // (not beneath the ground)
-  const D = L * Math.cos(e), b = c.br * RAD, tlat = c.lat + D * Math.cos(b) / mPerDeg, tlng = c.lng + D * Math.sin(b) / (mPerDeg * Math.max(0.05, Math.cos(c.lat * RAD)));
-  try { const o = m.calculateCameraOptionsFromTo({ lng: c.lng, lat: c.lat }, c.alt, { lng: tlng, lat: tlat }, c.alt + L * Math.sin(e)); o.roll = (((c.roll || 0) + 180) % 360 + 360) % 360 - 180; m.jumpTo(o); } catch (_) {}
+  // the engine wants a point the camera looks at ("the centre"), some way ahead along the line of sight, at its own height
+  // (the globe mode made to keep that height: globeElev). Its distance is about the height above the ground, so the map's details
+  // suit the height, as in a view from above – and high up the earth is drawn as a globe, lower down flat, as the map does.
+  // Worked out on the sphere: the camera's own up, north and east turn a little on the way to the centre (v361).
+  globeElev(m);
+  const e = (c.pt - 90) * RAD, b = c.br * RAD, g = groundAt(c.lng, c.lat), h = Math.max(1, c.alt - g);
+  const la = c.lat * RAD, lo = c.lng * RAD, U = [Math.cos(la) * Math.sin(lo), Math.sin(la), Math.cos(la) * Math.cos(lo)];
+  const N = [-Math.sin(la) * Math.sin(lo), Math.cos(la), -Math.sin(la) * Math.cos(lo)], E = [Math.cos(lo), 0, -Math.sin(lo)];
+  const v = [0, 1, 2].map(i => Math.cos(e) * (Math.sin(b) * E[i] + Math.cos(b) * N[i]) + Math.sin(e) * U[i]);
+  const r0 = ER + c.alt, P = U.map(x => x * r0);
+  let L = Math.max(30, Math.min(2e6, h));
+  const globe = m.getProjection?.()?.type === 'globe', roll = (((c.roll || 0) + 180) % 360 + 360) % 360 - 180;
+  if (!globe) {   // (the flat map: worked out flat – the earth there has no curve)
+    if (e < -0.01) L = Math.min(L, Math.max(5, 0.9 * h / Math.sin(-e)));
+    const D = L * Math.cos(e), tlat = c.lat + D * Math.cos(b) / mPerDeg, tlng = c.lng + D * Math.sin(b) / (mPerDeg * Math.max(0.05, Math.cos(c.lat * RAD)));
+    const zoom = Math.log2(m.transform.cameraToCenterDistance * 2 * Math.PI * ER * Math.cos(tlat * RAD) / (512 * L));
+    try { m.jumpTo({ center: [tlng, tlat], elevation: c.alt + L * Math.sin(e), zoom, pitch: c.pt, bearing: c.br, roll }); } catch (_) {}
+    camBar(); return;
+  }
+  // (looking down: not beyond the ground the line of sight meets)
+  const pv = P[0] * v[0] + P[1] * v[1] + P[2] * v[2], rg = ER + g, disc = pv * pv - (r0 * r0 - rg * rg);
+  if (pv < 0 && disc > 0) L = Math.min(L, Math.max(5, 0.9 * (-pv - Math.sqrt(disc))));
+  const T = [0, 1, 2].map(i => P[i] + L * v[i]), rT = Math.hypot(...T), tlat = Math.asin(T[1] / rT), tlng = Math.atan2(T[0], T[2]);
+  const U2 = T.map(x => x / rT), N2 = [-Math.sin(tlat) * Math.sin(tlng), Math.cos(tlat), -Math.sin(tlat) * Math.cos(tlng)], E2 = [Math.cos(tlng), 0, -Math.sin(tlng)];
+  const dot = (a, q) => a[0] * q[0] + a[1] * q[1] + a[2] * q[2], vu = dot(v, U2), ve = dot(v, E2), vn = dot(v, N2);
+  const pitch = 90 + Math.asin(Math.max(-1, Math.min(1, vu))) / RAD, bearing = Math.hypot(ve, vn) > 1e-4 ? Math.atan2(ve, vn) / RAD : c.br;
+  const latT = tlat / RAD, zoom = Math.log2(m.transform.cameraToCenterDistance * 2 * Math.PI * ER * Math.cos(tlat) / (512 * L));
+  try { m.jumpTo({ center: [tlng / RAD, latT], elevation: rT - ER, zoom, pitch: Math.max(0, Math.min(180, pitch)), bearing, roll }); } catch (_) {}
   camBar();
+}
+// The globe mode of the engine (vertical perspective, below zoom 12) keeps the point the camera looks at on the sea-level sphere,
+// whatever height it is given – so a camera looking up would sit beneath the ground. While the camera is ours, its matrices are
+// set afresh after the engine's own: the sphere moved back along the centre's vertical by the centre's height (the same as
+// putting the centre that high), and with it the camera's position, the plane that cuts off the far side of the globe and the
+// frustum that picks the tiles (v361).
+function globeElev(m) {
+  const vp = m.transform?._verticalPerspectiveTransform; if (!vp) return;
+  const proto = Object.getPrototypeOf(vp); if (proto._pultElev) return;
+  const orig = proto._calcMatrices; if (typeof orig !== 'function' || !vp._globeViewProjMatrixNoCorrection) return;
+  // M · T(t): gl-matrix order (column-major)
+  const trans = (a, t) => { const o = Float64Array.from(a); for (let i = 0; i < 4; i++) o[12 + i] = a[i] * t[0] + a[4 + i] * t[1] + a[8 + i] * t[2] + a[12 + i]; return o; };
+  const sv = (lng, lat) => { const l = lat * RAD, g = lng * RAD; return [Math.sin(g) * Math.cos(l), Math.sin(l), Math.cos(g) * Math.cos(l)]; };
+  proto._calcMatrices = function () {
+    orig.call(this);
+    const el = this.elevation;
+    if (!M.cam || !el || !this._globeViewProjMatrixNoCorrection || !this._cameraPosition) return;
+    try {
+      const k = el / ER, c = this.center, n = sv(c.lng, c.lat), t = n.map(x => -k * x);
+      const nc = sv(c.lng, c.lat - (this._globeLatitudeErrorCorrectionRadians || 0) / RAD), tc = nc.map(x => -k * x);
+      this._globeViewProjMatrixNoCorrection = trans(this._globeViewProjMatrixNoCorrection, t);
+      this._globeViewProjMatrix32f = new Float32Array(trans(this._globeViewProjMatrix32f, tc));
+      // inverse of M·T(t) = T(−t)·M⁻¹
+      const inv = Float64Array.from(this._globeViewProjMatrixNoCorrectionInverted);
+      for (let j = 0; j < 4; j++) for (let i = 0; i < 3; i++) inv[4 * j + i] -= t[i] * inv[4 * j + 3];
+      this._globeViewProjMatrixNoCorrectionInverted = inv;
+      const cp = this._cameraPosition; for (let i = 0; i < 3; i++) cp[i] -= t[i];
+      const D = Math.max(1.0000001, Math.hypot(cp[0], cp[1], cp[2]));
+      this._cachedClippingPlane = [cp[0] / D, cp[1] / D, cp[2] / D, -1 / D];
+      const F = this._cachedFrustum?.constructor;
+      if (F?.fromInvProjectionMatrix) { const fm = Float64Array.from(inv); for (let i = 8; i < 12; i++) fm[i] = -fm[i]; this._cachedFrustum = F.fromInvProjectionMatrix(fm, 1, 0, this._cachedClippingPlane, true); }
+    } catch (e) { console.warn('globe height:', e.message); }
+  };
+  proto._pultElev = true;
 }
 // where the map's camera is now (to take over into free flight)
 function camNow() {
