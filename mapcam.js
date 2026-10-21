@@ -14,7 +14,12 @@
 // The engine places a camera by its own position and the point it looks at (calculateCameraOptionsFromTo); the free camera and
 // the obelisk view set it so on every movement. Settings (mapCfg): cam { tilt, deep, lens, fov, roll, rollv, fly }.
 
-const CAM_ICON = '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M3.5 8.2h3.2l1.6-2.4h7.4l1.6 2.4h3.2v10H3.5z"/><circle cx="12" cy="13" r="3.4"/><path d="M17.6 10.3h.01" stroke-width="2" stroke-linecap="round"/></g></svg>';
+// the icons: an eye (the menu), Icarus (free flight), an obelisk with an eye on its tip (the view from it) – v356
+const CAM_ICON = '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M2.3 12c2.4-3.9 5.7-5.9 9.7-5.9s7.3 2 9.7 5.9c-2.4 3.9-5.7 5.9-9.7 5.9S4.7 15.9 2.3 12z"/><circle cx="12" cy="12" r="3.3"/></g><circle cx="12" cy="12" r="1.35" fill="currentColor"/></svg>';
+const ICARUS_ICON = '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5.6" r="1.6"/><path d="M12 7.4v6.4M12 13.8l-1.7 5.6M12 13.8l1.9 5.2"/>'
+  + '<path d="M11.2 9.2C8.6 7.4 5.4 6.6 1.8 7.2c1.6 1 2.6 2.3 3 3.8 2.4-.2 4.6.2 6.4 1.3"/><path d="M12.8 9.2c2.6-1.8 5.8-2.6 9.4-2 -1.6 1-2.6 2.3-3 3.8-2.4-.2-4.6.2-6.4 1.3"/>'
+  + '<path d="M3.4 8.6 4.8 7.3M5 9.4l1.6-1.8M6.8 10.2 8.4 8M8.8 10.9l1.4-2.1M20.6 8.6 19.2 7.3M19 9.4l-1.6-1.8M17.2 10.2 15.6 8M15.2 10.9l-1.4-2.1" stroke-width=".8"/></g></svg>';
+const OBEL_EYE_ICON = '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.15" stroke-linejoin="round"><path d="M10.3 21.2 10.9 8.6 12 6.9l1.1 1.7.6 12.6z"/><path d="M8.6 21.2h6.8"/><path d="M7.4 3.9c1.3-1.5 2.8-2.2 4.6-2.2s3.3.7 4.6 2.2c-1.3 1.5-2.8 2.2-4.6 2.2s-3.3-.7-4.6-2.2z"/></g><circle cx="12" cy="3.9" r="1.1" fill="currentColor"/></svg>';
 const camCfg = () => (M.cfg.cam ??= {});
 const ER = 6371008.8, mPerDeg = 111319.49;
 // the limits the menu loosens, applied to the map (at start-up and whenever they change)
@@ -29,15 +34,15 @@ function camInit() { camLimits(); }
 
 // ---------------------------------------------------------------- the menu
 function camHTML() {
-  const c = camCfg(), g = !!M.cfg.gnomon, sw = (k, l, sub) => `<label class="mrow"><span>${l}${sub ? `<small class="cmh">${sub}</small>` : ''}</span>${SW(`data-camopt="${k}"`, !!c[k])}</label>`;
+  const c = camCfg(), g = !!M.cfg.gnomon, sw = (k, l, sub, ic = '') => `<label class="mrow"><span>${ic ? `<i class="cmi">${ic}</i>` : ''}${l}${sub ? `<small class="cmh">${sub}</small>` : ''}</span>${SW(`data-camopt="${k}"`, !!c[k])}</label>`;
   return sw('tilt', 'Look up to the sky', 'tilt beyond the horizon, up to the zenith')
     + sw('deep', 'Deep zoom', 'to 20 instead of 16')
     + sw('lens', 'Lens')
-    + (c.lens ? `<label class="mrow msub"><span>Field of view <output id="camFovOut">${Math.round(c.fov || 60)}°</output></span><input type="range" min="10" max="150" step="1" value="${c.fov || 60}" data-camfov="1" aria-label="Field of view"></label>` : '')
+    + (c.lens ? `<label class="mrow msub"><span>Field of view <output id="camFovOut">${Math.round(c.fov || 60)}°</output></span><span class="cmr"><input type="range" min="10" max="150" step="1" value="${c.fov || 60}" data-camfov="1" aria-label="Field of view"><button type="button" class="cmrz" data-camfovreset="1" title="Back to normal (37°)" aria-label="Reset the field of view">↺</button></span></label>` : '')
     + sw('roll', 'Roll', 'the horizon tilted sideways')
-    + (c.roll ? `<label class="mrow msub"><span>Roll <output id="camRollOut">${Math.round(c.rollv || 0)}°</output></span><input type="range" min="-180" max="180" step="1" value="${c.rollv || 0}" data-camroll="1" aria-label="Roll"></label>` : '')
-    + sw('fly', 'Free flight', 'two sticks: move with the left, steer with the right')
-    + `<button type="button" class="mrsave" data-camobel="1"${g ? '' : ' disabled'}>${M.cam?.mode === 'obel' ? 'Leave the obelisk' : 'View from the obelisk’s tip'}</button>`
+    + (c.roll ? `<label class="mrow msub"><span>Roll <output id="camRollOut">${Math.round(c.rollv || 0)}°</output></span><span class="cmr"><input type="range" min="-180" max="180" step="1" value="${c.rollv || 0}" data-camroll="1" aria-label="Roll"><button type="button" class="cmrz" data-camrollreset="1" title="Level (0°)" aria-label="Reset the roll">↺</button></span></label>` : '')
+    + sw('fly', 'Free flight', 'two sticks: move with the left, steer with the right', ICARUS_ICON)
+    + `<button type="button" class="mrsave cmb" data-camobel="1"${g ? '' : ' disabled'}>${OBEL_EYE_ICON}${M.cam?.mode === 'obel' ? 'Leave the obelisk' : 'View from the obelisk’s tip'}</button>`
     + (g ? '' : '<small class="hint mrow">Place an obelisk first: Here, in the sundial.</small>')
     + `<button type="button" class="mrsave" data-camsky="1">All-sky view${g ? ' from the obelisk' : ''}</button>`;
 }
@@ -48,6 +53,8 @@ async function camClick(b) {
   if (b.id === 'mapCamBtn') { camPop(); return true; }
   if (d.camobel) { if (M.cam?.mode === 'obel') camLeave(); else camObelisk(); camPopRefresh(); return true; }
   if (d.camsky) { allSkyOpen(); return true; }
+  if (d.camfovreset) { const c = camCfg(); c.fov = 37; camLimits(); if (M.cam) camApply(); await saveMapCfg(); camPopRefresh(); return true; }
+  if (d.camrollreset) { const c = camCfg(); c.rollv = 0; if (M.cam) M.cam.roll = 0; camLimits(); if (M.cam) camApply(); await saveMapCfg(); camPopRefresh(); return true; }
   if (d.flyfwd) { if (M.cam?.look) { M.cam.look = { y: 0, p: 0 }; } return true; }
   if (d.camleave) { camLeave(); camPopRefresh(); return true; }
   if (d.camnorth) { if (M.cam) { M.cam.br = 0; camApply(); } return true; }
@@ -171,8 +178,8 @@ function camBar() {
   const box = M.map?.getContainer(); if (!box) return; let b = $('#camBar');
   if (!M.cam) { b?.remove(); return; }
   if (!b) { b = document.createElement('div'); b.id = 'camBar'; b.className = 'cambar'; box.append(b); }
-  const o = M.cam.mode === 'obel', h = o ? `<span>From the obelisk</span><button type="button" data-camnorth="1" title="Face north">N</button><button type="button" data-camzen="1" title="Look straight up">⤒</button><button type="button" data-camsky="1" title="All-sky view">◎</button><button type="button" data-camleave="1" title="Back to the map">✕</button>`
-    : `<span>Free flight</span><small id="flyInfo"></small><button type="button" data-flyfwd="1" title="Look ahead again">↺</button><button type="button" data-camleave="1" title="Back to the map">✕</button>`;
+  const o = M.cam.mode === 'obel', h = o ? `<span class="cbl">${OBEL_EYE_ICON}From the obelisk</span><button type="button" data-camnorth="1" title="Face north">N</button><button type="button" data-camzen="1" title="Look straight up">⤒</button><button type="button" data-camsky="1" title="All-sky view">◎</button><button type="button" data-camleave="1" title="Back to the map">✕</button>`
+    : `<span class="cbl">${ICARUS_ICON}Free flight</span><small id="flyInfo"></small><button type="button" data-flyfwd="1" title="Look ahead again">↺</button><button type="button" data-camleave="1" title="Back to the map">✕</button>`;
   if (b.dataset.m !== M.cam.mode) { b.innerHTML = h; b.dataset.m = M.cam.mode; }
 }
 document.addEventListener('click', ev => { const b = ev.target.closest?.('#camBar button, #allSky button'); if (b) camClick(b); });

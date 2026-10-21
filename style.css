@@ -2055,3 +2055,10 @@ dialog .sortpair button{transition:border-color .15s}
 #flyUI .joy b{position:absolute;left:0;right:0;top:-22px;text-align:center;color:#fff;font:600 13px var(--ui);text-shadow:0 1px 2px #000;pointer-events:none}
 .cambar small{font:12px var(--ui);opacity:.8;margin-right:4px;white-space:nowrap}
 @media (max-width:560px){.cambar small{display:none}#flyUI .joy{width:110px;height:110px}}
+.mlayers .cmi{display:inline-flex;vertical-align:-5px;margin-right:6px}
+.mlayers .cmb{display:flex;align-items:center;gap:6px}
+.mlayers .cmr{display:flex;align-items:center;gap:6px;flex:1;min-width:0;justify-content:flex-end}
+.mlayers .cmr input{flex:1;min-width:0;max-width:150px}
+.mlayers .cmrz{flex:none;width:28px;height:26px;border-radius:7px;border:1px solid var(--line);background:transparent;color:inherit;font-size:14px;cursor:pointer;padding:0}
+.cambar .cbl{display:inline-flex;align-items:center;gap:5px}
+.cambar .cbl svg{width:18px;height:18px}
