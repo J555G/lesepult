@@ -88,7 +88,7 @@ function camApply() {
   const e = (c.pt - 90) * RAD, g = groundAt(c.lng, c.lat), h = Math.max(1, c.alt - g);
   const L = e < -0.03 ? Math.min(30000, h / Math.sin(-e)) : Math.max(300, Math.min(20000, h * 8));
   const D = L * Math.cos(e), b = c.br * RAD, tlat = c.lat + D * Math.cos(b) / mPerDeg, tlng = c.lng + D * Math.sin(b) / (mPerDeg * Math.max(0.05, Math.cos(c.lat * RAD)));
-  try { const o = m.calculateCameraOptionsFromTo({ lng: c.lng, lat: c.lat }, c.alt, { lng: tlng, lat: tlat }, c.alt + L * Math.sin(e)); o.roll = c.roll || 0; m.jumpTo(o); } catch (_) {}
+  try { const o = m.calculateCameraOptionsFromTo({ lng: c.lng, lat: c.lat }, c.alt, { lng: tlng, lat: tlat }, c.alt + L * Math.sin(e)); o.roll = (((c.roll || 0) + 180) % 360 + 360) % 360 - 180; m.jumpTo(o); } catch (_) {}
   camBar();
 }
 // where the map's camera is now (to take over into free flight)
@@ -135,8 +135,15 @@ function flyLoop() {
     // the sticks: a gentle curve, fine near the middle; the speed glides, the attitude follows
     const cv = x => Math.sign(x) * x * x;
     c.vF = ease(c.vF, -cv(L.y) * vmax, 0.7); c.vR = ease(c.vR, cv(L.x) * vmax, 0.7);
-    c.ptA = ease(c.ptA, -cv(R.y) * 90, 0.5);   // (up to straight up or down at full push; fine near the middle – v358) c.bank = ease(c.bank, R.x * 35, 0.5);
-    c.hd += Math.tan(c.bank * RAD) / Math.tan(35 * RAD) * 25 * dt;      // (banked, it turns: up to 25° a second)
+    // pitch without limit (v359): held up or down, the nose keeps turning – a full loop in 4 s at full push; let go, it returns
+    // to level the shortest way – past the vertical, first rolled upright (half a roll, shown as the view turning over)
+    const wrap = x => ((x + 180) % 360 + 360) % 360 - 180;
+    if (Math.abs(R.y) > 0.04) c.ptA = wrap(c.ptA - cv(R.y) * 90 * dt);
+    else { if (Math.abs(c.ptA) > 90) { c.hd += 180; c.ptA = Math.sign(c.ptA) * 180 - c.ptA; c.flip = (c.flip || 0) + 180; }
+      c.ptA = ease(c.ptA, 0, 0.8); }
+    c.flip = ease(c.flip || 0, 0, 0.6); if (Math.abs(c.flip) < 0.05) c.flip = 0;
+    c.bank = ease(c.bank, R.x * 35, 0.5);
+    c.hd += Math.tan(c.bank * RAD) / Math.tan(35 * RAD) * 25 * dt * (Math.cos(c.ptA * RAD) < 0 ? -1 : 1);   // (banked, it turns: up to 25° a second; the same way upside down)
     const a = c.ptA * RAD, b = c.hd * RAD, fH = c.vF * Math.cos(a) * dt, up = c.vF * Math.sin(a) * dt, sd = c.vR * dt;
     const north = fH * Math.cos(b) - sd * Math.sin(b), east = fH * Math.sin(b) + sd * Math.cos(b);
     c.lat += north / mPerDeg; c.lng += east / (mPerDeg * Math.max(0.05, Math.cos(c.lat * RAD))); c.alt = Math.max(groundAt(c.lng, c.lat) + 5, c.alt + up);
@@ -147,7 +154,12 @@ function flyLoop() {
 }
 // the eye: where the craft points, the head turned on top, the horizon a third down; rolled with the bank
 // (the eye tilts fully with the climb – pitching up, it looks up as the flight goes up – v357; with the bank only in part)
-function flyView() { const c = M.cam; c.br = c.hd + c.look.y; c.pt = 90 - flyDown() + c.ptA + c.look.p; c.roll = c.bank * 0.6; }
+// (past the vertical the view turns over: looking the other way, upside down)
+function flyView() {
+  const c = M.cam, phi = ((c.ptA + c.look.p - flyDown() + 180) % 360 + 360) % 360 - 180, rl = c.bank * 0.6 + (c.flip || 0);
+  if (Math.abs(phi) <= 90) { c.br = c.hd + c.look.y; c.pt = 90 + phi; c.roll = rl; }
+  else { c.br = c.hd + c.look.y + 180; c.pt = 90 + Math.sign(phi) * 180 - phi; c.roll = rl + 180; }
+}
 // the two sticks, at the bottom corners of the map
 function flyUI() {
   const box = M.map?.getContainer(); if (!box || $('#flyUI')) return;
