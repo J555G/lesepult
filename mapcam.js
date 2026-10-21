@@ -146,8 +146,8 @@ function flyLoop() {
   FLY.raf = requestAnimationFrame(step);
 }
 // the eye: where the craft points, the head turned on top, the horizon a third down; rolled with the bank
-// (the eye follows the climb and the bank only in part, so the ground stays in view and the picture calm)
-function flyView() { const c = M.cam; c.br = c.hd + c.look.y; c.pt = 90 - flyDown() + c.ptA * 0.35 + c.look.p; c.roll = c.bank * 0.6; }
+// (the eye tilts fully with the climb – pitching up, it looks up as the flight goes up – v357; with the bank only in part)
+function flyView() { const c = M.cam; c.br = c.hd + c.look.y; c.pt = 90 - flyDown() + c.ptA + c.look.p; c.roll = c.bank * 0.6; }
 // the two sticks, at the bottom corners of the map
 function flyUI() {
   const box = M.map?.getContainer(); if (!box || $('#flyUI')) return;
