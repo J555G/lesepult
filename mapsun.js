@@ -464,10 +464,14 @@ function skyHook() {
   const m = M.map; if (!m || !m.style?._loaded) return;
   if (!m.getLayer('skybodies')) m.addLayer({ id: 'skybodies', type: 'custom', renderingMode: '2d', render(gl, args) { skyDraw(args); } });
 }
-// The glow of the air along the earth's edge (502a, v365): the rim of the globe seen from afar, the horizon seen in flight. Each
-// place on it glows by the sun's height there – where the sun rises, red, rose, gold; where it sets, gold, orange, crimson; by
-// day a pale blue; after twilight nothing. Drawn on the sky behind the map, so the earth hides its inner half.
-const GLOW_DAY = [150, 192, 255];
+// The glow of the air along the earth's edge (502a, v365; reworked v368): the rim of the globe seen from afar, the horizon seen in
+// flight. Each place on it glows by the sun's height there – where the sun rises, red, rose, gold; where it sets, gold, orange,
+// crimson; by day a pale blue; brightest with the sun 0–4° below the horizon, gone 12° below (510a). In two layers (512a): the
+// low air takes the sun's height on the ground, the air some 50 km up the sun's height seen from there (7° higher: it stays lit
+// longer – blue above the red after sunset); on the night side a faint green line of airglow at about 100 km (515b). Seen from
+// space thin, about 150 km deep (513a); low over the earth brightest towards the sun (511a). Drawn on the sky behind the map,
+// so the earth hides its inner half.
+const GLOW_DAY = [150, 192, 255], GLOW_AIR = [110, 220, 140];
 // where the camera is: the place beneath it and its height above the sea (metres); on the globe from its own position
 function skyEye(m) {
   const tr = m.transform, vp = tr._verticalPerspectiveTransform, globe = !!(vp && tr.isGlobeRendering && vp._cameraPosition);
@@ -476,43 +480,56 @@ function skyEye(m) {
   else { const ll = tr.getCameraLngLat(); lng = ll.lng; lat = ll.lat; h = tr.getCameraAltitude(); }
   return { globe, lng, lat, h: h > 1 ? h : 1 };
 }
+// the glow's colour and strength for a height of the sun (degrees) – one smooth curve, no steps
+const smooth01 = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+function glowAt(alt, rising) {
+  const al = alt >= 0 ? 0.4 + 0.45 * (1 - smooth01(alt / 14)) : alt >= -4 ? 0.85 : 0.85 * (1 - smooth01((-alt - 4) / 8));
+  if (alt >= 14) return [GLOW_DAY, al];
+  const tint = sunTint(Math.max(-12, alt), rising), u = smooth01((alt - 6) / 8);
+  return [tint.map((x, k) => x + (GLOW_DAY[k] - x) * u), al];
+}
 function skyGlow(y, m, P, W, H, t) {
   const tr = m.transform, { globe, lng, lat, h } = skyEye(m);
   const ER0 = 6371008.8, MM = tr.getMatrixForModel([lng, lat], 0), A = new Array(16).fill(0);
   for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) A[c * 4 + r] += P[k * 4 + r] * MM[c * 4 + k];
   const th = Math.acos(ER0 / (ER0 + h)), dist = Math.sqrt((ER0 + h) ** 2 - ER0 * ER0);   // (the edge: how far round the earth, and how far off)
-  // where it is drawn: on the globe the true edge; on the flat map (no curve) a ring far off at sea level – just under the level line
-  const D = globe ? ER0 * Math.sin(th) : Math.max(2e5, dist * 3), up = globe ? ER0 * Math.cos(th) - ER0 : h - D * 0.003;   // (flat: just under the level line, where the flat land ends)
-  // how deep the glow reaches above the edge: from afar some 500 km (the air's height, widened to be seen), low over the horizon
-  // some 8°
-  const dH = globe ? Math.min(5e5, 0.15 * dist) : 0.15 * D;
+  // where it is drawn: on the globe the true edge; on the flat map (no curve) a ring far off, just under the level line
+  const D = globe ? ER0 * Math.sin(th) : Math.max(2e5, dist * 3), up = globe ? ER0 * Math.cos(th) - ER0 : h - D * 0.003;
+  // how deep the glow reaches above the edge: from afar about 150 km, low over the horizon some 8°
+  const dH = globe ? Math.min(1.5e5, 0.15 * dist) : 0.15 * D;
   const scr = v => { const cx = A[0] * v[0] + A[4] * v[1] + A[8] * v[2] + A[12], cy = A[1] * v[0] + A[5] * v[1] + A[9] * v[2] + A[13], cw = A[3] * v[0] + A[7] * v[1] + A[11] * v[2] + A[15];
     return cw > 1e-9 ? [(cx / cw + 1) / 2 * W, (1 - cy / cw) / 2 * H] : null; };
-  const s = sunPos(t), la = lat * RAD, N = 120, pts = [];
+  // towards the sun: only low over the earth, gone from 300 km up
+  const kT = 1 - smooth01((h - 3e4) / 2.7e5);
+  const s = sunPos(t), la = lat * RAD, N = 360, pts = [];
   for (let i = 0; i <= N; i++) {
     const a = i / N * 2 * Math.PI, e = D * Math.sin(a), n = D * Math.cos(a), v = [e, up, -n];
     // the edge, and the air above it (along the upright there: away from the earth's centre, on the flat map straight up)
     const nr = globe ? [e / ER0, (up + ER0) / ER0, -n / ER0] : [0, 1, 0], p = scr(v), o = scr([v[0] + nr[0] * dH, v[1] + nr[1] * dH, v[2] + nr[2] * dH]);
     if (!p || !o) { pts.push(null); continue; }
-    // the place on the earth's edge in that direction, and the sun's height there; brightest towards the sun
+    // the place on the earth's edge in that direction, and the sun's height there
     const pl = Math.asin(Math.sin(la) * Math.cos(th) + Math.cos(la) * Math.sin(th) * Math.cos(a)), pg = lng * RAD + Math.atan2(Math.sin(a) * Math.sin(th) * Math.cos(la), Math.cos(th) - Math.sin(la) * Math.sin(pl));
-    const sa = sunAt(s, pg / RAD, pl / RAD), toward = 0.55 + 0.45 * Math.cos((sa.az - a / RAD) * RAD);
-    let col, al;
-    if (sa.alt >= 14) { col = GLOW_DAY; al = 0.38; }
-    else { const tint = sunTint(sa.alt, sa.az < 180), u = Math.max(0, Math.min(1, (sa.alt - 6) / 8));
-      col = tint.map((x, k) => Math.round(x + (GLOW_DAY[k] - x) * u)); al = sa.alt > -12 ? 0.38 + 0.52 * (1 - u) * toward : 0.9 * toward * Math.max(0, (sa.alt + 18) / 6); }
-    pts.push({ p, o, col, al });
+    const sa = sunAt(s, pg / RAD, pl / RAD), rising = sa.az < 180, wT = (1 - kT) + kT * (0.55 + 0.45 * Math.cos((sa.az - a / RAD) * RAD));
+    const [c0, a0] = glowAt(sa.alt, rising), [c1, a1] = glowAt(sa.alt + 7.2, rising), g = smooth01((-sa.alt - 13) / 6);   // (airglow where the upper air is dark)
+    pts.push({ p, o, c0, a0: a0 * wT, c1, a1: a1 * wT, g });
   }
-  // a strip of four-sided pieces, each fading from the edge outwards (pieces side by side, not overlapping: no seams of doubled light)
+  // a strip of four-sided pieces, each fading from the edge outwards, its colours the mean of its two ends (no steps, no seams)
+  const mix = (q, r) => q.map((x, k) => (x + r[k]) / 2), rgba = (c, al) => `rgba(${c.map(Math.round).join(',')},${Math.max(0, al).toFixed(3)})`;
   y.save();
-  for (let i = 0; i < N; i++) { const A1 = pts[i], B1 = pts[i + 1]; if (!A1 || !B1 || A1.al <= 0.01) continue;
+  for (let i = 0; i < N; i++) { const A1 = pts[i], B1 = pts[i + 1]; if (!A1 || !B1) continue;
+    const a0 = (A1.a0 + B1.a0) / 2, a1 = (A1.a1 + B1.a1) / 2, gg = (A1.g + B1.g) / 2; if (a0 < 0.01 && a1 < 0.01 && gg < 0.01) continue;
     if (Math.abs(A1.p[0] - B1.p[0]) > W * 2 || Math.abs(A1.p[1] - B1.p[1]) > H * 2) continue;   // (a piece thrown across the screen)
     const mx = (A1.p[0] + B1.p[0]) / 2, my = (A1.p[1] + B1.p[1]) / 2, ox = (A1.o[0] + B1.o[0]) / 2, oy = (A1.o[1] + B1.o[1]) / 2;
-    const ix = mx - (ox - mx) * 0.25, iy = my - (oy - my) * 0.25, g = y.createLinearGradient(ix, iy, ox, oy), c = A1.col.join(',');
-    g.addColorStop(0, `rgba(${c},0)`); g.addColorStop(0.2, `rgba(${c},${A1.al.toFixed(3)})`); g.addColorStop(0.55, `rgba(${c},${(A1.al * 0.6).toFixed(3)})`); g.addColorStop(1, `rgba(${c},0)`);
-    const bx = (q, r, k) => [q[0] + (q[0] - r[0]) * k, q[1] + (q[1] - r[1]) * k];   // (a hair wider, so the pieces meet)
-    const a0 = bx(A1.p, A1.o, 0.25), b0 = bx(B1.p, B1.o, 0.25);
-    y.fillStyle = g; y.beginPath(); y.moveTo(a0[0], a0[1]); y.lineTo(b0[0], b0[1]); y.lineTo(B1.o[0], B1.o[1]); y.lineTo(A1.o[0], A1.o[1]); y.closePath(); y.fill();
+    const c0 = mix(A1.c0, B1.c0), c1 = mix(A1.c1, B1.c1), cg = c1.map((x, k) => x + (GLOW_AIR[k] - x) * gg);
+    const gr = y.createLinearGradient(mx - (ox - mx) * 0.25, my - (oy - my) * 0.25, ox, oy);
+    // (0.2 is the edge itself; 0.73 about 100 km up)
+    gr.addColorStop(0, rgba(c0, 0)); gr.addColorStop(0.2, rgba(c0, a0)); gr.addColorStop(0.36, rgba(c0, a0 * 0.75));
+    gr.addColorStop(0.52, rgba(c1, a1 * 0.55)); gr.addColorStop(0.73, rgba(cg, a1 * 0.25 * (1 - gg) + 0.13 * gg)); gr.addColorStop(1, rgba(cg, 0));
+    const bx = (q, r, k) => [q[0] + (q[0] - r[0]) * k, q[1] + (q[1] - r[1]) * k];
+    const p0 = bx(A1.p, A1.o, 0.25), q0 = bx(B1.p, B1.o, 0.25);
+    // (a hair wider along the edge, so the pieces meet)
+    const ex = (B1.p[0] - A1.p[0]) * 0.02, ey = (B1.p[1] - A1.p[1]) * 0.02;
+    y.fillStyle = gr; y.beginPath(); y.moveTo(p0[0] - ex, p0[1] - ey); y.lineTo(q0[0] + ex, q0[1] + ey); y.lineTo(B1.o[0] + ex, B1.o[1] + ey); y.lineTo(A1.o[0] - ex, A1.o[1] - ey); y.closePath(); y.fill();
   }
   y.restore();
 }

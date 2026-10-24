@@ -503,13 +503,18 @@ async function pultDate(ver) {
 }
 // focus: 'colours' | 'grammar' | 'map' – opened by holding that button: its section unfolded and in view
 async function settingsDialog(focus) {
-  await loadDicts();
+  // how long each step takes before the menu shows (509a, v368 – for a while, to find what is slow on a device's first opening)
+  const T0 = performance.now(), TM = []; let Tl = T0; const tm = k => { const n = performance.now(); TM.push([k, n - Tl]); Tl = n; };
+  await loadDicts(); tm('dictionaries');
   const dark = document.documentElement.dataset.theme === 'dark';
   // a joined switch for either/or settings: Light | Dark
   const seg = (k, cur, opts) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button type="button" class="${cur === v ? 'on' : ''}" data-setk="${k}" data-setv="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div>`;
   const line = (label, ctl, hint = '') => `<div class="mline"><span>${label}${hint ? `<small class="hint">${hint}</small>` : ''}</span>${ctl}</div>`;
   let ver = '–'; try { const ks = (await caches.keys()).filter(k => k.startsWith('lesepult-v')).map(k => +k.split('-v')[1]); if (ks.length) ver = Math.max(...ks); } catch (_) { }
-  const pub = ver === '–' ? '' : await pultDate(ver);
+  // the date of publication: worked out once per version and remembered – reading the app's stored files is slow in Safari, so a
+  // new version's date is filled in after the menu is shown (v368)
+  const pd = (await setting('pubDate')) || {}, pub = pd.ver === ver ? pd.date : '';
+  tm('version');
   const fold = (await setting('instFold')) || {};
   const want = { colours: 'read', grammar: 'read', map: 'map' }[focus];
   const sec = (k, title, sub, body) => `<details class="ifold" data-if="set-${k}"${(want ? want === k : fold['set-' + k]) ? ' open' : ''}><summary><b>${title}</b><small>${sub}</small></summary><section class="dsec">${body}</section></details>`;
@@ -517,6 +522,7 @@ async function settingsDialog(focus) {
   const coll = S.installed?.collatinus && !S.dictPrefs.off.includes('collatinus');
   const hasMap = typeof settingsHTML === 'function';
   if (hasMap) await mapCfg();
+  tm('settings');
   // the sections of Reading: a heading each (a reset button at its right), a thin line between them; switches at the right
   const rsec = (cls, title, body, btn = '') => `<section class="rsec ${cls}"><div class="rhd"><span>${title}</span>${btn}</div>${body}</section>`;
   const swRow = (sw, label, hint = '', dis = false) => `<label class="srow1 swr${dis ? ' dis' : ''}"><span>${label}${hint ? `<small class="hint">${hint}</small>` : ''}</span>${sw}</label>`;
@@ -527,7 +533,7 @@ async function settingsDialog(focus) {
     + rsec('scolours', 'Colourisation', chipGroupsHTML('pos') + '<small class="hint rhint">hold a word to choose its colour</small>', `<button type="button" class="creset" data-posreset="1" aria-label="Reset colours" title="Reset colours"><span class="rr">R</span><span class="rg">e</span><span class="ry">s</span><span class="rb">e</span><span class="rr">t</span>${RST}</button>`)
     + rsec('slat', 'Latin', swRow(SW('data-set="latQuant"', S.latQuant && coll, !coll), 'Mark vowel lengths (ā, ĕ …)', coll ? '' : 'needs Collatinus (Instruments → Analysis)', !coll))
     + (hasMap ? rsec('splaces', 'Places', swRow(SW('data-mapset="mark"', M.cfg.mark !== false), 'Mark place names in the text', 'a dotted line beneath names found on the map')) : '');
-  await libSettingsPrep();
+  await libSettingsPrep(); tm('library catalogue');
   if (want) openAt('set', want);
   const rows = [{ k: 'read', title: 'Reading', sub: `text ${Math.round((S.tz || 1) * 100)} % · glosses, grammar line, colourisation` },
     { k: 'search', title: 'Search', sub: 'suggestions · Greek in Latin letters · typo tolerance · index of all texts' },
@@ -537,8 +543,11 @@ async function settingsDialog(focus) {
       `<div class="srow1 sapp"><b>Appearance</b>${seg('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']])}</div>`
       + `<label class="srow1 swr sapp2"><span>Fades<small class="hint">buttons light up briefly when tapped, switches fade in and out</small></span>${SW('data-fades="1"', !document.body.classList.contains('nofade'))}</label>`
       + `<label class="srow1 swr sapp2"><span>Notices<small class="hint">short hints and confirmations at the bottom of the screen (warnings always show)</small></span>${SW('data-notices="1"', document.body.classList.contains('notices'))}</label>`)
-    + `<p class="sver">Pult · version ${ver}${pub ? ' · published ' + pub : ''}</p>`, []);
-  syncGramRows($('#dlgForm')); scIdxInfo();
+    + `<p class="sver">Pult · version ${ver}<span id="sverPub">${pub ? ' · published ' + pub : ''}</span><br><span id="sverTime"></span></p>`, []);
+  tm('building'); syncGramRows($('#dlgForm')); scIdxInfo();
+  // shown on screen: the time until the menu was drawn, and its parts
+  requestAnimationFrame(() => setTimeout(() => { tm('drawing'); const el = $('#sverTime'); if (el) el.textContent = `opened in ${Math.round(performance.now() - T0)} ms: ` + TM.map(([k, v]) => `${k} ${Math.round(v)}`).join(' · '); }, 0));
+  if (!pub && ver !== '–') pultDate(ver).then(d => { if (!d) return; setting('pubDate', { ver, date: d }); const el = $('#sverPub'); if (el) el.textContent = ' · published ' + d; });
   if (focus) {                                                   // the part asked for, at the top of the dialog
     const el = focus === 'map' ? null : $('#dlgForm').querySelector(focus === 'colours' ? '.rsec.scolours' : '.rsec.sgram');
     const go = () => { if (!el || !$('#dlg').open) return; const d = $('#dlg'); d.scrollTop += el.getBoundingClientRect().top - d.getBoundingClientRect().top - 52; };
