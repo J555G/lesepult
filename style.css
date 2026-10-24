@@ -1897,6 +1897,7 @@ dialog .sortpair button{transition:border-color .15s}
 /* the mark at the middle of the panel's upper edge: its tip is the place the dial shows (until an obelisk stands) */
 .sdmark{position:absolute;left:50%;bottom:220px;transform:translateX(-50%);width:28px;height:68px;z-index:5;pointer-events:none;transition:opacity .4s}
 .sdmark .sdob{pointer-events:auto;cursor:grab;touch-action:none}
+.sdmark.away .sdsock,.sdmark.away .sdsockt{pointer-events:auto;cursor:pointer;touch-action:manipulation}
 .sdmark .sdobh{fill:transparent}
 .sdmark.away .sdob{display:none}
 .sdmark.off .sdob{opacity:.45}

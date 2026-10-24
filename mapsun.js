@@ -163,6 +163,13 @@ function overDial(ev) { for (const el of [$('#sunPanel'), $('#sdMark')]) { const
 async function obelHome() {
   M.cfg.gnomon = null; await saveMapCfg(); obelUpd(); sdRefUpd(); sunApply(); const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML();
 }
+// the empty socket tapped twice: the obelisk comes back from the map (v374)
+// (two taps within 0.4 s, near each other – Safari on the iPad sends no double-click for a finger)
+document.addEventListener('pointerup', ev => {
+  if (!ev.target.closest?.('#sdMark') || !M.cfg?.gnomon) return;
+  const t = performance.now(), l = M.sockTap; M.sockTap = { t, x: ev.clientX, y: ev.clientY };
+  if (l && t - l.t < 400 && Math.hypot(ev.clientX - l.x, ev.clientY - l.y) < 30) { M.sockTap = null; ev.preventDefault(); obelHome(); }
+}, true);
 // taking it from its socket onto the map: a copy of it follows the finger; let go over the map, it stands where its foot is
 document.addEventListener('pointerdown', ev => {
   const ob = ev.target.closest?.('#sdMark .sdob'); if (!ob || M.cfg?.gnomon || !M.map || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
@@ -178,7 +185,9 @@ document.addEventListener('pointerdown', ev => {
     const inMap = foot[0] >= cr.left && foot[0] <= cr.right && foot[1] >= cr.top && foot[1] <= cr.bottom;
     let ll = null; if (inMap && e.type === 'pointerup' && !overDial(e)) { try { ll = M.map.unproject([foot[0] - cr.left, foot[1] - cr.top]); const p = M.map.project(ll); if (Math.hypot(p.x - foot[0] + cr.left, p.y - foot[1] + cr.top) > 20 || Math.abs(ll.lat) > 85) ll = null; } catch (_) { ll = null; } }
     if (!ll) { mk.classList.remove('away'); return; }               // (not on the ground: back on its socket)
-    M.cfg.gnomon = { lng: ((ll.lng + 540) % 360) - 180, lat: ll.lat }; await saveMapCfg(); obelUpd(); sdRefUpd(); sunApply(); const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML(); };
+    // (its height in metres: as tall as it looked on the sundial – 50 px at this zoom – 525b, v374)
+    const mpp = 40075016.7 * Math.cos(ll.lat * RAD) / (512 * 2 ** M.map.getZoom());
+    M.cfg.gnomon = { lng: ((ll.lng + 540) % 360) - 180, lat: ll.lat, h: 50 * mpp / obelK() }; await saveMapCfg(); obelUpd(); sdRefUpd(); sunApply(); const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML(); };
   addEventListener('pointermove', mv, true); addEventListener('pointerup', up, true); addEventListener('pointercancel', up, true);
 }, true);
 function sdRefUpd() {
@@ -294,7 +303,8 @@ function obel3dLayer(T) {
       const SH = 1 - OB_TIP - 0.08, shaft = new T.Mesh(new T.CylinderGeometry(0.052 * Math.SQRT2, 0.088 * Math.SQRT2, SH, 4, 1), stone);   // (a square frustum)
       shaft.rotation.y = Math.PI / 4; shaft.position.y = 0.08 + SH / 2; g.add(shaft);
       // the tip: a perfect pyramid of gold – four equilateral triangles on the shaft's square top (520a, v373)
-      const gold = new T.MeshStandardMaterial({ color: 0xffc43d, metalness: 0.78, roughness: 0.26, emissive: 0x2b1b02 });
+      // (polished: it mirrors a simple sky and ground around it – 526b, v374; the mirror image made once, before its first drawing)
+      const gold = this.gold = new T.MeshStandardMaterial({ color: 0xffc94d, metalness: 1, roughness: 0.24 });
       const tip = new T.Mesh(new T.ConeGeometry(0.052 * Math.SQRT2, OB_TIP, 4, 1), gold); tip.rotation.y = Math.PI / 4; tip.position.y = 1 - OB_TIP / 2; g.add(tip);
       g.updateMatrixWorld(true); this.scene.add(g);
       // its shadow where the map is flat: the model pressed flat onto the ground along the sun's rays, five times from a sun moved a
@@ -334,10 +344,20 @@ function obel3dLayer(T) {
         const lx = Math.cos(e) * Math.sin(a), ly = Math.sin(e), lz = -Math.cos(e) * Math.cos(a);
         sg.matrix.set(1, -lx / ly, 0, 0, 0, 0, 0, 0.001, 0, -lz / ly, 1, 0, 0, 0, 0, 1); sg.matrixWorldNeedsUpdate = true; sg.children[0].material.opacity = a1; });
       this.r.setViewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+      if (!this.env && this.gold) { this.env = 1; try { this.r.resetState(); this.gold.envMap = obelEnv(T, this.r); this.gold.needsUpdate = true; } catch (_) {} }
+      if (this.gold) this.gold.envMapIntensity = 0.25 + 0.95 * day;
       this.r.resetState(); if (this.dr) gl.depthRange(this.dr[0], this.dr[1]); gl.clearStencil(0); gl.clear(gl.STENCIL_BUFFER_BIT); if (plane) this.r.render(this.shScene, this.cam); this.r.render(this.scene, this.cam);
     } };
 }
 // where the model stands on the screen: its foot and its top (for grabbing it)
+// what the gold mirrors: a bright pale sky above and at the horizon, brown ground below – six small pictures, prepared for a polished surface
+function obelEnv(T, r) {
+  const face = (top, bot) => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'), g = x.createLinearGradient(0, 0, 0, 32); g.addColorStop(0, top); g.addColorStop(1, bot); x.fillStyle = g; x.fillRect(0, 0, 32, 32); return c; };
+  // (nearly white above: a blue sky made the gold look grey in a mirror this small)
+  const side = face('#f4f1ea', '#7a6448'), up = face('#e9eef5', '#e9eef5'), dn = face('#5e4c38', '#5e4c38');
+  const cube = new T.CubeTexture([side, side, up, dn, side, side]); cube.colorSpace = T.SRGBColorSpace; cube.needsUpdate = true;
+  const pm = new T.PMREMGenerator(r), tex = pm.fromCubemap(cube).texture; pm.dispose(); return tex;
+}
 function obel3dAxis() { const pr = obel3dProj(); return pr ? [pr(0, 0, 0), pr(0, 1, 0)] : null; }
 // a point of the model (unit height; x east, y up, z south) on the screen, or null behind the eye
 function obel3dProj() {
