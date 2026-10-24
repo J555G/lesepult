@@ -44,7 +44,7 @@ async function mapCfg() {
     }
     if (!saved.v5) { saved.v5 = true; if (saved.regions) { saved.nmRegions = saved.regions !== 'off'; saved.regArea = saved.regions === 'areas'; } }   // the new layer menu
     if (saved.basemap === 'ne2') saved.basemap = 'hd';
-    delete saved.sunNight; delete saved.sunAtm;
+    delete saved.sunNight; delete saved.sunAtm; delete saved.skySun; delete saved.skyMoon;   // (sun and moon always shown – v372)
     if (saved.skySize <= 6 && !saved.skySize2) { delete saved.skySize; saved.skySize2 = 1; }               // (the sun and the moon much larger, v336)                                             // (night shade and air: always with day and night, v334)
     if (saved.img === 'none') saved.img = 'bm';                                            // (the drawn map retired, v300)                                     // (Natural Earth II retired, v296)
     if (!saved.v4) { saved.v4 = true; if (!Object.values(saved.cats || {}).some(Boolean)) saved.cats = { settl: true }; }   // kinds of places: settlements by default

@@ -336,7 +336,7 @@ async function sunHere() {
 // ---------------------------------------------------------------- the sun and the moon in the sky (v334)
 // Drawn where they truly stand as seen from the place the dial shows: tilted towards the horizon, in the sky; zoomed out, in space
 // beside the globe – a direction "at infinity" projected by the map's own camera, hidden where the earth lies before it. Larger
-// than true (settings: skySize, 1 … 24, 10 – v336), the moon in its real phase. Switches: skySun, skyMoon.
+// than true (settings: skySize, 1 … 24, 10 – v336), the moon in its real phase. (The switches skySun, skyMoon retired in v372: both always shown.)
 const mat4v = (m, v) => [0, 1, 2, 3].map(i => m[i] * v[0] + m[4 + i] * v[1] + m[8 + i] * v[2] + m[12 + i] * v[3]);
 const skyDir = (az, alt) => [Math.cos(alt * RAD) * Math.sin(az * RAD), Math.sin(alt * RAD), -Math.cos(alt * RAD) * Math.cos(az * RAD)];   // (x east, y up, z south)
 // Behind the map, wherever no earth is seen (around the globe, above the horizon of a tilted view): the sky of Flammarion's
@@ -870,7 +870,7 @@ function sdCtlHTML() {
     + (mode === 'anim' ? `<div class="msun">${play}<input type="range" min="0" max="100" value="${spdToV(spd)}" data-sunspeed="1" aria-label="Speed"><output>${spdLabel(spd)}</output></div>` : '')
     + (mode === 'year' ? `<div class="msun">${play}<input type="range" min="0" max="100" value="${yrToV(yr)}" data-sunyear="1" aria-label="Speed"><output>${yrLabel(yr)}</output></div>` : '')
     + `<div class="seg" role="group">${[['modern', 'Modern'], ['roman', 'Roman'], ['greek', 'Greek']].map(([v, l]) => `<button type="button" data-sunfmt="${v}" class="${(M.cfg.sunFmt || 'modern') === v ? 'on' : ''}">${l}</button>`).join('')}</div>`
-    + `<div class="sdtg">${[['skySun', 'Sun'], ['skyMoon', 'Moon']].map(([k, l]) => `<button type="button" data-suntg="${k}" class="${M.cfg[k] !== false ? 'on' : ''}" aria-pressed="${M.cfg[k] !== false}">${l}</button>`).join('')}`
+    + `<div class="sdtg">`   // (the Sun and Moon switches retired: both always in the sky – v372)
     + `<button type="button" data-sunhere="1" class="${M.cfg.gnomon ? 'on' : ''}" aria-pressed="${!!M.cfg.gnomon}" title="${M.cfg.gnomon ? 'Take the obelisk away' : 'Set an obelisk on the map: the dial then shows that place'}">Here</button>`
     + (M.cfg.gnomon ? `<input type="range" class="obsz" min="0" max="100" value="${Math.round(Math.log(obelK() * 3) / Math.log(9) * 100)}" data-obsz="1" aria-label="Size of the obelisk" title="Size of the obelisk">` : '') + `</div>`
     + `<small class="sdsub" id="sdSub"></small>`;
@@ -1081,9 +1081,6 @@ async function mapOptsClick(b) {
   if (b.id === 'mapCompBtn') { M.cfg.compass = M.cfg.compass === false; await saveMapCfg(); b.classList.toggle('on', M.cfg.compass); b.setAttribute('aria-pressed', M.cfg.compass); compassUpd(); return true; }
   if (b.id === 'mapNorth' || d.mnorth) { M.map?.easeTo({ bearing: 0, duration: 500 }); return true; }
   if (b.id === 'mapSunBtn') { await sdOpen(!M.sdOpen); return true; }
-  if (d.suntg) {                                                   // the sun and the moon in the sky: each on or off
-    M.cfg[d.suntg] = M.cfg[d.suntg] === false; await saveMapCfg(); b.classList.toggle('on', M.cfg[d.suntg]); b.setAttribute('aria-pressed', M.cfg[d.suntg]);
-    skyHook(); M.map?.triggerRepaint(); return true; }
   if (d.sunhere) { await sunHere(); return true; }
   if (d.sdswap) { M.sdPage = M.sdPage === 'zod' ? 'ctl' : 'zod'; sundialPaint(); return true; }
   if (d.sunfmt) { M.cfg.sunFmt = d.sunfmt; await saveMapCfg(); $('#sunCtl').innerHTML = sdCtlHTML(); sundialPaint(); return true; }
