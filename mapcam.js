@@ -417,11 +417,21 @@ function expDown(e, P, two) {
 // two fingers (v397): pulled together they pan – the ground between them stays between them; pinched, they fly towards or away
 // from it (the zoom); twisted, they turn the view about it – all at once, read once a frame from both fingers together. Three
 // fingers moved up or down tilt the head.
-function exp2Start(P, two) { const c = M.cam, t = two(); EXP.g = null; EXP.T = expTarget(c, t.x, t.y); EXP.Tg = !!expGround(c, expRay(c, t.x, t.y)); EXP.prev = t; EXP.P = P; EXP.two = two; }
+// (616b, v398: what two fingers moved together do is decided once, at the start of each gesture: straight up or down together –
+// the head tilts; any other way – the camera pans. Pinch and twist work in both.)
+function exp2Start(P, two) { const c = M.cam, t = two(); EXP.g = null; EXP.T = expTarget(c, t.x, t.y); EXP.Tg = !!expGround(c, expRay(c, t.x, t.y)); EXP.prev = t; EXP.P = P; EXP.two = two;
+  EXP.s0 = new Map([...P].map(([id, q]) => [id, { x: q.x, y: q.y }])); EXP.mode2 = null; }
 function exp2() {
   EXP.pend = false; const c = M.cam, P = EXP.P; if (!c || c.mode !== 'exp' || !P || P.size !== 2 || !EXP.T || !EXP.prev) return;
+  if (!EXP.mode2) {                                                    // (until both fingers are moving, 8 px for one of them: still deciding)
+    const ds = [...P].map(([id, q]) => { const o = EXP.s0?.get(id) || q; return [q.x - o.x, q.y - o.y]; }), far = Math.max(...ds.map(([x, y]) => Math.hypot(x, y)));
+    const near = Math.min(...ds.map(([x, y]) => Math.hypot(x, y))); if (far < 8 || (near < 4 && far < 25)) return;   // (both fingers on their way – they are reported one at a time)
+    const [[x1, y1], [x2, y2]] = ds, up = Math.sign(y1) === Math.sign(y2) && Math.abs(y1) > 2 * Math.abs(x1) && Math.abs(y2) > 2 * Math.abs(x2) && Math.abs(Math.abs(y1) - Math.abs(y2)) < 0.5 * Math.max(Math.abs(y1), Math.abs(y2));
+    EXP.mode2 = up ? 'tilt' : 'pan'; EXP.prev = EXP.two(); return; }
   const t = EXP.two(), p = EXP.prev; EXP.prev = t; const k = p.d / Math.max(10, t.d), da = ((t.a - p.a) / RAD + 540) % 360 - 180, T = EXP.T, h = expHgt(c);
   expZoom(c, T, k, -da);
+  if (EXP.mode2 === 'tilt') { const kd = (M.map.getVerticalFieldOfView() || 37) / (M.map.getCanvas().clientHeight || 600);
+    c.pt = Math.max(0.5, Math.min(179.5, c.pt - (t.y - p.y) * kd * 1.5)); camApply(); expTick(); return; }
   // (the pan: the point between the fingers kept between them – at the sky, moved on as the fingers go, the faster the higher)
   const d = expRay(c, t.x, t.y), lat0 = c.lat, lng0 = c.lng;
   if (EXP.Tg && d[2] < -0.004) { const tt = Math.min(Math.max(3000, 60 * h), (T.h - c.alt) / d[2]); if (tt > 0) { const o = expOff(c, T); expMove(c, o[0] - d[0] * tt, o[1] - d[1] * tt); } }
