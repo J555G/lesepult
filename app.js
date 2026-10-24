@@ -294,7 +294,7 @@ function wire() {
       setSplit(v.toFixed(1) + '%', false);
       if (v > 0) applyTextAnchor(a);
     };
-    const up = e => { if (e.pointerId !== id) return; removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); setting('split', getSplit()); };
+    const up = e => { if (e.pointerId !== id) return; removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); };
     addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);
   };
   $('#divider').addEventListener('pointerdown', drag);
@@ -349,7 +349,7 @@ function setGlossVisible(on, save) {
   if (save) setting('showGloss', on);
 }
 function getSplit() { return document.documentElement.style.getPropertyValue('--split').trim() || '50%'; }
-function setSplit(v, save = true) {
+function setSplit(v) {
   const n = parseFloat(v), cl = document.body.classList, port = matchMedia('(orientation:portrait)').matches;
   const P = $('#panes').style, size = el => (port ? el.offsetHeight : el.offsetWidth) + 'px';
   // a pane that disappears keeps its size (hidden, behind the other one): no new line breaks, the reading position stays
@@ -357,7 +357,6 @@ function setSplit(v, save = true) {
   if (!cl.contains('solo-text')) P.setProperty('--dw', size($('#dictPane')));
   cl.toggle('solo-dict', n <= 0.5); cl.toggle('solo-text', n >= 99.5);
   document.documentElement.style.setProperty('--split', v); splitIcon(); setGlossMax();
-  if (save) setting('split', v);
 }
 // split button: bounces 0 (dictionary only) -> 1/3 -> 1/2 -> 2/3 -> 1 (text only) -> 2/3 -> … -> 0 -> 1/3 …
 const SPLITS = [0, 100 / 3, 50, 200 / 3, 100];
@@ -424,7 +423,7 @@ function splitIcon() {   // an open book: the fold sits where the split is, the 
   S.gramBtn = true; applyTopButtons();          // (the Grammar button is always shown)
   setGram(!!(await setting('showGram')));
   if (typeof applyMapsOn === 'function') applyMapsOn();
-  const sp = await setting('split'); setSplit(sp || '50%', false);
+  setSplit('50%', false);                         // (every start opens half and half; a split chosen meanwhile is not kept – v367)
   setTextZoom((await setting('textZoom')) || 1);
   S.srcColors = (await setting('srcColors')) !== false; document.body.classList.toggle('nosrccol', !S.srcColors);
   S.posCfg = Object.assign(defaultPosCfg(), (await setting('posCfg')) || {});
