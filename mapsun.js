@@ -237,7 +237,7 @@ function sdRefUpd() {
 // dial shows – the most significant one there, unless another is less than a third as far (586b); "Mare" at sea; else the coordinates. Cut in tiny
 // capitals in the manner of the hours: Roman capitals (V for U), Greek capitals (its Greek name, where the gazetteer has one), or as
 // written (the modern manner). Looked up once the map rests.
-const SOCK_H = 18, SOCK_T = ['settlement', 'polis', 'fortified-settlement', 'port', 'urban', 'town', 'village', 'settlement-modern'];
+const SOCK_H = 18, SOCK_T = ['settlement', 'polis', 'fortified-settlement', 'port', 'urban', 'town', 'village'];   // (ancient places only)
 function sockNameSoon() { clearTimeout(M.sockTm); M.sockTm = setTimeout(sockName, 350); }
 async function sockName() {
   const mk = $('#sdMark'); if (!mk || !M.map) return;
