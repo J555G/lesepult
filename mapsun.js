@@ -143,14 +143,14 @@ function sunRef() {
 // returns to its socket, which stays, empty, meanwhile (523a, 524a). (Unit model scaled to 50 px: plinth, step, shaft, tip.)
 let OB_PSVG = null;
 const obelPanelSVG = () => OB_PSVG ??= (() => {
-  const U = 50, T = 4, X = 14, y = v => (T + U * (1 - v)).toFixed(2), x = d => (d * U).toFixed(2), tip = 1 - OB_TIP;
+  const T = 4, U = 52 / (1 + OB.rb), X = 14, y = v => (T + U * (1 + OB.rb - v)).toFixed(2), x = d => +(d * U).toFixed(2);
   return `<svg class="sdobs" width="28" height="68" viewBox="0 0 28 68" aria-hidden="true">`
-    + `<path class="sdsock" d="M1 ${T + U + 2}h26v12H1z"/><path class="sdsockt" d="M1 ${T + U + 2}h26v2.2H1z"/><path class="sdsockh" d="M${X - 9} ${T + U + 2}h18v1.4H${X - 9}z"/>`
+    + `<path class="sdsock" d="M1 56h26v12H1z"/><path class="sdsockt" d="M1 56h26v2.2H1z"/><path class="sdsockh" d="M${X - x(OB.p1)} 56h${2 * x(OB.p1)}v1.4H${X - x(OB.p1)}z"/>`
     + `<g class="sdob" role="button" aria-label="Obelisk: drag it onto the map to set it up there">`
-    + `<path class="sdobh" d="M0 0h28v${T + U + 2}H0z"/>`
-    + `<path class="sdst" d="M${X - 8.5} ${y(0)}h17v-2.5h-17z M${X - 6.5} ${y(0.05)}h13v-1.5h-13z"/>`
-    + `<path class="sdsh0" d="M${X - 4.4} ${y(0.08)}L${X - 2.6} ${y(tip)}H${X}V${y(0.08)}z"/><path class="sdsh1" d="M${X} ${y(0.08)}V${y(tip)}H${X + 2.6}L${X + 4.4} ${y(0.08)}z"/>`
-    + `<path class="sdtip0" d="M${X - 2.6} ${y(tip)}L${X} ${T}V${y(tip)}z"/><path class="sdtip1" d="M${X} ${T}L${X + 2.6} ${y(tip)}H${X}z"/></g></svg>`;
+    + `<path class="sdobh" d="M0 0h28v56H0z"/>`
+    + `<path class="sdst" d="M${X - x(OB.p1)} ${y(0)}H${X + x(OB.p1)}V${y(0.05)}H${X - x(OB.p1)}z M${X - x(OB.p2)} ${y(0.05)}H${X + x(OB.p2)}V${y(0.08)}H${X - x(OB.p2)}z"/>`
+    + `<path class="sdsh0" d="M${X - x(OB.sb)} ${y(0.08)}L${X - x(OB.st)} ${y(OB.top)}H${X}V${y(0.08)}z"/><path class="sdsh1" d="M${X} ${y(0.08)}V${y(OB.top)}H${X + x(OB.st)}L${X + x(OB.sb)} ${y(0.08)}z"/>`
+    + `<circle class="sdball" cx="${X}" cy="${y(1)}" r="${x(OB.rb)}"/></g></svg>`;
 })();
 // its light: the face towards the sun brighter (as seen on the screen: the sun's bearing against the map's)
 function obelPanelLight() {
@@ -160,8 +160,9 @@ function obelPanelLight() {
   // (darker by degrees through the twilight – v381)
   { const u = Math.max(0, Math.min(1, (s.alt + 8) / 10)), n = sunOn() ? 1 - u * u * (3 - 2 * u) : 0; mk.style.setProperty('--obn', n.toFixed(2)); }
   // (the gold: the face towards the sun the bright one)
-  const t0 = mk.querySelector('.sdtip0'), t1 = mk.querySelector('.sdtip1'), id = mk.querySelector('pattern')?.id?.slice(0, -1);
-  if (t0 && t1 && id) { t0.setAttribute('fill', `url(#${id}${right ? 'g1' : 'g0'})`); t1.setAttribute('fill', `url(#${id}${right ? 'g0' : 'g1'})`); }
+  // (the gilded ball: its highlight on the sun's side – v387)
+  const bl = mk.querySelector('.sdball'), id = mk.querySelector('pattern')?.id?.slice(0, -1);
+  if (bl && id) bl.setAttribute('fill', `url(#${id}${right ? 'b1' : 'b0'})`);
   const sl = mk.querySelector('.obszv'); if (sl && document.activeElement !== sl) sl.value = Math.round(Math.log(obelK() * 3) / Math.log(9) * 100);
 }
 // the obelisk at rest in the reworked panel (540a, v376): its socket on the panel's foot, its golden tip just over the top – as tall
@@ -169,25 +170,27 @@ function obelPanelLight() {
 function obelPanelFit(Ly) {
   const mk = $('#sdMark'), pn = $('#sunPanel'); if (!mk) return;
   // (on the bar since v380: from its top edge to the tip just over the panel's top)
-  const Hm = Ly.H - SD.BAR - 12, U = Hm - 16, gap = (Ly.zx - (SD.ZR + 4) * Ly.k) - (Ly.dx + (SD.R + 6) * Ly.k) - 14, sx = Math.max(0.3, Math.min(1, gap / (0.34 * U + 10)));
-  const Wm = Math.ceil(0.34 * U * sx + 10), away = mk.classList.contains('away');
+  const Hm = Ly.H - SD.BAR - 12, U = (Hm - 4 - SOCK_H) / (1 + OB.rb), gap = (Ly.zx - (SD.ZR + 4) * Ly.k) - (Ly.dx + (SD.R + 6) * Ly.k) - 14, sx = Math.max(0.3, Math.min(1, gap / (2 * OB.p1 * U + 10)));
+  const Wm = Math.ceil(2 * OB.p1 * U * sx + 10), away = mk.classList.contains('away');
   mk.style.width = Wm + 'px'; mk.style.height = Hm + 'px';
   // (while the obelisk stands on the map: where it stood, a slider for its size – 552, v380)
   mk.innerHTML = obelTallSVG(Wm, Hm, U, sx) + `<input type="range" class="obszv" min="0" max="100" value="${Math.round(Math.log(obelK() * 3) / Math.log(9) * 100)}" data-obsz="1" aria-label="Size of the obelisk" title="Size of the obelisk" style="width:${Math.max(40, Hm - 52)}px">`;
-  mk.classList.toggle('away', away); obelPanelLight();
+  mk.classList.toggle('away', away); obelPanelLight(); sockName();
 }
 function obelTallSVG(Wm, Hm, U, sx) {
-  const X = Wm / 2, y = v => (4 + U * (1 - v)).toFixed(2), tip = 1 - OB_TIP, h = d => +(d * U * sx).toFixed(2), id = 'ob' + Math.round(Hm);
+  const X = Wm / 2, y = v => (4 + U * (1 + OB.rb - v)).toFixed(2), tp = OB.top, S = SOCK_H, h = d => +(d * U * sx).toFixed(2), id = 'ob' + Math.round(Hm);
+  const gb = (n, fx) => `<radialGradient id="${id}${n}" cx="${fx}" cy=".36" r=".72" fx="${fx}" fy=".3"><stop offset="0" stop-color="#ffffff"/><stop offset=".16" stop-color="#fff2c0"/><stop offset=".48" stop-color="#f2c444"/><stop offset=".82" stop-color="#a87414"/><stop offset="1" stop-color="#6a4610"/></radialGradient>`;
+  const shaft = `M${X - h(OB.sb)} ${y(0.08)}L${X - h(OB.st)} ${y(tp)}H${X + h(OB.st)}L${X + h(OB.sb)} ${y(0.08)}`, ball = `cx="${X}" cy="${y(1)}" rx="${h(OB.rb)}" ry="${(U * OB.rb).toFixed(2)}"`;
   return `<svg class="sdobs" width="${Wm}" height="${Hm}" viewBox="0 0 ${Wm} ${Hm}" aria-hidden="true"><defs>`
-    + `<pattern id="${id}p" patternUnits="userSpaceOnUse" width="64" height="64"><image href="${porphyryURL()}" width="64" height="64"/></pattern>`
-    + `<linearGradient id="${id}g0" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#d8a032"/><stop offset=".38" stop-color="#ffe9a8"/><stop offset=".5" stop-color="#ffffff"/><stop offset=".62" stop-color="#ffe490"/><stop offset="1" stop-color="#f0b83a"/></linearGradient>`
-    + `<linearGradient id="${id}g1" x1="1" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#6e4a10"/><stop offset=".45" stop-color="#b8861c"/><stop offset=".55" stop-color="#fff0c0"/><stop offset=".65" stop-color="#c9971f"/><stop offset="1" stop-color="#8a6014"/></linearGradient></defs>`
-    + `<path class="sdsockhit" d="M0 ${Hm - 30}h${Wm}v30H0z"/><path class="sdsock" d="M1 ${Hm - 12}h${Wm - 2}v12H1z"/><path class="sdsockt" d="M1 ${Hm - 12}h${Wm - 2}v2.2H1z"/><path class="sdsockh" d="M${X - h(0.17)} ${Hm - 12}h${2 * h(0.17)}v1.4H${X - h(0.17)}z"/>`
+    + `<pattern id="${id}p" patternUnits="userSpaceOnUse" width="64" height="64"><image href="${porphyryURL()}" width="64" height="64"/></pattern>${gb('b0', '.32')}${gb('b1', '.68')}</defs>`
+    + `<path class="sdsockhit" d="M0 ${Hm - 30}h${Wm}v30H0z"/><path class="sdsock" d="M1 ${Hm - S}h${Wm - 2}v${S}H1z"/><path class="sdsockt" d="M1 ${Hm - S}h${Wm - 2}v2.2H1z"/><path class="sdsockh" d="M${X - h(OB.p1)} ${Hm - S}h${2 * h(OB.p1)}v1.4H${X - h(OB.p1)}z"/>`
+    + `<text class="sdsockn sdsockl" x="${X}" y="${(Hm - S / 2 + 2.6).toFixed(1)}"></text><text class="sdsockn" x="${X}" y="${(Hm - S / 2 + 2.2).toFixed(1)}"></text>`
     + `<g class="sdob" role="button" aria-label="Obelisk: drag it onto the map to set it up there">`
-    + `<path class="sdst" fill="url(#${id}p)" d="M${X - h(0.17)} ${y(0)}h${2 * h(0.17)}V${y(0.05)}h${-2 * h(0.17)}z M${X - h(0.13)} ${y(0.05)}h${2 * h(0.13)}V${y(0.08)}h${-2 * h(0.13)}z"/>`
-    + `<path class="sdsh0" fill="url(#${id}p)" d="M${X - h(0.088)} ${y(0.08)}L${X - h(0.052)} ${y(tip)}H${X}V${y(0.08)}z"/><path class="sdsh1" fill="url(#${id}p)" d="M${X} ${y(0.08)}V${y(tip)}H${X + h(0.052)}L${X + h(0.088)} ${y(0.08)}z"/>`
-    + `<path class="sdshd0" d="M${X - h(0.088)} ${y(0.08)}L${X - h(0.052)} ${y(tip)}H${X}V${y(0.08)}z"/><path class="sdshd1" d="M${X} ${y(0.08)}V${y(tip)}H${X + h(0.052)}L${X + h(0.088)} ${y(0.08)}z"/>`
-    + `<path class="sdtip0" fill="url(#${id}g0)" d="M${X - h(0.052)} ${y(tip)}L${X} 4V${y(tip)}z"/><path class="sdtip1" fill="url(#${id}g1)" d="M${X} 4L${X + h(0.052)} ${y(tip)}H${X}z"/><path class="sdshn" d="M${X - h(0.17)} ${y(0)}h${2 * h(0.17)}V${y(0.08)}H${X + h(0.088)}L${X + h(0.052)} ${y(tip)}H${X - h(0.052)}L${X - h(0.088)} ${y(0.08)}H${X - h(0.17)}z"/><path class="sdtipd" d="M${X - h(0.052)} ${y(tip)}L${X} 4L${X + h(0.052)} ${y(tip)}z"/></g></svg>`;
+    + `<path class="sdst" fill="url(#${id}p)" d="M${X - h(OB.p1)} ${y(0)}h${2 * h(OB.p1)}V${y(0.05)}h${-2 * h(OB.p1)}z M${X - h(OB.p2)} ${y(0.05)}h${2 * h(OB.p2)}V${y(0.08)}h${-2 * h(OB.p2)}z"/>`
+    + `<path class="sdsh0" fill="url(#${id}p)" d="M${X - h(OB.sb)} ${y(0.08)}L${X - h(OB.st)} ${y(tp)}H${X}V${y(0.08)}z"/><path class="sdsh1" fill="url(#${id}p)" d="M${X} ${y(0.08)}V${y(tp)}H${X + h(OB.st)}L${X + h(OB.sb)} ${y(0.08)}z"/>`
+    + `<path class="sdshd0" d="M${X - h(OB.sb)} ${y(0.08)}L${X - h(OB.st)} ${y(tp)}H${X}V${y(0.08)}z"/><path class="sdshd1" d="M${X} ${y(0.08)}V${y(tp)}H${X + h(OB.st)}L${X + h(OB.sb)} ${y(0.08)}z"/>`
+    + `<ellipse class="sdball" ${ball} fill="url(#${id}b0)"/>`
+    + `<path class="sdshn" d="M${X - h(OB.p1)} ${y(0)}h${2 * h(OB.p1)}V${y(0.08)}H${X + h(OB.sb)}L${X + h(OB.st)} ${y(tp)}H${X - h(OB.st)}L${X - h(OB.sb)} ${y(0.08)}H${X - h(OB.p1)}z"/><ellipse class="sdtipd" ${ball}/></g></svg>`;
 }
 // over the sundial (to put the obelisk back)
 function overDial(ev) { for (const el of [$('#sunPanel'), $('#sdMark')]) { const q = el?.getBoundingClientRect(); if (q && ev.clientX >= q.left && ev.clientX <= q.right && ev.clientY >= q.top && ev.clientY <= q.bottom) return true; } return false; }
@@ -223,11 +226,46 @@ document.addEventListener('pointerdown', ev => {
 }, true);
 function sdRefUpd() {
   const mk = $('#sdMark'), m = M.map; if (!mk || !m) return;
-  mk.classList.toggle('away', !!M.cfg.gnomon); obelPanelLight(); if (M.cfg.gnomon) return;
+  mk.classList.toggle('away', !!M.cfg.gnomon); obelPanelLight(); if (M.cfg.gnomon) { sockNameSoon(); return; }
   const r = mk.getBoundingClientRect(), cr = m.getCanvas().getBoundingClientRect(), pt = [r.left + r.width / 2 - cr.left, r.top - cr.top];
   let ll = null; try { ll = m.unproject(pt); const q = m.project(ll); if (Math.hypot(q.x - pt[0], q.y - pt[1]) > 2 || Math.abs(ll.lat) > 85.05) ll = null; } catch (_) { ll = null; }
   mk.classList.toggle('off', !ll);
   if (ll) M.sdRef = { lng: ((ll.lng + 540) % 360) - 180, lat: ll.lat };
+  sockNameSoon();
+}
+// the name on the socket (583a–585a, v387): the nearest ancient settlement of the gazetteer (Pleiades) within 25 km of the place the
+// dial shows – a more significant one preferred over a slightly nearer one; "Mare" at sea; else the coordinates. Cut in tiny
+// capitals in the manner of the hours: Roman capitals (V for U), Greek capitals (its Greek name, where the gazetteer has one), or as
+// written (the modern manner). Looked up once the map rests.
+const SOCK_H = 18, SOCK_T = ['settlement', 'polis', 'fortified-settlement', 'port', 'urban', 'town', 'village', 'settlement-modern'];
+function sockNameSoon() { clearTimeout(M.sockTm); M.sockTm = setTimeout(sockName, 350); }
+async function sockName() {
+  const mk = $('#sdMark'); if (!mk || !M.map) return;
+  const r = sunRef(), key = r.lat.toFixed(3) + ',' + r.lng.toFixed(3);
+  if (M.sockKey !== key) { M.sockKey = key; M.sockPl = undefined;
+    let P = M.P?.full ? M.P : null;
+    if (!P && !M.sockLoad) { M.sockLoad = true; try { if (await mapHas('places')) P = await loadPlaceIndex(true); } catch (_) {} M.sockLoad = false; }
+    let best = null;
+    if (P?.P?.length) { const ts = new Set(SOCK_T.map(t => P.ti[t]).filter(v => v != null)), cl = Math.cos(r.lat * RAD); let bs = Infinity;
+      for (const p of P.P) { if (!p || p.lat == null || !p.ty?.some(t => ts.has(t))) continue;
+        const dy = (p.lat - r.lat) * 111.32; if (dy > 25 || dy < -25) continue; const dx = (((p.lon - r.lng + 540) % 360) - 180) * 111.32 * cl, d = Math.hypot(dx, dy); if (d > 25) continue;
+        const sc = d / (1 + 0.35 * (p.w || 0)); if (sc < bs) { bs = sc; best = p; } } }
+    let sea = false;
+    if (!best) { try { const q = M.map.project([r.lng, r.lat]); sea = M.map.getLayer('land') ? !M.map.queryRenderedFeatures([q.x, q.y], { layers: ['land'] }).length : false; } catch (_) {} }
+    M.sockPl = { p: best, sea, r }; }
+  const o = M.sockPl; if (!o) return;
+  const fm = M.cfg.sunFmt || 'modern', plain = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').normalize('NFC');
+  const co = `${Math.abs(o.r.lat).toFixed(1)}° ${o.r.lat >= 0 ? 'N' : 'S'} ${Math.abs(o.r.lng).toFixed(1)}° ${o.r.lng >= 0 ? 'E' : 'W'}`;
+  let t;
+  if (o.p) { const la = cleanT(o.p), gr = o.p.names?.find(n => n[1] === 'grc' && isGreek(n[0]))?.[0];
+    t = fm === 'roman' ? plain(la).toUpperCase().replace(/U/g, 'V').replace(/J/g, 'I') : fm === 'greek' ? plain(gr || la).toUpperCase() : la; }
+  else t = o.sea ? (fm === 'greek' ? 'ΘΑΛΑΣΣΑ · ' : fm === 'roman' ? 'MARE · ' : 'Mare · ') + co : co;
+  // (fitted into the socket: smaller, then pressed together, if long)
+  const W = mk.querySelector('.sdsock')?.getBBox?.().width || 40;
+  mk.querySelectorAll('.sdsockn').forEach(e => { e.textContent = t; e.removeAttribute('textLength'); e.style.fontSize = '6.4px';
+    let w = 0; try { w = e.getComputedTextLength(); } catch (_) {}
+    if (w > W - 4) { const f = Math.max(4.2, 6.4 * (W - 4) / w); e.style.fontSize = f.toFixed(2) + 'px'; try { w = e.getComputedTextLength(); } catch (_) {}
+      if (w > W - 4) { e.setAttribute('textLength', (W - 4).toFixed(1)); e.setAttribute('lengthAdjust', 'spacingAndGlyphs'); } } });
 }
 // on every movement of the map (once a frame): the mark's place, the dial, the shading, the obelisk's shadow
 function sunMove() {
@@ -244,8 +282,11 @@ function sunMoveHook() { const m = M.map; if (m && !m._sunMv) { m._sunMv = true;
 // zooms in), the reader's size ⅓ … 3 times; its shadow on the ground away from the sun, long when the sun is low, none at night. Dragged,
 // it moves; "Here" again takes it away.
 const OB_H = 34, obelK = () => M.cfg?.obelSize || 1;              // (its height in screen pixels, times the reader's size)
-// the golden pyramid on top: as high as a pyramid of four equilateral faces on the shaft's top (0.104 wide) – v373
-const OB_TIP = 0.104 / Math.SQRT2;
+// the obelisk's proportions (580a, 581b – v387): after the obelisk of Montecitorio, Augustus's gnomon on the Campus Martius –
+// 21.79 m high, about 2.3 m across at the foot and 1.6 m at the top (estimated from its weight, some 230 t of granite); on its top,
+// as Pliny tells (NH 36.72), a gilded ball, whose centre casts the shadow that is read (unit height 1); the plinth in two steps.
+// (half-widths: p1, p2 the plinth's steps, sb and st the shaft's foot and top; rb the ball's radius; top the shaft's top)
+const OB = { p1: 0.11, p2: 0.085, sb: 0.047, st: 0.0327, rb: 0.0294 }; OB.top = 1 - OB.rb;
 function obelGeo() {
   const g = M.cfg.gnomon, m = M.map, z = m.getZoom(), lat = g.lat * RAD;
   // its height in metres: fixed when it is set (OB_H pixels at the zoom of that moment), times the reader's size
@@ -262,25 +303,27 @@ function obelGeo() {
   const dLat = d => d / 111320, dLon = d => d / (111320 * Math.max(0.05, Math.cos(lat)));
   const sq = h => [[[g.lng - dLon(h), g.lat - dLat(h)], [g.lng + dLon(h), g.lat - dLat(h)], [g.lng + dLon(h), g.lat + dLat(h)], [g.lng - dLon(h), g.lat + dLat(h)], [g.lng - dLon(h), g.lat - dLat(h)]]];
   const f = [], piece = (h, b, t, c) => f.push({ type: 'Feature', properties: { b, t, c: dim(c) }, geometry: { type: 'Polygon', coordinates: sq(h) } });
-  piece(0.17 * H, 0, 0.05 * H, '#3e1524'); piece(0.13 * H, 0.05 * H, 0.08 * H, '#4a1a2b');            // (the plinth, in two steps)
-  const SH = 1 - OB_TIP - 0.08;
-  for (let i = 0; i < 20; i++) { const a = (i + 0.5) / 20; piece((0.088 - 0.036 * a) * H, (0.08 + SH * i / 20) * H, (0.08 + SH * (i + 1) / 20) * H, '#6e2b3e'); }   // (the shaft, tapering in fine steps)
-  for (let i = 0; i < 6; i++) { const a = (i + 0.5) / 6; piece((0.052 * (1 - a) + 0.002) * H, (1 - OB_TIP + OB_TIP * i / 6) * H, (1 - OB_TIP + OB_TIP * (i + 1) / 6) * H, '#d9a92e'); }   // (the golden top)
+  piece(OB.p1 * H, 0, 0.05 * H, '#3e1524'); piece(OB.p2 * H, 0.05 * H, 0.08 * H, '#4a1a2b');            // (the plinth, in two steps)
+  const SH = OB.top - 0.08;
+  for (let i = 0; i < 20; i++) { const a = (i + 0.5) / 20; piece((OB.sb - (OB.sb - OB.st) * a) * H, (0.08 + SH * i / 20) * H, (0.08 + SH * (i + 1) / 20) * H, '#6e2b3e'); }   // (the shaft, tapering in fine steps)
+  for (let i = 0; i < 6; i++) { const u = -1 + (2 * i + 1) / 6; piece(OB.rb * Math.sqrt(1 - u * u) * H, (1 + OB.rb * (-1 + 2 * i / 6)) * H, (1 + OB.rb * (-1 + 2 * (i + 1) / 6)) * H, '#d9a92e'); }   // (the gilded ball, in slices)
   // the shadow: from the foot, away from the sun
   const s = sunAt(sunPos(sunTime()), g.lng, g.lat), sh = [];
   if (sunOn() && s.alt > 0) {
     // (along great circles from the foot, so a long shadow stays straight on the globe; strong, fading only slightly at its
     // edges and towards the tip – v329)
-    const L = Math.min(8 * H, H / Math.tan(Math.max(1.5, s.alt) * RAD)), az = s.az + 180, w = 0.088 * H, R = 6371008.8, la1 = g.lat * RAD, lo1 = g.lng * RAD;
+    const L = Math.min(8 * H, H / Math.tan(Math.max(1.5, s.alt) * RAD)), az = s.az + 180, w = OB.sb * H, R = 6371008.8, la1 = g.lat * RAD, lo1 = g.lng * RAD;
     const dest = (brg, dist) => { const t = brg * RAD, d = dist / R, la = Math.asin(Math.sin(la1) * Math.cos(d) + Math.cos(la1) * Math.sin(d) * Math.cos(t));
       return [(lo1 + Math.atan2(Math.sin(t) * Math.sin(d) * Math.cos(la1), Math.cos(d) - Math.sin(la1) * Math.sin(la))) / RAD, la / RAD]; };
     const P = (along, side) => { const dd = Math.hypot(along, side); return dd < 1e-6 ? [g.lng, g.lat] : dest(az + Math.atan2(side, along) / RAD, dd); };
-    // the outline: as broad as the foot, narrowing to 0.6 of it, then to the tip; e widens (or narrows) it a little
-    const half = t => w * (1 - 0.4 * Math.min(1, t / (1 - OB_TIP))) * (t > 1 - OB_TIP ? (1 - t) / OB_TIP : 1);
-    const shape = (e, len) => { const pts = [], n = 12;
-      for (let i = 0; i <= n; i++) { const t = i / n, a = t * len; pts.push(P(a, half(t) + e(a))); }
-      pts.push(P(len + e(len), 0));
-      for (let i = n; i >= 0; i--) { const t = i / n, a = t * len; pts.push(P(a, -half(t) - e(a))); }
+    // the outline: as broad as the foot, narrowing to the shaft's top, then the ball's round shadow (stretched along the ground);
+    // e widens (or narrows) it a little (v387)
+    const half = t => t <= OB.top ? w * (1 - (1 - OB.st / OB.sb) * t / OB.top) : OB.rb * H * Math.sqrt(Math.max(0, 1 - ((t - 1) / OB.rb) ** 2));
+    const T1 = 1 + OB.rb, ts = [...Array.from({ length: 12 }, (_, i) => OB.top * i / 12), ...Array.from({ length: 17 }, (_, i) => OB.top + (T1 - OB.top) * i / 16)];
+    const shape = (e, len) => { const pts = [];
+      for (const t of ts) { const a = t * len; pts.push(P(a, half(t) + e(a))); }
+      pts.push(P(T1 * len + e(T1 * len), 0));
+      for (const t of ts.slice().reverse()) { const a = t * len; pts.push(P(a, -half(t) - e(a))); }
       pts.push(pts[0]); return [pts]; };
     // dark within, a narrow fading rim; the tip reached only by the faint rim layers
     const strong = Math.max(0.3, Math.min(0.62, 0.3 + s.alt / 25)), sb = 0.012 * H, k = 0.012;
@@ -338,13 +381,14 @@ function obel3dLayer(T) {
       const tex = porphyryTex(T), stone = new T.MeshStandardMaterial({ map: tex, roughness: 0.32, metalness: 0.02 }), base = new T.MeshStandardMaterial({ map: tex, color: 0x9a8890, roughness: 0.5 });
       const g = this.g = new T.Group();
       const box = (w, h, y, mat) => { const b = new T.Mesh(new T.BoxGeometry(w, h, w), mat); b.position.y = y + h / 2; g.add(b); };
-      box(0.34, 0.05, 0, base); box(0.26, 0.03, 0.05, base);                                      // (the plinth, in two steps: unit height 1)
-      const SH = 1 - OB_TIP - 0.08, shaft = new T.Mesh(new T.CylinderGeometry(0.052 * Math.SQRT2, 0.088 * Math.SQRT2, SH, 4, 1), stone);   // (a square frustum)
+      box(2 * OB.p1, 0.05, 0, base); box(2 * OB.p2, 0.03, 0.05, base);                                      // (the plinth, in two steps: unit height 1)
+      const SH = OB.top - 0.08, shaft = new T.Mesh(new T.CylinderGeometry(OB.st * Math.SQRT2, OB.sb * Math.SQRT2, SH, 4, 1), stone);   // (a square frustum)
       shaft.rotation.y = Math.PI / 4; shaft.position.y = 0.08 + SH / 2; g.add(shaft);
       // the tip: a perfect pyramid of gold – four equilateral triangles on the shaft's square top (520a, v373)
       // (polished: it mirrors a simple sky and ground around it – 526b, v374; the mirror image made once, before its first drawing)
       const gold = this.gold = new T.MeshStandardMaterial({ color: 0xffd866, metalness: 1, roughness: 0.04 });   // (polished – 554, v380; more so v381)
-      const tip = new T.Mesh(new T.ConeGeometry(0.052 * Math.SQRT2, OB_TIP, 4, 1), gold); tip.rotation.y = Math.PI / 4; tip.position.y = 1 - OB_TIP / 2; g.add(tip);
+      // (the gilded ball of Augustus's gnomon on top, its centre at the unit height – 581b, v387)
+      const ball = new T.Mesh(new T.SphereGeometry(OB.rb, 32, 16), gold); ball.position.y = 1; g.add(ball);
       g.updateMatrixWorld(true); this.scene.add(g);
       // its shadow where the map is flat: the model pressed flat onto the ground along the sun's rays, five times from a sun moved a
       // little each way – overlapping, they are dark in the middle and soften at the edges, more towards the tip (each pixel taken
@@ -411,10 +455,10 @@ function obel3dProj() {
 function obelHit(x, y, touch) {
   const pr = obel3dProj(); if (!pr) return null;
   const lv = (hw, yy) => [[-hw, -hw], [hw, -hw], [hw, hw], [-hw, hw]].map(([a, b]) => pr(a, yy, b));
-  const parts = [[...lv(0.17, 0), ...lv(0.17, 0.05)], [...lv(0.13, 0.05), ...lv(0.13, 0.08)], [...lv(0.088, 0.08), ...lv(0.052, 1 - OB_TIP)], [...lv(0.052, 1 - OB_TIP), pr(0, 1, 0)]];
+  const parts = [[...lv(OB.p1, 0), ...lv(OB.p1, 0.05)], [...lv(OB.p2, 0.05), ...lv(OB.p2, 0.08)], [...lv(OB.sb, 0.08), ...lv(OB.st, OB.top)], [...lv(OB.rb, OB.top), ...lv(OB.rb, 1 + OB.rb)]];
   if (parts.some(q => q.some(v => !v))) return null;
   // how broad the shaft is drawn: across the middle
-  const mid = lv(0.07, 0.5), w = Math.max(Math.hypot(mid[0][0] - mid[2][0], mid[0][1] - mid[2][1]), Math.hypot(mid[1][0] - mid[3][0], mid[1][1] - mid[3][1])) / Math.SQRT2;
+  const mid = lv((OB.sb + OB.st) / 2, 0.5), w = Math.max(Math.hypot(mid[0][0] - mid[2][0], mid[0][1] - mid[2][1]), Math.hypot(mid[1][0] - mid[3][0], mid[1][1] - mid[3][1])) / Math.SQRT2;
   const room = Math.max(0, ((touch ? 30 : 18) - w) / 2);
   return parts.some(q => hullDist(q, x, y) <= room);
 }
@@ -1302,7 +1346,7 @@ function dialDrag(ev, toDial, onTap) {
 }
 async function sdFmtNext() {
   const f = M.cfg.sunFmt || 'modern'; M.cfg.sunFmt = f === 'modern' ? 'roman' : f === 'roman' ? 'greek' : 'modern';
-  await saveMapCfg(); sundialPaint(); sunClock();
+  await saveMapCfg(); sundialPaint(); sunClock(); sockName();
 }
 // the dial large, over the map (as the zodiac wheel): a copy of the panel's dial, renewed whenever it changes; a finger on it sets
 // the hour; a tap outside it, or ✕, closes it

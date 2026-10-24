@@ -2129,3 +2129,7 @@ dialog .sortpair button{transition:border-color .15s}
 :is(.msdial,.sdbig) .sdmoonc{fill:#3b4466;opacity:1}
 :is(.msdial,.sdbig) .sdmoono{fill:none;stroke:#b8913f;stroke-width:.8}
 .msdial .sdfmt{flex:none;height:30px;min-width:46px;padding:0 9px;margin-left:6px;border-radius:15px;border:1px solid rgba(255,255,255,.45);background:rgba(0,0,0,.28);color:#fff;font:600 13px var(--greek);cursor:pointer;touch-action:manipulation}
+.sdghost .sdball{fill:#f3c84e;stroke:#a87a18;stroke-width:.4}
+.sdmark .sdball{stroke:#7a5514;stroke-width:.3}
+.sdmark .sdsockn{font:600 6.4px var(--greek);fill:#dccbaa;text-anchor:middle;letter-spacing:.3px;pointer-events:none}
+.sdmark .sdsockl{fill:#160f0b;opacity:.7}
