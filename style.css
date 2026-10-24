@@ -1895,8 +1895,24 @@ dialog .sortpair button{transition:border-color .15s}
 #mapBody.sdopen .mtime{display:none!important}
 #mapBody.sdopen .mcred{bottom:234px}
 /* the mark at the middle of the panel's upper edge: its tip is the place the dial shows (until an obelisk stands) */
-.sdmark{position:absolute;left:50%;bottom:222px;transform:translateX(-50%);width:12px;height:10px;z-index:5;pointer-events:none;transition:opacity .4s}
-.sdmark.off{opacity:0}
+.sdmark{position:absolute;left:50%;bottom:220px;transform:translateX(-50%);width:28px;height:68px;z-index:5;pointer-events:none;transition:opacity .4s}
+.sdmark .sdob{pointer-events:auto;cursor:grab;touch-action:none}
+.sdmark .sdobh{fill:transparent}
+.sdmark.away .sdob{display:none}
+.sdmark.off .sdob{opacity:.45}
+.sdsock{fill:#4a3a33;stroke:#2a1f1a;stroke-width:.8}
+.sdsockt{fill:#6e5a4e}
+.sdsockh{fill:#2a1f1a;opacity:.5}
+.sdst{fill:#4a1a2b;stroke:#2a0e18;stroke-width:.5}
+.sdsh0{fill:#8a3a52}.sdsh1{fill:#5a2233}
+.sdmark.lr .sdsh0,.sdghost.lr .sdsh0{fill:#5a2233}.sdmark.lr .sdsh1,.sdghost.lr .sdsh1{fill:#8a3a52}
+.sdtip0{fill:#ffd76a}.sdtip1{fill:#b98a1e}
+.sdmark.lr .sdtip0,.sdghost.lr .sdtip0{fill:#b98a1e}.sdmark.lr .sdtip1,.sdghost.lr .sdtip1{fill:#ffd76a}
+.sdmark.night .sdsh0,.sdmark.night .sdsh1{fill:#3a1622}.sdmark.night .sdtip0,.sdmark.night .sdtip1{fill:#7a5c1a}
+.sdghost{position:fixed;z-index:60;width:28px;height:68px;pointer-events:none;filter:drop-shadow(0 3px 4px rgba(0,0,0,.5))}
+.sdghost .sdsock,.sdghost .sdsockt,.sdghost .sdsockh{display:none}
+.sdghost.home{opacity:.55}
+.sdmark.home .sdsock{fill:#7a6250}
 .sdmark svg{display:block}
 #mapCanvas.picking{cursor:crosshair}
 /* (the upper edge fades into the map; the band above the dial takes the sky's colour) */

@@ -50,7 +50,7 @@ function camHTML() {
     // (free flight: the icon is the button – on and off; not kept for the next start – v363)
     + `<div class="mrow"><span>Free flight<small class="cmh">two sticks: move with the left, steer with the right</small></span><button type="button" class="cmfly${M.cam?.mode === 'fly' ? ' on' : ''}" data-camfly="1" aria-pressed="${M.cam?.mode === 'fly'}" title="${M.cam?.mode === 'fly' ? 'Land: back to the map' : 'Take off'}" aria-label="Free flight">${ICARUS_ICON}</button></div>`
     + `<button type="button" class="mrsave cmb" data-camobel="1"${g ? '' : ' disabled'}>${OBEL_EYE_ICON}${M.cam?.mode === 'obel' ? 'Leave the obelisk' : 'View from the obelisk’s tip'}</button>`
-    + (g ? '' : '<small class="hint mrow">Place an obelisk first: Here, in the sundial.</small>')
+    + (g ? '' : '<small class="hint mrow">Set up the obelisk first: drag it from the sundial onto the map.</small>')
     + `<button type="button" class="mrsave" data-camsky="1">All-sky view${g ? ' from the obelisk' : ''}</button>`;
 }
 function camPop() { rightPop('camera', 'Camera', camHTML()); }
@@ -275,7 +275,7 @@ function flyPaint() { const c = M.cam, s = $('#flyInfo'); if (!s) return; const 
 // the tip of the obelisk: the ground where it stands and its height as placed (times its size)
 function obelTip() { const g = M.cfg.gnomon; if (!g || !M.map) return null; const eye = (g.h || 30) * obelK(); return { lng: g.lng, lat: g.lat, alt: groundAt(g.lng, g.lat) + eye, eye }; }
 function camObelisk() {
-  const t = obelTip(); if (!t) { note('Place an obelisk first: Here, in the sundial.'); return; }
+  const t = obelTip(); if (!t) { note('Set up the obelisk first: drag it from the sundial onto the map.'); return; }
   const s = sunOn() ? sunAt(sunPos(sunTime()), t.lng, t.lat) : null;
   camTake('obel', { ...t, br: s && s.alt > -10 ? s.az : M.map.getBearing(), pt: 92, roll: camCfg().roll ? camCfg().rollv || 0 : 0 });   // (facing the sun, if it is up)
 }

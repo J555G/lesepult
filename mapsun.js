@@ -137,9 +137,53 @@ function sunRef() {
   if (M.sdOpen && M.sdRef) return M.sdRef;
   return M.map?.getCenter() || { lng: 24, lat: 38 };
 }
+// The obelisk at rest (522a, v373): while it is not on the map it stands on a socket on the sundial's upper edge, in the middle,
+// always the same size; its golden tip points at the ground straight beneath it (its height not counted), and that place is the
+// one the dial shows. Dragged onto the map it stands there (its height then counted, at its tip); dragged back onto the dial it
+// returns to its socket, which stays, empty, meanwhile (523a, 524a). (Unit model scaled to 50 px: plinth, step, shaft, tip.)
+let OB_PSVG = null;
+const obelPanelSVG = () => OB_PSVG ??= (() => {
+  const U = 50, T = 4, X = 14, y = v => (T + U * (1 - v)).toFixed(2), x = d => (d * U).toFixed(2), tip = 1 - OB_TIP;
+  return `<svg class="sdobs" width="28" height="68" viewBox="0 0 28 68" aria-hidden="true">`
+    + `<path class="sdsock" d="M1 ${T + U + 2}h26v12H1z"/><path class="sdsockt" d="M1 ${T + U + 2}h26v2.2H1z"/><path class="sdsockh" d="M${X - 9} ${T + U + 2}h18v1.4H${X - 9}z"/>`
+    + `<g class="sdob" role="button" aria-label="Obelisk: drag it onto the map to set it up there">`
+    + `<path class="sdobh" d="M0 0h28v${T + U + 2}H0z"/>`
+    + `<path class="sdst" d="M${X - 8.5} ${y(0)}h17v-2.5h-17z M${X - 6.5} ${y(0.05)}h13v-1.5h-13z"/>`
+    + `<path class="sdsh0" d="M${X - 4.4} ${y(0.08)}L${X - 2.6} ${y(tip)}H${X}V${y(0.08)}z"/><path class="sdsh1" d="M${X} ${y(0.08)}V${y(tip)}H${X + 2.6}L${X + 4.4} ${y(0.08)}z"/>`
+    + `<path class="sdtip0" d="M${X - 2.6} ${y(tip)}L${X} ${T}V${y(tip)}z"/><path class="sdtip1" d="M${X} ${T}L${X + 2.6} ${y(tip)}H${X}z"/></g></svg>`;
+})();
+// its light: the face towards the sun brighter (as seen on the screen: the sun's bearing against the map's)
+function obelPanelLight() {
+  const mk = $('#sdMark'); if (!mk || !M.map) return;
+  const r = sunRef(), s = sunAt(sunPos(sunTime()), r.lng, r.lat), right = Math.sin((s.az - M.map.getBearing()) * RAD) > 0;
+  mk.classList.toggle('lr', right); mk.classList.toggle('night', sunOn() && s.alt < -2);
+}
+// over the sundial (to put the obelisk back)
+function overDial(ev) { for (const el of [$('#sunPanel'), $('#sdMark')]) { const q = el?.getBoundingClientRect(); if (q && ev.clientX >= q.left && ev.clientX <= q.right && ev.clientY >= q.top && ev.clientY <= q.bottom) return true; } return false; }
+async function obelHome() {
+  M.cfg.gnomon = null; await saveMapCfg(); obelUpd(); sdRefUpd(); sunApply(); const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML();
+}
+// taking it from its socket onto the map: a copy of it follows the finger; let go over the map, it stands where its foot is
+document.addEventListener('pointerdown', ev => {
+  const ob = ev.target.closest?.('#sdMark .sdob'); if (!ob || M.cfg?.gnomon || !M.map || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
+  ev.preventDefault(); ev.stopPropagation();
+  const mk = $('#sdMark'), q = mk.getBoundingClientRect(), dx = ev.clientX - q.left, dy = ev.clientY - q.top, x0 = ev.clientX, y0 = ev.clientY;
+  let gh = null;
+  const mv = e => { if (e.pointerId !== ev.pointerId) return; e.preventDefault();
+    if (!gh) { if (Math.hypot(e.clientX - x0, e.clientY - y0) < 6) return; gh = document.createElement('div'); gh.className = 'sdghost' + (mk.classList.contains('lr') ? ' lr' : ''); gh.innerHTML = obelPanelSVG(); document.body.append(gh); mk.classList.add('away'); }
+    gh.style.left = (e.clientX - dx) + 'px'; gh.style.top = (e.clientY - dy) + 'px'; gh.classList.toggle('home', overDial(e)); };
+  const up = async e => { if (e.pointerId !== ev.pointerId) return; removeEventListener('pointermove', mv, true); removeEventListener('pointerup', up, true); removeEventListener('pointercancel', up, true);
+    if (!gh) { note('Drag the obelisk onto the map to set it up there.'); return; }
+    const foot = [e.clientX - dx + 14, e.clientY - dy + 4 + 50], cr = M.map.getCanvas().getBoundingClientRect(); gh.remove();
+    const inMap = foot[0] >= cr.left && foot[0] <= cr.right && foot[1] >= cr.top && foot[1] <= cr.bottom;
+    let ll = null; if (inMap && e.type === 'pointerup' && !overDial(e)) { try { ll = M.map.unproject([foot[0] - cr.left, foot[1] - cr.top]); const p = M.map.project(ll); if (Math.hypot(p.x - foot[0] + cr.left, p.y - foot[1] + cr.top) > 20 || Math.abs(ll.lat) > 85) ll = null; } catch (_) { ll = null; } }
+    if (!ll) { mk.classList.remove('away'); return; }               // (not on the ground: back on its socket)
+    M.cfg.gnomon = { lng: ((ll.lng + 540) % 360) - 180, lat: ll.lat }; await saveMapCfg(); obelUpd(); sdRefUpd(); sunApply(); const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML(); };
+  addEventListener('pointermove', mv, true); addEventListener('pointerup', up, true); addEventListener('pointercancel', up, true);
+}, true);
 function sdRefUpd() {
   const mk = $('#sdMark'), m = M.map; if (!mk || !m) return;
-  mk.hidden = !!M.cfg.gnomon; if (M.cfg.gnomon) return;
+  mk.classList.toggle('away', !!M.cfg.gnomon); obelPanelLight(); if (M.cfg.gnomon) return;
   const r = mk.getBoundingClientRect(), cr = m.getCanvas().getBoundingClientRect(), pt = [r.left + r.width / 2 - cr.left, r.top - cr.top];
   let ll = null; try { ll = m.unproject(pt); const q = m.project(ll); if (Math.hypot(q.x - pt[0], q.y - pt[1]) > 2 || Math.abs(ll.lat) > 85.05) ll = null; } catch (_) { ll = null; }
   mk.classList.toggle('off', !ll);
@@ -160,6 +204,8 @@ function sunMoveHook() { const m = M.map; if (m && !m._sunMv) { m._sunMv = true;
 // zooms in), the reader's size ⅓ … 3 times; its shadow on the ground away from the sun, long when the sun is low, none at night. Dragged,
 // it moves; "Here" again takes it away.
 const OB_H = 34, obelK = () => M.cfg?.obelSize || 1;              // (its height in screen pixels, times the reader's size)
+// the golden pyramid on top: as high as a pyramid of four equilateral faces on the shaft's top (0.104 wide) – v373
+const OB_TIP = 0.104 / Math.SQRT2;
 function obelGeo() {
   const g = M.cfg.gnomon, m = M.map, z = m.getZoom(), lat = g.lat * RAD;
   // its height in metres: fixed when it is set (OB_H pixels at the zoom of that moment), times the reader's size
@@ -177,8 +223,9 @@ function obelGeo() {
   const sq = h => [[[g.lng - dLon(h), g.lat - dLat(h)], [g.lng + dLon(h), g.lat - dLat(h)], [g.lng + dLon(h), g.lat + dLat(h)], [g.lng - dLon(h), g.lat + dLat(h)], [g.lng - dLon(h), g.lat - dLat(h)]]];
   const f = [], piece = (h, b, t, c) => f.push({ type: 'Feature', properties: { b, t, c: dim(c) }, geometry: { type: 'Polygon', coordinates: sq(h) } });
   piece(0.17 * H, 0, 0.05 * H, '#3e1524'); piece(0.13 * H, 0.05 * H, 0.08 * H, '#4a1a2b');            // (the plinth, in two steps)
-  for (let i = 0; i < 20; i++) { const a = (i + 0.5) / 20; piece((0.088 - 0.036 * a) * H, (0.08 + 0.72 * i / 20) * H, (0.08 + 0.72 * (i + 1) / 20) * H, '#6e2b3e'); }   // (the shaft, tapering in fine steps)
-  for (let i = 0; i < 10; i++) { const a = (i + 0.5) / 10; piece((0.052 * (1 - a) + 0.002) * H, (0.8 + 0.2 * i / 10) * H, (0.8 + 0.2 * (i + 1) / 10) * H, '#743044'); }   // (the pointed top)
+  const SH = 1 - OB_TIP - 0.08;
+  for (let i = 0; i < 20; i++) { const a = (i + 0.5) / 20; piece((0.088 - 0.036 * a) * H, (0.08 + SH * i / 20) * H, (0.08 + SH * (i + 1) / 20) * H, '#6e2b3e'); }   // (the shaft, tapering in fine steps)
+  for (let i = 0; i < 6; i++) { const a = (i + 0.5) / 6; piece((0.052 * (1 - a) + 0.002) * H, (1 - OB_TIP + OB_TIP * i / 6) * H, (1 - OB_TIP + OB_TIP * (i + 1) / 6) * H, '#d9a92e'); }   // (the golden top)
   // the shadow: from the foot, away from the sun
   const s = sunAt(sunPos(sunTime()), g.lng, g.lat), sh = [];
   if (sunOn() && s.alt > 0) {
@@ -189,7 +236,7 @@ function obelGeo() {
       return [(lo1 + Math.atan2(Math.sin(t) * Math.sin(d) * Math.cos(la1), Math.cos(d) - Math.sin(la1) * Math.sin(la))) / RAD, la / RAD]; };
     const P = (along, side) => { const dd = Math.hypot(along, side); return dd < 1e-6 ? [g.lng, g.lat] : dest(az + Math.atan2(side, along) / RAD, dd); };
     // the outline: as broad as the foot, narrowing to 0.6 of it, then to the tip; e widens (or narrows) it a little
-    const half = t => w * (1 - 0.4 * Math.min(1, t / 0.8)) * (t > 0.8 ? (1 - t) / 0.2 : 1);
+    const half = t => w * (1 - 0.4 * Math.min(1, t / (1 - OB_TIP))) * (t > 1 - OB_TIP ? (1 - t) / OB_TIP : 1);
     const shape = (e, len) => { const pts = [], n = 12;
       for (let i = 0; i <= n; i++) { const t = i / n, a = t * len; pts.push(P(a, half(t) + e(a))); }
       pts.push(P(len + e(len), 0));
@@ -244,9 +291,11 @@ function obel3dLayer(T) {
       const g = this.g = new T.Group();
       const box = (w, h, y, mat) => { const b = new T.Mesh(new T.BoxGeometry(w, h, w), mat); b.position.y = y + h / 2; g.add(b); };
       box(0.34, 0.05, 0, base); box(0.26, 0.03, 0.05, base);                                      // (the plinth, in two steps: unit height 1)
-      const shaft = new T.Mesh(new T.CylinderGeometry(0.052 * Math.SQRT2, 0.088 * Math.SQRT2, 0.72, 4, 1), stone);   // (a square frustum)
-      shaft.rotation.y = Math.PI / 4; shaft.position.y = 0.08 + 0.36; g.add(shaft);
-      const tip = new T.Mesh(new T.ConeGeometry(0.052 * Math.SQRT2, 0.2, 4, 1), stone); tip.rotation.y = Math.PI / 4; tip.position.y = 0.8 + 0.1; g.add(tip);
+      const SH = 1 - OB_TIP - 0.08, shaft = new T.Mesh(new T.CylinderGeometry(0.052 * Math.SQRT2, 0.088 * Math.SQRT2, SH, 4, 1), stone);   // (a square frustum)
+      shaft.rotation.y = Math.PI / 4; shaft.position.y = 0.08 + SH / 2; g.add(shaft);
+      // the tip: a perfect pyramid of gold – four equilateral triangles on the shaft's square top (520a, v373)
+      const gold = new T.MeshStandardMaterial({ color: 0xffc43d, metalness: 0.78, roughness: 0.26, emissive: 0x2b1b02 });
+      const tip = new T.Mesh(new T.ConeGeometry(0.052 * Math.SQRT2, OB_TIP, 4, 1), gold); tip.rotation.y = Math.PI / 4; tip.position.y = 1 - OB_TIP / 2; g.add(tip);
       g.updateMatrixWorld(true); this.scene.add(g);
       // its shadow where the map is flat: the model pressed flat onto the ground along the sun's rays, five times from a sun moved a
       // little each way – overlapping, they are dark in the middle and soften at the edges, more towards the tip (each pixel taken
@@ -289,11 +338,37 @@ function obel3dLayer(T) {
     } };
 }
 // where the model stands on the screen: its foot and its top (for grabbing it)
-function obel3dAxis() {
+function obel3dAxis() { const pr = obel3dProj(); return pr ? [pr(0, 0, 0), pr(0, 1, 0)] : null; }
+// a point of the model (unit height; x east, y up, z south) on the screen, or null behind the eye
+function obel3dProj() {
   const L = M.map?.getLayer('obel3d')?.implementation, cv = M.map?.getCanvas(); if (!L?.P || !cv) return null;
-  const pr = y => { const v = [0, y, 0, 1], e = L.P.elements, c = [0, 1, 2, 3].map(i => e[i] * v[0] + e[4 + i] * v[1] + e[8 + i] * v[2] + e[12 + i] * v[3]);
+  const e = L.P.elements;
+  return (x, y, z) => { const c = [0, 1, 2, 3].map(i => e[i] * x + e[4 + i] * y + e[8 + i] * z + e[12 + i]);
     return c[3] > 0 ? [(c[0] / c[3] + 1) / 2 * cv.clientWidth, (1 - c[1] / c[3]) / 2 * cv.clientHeight] : null; };
-  return [pr(0), pr(1)];
+}
+// grabbing the obelisk (521, v373): on its drawn outline – each part (plinth, step, shaft, golden tip) a solid whose outline on the
+// screen is the hull of its corners; while it is drawn thin, some room around it, so that a finger (or the mouse) can still catch
+// it – none once it is broad enough
+function obelHit(x, y, touch) {
+  const pr = obel3dProj(); if (!pr) return null;
+  const lv = (hw, yy) => [[-hw, -hw], [hw, -hw], [hw, hw], [-hw, hw]].map(([a, b]) => pr(a, yy, b));
+  const parts = [[...lv(0.17, 0), ...lv(0.17, 0.05)], [...lv(0.13, 0.05), ...lv(0.13, 0.08)], [...lv(0.088, 0.08), ...lv(0.052, 1 - OB_TIP)], [...lv(0.052, 1 - OB_TIP), pr(0, 1, 0)]];
+  if (parts.some(q => q.some(v => !v))) return null;
+  // how broad the shaft is drawn: across the middle
+  const mid = lv(0.07, 0.5), w = Math.max(Math.hypot(mid[0][0] - mid[2][0], mid[0][1] - mid[2][1]), Math.hypot(mid[1][0] - mid[3][0], mid[1][1] - mid[3][1])) / Math.SQRT2;
+  const room = Math.max(0, ((touch ? 30 : 18) - w) / 2);
+  return parts.some(q => hullDist(q, x, y) <= room);
+}
+// the distance of a point from the convex hull of some points (0 inside)
+function hullDist(P, x, y) {
+  const p = P.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]), cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]), lo = [], up = [];
+  for (const q of p) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
+  for (const q of p.reverse()) { while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); }
+  const H = lo.slice(0, -1).concat(up.slice(0, -1)); if (H.length < 3) return Infinity;
+  let inside = true, d = Infinity;
+  for (let i = 0; i < H.length; i++) { const a = H[i], b = H[(i + 1) % H.length]; if (cr(a, b, [x, y]) < 0) inside = false;
+    const dx = b[0] - a[0], dy = b[1] - a[1], t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy || 1))); d = Math.min(d, Math.hypot(a[0] + dx * t - x, a[1] + dy * t - y)); }
+  return inside ? 0 : d;
 }
 const obelShadow = () => { if (M.cfg?.gnomon && M.map?.getSource('obel') && M.obZ == null) obelUpd(); };   // (after the size slider; its size stays at every zoom)
 // dragging it: a finger or the mouse on the obelisk moves it (and not the map). Caught before the map engine sees the touch
@@ -302,36 +377,31 @@ function obelDragHook(m) {
   if (m._obDrag) return; m._obDrag = true;
   const box = m.getCanvasContainer(), canvas = m.getCanvas();
   const pt = e => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
-  const hit = ([x, y]) => {
-    const g = M.cfg?.gnomon; if (!g || !m.getLayer('obel') || M.cam) return false;
-    const ax = m.getLayer('obel3d') && obel3dAxis();
-    if (ax?.[0] && ax[1]) { const [a, b] = ax, dx = b[0] - a[0], dy = b[1] - a[1], t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy || 1)));
-      if (Math.hypot(a[0] + dx * t - x, a[1] + dy * t - y) < Math.max(16, Math.hypot(dx, dy) * 0.1)) return true; }
-    else try { if (m.queryRenderedFeatures([[x - 14, y - 14], [x + 14, y + 14]], { layers: ['obel'] }).length) return true; } catch (_) {}
-    const f = m.project([g.lng, g.lat]); return Math.hypot(f.x - x, f.y - y) < 24;    // (the foot)
+  const hit = ([x, y], touch = false) => {
+    const g = M.cfg?.gnomon; if (!g || M.cam) return false;
+    if (m.getLayer('obel3d')) { const h = obelHit(x, y, touch); if (h != null) return h; }
+    // (without the 3D model: the flat drawing, with a little room)
+    if (!m.getLayer('obel')) return false;
+    try { if (m.queryRenderedFeatures([[x - 8, y - 8], [x + 8, y + 8]], { layers: ['obel'] }).length) return true; } catch (_) {}
+    const f = m.project([g.lng, g.lat]); return Math.hypot(f.x - x, f.y - y) < 12;    // (the foot)
   };
   box.addEventListener('pointerdown', e => {
-    if (M.obGrab || !e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0) || !hit(pt(e))) return;
+    if (M.obGrab || !e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0) || !hit(pt(e), e.pointerType !== 'mouse')) return;
     e.stopPropagation(); e.preventDefault(); M.obGrab = e.pointerId; M.obDrag = true;
     try { box.setPointerCapture(e.pointerId); } catch (_) {}
     box.style.cursor = 'grabbing';
-    const mv = ev => { if (ev.pointerId !== M.obGrab) return; ev.preventDefault(); const ll = m.unproject(pt(ev));
+    const mv = ev => { if (ev.pointerId !== M.obGrab) return; ev.preventDefault(); $('#sdMark')?.classList.toggle('home', overDial(ev)); const ll = m.unproject(pt(ev));
       M.cfg.gnomon = { lng: ((ll.lng + 540) % 360) - 180, lat: ll.lat, h: M.cfg.gnomon?.h }; obelUpd(); sunApply(); };
     const end = ev => { if (ev.pointerId !== M.obGrab) return; M.obGrab = null; M.obDrag = false; box.style.cursor = ''; M.obNoClick = Date.now() + 400;
-      removeEventListener('pointermove', mv, true); removeEventListener('pointerup', end, true); removeEventListener('pointercancel', end, true); saveMapCfg(); };
+      removeEventListener('pointermove', mv, true); removeEventListener('pointerup', end, true); removeEventListener('pointercancel', end, true);
+      $('#sdMark')?.classList.remove('home');
+      if (overDial(ev)) { obelHome(); return; }                     // (let go over the sundial: back on its socket – 523a)
+      saveMapCfg(); };
     addEventListener('pointermove', mv, true); addEventListener('pointerup', end, true); addEventListener('pointercancel', end, true);
   }, true);
   // (the touch and mouse events that follow the same press: kept from the map, so it does not pan meanwhile)
   for (const t of ['touchstart', 'touchmove', 'mousedown', 'mousemove']) box.addEventListener(t, e => { if (M.obGrab != null) { e.stopPropagation(); if (e.cancelable) e.preventDefault(); } }, { capture: true, passive: false });
   m.on('mousemove', e => { if (M.obGrab == null) box.style.cursor = hit([e.point.x, e.point.y]) ? 'grab' : ''; });
-}
-// "Here": the next tap on the map sets the obelisk; when one stands, "Here" takes it away
-async function sunHere() {
-  if (M.cfg.gnomon) { M.cfg.gnomon = null; await saveMapCfg(); obelUpd(); sdRefUpd(); sunApply(); $('#sunCtl') && ($('#sunCtl').innerHTML = sdCtlHTML()); return; }
-  if (!M.map) return;
-  note('Tap the map where the obelisk should stand.');
-  $('#mapCanvas')?.classList.add('picking');
-  M.pick = async ll => { M.cfg.gnomon = { lng: ((ll.lng + 540) % 360) - 180, lat: ll.lat }; await saveMapCfg(); obelUpd(); sdRefUpd(); sunApply(); const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML(); };
 }
 // ---------------------------------------------------------------- the sun and the moon in the sky (v334)
 // Drawn where they truly stand as seen from the place the dial shows: tilted towards the horizon, in the sky; zoomed out, in space
@@ -871,7 +941,6 @@ function sdCtlHTML() {
     + (mode === 'year' ? `<div class="msun">${play}<input type="range" min="0" max="100" value="${yrToV(yr)}" data-sunyear="1" aria-label="Speed"><output>${yrLabel(yr)}</output></div>` : '')
     + `<div class="seg" role="group">${[['modern', 'Modern'], ['roman', 'Roman'], ['greek', 'Greek']].map(([v, l]) => `<button type="button" data-sunfmt="${v}" class="${(M.cfg.sunFmt || 'modern') === v ? 'on' : ''}">${l}</button>`).join('')}</div>`
     + `<div class="sdtg">`   // (the Sun and Moon switches retired: both always in the sky – v372)
-    + `<button type="button" data-sunhere="1" class="${M.cfg.gnomon ? 'on' : ''}" aria-pressed="${!!M.cfg.gnomon}" title="${M.cfg.gnomon ? 'Take the obelisk away' : 'Set an obelisk on the map: the dial then shows that place'}">Here</button>`
     + (M.cfg.gnomon ? `<input type="range" class="obsz" min="0" max="100" value="${Math.round(Math.log(obelK() * 3) / Math.log(9) * 100)}" data-obsz="1" aria-label="Size of the obelisk" title="Size of the obelisk">` : '') + `</div>`
     + `<small class="sdsub" id="sdSub"></small>`;
 }
@@ -880,7 +949,7 @@ async function sdOpen(open) {
   $('#sunPanel')?.remove(); $('#sdMark')?.remove(); box.classList.toggle('sdopen', open); $('#mapSunBtn')?.classList.toggle('on', open);
   M.sdOpen = open; sunMoveHook();
   if (!open) { if (M.map && sunOn()) sunApply(); return; }
-  box.insertAdjacentHTML('beforeend', sdPanelHTML() + `<div class="sdmark" id="sdMark" aria-hidden="true"><svg width="12" height="10" viewBox="0 0 12 10"><path d="M6 0.6 11.2 9.4H0.8z" fill="#ffd166" stroke="#5a4210" stroke-width=".9" stroke-linejoin="round"/></svg></div>`);
+  box.insertAdjacentHTML('beforeend', sdPanelHTML() + `<div class="sdmark" id="sdMark">${obelPanelSVG()}</div>`);
   $('#sunCtl').innerHTML = sdCtlHTML(); sdRefUpd();
   if (!sunOn()) await sunSet({ sun: true });
   $('#sunCtl').innerHTML = sdCtlHTML(); M.sdOwl = null; sundialPaint();
@@ -1081,7 +1150,6 @@ async function mapOptsClick(b) {
   if (b.id === 'mapCompBtn') { M.cfg.compass = M.cfg.compass === false; await saveMapCfg(); b.classList.toggle('on', M.cfg.compass); b.setAttribute('aria-pressed', M.cfg.compass); compassUpd(); return true; }
   if (b.id === 'mapNorth' || d.mnorth) { M.map?.easeTo({ bearing: 0, duration: 500 }); return true; }
   if (b.id === 'mapSunBtn') { await sdOpen(!M.sdOpen); return true; }
-  if (d.sunhere) { await sunHere(); return true; }
   if (d.sdswap) { M.sdPage = M.sdPage === 'zod' ? 'ctl' : 'zod'; sundialPaint(); return true; }
   if (d.sunfmt) { M.cfg.sunFmt = d.sunfmt; await saveMapCfg(); $('#sunCtl').innerHTML = sdCtlHTML(); sundialPaint(); return true; }
   if (d.sunmode) { M.sunPause = false; delete M.cfg.sunPaused; delete M.cfg.sunPausedT; if (d.sunmode === 'now') M.sunT = Date.now(); await sunSet({ sunMode: d.sunmode }); $('#sunCtl').innerHTML = sdCtlHTML(); return true; }
