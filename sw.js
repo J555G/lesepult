@@ -1,6 +1,6 @@
 // Offline cache for the app shell (dictionaries and texts live in IndexedDB, not here).
 importScripts('reliefsw.js');                                        // (the saved relief: reliefServe)
-const CACHE = 'lesepult-v370';
+const CACHE = 'lesepult-v371';
 const FILES = ['./', 'index.html', 'core.js', 'analysis.js', 'text.js', 'dictview.js', 'dialogs.js', 'export.js', 'library.js', 'libtime.js', 'libmenu.js', 'librev.js', 'glosses.js', 'search.js', 'app.js', 'maps.js', 'maplibre-contour.js', 'reliefsw.js', 'maplayers.js', 'mapsaved.js', 'mapdraw.js', 'maprelief.js', 'tinysdf.js', 'mapimg.js', 'mapsun.js', 'mapcam.js', 'sky/sun.webp', 'sky/moonface.webp', 'sky/zodiac-rings.webp', 'sky/zodiac-helios.webp', 'sky/zodiac.json', 'sky/stars.json', 'style.css', 'fonts.css', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'fonts/roboto-condensed-latin-400-normal.woff2', ...['latin', 'latin-ext', 'greek', 'greek-ext'].map(x => `fonts/source-sans-3-${x}-wght-normal.woff2`), 'fonts/source-sans-3-latin-wght-italic.woff2', 'fonts/source-sans-3-latin-ext-wght-italic.woff2',
   ...['greek', 'greek-ext', 'latin', 'latin-ext'].flatMap(s => ['400-normal', '700-normal', '400-italic', '700-italic'].map(w => `fonts/gentium-book-plus-${s}-${w}.woff2`))];
 
@@ -26,6 +26,8 @@ function net(url, ms) {
   return fetch(url, { cache: 'no-cache', signal: ctl.signal }).finally(() => clearTimeout(t));
 }
 
+// the page asks which version this is (Settings shows it): answered from the name above, without touching the stored files (v371)
+self.addEventListener('message', e => { if (e.data === 'pult-ver') e.ports?.[0]?.postMessage(+CACHE.split('-v')[1]); });
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;

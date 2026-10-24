@@ -403,6 +403,8 @@ function splitIcon() {   // an open book: the fold sits where the split is, the 
 
 (async function main() {
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => { });
+  // the version running, from the service worker; its date of publication worked out once per version, when the start is over
+  swVer().then(v => { if (v) setTimeout(() => pubDateCheck(v), 15000); });
   // the map scripts (maps.js, maplayers.js, mapsaved.js) load after this one: wait until all of them have run,
   // otherwise opening the last text could reach the map code while one of them is still on its way (slow connections)
   if (document.readyState === 'loading') await new Promise(r => document.addEventListener('DOMContentLoaded', r, { once: true }));
@@ -436,3 +438,18 @@ function splitIcon() {   // an open book: the fold sits where the split is, the 
   $('#btnFirstSync')?.addEventListener('click', () => syncPackages());
   navigator.storage?.persist?.().catch(() => { });
 })();
+
+// the version of the app running: asked of the service worker that serves this page (null if there is none, or no answer in 3 s)
+function swVer() {
+  return S.verP ??= (async () => {
+    if (!('serviceWorker' in navigator)) return null;
+    const sw = navigator.serviceWorker.controller || (await Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(r, 3000))]))?.active;
+    if (!sw) return null;
+    return await new Promise(res => { const ch = new MessageChannel(), t = setTimeout(() => res(null), 3000); ch.port1.onmessage = e => { clearTimeout(t); res(+e.data || null); }; sw.postMessage('pult-ver', [ch.port2]); });
+  })().then(v => { if (!v) S.verP = null; else S.ver = v; return v; });
+}
+async function pubDateCheck(ver) {
+  const pd = (await setting('pubDate')) || {};
+  if (pd.ver === ver && pd.date) return pd.date;
+  const d = await pultDate(ver); if (d) await setting('pubDate', { ver, date: d }); return d;
+}
