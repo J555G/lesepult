@@ -37,9 +37,16 @@ function camInit() {
   // soon as the map is a globe (at start or once switched to it)
   const m = M.map; if (m && !globeElev(m)) { const f = () => { if (globeElev(m)) m.off('render', f); }; m.on('render', f); }
   if (M.camMap !== m) { M.cam = null; M.camPrevExp = null; }
+  camConstrain(m); if (m && !m._camCon) { m._camCon = true; m.on('style.load', () => camConstrain(m)); }
   camExplore();
 }
 
+// the engine keeps the centre within 85.05° of the equator, even on the globe – there the limit is lifted to 89.99°, so that the
+// globe turns over the poles (on the flat map, and zoomed in, where the map is drawn flat, it stays – v401)
+function camConstrain(m) {
+  if (!m?.setTransformConstrain) return; const glb = m.getProjection?.()?.type === 'globe';
+  try { m.setTransformConstrain(glb ? (ll, z) => { const L = z < 11 ? 89.99 : 85.051129; return { center: new maplibregl.LngLat(ll.lng, Math.max(-L, Math.min(L, ll.lat))), zoom: Math.max(z < 11 ? -24 : m.getMinZoom(), Math.min(m.getMaxZoom(), z)) }; } : null); } catch (_) {}   // (near a pole the engine's globe needs a zoom below its least: its scale grows as 1 / cos(latitude))
+}
 // ---------------------------------------------------------------- the menu
 function camHTML() {
   const c = camCfg(), g = !!M.cfg.gnomon, sw = (k, l, sub, ic = '') => `<label class="mrow"><span>${ic ? `<i class="cmi">${ic}</i>` : ''}${l}${sub ? `<small class="cmh">${sub}</small>` : ''}</span>${SW(`data-camopt="${k}"`, !!c[k])}</label>`;
@@ -67,9 +74,9 @@ async function camClick(b) {
   if (d.camfly) { if (M.cam?.mode === 'fly') camLeave(); else camFly(); camPopRefresh(); return true; }
   if (d.camfovreset) { const c = camCfg(); c.fov = 37; camLimits(); if (M.cam) camApply(); await saveMapCfg(); camPopRefresh(); return true; }
   if (d.camrollreset) { const c = camCfg(); c.rollv = 0; if (M.cam) M.cam.roll = 0; camLimits(); if (M.cam) camApply(); await saveMapCfg(); camPopRefresh(); return true; }
-  if (d.flyfwd) { if (M.cam?.look) { M.cam.look = { y: 0, p: 0 }; } return true; }
+  if (d.flyfwd) { if (M.cam) { const c = M.cam, a0 = c.pt, t0 = performance.now(); const st = n => { if (M.cam !== c) return; const u = Math.min(1, (n - t0) / 450); c.pt = a0 + (90 - a0) * u * u * (3 - 2 * u); camApply(); if (u < 1) requestAnimationFrame(st); }; requestAnimationFrame(st); } return true; }   // (↺: look level – v401)
   if (d.camleave) { camLeave(); camPopRefresh(); return true; }
-  if (d.camstyle) { const ex = d.camstyle === 'exp'; camCfg().style = ex ? 'exp' : undefined; await saveMapCfg();
+  if (d.camstyle) { const ex = d.camstyle === 'exp'; camCfg().style = ex ? undefined : 'trad'; await saveMapCfg();
     if (ex) camExplore(); else if (M.cam?.mode === 'exp') { M.camWas = null; camLeave(); }
     camLimits(); camPopRefresh(); return true; }
   if (d.camnorth) { if (M.cam) { M.cam.br = 0; camApply(); } return true; }
@@ -109,7 +116,7 @@ function groundAt(lng, lat) {
 function camApply() { M.camApplying = true; try { camApply0(); } finally { M.camApplying = false; } }
 function camApply0() {
   const m = M.map, c = M.cam; if (!m || !c) return;
-  c.pt = Math.max(0.5, Math.min(179.5, c.pt)); c.br = ((c.br % 360) + 360) % 360; c.lat = Math.max(-85, Math.min(85, c.lat)); c.lng = ((c.lng + 540) % 360) - 180;
+  c.pt = Math.max(0.5, Math.min(179.5, c.pt)); c.br = ((c.br % 360) + 360) % 360; c.lat = Math.max(-89.9999, Math.min(89.9999, c.lat)); c.lng = ((c.lng + 540) % 360) - 180;
   if (c.mode === 'fly') c.alt = Math.max(groundAt(c.lng, c.lat) + 2, c.alt);
   // the engine wants a point the camera looks at ("the centre"), some way ahead along the line of sight, at its own height
   // (the globe mode made to keep that height: globeElev). Its distance is about the height above the ground, so the map's details
@@ -222,21 +229,17 @@ function camLeave() {
   if (was && mode !== 'fly') m.jumpTo({ center: was.center, zoom: was.zoom, bearing: was.bearing, pitch: Math.min(was.pitch, m.getMaxPitch()), roll: camCfg().roll ? camCfg().rollv || 0 : 0 });
   camBar(); obelUpd(); m.triggerRepaint();
 }
-// Free flight (v355): a craft that hovers – the left stick sets how fast it goes forward, back or sideways (let go, it glides
-// to a stop); the right stick sets its attitude – how steeply it climbs or dives, how far it banks; banked, it turns of itself
-// (let go, it levels out). Level flight keeps the height above the sea; a floor keeps it 5 m above the ground. Full speed is
-// half the height above the ground per second (since v394, 602a – before: ten times its square root): 180 km/h at 100 m, 18,000 km/h
-// at 10 km, 500 km/s at 1,000 km, so the land crosses the view at the same pace at every height. The view looks ahead with the horizon a
-// third down the screen (the ground in front filling the rest); dragging elsewhere turns the head, ↺ brings it back.
+// Free flight (v355; reworked v401): the explorer's own camera with two sticks. The left stick moves it where the camera looks –
+// forward and back along the line of sight (climbing as it looks up, diving as it looks down), right and left; let go, it glides to a
+// stop. The right stick turns the view – left and right, up and down – and where it is turned it stays: nothing levels it out, nothing
+// banks it. Full speed is half the height above the ground per second (602a). Every gesture of the explorer works in flight as well;
+// a floor keeps the craft 5 m above the ground. Moves are made on the sphere, so a flight goes on over the poles.
 function camFly() {
   if (!M.map) return; const c = M.cam?.mode === 'exp' ? { ...M.cam } : camNow();
-  // (taking off changes nothing in the view – only the sticks appear: the craft level, heading where the camera looks, the head
-  // turned up or down by as much as the view was – v393)
-  camTake('fly', { lng: c.lng, lat: c.lat, alt: Math.max(c.alt, groundAt(c.lng, c.lat) + 5), hd: c.br, ptA: 0, bank: 0, vF: 0, vR: 0, look: { y: 0, p: c.pt - 90 + flyDown() }, rollB: c.roll || 0, br: c.br, pt: c.pt, roll: c.roll || 0 });
+  // (taking off changes nothing in the view – only the sticks appear – v393)
+  camTake('fly', { lng: c.lng, lat: c.lat, alt: Math.max(c.alt, groundAt(c.lng, c.lat) + 5), br: c.br, pt: c.pt, roll: c.roll || 0, vF: 0, vR: 0 });
   flyUI(); flyLoop();
 }
-// how far below level the eye looks, for the horizon to stand a third down the screen (with the lens as it is)
-function flyDown() { const m = M.map, H = m.getContainer().clientHeight || 600, f = H / 2 / Math.tan((m.getVerticalFieldOfView() || 37) * RAD / 2); return Math.atan(H / 6 / f) / RAD; }
 const FLY = { L: { x: 0, y: 0 }, R: { x: 0, y: 0 }, keys: new Set() };
 function flyLoop() {
   cancelAnimationFrame(FLY.raf); let last = performance.now();
@@ -244,54 +247,38 @@ function flyLoop() {
     const c = M.cam; if (!c || c.mode !== 'fly') return; const dt = Math.min(0.1, (now - last) / 1000); last = now;
     const K = FLY.keys, kx = (K.has('d') ? 1 : 0) - (K.has('a') ? 1 : 0), ky = (K.has('s') ? 1 : 0) - (K.has('w') ? 1 : 0), rx = (K.has('arrowright') ? 1 : 0) - (K.has('arrowleft') ? 1 : 0), ry = (K.has('arrowdown') ? 1 : 0) - (K.has('arrowup') ? 1 : 0);
     const L = { x: FLY.L.x || kx, y: FLY.L.y || ky }, R = { x: FLY.R.x || rx, y: FLY.R.y || ry };
-    // (602a, v394: full speed half the height above the ground per second – the land crosses the view at the same pace at every height)
-    const hgt = Math.max(5, c.alt - groundAt(c.lng, c.lat)), vmax = Math.min(1e6, 0.5 * hgt), ease = (v, t, tau) => v + (t - v) * Math.min(1, dt / tau);
-    // the sticks: a gentle curve, fine near the middle; the speed glides, the attitude follows
-    const cv = x => Math.sign(x) * x * x;
-    c.vF = ease(c.vF, -cv(L.y) * vmax, 0.7); c.vR = ease(c.vR, cv(L.x) * vmax, 0.7);
-    // pitch without limit (v359): held up or down, the nose keeps turning – a full loop in 4 s at full push; let go, it returns
-    // to level the shortest way – past the vertical, first rolled upright (half a roll, shown as the view turning over)
-    const wrap = x => ((x + 180) % 360 + 360) % 360 - 180;
-    if (Math.abs(R.y) > 0.04) c.ptA = wrap(c.ptA + R.y * R.y * R.y * 25 * dt);   // (25° a second at full push, very fine near the middle – 497a, v363)   // (as an aircraft: pulled back – down – the nose rises – v360)
-    else { if (Math.abs(c.ptA) > 90) { c.hd += 180; c.ptA = Math.sign(c.ptA) * 180 - c.ptA; c.flip = (c.flip || 0) + 180; }
-      c.ptA = ease(c.ptA, 0, 0.8); }
-    c.flip = ease(c.flip || 0, 0, 0.6); if (Math.abs(c.flip) < 0.05) c.flip = 0;
-    c.bank = ease(c.bank, R.x * 35, 0.5);
-    c.hd += Math.tan(c.bank * RAD) / Math.tan(35 * RAD) * 25 * dt * (Math.cos(c.ptA * RAD) < 0 ? -1 : 1);   // (banked, it turns: up to 25° a second; the same way upside down)
-    const a = c.ptA * RAD, b = c.hd * RAD, fH = c.vF * Math.cos(a) * dt, up = c.vF * Math.sin(a) * dt, sd = c.vR * dt;
-    const north = fH * Math.cos(b) - sd * Math.sin(b), east = fH * Math.sin(b) + sd * Math.cos(b);
-    c.lat += north / mPerDeg; c.lng += east / (mPerDeg * Math.max(0.05, Math.cos(c.lat * RAD))); c.alt = Math.max(groundAt(c.lng, c.lat) + 5, c.alt + up);
-    flyView(); camApply(); flyPaint();
+    const hgt = Math.max(5, c.alt - groundAt(c.lng, c.lat)), vmax = Math.min(1e6, 0.5 * hgt), ease = (v, t, tau) => v + (t - v) * Math.min(1, dt / tau), cv = x => Math.sign(x) * x * x;
+    c.vF = ease(c.vF || 0, -cv(L.y) * vmax, 0.7); c.vR = ease(c.vR || 0, cv(L.x) * vmax, 0.7);
+    // (the right stick turns the view: 60° a second sideways, 45° up and down at full push; let go, the view stays as it is)
+    if (Math.abs(R.x) > 0.02) c.br += cv(R.x) * 60 * dt;
+    if (Math.abs(R.y) > 0.02) c.pt = Math.max(0.5, Math.min(179.5, c.pt - cv(R.y) * 45 * dt));
+    if (Math.abs(c.vF) + Math.abs(c.vR) > 1e-3) {
+      const F = camFrame(c), D = [0, 1, 2].map(i => F.v[i] * c.vF + F.r[i] * c.vR), U = norm3(F.P), up = dot3(D, U);
+      expTravel(c, F, D.map((x, i) => x - up * U[i]), dt); c.alt += up * dt; }
+    { const g = groundAt(c.lng, c.lat); if (c.alt < g + 5) c.alt = g + 5; }
+    camApply(); flyPaint();
     FLY.raf = requestAnimationFrame(step);
   };
   FLY.raf = requestAnimationFrame(step);
-}
-// the eye: where the craft points, the head turned on top, the horizon a third down; rolled with the bank
-// (the eye tilts fully with the climb – pitching up, it looks up as the flight goes up – v357; with the bank only in part)
-// (past the vertical the view turns over: looking the other way, upside down)
-function flyView() {
-  const c = M.cam, phi = ((c.ptA + c.look.p - flyDown() + 180) % 360 + 360) % 360 - 180, rl = c.bank * 0.6 + (c.flip || 0) + (c.rollB || 0);
-  if (Math.abs(phi) <= 90) { c.br = c.hd + c.look.y; c.pt = 90 + phi; c.roll = rl; }
-  else { c.br = c.hd + c.look.y + 180; c.pt = 90 + Math.sign(phi) * 180 - phi; c.roll = rl + 180; }
 }
 // the two sticks, at the bottom corners of the map
 function flyUI() {
   const box = M.map?.getContainer(); if (!box || $('#flyUI')) return;
   const d = document.createElement('div'); d.id = 'flyUI';
-  d.innerHTML = '<div class="joy" data-j="L" aria-label="Forward, back, sideways"><i></i><b>⇡</b></div><div class="joy" data-j="R" aria-label="Pull back to climb, push to dive, sideways to bank"><i></i><b>✈</b></div>';
+  d.innerHTML = '<div class="joy" data-j="L" aria-label="Move where the camera looks: forward, back, sideways"><i></i><b>⇡</b></div><div class="joy" data-j="R" aria-label="Turn the view: left, right, up, down"><i></i><b>◎</b></div>';
   box.append(d);
   for (const j of d.querySelectorAll('.joy')) {
     const k = j.dataset.j, knob = j.querySelector('i');
     const set = e => { const r = j.getBoundingClientRect(), R = r.width / 2; let x = (e.clientX - r.left - R) / R, y = (e.clientY - r.top - R) / R; const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; }
       FLY[k] = { x, y }; knob.style.transform = `translate(${x * R * 0.62}px, ${y * R * 0.62}px)`; };
-    j.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); j.setPointerCapture(e.pointerId); j.classList.add('on'); set(e); });
+    j.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); try { j.setPointerCapture(e.pointerId); } catch (_) {} j.classList.add('on'); set(e); });
     j.addEventListener('pointermove', e => { if (j.hasPointerCapture(e.pointerId)) set(e); });
     const end = e => { FLY[k] = { x: 0, y: 0 }; knob.style.transform = ''; j.classList.remove('on'); };
     j.addEventListener('pointerup', end); j.addEventListener('pointercancel', end);
   }
 }
 function flyPaint() { const c = M.cam, s = $('#flyInfo'); if (!s) return; const h = c.alt - groundAt(c.lng, c.lat);
-  const v = Math.abs(c.vF) * 3.6; s.textContent = `${fmtEle(Math.max(0, h))} above the ground · ${v > 10000 ? (v / 3600).toLocaleString('en', { maximumFractionDigits: 1 }) + ' km/s' : Math.round(v).toLocaleString('en') + ' km/h'}`; }
+  const v = Math.hypot(c.vF || 0, c.vR || 0) * 3.6; s.textContent = `${fmtEle(Math.max(0, h))} above the ground · ${v > 10000 ? (v / 3600).toLocaleString('en', { maximumFractionDigits: 1 }) + ' km/s' : Math.round(v).toLocaleString('en') + ' km/h'}`; }
 // the tip of the obelisk: the ground where it stands and its height as placed (times its size)
 function obelTip() { const g = M.cfg.gnomon; if (!g || !M.map) return null; const eye = (g.h || 30) * obelK(); return { lng: g.lng, lat: g.lat, alt: groundAt(g.lng, g.lat) + eye, eye }; }
 function camObelisk() {
@@ -305,7 +292,7 @@ function camBar() {
   if (!M.cam || M.cam.mode === 'exp') { b?.remove(); return; }
   if (!b) { b = document.createElement('div'); b.id = 'camBar'; b.className = 'cambar'; box.append(b); }
   const o = M.cam.mode === 'obel', h = o ? `<span class="cbl">${OBEL_EYE_ICON}From the obelisk</span><button type="button" data-camnorth="1" title="Face north">N</button><button type="button" data-camzen="1" title="Look straight up">⤒</button><button type="button" data-camsky="1" title="All-sky view">◎</button><button type="button" data-camleave="1" title="Back to the map">✕</button>`
-    : `<span class="cbl">${ICARUS_ICON}Free flight</span><small id="flyInfo"></small><button type="button" data-flyfwd="1" title="Look ahead again">↺</button><button type="button" data-camleave="1" title="Back to the map">✕</button>`;
+    : `<span class="cbl">${ICARUS_ICON}Free flight</span><small id="flyInfo"></small><button type="button" data-flyfwd="1" title="Look level">↺</button><button type="button" data-camleave="1" title="Back to the map">✕</button>`;
   if (b.dataset.m !== M.cam.mode) { b.innerHTML = h; b.dataset.m = M.cam.mode; }
 }
 document.addEventListener('click', ev => { const b = ev.target.closest?.('#camBar button, #allSky button'); if (b) camClick(b); });
@@ -315,147 +302,169 @@ function camGestures() {
   const m = M.map, el = m?.getCanvasContainer(); if (!el || el._camG) return; el._camG = true;
   const P = new Map(); let g0 = null;
   const two = () => { const [a, b] = [...P.values()]; return { d: Math.hypot(b.x - a.x, b.y - a.y), a: Math.atan2(b.y - a.y, b.x - a.x), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
-  const degPx = () => (m.getVerticalFieldOfView?.() || 37) / Math.max(200, el.clientHeight);
+  const degPx = () => (m.getVerticalFieldOfView?.() || 37) / Math.max(200, m.getCanvas().clientHeight);
+  const ex = () => M.cam && (M.cam.mode === 'exp' || M.cam.mode === 'fly');   // (the explorer's gestures – in flight too, v401)
   el.addEventListener('pointerdown', e => { if (!M.cam) return; P.set(e.pointerId, { x: e.clientX, y: e.clientY }); try { el.setPointerCapture?.(e.pointerId); } catch (_) {} if (P.size === 2) g0 = { ...two(), fov: m.getVerticalFieldOfView(), roll: M.cam.roll || 0 };
-    if (M.cam.mode === 'exp') expDown(e, P, two); }, true);
+    if (ex()) expDown(e, P, two); }, true);
   el.addEventListener('pointermove', e => {
     if (!M.cam || !P.has(e.pointerId)) return; const q = P.get(e.pointerId), dx = e.clientX - q.x, dy = e.clientY - q.y;
-    if (M.cam.mode === 'exp') { P.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (M.obGrab == null) expMoveG(e, P, two, dx, dy); return; }
-    if (P.size === 1) { const k = degPx(); P.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (M.cam.mode === 'fly') { M.cam.look.y -= dx * k; M.cam.look.p = Math.max(-96, Math.min(96, M.cam.look.p + dy * k)); return; }   // (the head turned; the flight goes on)
-      M.cam.br -= dx * k; M.cam.pt += dy * k; camApply(); return; }   // (look round: the world follows the finger)
+    if (ex()) { P.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (M.obGrab == null) expMoveG(e, P, two, dx, dy); return; }
+    if (P.size === 1) { const k = degPx(); P.set(e.pointerId, { x: e.clientX, y: e.clientY }); M.cam.br -= dx * k; M.cam.pt += dy * k; camApply(); return; }   // (the obelisk's view: look round)
     P.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (P.size !== 2 || !g0) return;
-    if (M.cam.mode === 'fly') return;
     const t = two(); M.cam.roll = g0.roll + (t.a - g0.a) / RAD;
-    const f = Math.max(10, Math.min(150, g0.fov * g0.d / Math.max(10, t.d))); m.setVerticalFieldOfView(f); if (M.cam.mode !== 'obel') camCfg().fov = Math.round(f);   // (in the obelisk's view only for the while – v392)
+    const f = Math.max(10, Math.min(150, g0.fov * g0.d / Math.max(10, t.d))); m.setVerticalFieldOfView(f);   // (the lens in the obelisk's view only for the while – v392)
     camApply();
   }, true);
-  const up = e => { const had = P.has(e.pointerId); P.delete(e.pointerId); if (P.size < 2) g0 = null; if (had && M.cam?.mode === 'exp') expUp(e, P, two); };
+  const up = e => { const had = P.has(e.pointerId); P.delete(e.pointerId); if (P.size < 2) g0 = null; if (had && ex()) expUp(e, P, two); };
   el.addEventListener('pointerup', up, true); el.addEventListener('pointercancel', up, true);
-  el.addEventListener('contextmenu', e => { if (M.cam?.mode === 'exp') e.preventDefault(); });   // (the right button turns the head)
+  el.addEventListener('contextmenu', e => { if (ex()) e.preventDefault(); });   // (the right button turns the head)
   el.addEventListener('wheel', e => { if (!M.cam) return; e.preventDefault(); e.stopPropagation();
-    if (M.cam.mode === 'exp') { expWheel(e); return; }
-    const f = Math.max(10, Math.min(150, m.getVerticalFieldOfView() * Math.exp(e.deltaY * 0.001))); m.setVerticalFieldOfView(f); if (M.cam.mode !== 'obel') camCfg().fov = Math.round(f); if (M.cam.mode !== 'fly') camApply(); }, { capture: true, passive: false });
+    if (ex()) { expWheel(e); return; }
+    const f = Math.max(10, Math.min(150, m.getVerticalFieldOfView() * Math.exp(e.deltaY * 0.001))); m.setVerticalFieldOfView(f); camApply(); }, { capture: true, passive: false });
   addEventListener('keydown', e => {
     if (!M.cam || e.target.closest?.('input, textarea, select, [contenteditable]')) return; const k = e.key.toLowerCase();
     if (M.cam.mode === 'fly' && ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { FLY.keys.add(k); e.preventDefault(); return; }   // (the keys as the sticks)
-    if (M.cam.mode === 'exp' && expKey(k)) { e.preventDefault(); return; }
+    if (ex() && expKey(k)) { e.preventDefault(); return; }
     const tn = { arrowleft: [-3, 0], arrowright: [3, 0], arrowup: [0, 3], arrowdown: [0, -3] }[k];
-    if (tn) { M.cam.br += tn[0]; M.cam.pt += tn[1]; camApply(); e.preventDefault(); }
+    if (tn && M.cam.mode === 'obel') { M.cam.br += tn[0]; M.cam.pt += tn[1]; camApply(); e.preventDefault(); }
     if (k === 'escape' && M.cam.mode !== 'exp') camLeave();
   });
   addEventListener('keyup', e => FLY.keys.delete(e.key.toLowerCase())); addEventListener('blur', () => FLY.keys.clear());
 }
-// ---------------------------------------------------------------- the explorer camera (593a–597a, v392)
+// ---------------------------------------------------------------- the explorer camera (593a–597a, v392; v401)
 // The map's own camera hangs on the point in the middle of the view, held on the ground: as one pans, that point's height changes,
 // far ahead when tilted, and the camera rose and fell with it; tilted up, it could end beneath the ground and was thrown up again.
-// The explorer is a camera of its own, as in flight: a point with its height above the sea and its direction; every gesture moves
-// that point. One finger grabs the ground – the spot under it stays under it (594a); pointing at the sky, it moves forward, back
-// and sideways, the faster the higher. Two fingers pan as one does (the ground between them stays between them), pinch to fly
-// towards or away from that point along the line of sight (595a), and twist to turn the view about it – all at once; three fingers
-// moved up or down tilt the head: no thresholds, every direction, straight down to straight
-// up. The mouse wheel as the pinch; the right button (or Ctrl) turns the head; a tap moves nothing (v397). A fling glides on. The only correction: a floor
+// The explorer is a camera of its own: a point with its height above the sea and its direction; every gesture moves that point.
+// One finger grabs the ground – the spot under it stays under it, near and far, zoomed in or out (the globe turned like a ball, over
+// the poles too – v401); a finger on the sky moves forward, back and sideways, the faster the higher, and a tap moves nothing.
+// Two fingers pinch to fly towards or away from the point between them (595a), twist to turn the view about it, and moved up or down
+// together tilt the head (v401: no longer panning). Three fingers up or down tilt as well. The mouse wheel as the pinch; the right
+// button (or Ctrl) turns the head; a double tap on the ground flies halfway there. A fling glides on. The only correction: a floor
 // 20 m above the ground beneath the camera – where the ground rises into it, the camera is lifted, eased over a third of a second
-// (596a); nothing else changes its height.
-const EXP_FLOOR = 20, EXP = { v: [0, 0], raf: 0, last: 0, hold: false, g: null, T: null, prev: null, look: false, tm: 0, tap: null, anim: null };
-const camExpOn = () => camCfg().style === 'exp';   // (v400: the map's own camera again by default; the explorer only when chosen)
+// (596a). Every move is made on the sphere (the camera's place and its directions turned together about the earth's centre).
+const EXP_FLOOR = 20, EXP = { w: [0, 0, 0], raf: 0, last: 0, hold: false, G: null, T: null, prev: null, look: false, tm: 0, tap: null, anim: null, moved: 0 };
+const expFloor = c => c.mode === 'fly' ? 5 : EXP_FLOOR;
+const camExpOn = () => camCfg().style !== 'trad';   // (the explorer by default again, as in v399 – v401)
 function camExplore() {
   const m = M.map; if (!m || M.cam || !camExpOn()) return;
   const c = camNow(); camTake('exp', { lng: c.lng, lat: c.lat, alt: Math.max(c.alt, groundAt(c.lng, c.lat) + EXP_FLOOR), br: c.br, pt: c.pt, roll: c.roll });
   // (moves made by others – a jump to a place, the north button – taken over as they happen)
   if (!m._expSync) { m._expSync = true; m.on('move', () => { if (M.cam?.mode === 'exp' && !M.camApplying && !EXP.hold) { const n = camNow(); Object.assign(M.cam, { lng: n.lng, lat: n.lat, alt: n.alt, br: n.br, pt: n.pt }); } }); }
 }
+// vectors about the earth's centre (x towards 90° E, y towards the north pole, z towards 0°, 0° – as camApply)
+const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], add3 = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub3 = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const mul3 = (a, k) => [a[0] * k, a[1] * k, a[2] * k], cross3 = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+function rotV(v, n, a) { const c = Math.cos(a), s = Math.sin(a), d = dot3(n, v), x = cross3(n, v); return [0, 1, 2].map(i => v[i] * c + x[i] * s + n[i] * d * (1 - c)); }
+const ecU = (lat, lng) => { const la = lat * RAD, lo = lng * RAD; return [Math.cos(la) * Math.sin(lo), Math.sin(la), Math.cos(la) * Math.cos(lo)]; };
+const ecNE = (lat, lng) => { const la = lat * RAD, lo = lng * RAD; return { N: [-Math.sin(la) * Math.sin(lo), Math.cos(la), -Math.sin(la) * Math.cos(lo)], E: [Math.cos(lo), 0, -Math.sin(lo)] }; };
+const ecLL = p => { const r = Math.hypot(p[0], p[1], p[2]); return { lat: Math.asin(Math.max(-1, Math.min(1, p[1] / r))) / RAD, lng: Math.atan2(p[0], p[2]) / RAD }; };
 // the camera's own directions (x east, y north, z up): ahead, right, up
 function expBasis(c) {
   const b = c.br * RAD, e = (c.pt - 90) * RAD, f = [Math.cos(e) * Math.sin(b), Math.cos(e) * Math.cos(b), Math.sin(e)], r0 = [Math.cos(b), -Math.sin(b), 0];
-  const u0 = [r0[1] * f[2] - r0[2] * f[1], r0[2] * f[0] - r0[0] * f[2], r0[0] * f[1] - r0[1] * f[0]], q = (c.roll || 0) * RAD;
+  const u0 = cross3(r0, f), q = (c.roll || 0) * RAD;
   return { f, r: r0.map((v, i) => v * Math.cos(q) + u0[i] * Math.sin(q)), u: u0.map((v, i) => v * Math.cos(q) - r0[i] * Math.sin(q)) };
 }
-// the line of sight through a point of the screen (client coordinates)
-function expRay(c, cx, cy) {
-  const m = M.map, R = m.getCanvas().getBoundingClientRect(), x = cx - R.left, y = cy - R.top, fp = R.height / 2 / Math.tan((m.getVerticalFieldOfView() || 37) * RAD / 2), { f, r, u } = expBasis(c);
-  const d = [0, 1, 2].map(i => f[i] * fp + r[i] * (x - R.width / 2) + u[i] * (R.height / 2 - y)), l = Math.hypot(...d); return d.map(v => v / l);
+// the camera as vectors about the earth's centre: its place P, ahead v, right r, up u
+function camFrame(c) {
+  const U = ecU(c.lat, c.lng), { N, E } = ecNE(c.lat, c.lng), { f, r, u } = expBasis(c), L = a => [0, 1, 2].map(i => a[0] * E[i] + a[1] * N[i] + a[2] * U[i]);
+  return { P: mul3(U, ER + c.alt), v: L(f), r: L(r), u: L(u) };
 }
+// … and back: place, height and direction from vectors (across a pole the longitude and the bearing change by half a turn, the view not)
+function camFromFrame(c, P, v, u) {
+  const R = Math.hypot(P[0], P[1], P[2]), ll = ecLL(P); c.alt = R - ER; c.lat = ll.lat; c.lng = ll.lng;
+  const U = mul3(P, 1 / R), { N, E } = ecNE(c.lat, c.lng), vl = [dot3(v, E), dot3(v, N), dot3(v, U)], ul = [dot3(u, E), dot3(u, N), dot3(u, U)];
+  c.pt = 90 + Math.asin(Math.max(-1, Math.min(1, vl[2]))) / RAD;
+  // (the bearing from the line of sight; looking straight down or up, from which way the top of the picture points)
+  if (Math.hypot(vl[0], vl[1]) > 1e-3) c.br = Math.atan2(vl[0], vl[1]) / RAD; else c.br = Math.atan2(vl[2] < 0 ? ul[0] : -ul[0], vl[2] < 0 ? ul[1] : -ul[1]) / RAD;
+  // (the roll kept as it was set: turning about the earth's centre keeps the horizon level; moving straight towards a point should not tilt it)
+}
+function frameRot(c, F, n, a) { camFromFrame(c, rotV(F.P, n, a), rotV(F.v, n, a), rotV(F.u, n, a)); }
 const expHgt = c => Math.max(1, c.alt - groundAt(c.lng, c.lat));
-const expMove = (c, de, dn) => { c.lat = Math.max(-85, Math.min(85, c.lat + dn / mPerDeg)); c.lng += de / (mPerDeg * Math.max(0.05, Math.cos(c.lat * RAD))); };
-const expOff = (c, p) => [(((p.lng - c.lng + 540) % 360) - 180) * mPerDeg * Math.cos(c.lat * RAD), (p.lat - c.lat) * mPerDeg];   // (metres east and north from the camera to p)
-// where a line of sight meets the ground: { lng, lat, h }, or null when it points at the sky (not farther than 60 times the height)
-function expGround(c, d) {
-  if (d[2] > -0.004) return null; const cap = Math.max(3000, 60 * expHgt(c)); let h = groundAt(c.lng, c.lat), p = null;
-  for (let k = 0; k < 5; k++) { const t = Math.min(cap, Math.max(0, (h - c.alt) / d[2])); p = { lng: c.lng + d[0] * t / (mPerDeg * Math.max(0.05, Math.cos(c.lat * RAD))), lat: c.lat + d[1] * t / mPerDeg }; h = groundAt(p.lng, p.lat); }
-  return { ...p, h };
+// the line of sight through a point of the screen (client coordinates), about the earth's centre
+function expRay(c, cx, cy, F = camFrame(c)) {
+  const m = M.map, R = m.getCanvas().getBoundingClientRect(), x = cx - R.left, y = cy - R.top, fp = R.height / 2 / Math.tan((m.getVerticalFieldOfView() || 37) * RAD / 2);
+  return norm3([0, 1, 2].map(i => F.v[i] * fp + F.r[i] * (x - R.width / 2) + F.u[i] * (R.height / 2 - y)));
+}
+function sphHit(P, d, R) { const b = dot3(P, d), cc = dot3(P, P) - R * R, D = b * b - cc; if (D < 0) return null; const t = -b - Math.sqrt(D); return t > 0 ? t : null; }
+// where a line of sight meets the ground: { p, R } (the point, and the sphere through it), or null at the sky
+function expGround(c, d, F = camFrame(c)) {
+  let R = ER + groundAt(c.lng, c.lat), p = null;
+  for (let k = 0; k < 3; k++) { const t = sphHit(F.P, d, R); if (t == null) return null; p = add3(F.P, mul3(d, t)); const ll = ecLL(p); R = ER + groundAt(ll.lng, ll.lat); }
+  return { p: mul3(norm3(p), R), R };
 }
 // a point to fly towards: the ground under the screen point, or (at the sky) a point ahead as far as the camera is high
 function expTarget(c, cx, cy) {
-  const d = expRay(c, cx, cy), g = expGround(c, d); if (g) return g;
-  const t = Math.max(50, 2 * expHgt(c)); return { lng: c.lng + d[0] * t / (mPerDeg * Math.max(0.05, Math.cos(c.lat * RAD))), lat: c.lat + d[1] * t / mPerDeg, h: c.alt + d[2] * t };
+  const F = camFrame(c), d = expRay(c, cx, cy, F), g = expGround(c, d, F); if (g) return { p: g.p, ground: true };
+  return { p: add3(F.P, mul3(d, Math.max(50, 2 * expHgt(c)))), ground: false };
 }
-// towards (k < 1) or away from (k > 1) a point, turned about it by db degrees of bearing; not into the floor while coming closer
+// towards (k < 1) or away from (k > 1) a point, turned about its vertical by db degrees of bearing; not into the floor while coming closer
 function expZoom(c, T, k, db = 0) {
-  const o = expOff(c, T), v = [-o[0], -o[1]], dist = Math.hypot(v[0], v[1], c.alt - T.h); if (k < 1 && dist * k < 5) k = 5 / Math.max(5, dist);
-  const q = db * RAD, w = [(v[0] * Math.cos(q) + v[1] * Math.sin(q)) * k, (-v[0] * Math.sin(q) + v[1] * Math.cos(q)) * k];
-  expMove(c, o[0] + w[0], o[1] + w[1]); c.alt = T.h + (c.alt - T.h) * k; c.br += db;
-  if (k < 1) c.alt = Math.max(c.alt, groundAt(c.lng, c.lat) + EXP_FLOOR);
+  const F = camFrame(c), dist = Math.hypot(...sub3(F.P, T.p)); if (k < 1 && dist * k < 5) k = 5 / Math.max(5, dist);
+  let P = add3(T.p, mul3(sub3(F.P, T.p), k)), v = F.v, u = F.u;
+  if (db) { const n = norm3(T.p), a = -db * RAD; P = rotV(P, n, a); v = rotV(v, n, a); u = rotV(u, n, a); }
+  camFromFrame(c, P, v, u);
+  if (k < 1) c.alt = Math.max(c.alt, groundAt(c.lng, c.lat) + expFloor(c));
 }
+// a move along the earth by metres east and north (on a great circle – over the poles too); gives its turn [axis, angle]
+function expShift(c, de, dn) {
+  const F = camFrame(c), { N, E } = ecNE(c.lat, c.lng), D = add3(mul3(E, de), mul3(N, dn)), L = Math.hypot(...D); if (L < 1e-9) return null;
+  const n = norm3(cross3(F.P, D)), a = L / Math.hypot(...F.P); frameRot(c, F, n, a); return [n, a];
+}
+function expTravel(c, F, Dt, dt) { const L = Math.hypot(...Dt); if (L < 1e-9) return; const n = norm3(cross3(F.P, Dt)); frameRot(c, F, n, L * dt / Math.hypot(...F.P)); }
+const expW = (n, a, dt) => { const w = mul3(n, a / Math.max(0.008, dt)); EXP.w = [0, 1, 2].map(i => 0.6 * EXP.w[i] + 0.4 * w[i]); };
 // the glide after a fling, the lift where the ground rises into the floor, and a short flight (a double tap)
 function expTick() {
   if (EXP.raf) return; EXP.last = performance.now();
-  const step = now => { EXP.raf = 0; const c = M.cam; if (!c || c.mode !== 'exp') return; const dt = Math.min(0.1, (now - EXP.last) / 1000); EXP.last = now; let more = false;
-    if (!EXP.hold && Math.hypot(EXP.v[0], EXP.v[1]) > 0.3 * Math.sqrt(expHgt(c))) { expMove(c, EXP.v[0] * dt, EXP.v[1] * dt); const f = Math.exp(-dt / 0.35); EXP.v = EXP.v.map(x => x * f); more = true; }
-    else if (!EXP.hold) EXP.v = [0, 0];
+  const step = now => { EXP.raf = 0; const c = M.cam; if (!c || (c.mode !== 'exp' && c.mode !== 'fly')) return; const dt = Math.min(0.1, (now - EXP.last) / 1000); EXP.last = now; let more = false;
+    const wl = Math.hypot(...EXP.w), R = ER + c.alt;
+    if (!EXP.hold && wl * R > 0.3 * Math.sqrt(expHgt(c))) { frameRot(c, camFrame(c), mul3(EXP.w, 1 / wl), wl * dt); const f = Math.exp(-dt / 0.35); EXP.w = mul3(EXP.w, f); more = true; }
+    else if (!EXP.hold) EXP.w = [0, 0, 0];
     if (EXP.anim) more = EXP.anim(now) || more;
-    const g = groundAt(c.lng, c.lat); if (c.alt < g + 2) c.alt = g + 2;
-    if (c.alt < g + EXP_FLOOR - 0.05) { c.alt += (g + EXP_FLOOR - c.alt) * Math.min(1, dt / 0.33); more = true; }
+    const g = groundAt(c.lng, c.lat), fl = expFloor(c); if (c.alt < g + 2) c.alt = g + 2;
+    if (c.alt < g + fl - 0.05) { c.alt += (g + fl - c.alt) * Math.min(1, dt / 0.33); more = true; }
     camApply(); if (more) { EXP.raf = requestAnimationFrame(step); } };
   EXP.raf = requestAnimationFrame(step);
 }
 function expDown(e, P, two) {
-  const c = M.cam; EXP.v = [0, 0]; EXP.anim = null;
+  const c = M.cam; EXP.w = [0, 0, 0]; EXP.anim = null;
   if (P.size === 1) { EXP.hold = true; EXP.look = e.pointerType === 'mouse' && (e.button === 2 || e.ctrlKey || e.metaKey); EXP.tm = performance.now();
-    EXP.g = EXP.look ? null : expGround(c, expRay(c, e.clientX, e.clientY)); EXP.down = { x: e.clientX, y: e.clientY, t: EXP.tm }; EXP.moved = 0; }
+    EXP.G = EXP.look ? null : expGround(c, expRay(c, e.clientX, e.clientY)); EXP.down = { x: e.clientX, y: e.clientY, t: EXP.tm }; EXP.moved = 0; }
   else if (P.size === 2) exp2Start(P, two);
   else if (P.size === 3) { EXP.prev3 = [...P.values()].reduce((a, q) => a + q.y, 0) / 3; }
 }
-// two fingers (v397): pulled together they pan – the ground between them stays between them; pinched, they fly towards or away
-// from it (the zoom); twisted, they turn the view about it – all at once, read once a frame from both fingers together. Three
-// fingers moved up or down tilt the head.
-// (616b, v398: what two fingers moved together do is decided once, at the start of each gesture: straight up or down together –
-// the head tilts; any other way – the camera pans. Pinch and twist work in both.)
-function exp2Start(P, two) { const c = M.cam, t = two(); EXP.g = null; EXP.T = expTarget(c, t.x, t.y); EXP.Tg = !!expGround(c, expRay(c, t.x, t.y)); EXP.prev = t; EXP.P = P; EXP.two = two;
-  EXP.s0 = new Map([...P].map(([id, q]) => [id, { x: q.x, y: q.y }])); EXP.mode2 = null; }
+// two fingers: pinch to fly towards or away from the point between them, twist to turn the view about it, and moved up or down
+// together, tilt the head (only what both fingers share of the up-and-down movement counts – a pinch or a twist tilts nothing)
+function exp2Start(P, two) { const c = M.cam, t = two(); EXP.G = null; EXP.acc = new Map(); EXP.T = expTarget(c, t.x, t.y); EXP.prev = t; EXP.P = P; EXP.two = two; EXP.pp = new Map([...P].map(([id, q]) => [id, { x: q.x, y: q.y }])); }
 function exp2() {
-  EXP.pend = false; const c = M.cam, P = EXP.P; if (!c || c.mode !== 'exp' || !P || P.size !== 2 || !EXP.T || !EXP.prev) return;
-  if (!EXP.mode2) {                                                    // (until both fingers are moving, 8 px for one of them: still deciding)
-    const ds = [...P].map(([id, q]) => { const o = EXP.s0?.get(id) || q; return [q.x - o.x, q.y - o.y]; }), far = Math.max(...ds.map(([x, y]) => Math.hypot(x, y)));
-    const near = Math.min(...ds.map(([x, y]) => Math.hypot(x, y))); if (far < 8 || (near < 4 && far < 25)) return;   // (both fingers on their way – they are reported one at a time)
-    const [[x1, y1], [x2, y2]] = ds, up = Math.sign(y1) === Math.sign(y2) && Math.abs(y1) > 2 * Math.abs(x1) && Math.abs(y2) > 2 * Math.abs(x2) && Math.abs(Math.abs(y1) - Math.abs(y2)) < 0.5 * Math.max(Math.abs(y1), Math.abs(y2));
-    EXP.mode2 = up ? 'tilt' : 'pan'; EXP.prev = EXP.two(); return; }
-  const t = EXP.two(), p = EXP.prev; EXP.prev = t; const k = p.d / Math.max(10, t.d), da = ((t.a - p.a) / RAD + 540) % 360 - 180, T = EXP.T, h = expHgt(c);
-  expZoom(c, T, k, -da);
-  if (EXP.mode2 === 'tilt') { const kd = (M.map.getVerticalFieldOfView() || 37) / (M.map.getCanvas().clientHeight || 600);
-    c.pt = Math.max(0.5, Math.min(179.5, c.pt - (t.y - p.y) * kd * 1.5)); camApply(); expTick(); return; }
-  // (the pan: the point between the fingers kept between them – at the sky, moved on as the fingers go, the faster the higher)
-  const d = expRay(c, t.x, t.y), lat0 = c.lat, lng0 = c.lng;
-  if (EXP.Tg && d[2] < -0.004) { const tt = Math.min(Math.max(3000, 60 * h), (T.h - c.alt) / d[2]); if (tt > 0) { const o = expOff(c, T); expMove(c, o[0] - d[0] * tt, o[1] - d[1] * tt); } }
-  else { const H = M.map.getCanvas().clientHeight || 600, s = 2.5 * h / H, b = c.br * RAD, fw = (t.y - p.y) * s, sd = -(t.x - p.x) * s; expMove(c, fw * Math.sin(b) + sd * Math.cos(b), fw * Math.cos(b) - sd * Math.sin(b)); }
-  // (never more than five times the height in one frame)
-  const mv = expOff({ lng: lng0, lat: lat0 }, c), ml = Math.hypot(mv[0], mv[1]), cap = 5 * h; if (ml > cap) { c.lat = lat0; c.lng = lng0; expMove(c, mv[0] * cap / ml, mv[1] * cap / ml); }
+  EXP.pend = false; const c = M.cam, P = EXP.P; if (!c || (c.mode !== 'exp' && c.mode !== 'fly') || !P || P.size !== 2 || !EXP.T || !EXP.prev) return;
+  const t = EXP.two(), p = EXP.prev; EXP.prev = t; const k = p.d / Math.max(10, t.d), da = ((t.a - p.a) / RAD + 540) % 360 - 180;
+  // (each finger's up-and-down movement gathered until the other's has come too – the fingers are reported one at a time; what they
+  // share tilts, the rest waits; moving apart, it is dropped)
+  const acc = EXP.acc ||= new Map(), ids = [...P.keys()];
+  for (const [id, q] of P) { const o = EXP.pp.get(id) || q; EXP.pp.set(id, { x: q.x, y: q.y }); acc.set(id, (acc.get(id) || 0) + q.y - o.y); }
+  const a0 = acc.get(ids[0]) || 0, a1 = acc.get(ids[1]) || 0; let com = 0;
+  if (a0 && a1 && Math.sign(a0) === Math.sign(a1)) { com = Math.sign(a0) * Math.min(Math.abs(a0), Math.abs(a1)); acc.set(ids[0], a0 - com); acc.set(ids[1], a1 - com); }
+  else if (a0 && a1) { acc.set(ids[0], 0); acc.set(ids[1], 0); }
+  expZoom(c, EXP.T, k, -da);
+  if (com) { const kd = (M.map.getVerticalFieldOfView() || 37) / (M.map.getCanvas().clientHeight || 600); c.pt = Math.max(0.5, Math.min(179.5, c.pt - com * kd * 1.5)); }
   camApply(); expTick();
 }
 function expMoveG(e, P, two, dx, dy) {
   const c = M.cam, m = M.map, H = m.getCanvas().clientHeight || 600;
   if (P.size === 1) {
     if (EXP.look) { const k = (m.getVerticalFieldOfView() || 37) / H; c.br -= dx * k; c.pt = Math.max(0.5, Math.min(179.5, c.pt + dy * k)); camApply(); return; }
-    // (a tap is no drag: nothing moves until the finger has gone 5 px – so a tap on the sky, or a trembling finger, moves nothing – v397)
+    // (a tap is no drag: nothing moves until the finger has gone 5 px – v397)
     EXP.moved = (EXP.moved || 0) + Math.hypot(dx, dy); if (EXP.moved < 5) return;
-    const lat0 = c.lat, lng0 = c.lng, d = expRay(c, e.clientX, e.clientY), G = EXP.g;
-    if (G && d[2] < -0.004) {                                          // (the spot under the finger kept under it)
-      const t = Math.min(Math.max(3000, 60 * expHgt(c)), (G.h - c.alt) / d[2]);
-      if (t > 0) { const o = expOff(c, G); expMove(c, o[0] - d[0] * t, o[1] - d[1] * t); }
+    const now = performance.now(), dt = (now - EXP.tm) / 1000; EXP.tm = now;
+    if (EXP.G) {
+      // (the grabbed spot kept under the finger: the earth turned about its centre so that the line of sight meets it again; past the
+      // rim of the globe, the nearest point of the line of sight to it – never more than five times the height at a time near the ground)
+      const F = camFrame(c), d = expRay(c, e.clientX, e.clientY, F), R = EXP.G.R, t = sphHit(F.P, d, R);
+      let Hp; if (t != null) Hp = add3(F.P, mul3(d, t)); else { const q = add3(F.P, mul3(d, Math.max(0, -dot3(F.P, d)))); Hp = mul3(norm3(q), R); }
+      const G = EXP.G.p, x = cross3(Hp, G), s = Math.hypot(...x);
+      if (s > 1e-9) { const n = mul3(x, 1 / s), a = Math.min(Math.atan2(s, dot3(Hp, G)), Math.max(5 * expHgt(c), 2000) / ER); frameRot(c, F, n, a); expW(n, a, dt); }
     } else {                                                             // (at the sky: forward, back, sideways, the faster the higher)
-      const s = 2.5 * expHgt(c) / H, b = c.br * RAD, fw = dy * s, sd = -dx * s; expMove(c, fw * Math.sin(b) + sd * Math.cos(b), fw * Math.cos(b) - sd * Math.sin(b)); EXP.g = null; }
-    const now = performance.now(), dt = Math.max(0.008, (now - EXP.tm) / 1000); EXP.tm = now;
-    const v = [(((c.lng - lng0 + 540) % 360) - 180) * mPerDeg * Math.cos(c.lat * RAD) / dt, (c.lat - lat0) * mPerDeg / dt]; EXP.v = [0.6 * EXP.v[0] + 0.4 * v[0], 0.6 * EXP.v[1] + 0.4 * v[1]];
+      const s = 2.5 * expHgt(c) / H, b = c.br * RAD, fw = dy * s, sd = -dx * s, r = expShift(c, fw * Math.sin(b) + sd * Math.cos(b), fw * Math.cos(b) - sd * Math.sin(b)); if (r) expW(r[0], r[1], dt); }
     camApply(); expTick(); return;
   }
   if (P.size === 2 && EXP.T && EXP.prev) { if (!EXP.pend) { EXP.pend = true; requestAnimationFrame(exp2); } return; }
@@ -464,26 +473,28 @@ function expMoveG(e, P, two, dx, dy) {
 }
 function expUp(e, P, two) {
   if (P.size === 2) { exp2Start(P, two); return; }
-  if (P.size === 1) { const [q] = [...P.values()]; EXP.prev = null; EXP.T = null; EXP.g = expGround(M.cam, expRay(M.cam, q.x, q.y)); EXP.tm = performance.now(); return; }   // (one finger left: it grabs on)
+  if (P.size === 1) { const [q] = [...P.values()]; EXP.prev = null; EXP.T = null; EXP.G = expGround(M.cam, expRay(M.cam, q.x, q.y)); EXP.tm = performance.now(); EXP.moved = 5; return; }   // (one finger left: it grabs on)
   if (P.size) return;
-  EXP.hold = false; EXP.T = null; EXP.prev = null; if (performance.now() - EXP.tm > 90 || (EXP.moved || 0) < 8) EXP.v = [0, 0];   // (no glide after a tap)
-  // a double tap: towards that point, halfway (with Shift, away)
+  EXP.hold = false; EXP.T = null; EXP.prev = null; if (performance.now() - EXP.tm > 90 || (EXP.moved || 0) < 8) EXP.w = [0, 0, 0];   // (no glide after a tap)
+  // a double tap on the ground: towards that point, halfway (with Shift, away); on the sky, nothing
   const dn = EXP.down, now = performance.now();
   if (dn && Math.hypot(e.clientX - dn.x, e.clientY - dn.y) < 8 && now - dn.t < 300) {
-    if (EXP.tap && now - EXP.tap.t < 350 && Math.hypot(e.clientX - EXP.tap.x, e.clientY - EXP.tap.y) < 30 && expGround(M.cam, expRay(M.cam, e.clientX, e.clientY))) { EXP.tap = null; EXP.v = [0, 0];   // (on the ground only: a double tap on the sky moves nothing)
-      const T = expTarget(M.cam, e.clientX, e.clientY), K = e.shiftKey ? 2 : 0.5, t0 = now; let done = 0;
-      EXP.anim = n => { const u = Math.min(1, (n - t0) / 320), s = u * u * (3 - 2 * u), want = Math.pow(K, s), k = want / Math.pow(K, done); done = s; expZoom(M.cam, T, k); if (u >= 1) { EXP.anim = null; return false; } return true; }; }
+    if (EXP.tap && now - EXP.tap.t < 350 && Math.hypot(e.clientX - EXP.tap.x, e.clientY - EXP.tap.y) < 30) { EXP.tap = null; EXP.w = [0, 0, 0];
+      const T = expTarget(M.cam, e.clientX, e.clientY);
+      if (T.ground) { const K = e.shiftKey ? 2 : 0.5, t0 = now; let done = 0;
+        EXP.anim = n => { const u = Math.min(1, (n - t0) / 320), s = u * u * (3 - 2 * u), k = Math.pow(K, s) / Math.pow(K, done); done = s; expZoom(M.cam, T, k); if (u >= 1) { EXP.anim = null; return false; } return true; }; } }
     else EXP.tap = { x: e.clientX, y: e.clientY, t: now }; }
   expTick();
 }
 function expWheel(e) {
   const c = M.cam, T = expTarget(c, e.clientX, e.clientY), k = Math.exp(Math.max(-1, Math.min(1, e.deltaY * (e.deltaMode ? 0.05 : 0.0015))));
-  EXP.v = [0, 0]; expZoom(c, T, k); camApply(); expTick();
+  EXP.w = [0, 0, 0]; expZoom(c, T, k); camApply(); expTick();
 }
 function expKey(k) {
-  const c = M.cam, h = expHgt(c), b = c.br * RAD, mv = (f, s) => { expMove(c, f * Math.sin(b) + s * Math.cos(b), f * Math.cos(b) - s * Math.sin(b)); };
+  const c = M.cam, h = expHgt(c), b = c.br * RAD, mv = (f, s) => expShift(c, f * Math.sin(b) + s * Math.cos(b), f * Math.cos(b) - s * Math.sin(b));
+  const mid = () => { const r = M.map.getCanvas().getBoundingClientRect(); return expTarget(c, r.left + r.width / 2, r.top + r.height / 2); };
   if (k === 'arrowup') mv(0.15 * h, 0); else if (k === 'arrowdown') mv(-0.15 * h, 0); else if (k === 'arrowleft') c.br -= 3; else if (k === 'arrowright') c.br += 3;
-  else if (k === '+' || k === '=') expZoom(c, expTarget(c, innerWidth / 2, innerHeight / 2), 0.8); else if (k === '-') expZoom(c, expTarget(c, innerWidth / 2, innerHeight / 2), 1.25);
+  else if (k === '+' || k === '=') expZoom(c, mid(), 0.8); else if (k === '-') expZoom(c, mid(), 1.25);
   else if (k === 'pageup') c.pt = Math.min(179.5, c.pt + 3); else if (k === 'pagedown') c.pt = Math.max(0.5, c.pt - 3); else return false;
   camApply(); expTick(); return true;
 }
@@ -491,9 +502,9 @@ function expKey(k) {
 function camNadir() {
   const m = M.map; if (!m) return;
   if (!M.cam) { m.easeTo({ pitch: 0, duration: 450 }); return; }
-  const c = M.cam, fly = c.mode === 'fly', a0 = fly ? c.look.p : c.pt, a1 = fly ? -90 - c.ptA + flyDown() : 0.5, t0 = performance.now();
+  const c = M.cam, a0 = c.pt, a1 = 0.5, t0 = performance.now();
   const step = now => { if (M.cam !== c) return; const u = Math.min(1, (now - t0) / 450), s = u * u * (3 - 2 * u), v = a0 + (a1 - a0) * s;
-    if (fly) c.look.p = v; else { c.pt = v; camApply(); } if (u < 1) requestAnimationFrame(step); };
+    c.pt = v; camApply(); if (u < 1) requestAnimationFrame(step); };
   requestAnimationFrame(step);
 }
 document.addEventListener('click', ev => { if (ev.target.closest?.('#mapNadir')) camNadir(); });
