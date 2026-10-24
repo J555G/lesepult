@@ -490,7 +490,7 @@ function obelDragHook(m) {
   const box = m.getCanvasContainer(), canvas = m.getCanvas();
   const pt = e => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
   const hit = ([x, y], touch = false) => {
-    const g = M.cfg?.gnomon; if (!g || M.cam) return false;
+    const g = M.cfg?.gnomon; if (!g || (M.cam && M.cam.mode !== 'exp')) return false;   // (with the explorer camera too – v392)
     if (m.getLayer('obel3d')) { const h = obelHit(x, y, touch); if (h != null) return h; }
     // (without the 3D model: the flat drawing, with a little room)
     if (!m.getLayer('obel')) return false;
@@ -1393,7 +1393,7 @@ document.addEventListener('change', ev => { if (ev.target.closest?.('[data-sunsw
 // (the slider: a day in 77 s at the left to 7 s at the right – v369)
 const spdToV = s => Math.round(Math.log(77 / Math.max(7, Math.min(77, s))) / Math.log(11) * 100), vToSpd = v => 77 / 11 ** (v / 100);
 const spdLabel = s => `a day in ${s >= 9.95 || Math.abs(s - Math.round(s)) < 0.05 ? Math.round(s) : s.toFixed(1)} s`;
-// the height exaggeration of 3D (1 … 3), and the spacing of the contour lines (the least room between them, 4 … 24 pixels)
+// the height exaggeration of 3D (1 … 3), and the spacing of the contour lines (a factor on their intervals, 4 … 24 ÷ 9)
 document.addEventListener('input', ev => {
   const x = ev.target.closest?.('input[data-exag]'), sp = ev.target.closest?.('input[data-cspace]'), sk = ev.target.closest?.('input[data-skysize]');
   if (sk) { M.cfg.skySize = +sk.value; M.map?.triggerRepaint(); clearTimeout(M.skT); M.skT = setTimeout(saveMapCfg, 400); return; }
@@ -1508,7 +1508,7 @@ function mapOptsHTML() {
     + (ver ? `<div class="mrow msub"><span>${k === 's2' ? 'Year' : 'Version'}</span>${ver}</div>` : '')
     + (t3 ? `<label class="mrow msub"><span>Height <output id="exagOut">×${(c.exag || 1.5).toFixed(1)}</output></span><input type="range" min="1" max="3" step="0.1" value="${c.exag || 1.5}" data-exag="1" aria-label="Height exaggeration"></label>` : '')
     + sw('elev', 'Elevation', elevOn(), false) + sw('relShade', 'Shading', relOn('relShade'), !elevOn()) + sw('relContours', 'Contour lines', relOn('relContours'), !elevOn())
-    + `<label class="mrow msub${!elevOn() || !relOn('relContours') ? ' dis' : ''}"><span>Spacing</span><span class="mrng"><small>close</small><input type="range" min="4" max="24" step="1" value="${c.relSpacing || 9}" data-cspace="1" aria-label="Spacing of the contour lines"${!elevOn() || !relOn('relContours') ? ' disabled' : ''}><small>wide</small></span></label>`
+    + `<label class="mrow msub${!elevOn() || !relOn('relContours') ? ' dis' : ''}"><span>Spacing</span><span class="mrng"><small>more lines</small><input type="range" min="4" max="24" step="1" value="${c.relSpacing || 9}" data-cspace="1" aria-label="Spacing of the contour lines: more lines to fewer"${!elevOn() || !relOn('relContours') ? ' disabled' : ''}><small>fewer</small></span></label>`
     + `<button type="button" class="mrsave" id="mapSaveBtn"${on || M.rsJob ? '' : ' disabled'}>${M.rsJob ? `Saving ${esc(M.rsJob.a.name)} … ${Math.round(M.rsJob.done / M.rsJob.a.total * 100)} %` : 'Save this area for offline use …'}</button>`
     + sw('rivlak', 'Rivers and lakes', c.rivers !== false, false);
 }

@@ -49,7 +49,7 @@ async function shadePatchedLib(url) {
     return any ? URL.createObjectURL(new Blob([s], { type: 'text/javascript' })) : url;
   } catch (e) { M.shadePatch = false; return url; }
 }
-const contSpacing = () => M.cfg?.relSpacing || 9;                     // (the least room between lines, CSS pixels: the reader's choice, 4 … 24)
+const contSpacing = () => M.cfg?.relSpacing || 9;                     // (a factor on the intervals, ÷ 9: the reader's choice, 4 … 24 – more lines to fewer, 600a)
 
 // ---------------------------------------------------------------- saved areas
 // The list lies beside the tiles: [{ id, name, w, s, e, n (degrees), z (deepest zoom), world, total, tiles, bytes, at, state }]
@@ -312,13 +312,13 @@ function reliefStyle(st, C) {
     thresholds: th(ft ? { 5: [2000, 5000], 7: [1000, 5000], 9: [500, 2500], 11: [250, 1000], 13: [100, 500] } : { 5: [500, 1000], 7: [500, 1000], 9: [200, 1000], 11: [100, 500], 13: [50, 250] }) })] };
   // fine orange lines, the numbered ones a little stronger (v345), and their numbers written along them by the engine itself
   put(k, { id: 'rel-contour', type: 'line', source: 'contours', 'source-layer': 'contours', minzoom: 5, filter: ['>', ['get', 'ele'], 0],
-    paint: { 'line-color': '#f0821e', 'line-opacity': ['case', ['==', ['get', 'level'], 1], 0.9, 0.7], 'line-width': ['case', ['==', ['get', 'level'], 1], 1, 0.6] } });
+    paint: { 'line-color': '#f0821e', 'line-opacity': ['case', ['==', ['get', 'level'], 1], 0.77, 0.55], 'line-width': ['case', ['==', ['get', 'level'], 1], 0.777, 0.333] } });   // (finer – 598, v392)
   put(k, { id: 'rel-coast0', type: 'line', source: 'contours', 'source-layer': 'contours', filter: ['==', ['get', 'ele'], 0],     // the 0 m line: the coast from the heights
     paint: { 'line-color': '#f0821e', 'line-width': 0.8, 'line-opacity': 0.8 } });
   put(k, { id: 'rel-contour-num', type: 'symbol', source: 'contours', 'source-layer': 'contours', minzoom: 7, filter: ['all', ['==', ['get', 'level'], 1], ['>', ['get', 'ele'], 0]],
-    layout: { 'symbol-placement': 'line', 'symbol-spacing': 320, 'text-field': ['number-format', ['get', 'ele'], { locale: 'en' }], 'text-font': ['Pult'], 'text-size': 10,
+    layout: { 'symbol-placement': 'line', 'symbol-spacing': 333, 'text-field': ['number-format', ['get', 'ele'], { locale: 'en' }], 'text-font': ['Pult'], 'text-size': 14,
       'text-max-angle': 30, 'text-padding': 4, 'text-keep-upright': true },
-    paint: { 'text-color': '#ffb066', 'text-halo-color': 'rgba(28,16,6,.85)', 'text-halo-width': 1.2 } });
+    paint: { 'text-color': '#ffb066', 'text-halo-color': 'rgba(28,16,6,.85)', 'text-halo-width': 1.4 } });   // (larger – 599, 601, v392)
 }
 function reliefLayerProps() {
   const v = x => x ? 'visible' : 'none';

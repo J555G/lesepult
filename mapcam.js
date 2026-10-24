@@ -36,13 +36,17 @@ function camInit() {
   // the globe made to keep the height of the point the camera looks at – for the free camera and the map alike (496b): set up as
   // soon as the map is a globe (at start or once switched to it)
   const m = M.map; if (m && !globeElev(m)) { const f = () => { if (globeElev(m)) m.off('render', f); }; m.on('render', f); }
+  if (M.camMap !== m) { M.cam = null; M.camPrevExp = null; }
+  camExplore();
 }
 
 // ---------------------------------------------------------------- the menu
 function camHTML() {
   const c = camCfg(), g = !!M.cfg.gnomon, sw = (k, l, sub, ic = '') => `<label class="mrow"><span>${ic ? `<i class="cmi">${ic}</i>` : ''}${l}${sub ? `<small class="cmh">${sub}</small>` : ''}</span>${SW(`data-camopt="${k}"`, !!c[k])}</label>`;
-  return sw('tilt', 'Look up to the sky', 'tilt beyond the horizon, up to the zenith')
-    + sw('deep', 'Deep zoom', 'to 20 instead of 16')
+  const ex = camExpOn();
+  return `<div class="mrow"><span>Camera<small class="cmh">${ex ? 'a camera of its own: no limits, never into the ground' : 'the map’s own, with its limits'}</small></span><div class="seg" role="group">`
+    + [['exp', 'Explorer'], ['trad', 'Traditional']].map(([v, l]) => `<button type="button" data-camstyle="${v}" class="${(ex ? 'exp' : 'trad') === v ? 'on' : ''}" aria-pressed="${(ex ? 'exp' : 'trad') === v}">${l}</button>`).join('') + '</div></div>'
+    + (ex ? '' : sw('tilt', 'Look up to the sky', 'tilt beyond the horizon, up to the zenith') + sw('deep', 'Deep zoom', 'to 20 instead of 16'))
     + sw('lens', 'Lens')
     + (c.lens ? `<label class="mrow msub"><span>Field of view <output id="camFovOut">${Math.round(c.fov || 60)}°</output></span><span class="cmr"><input type="range" min="10" max="150" step="1" value="${c.fov || 60}" data-camfov="1" aria-label="Field of view"><button type="button" class="cmrz" data-camfovreset="1" title="Back to normal (37°)" aria-label="Reset the field of view">↺</button></span></label>` : '')
     + sw('roll', 'Roll', 'the horizon tilted sideways')
@@ -65,6 +69,9 @@ async function camClick(b) {
   if (d.camrollreset) { const c = camCfg(); c.rollv = 0; if (M.cam) M.cam.roll = 0; camLimits(); if (M.cam) camApply(); await saveMapCfg(); camPopRefresh(); return true; }
   if (d.flyfwd) { if (M.cam?.look) { M.cam.look = { y: 0, p: 0 }; } return true; }
   if (d.camleave) { camLeave(); camPopRefresh(); return true; }
+  if (d.camstyle) { const ex = d.camstyle === 'exp'; camCfg().style = ex ? undefined : 'trad'; await saveMapCfg();
+    if (ex) camExplore(); else if (M.cam?.mode === 'exp') { M.camWas = null; camLeave(); }
+    camLimits(); camPopRefresh(); return true; }
   if (d.camnorth) { if (M.cam) { M.cam.br = 0; camApply(); } return true; }
   if (d.camzen) { if (M.cam) { M.cam.pt = 178; camApply(); } return true; }
   return false;
@@ -83,7 +90,7 @@ document.addEventListener('input', ev => {
 });
 
 // ---------------------------------------------------------------- a camera of its own: position and direction
-// M.cam = { mode: 'fly' | 'obel', lng, lat, alt (metres above sea level), br (bearing), pt (0 down, 90 level, 180 up), roll }
+// M.cam = { mode: 'exp' | 'fly' | 'obel', lng, lat, alt (metres above sea level), br (bearing), pt (0 down, 90 level, 180 up), roll }
 // the ground under the camera, as the map draws it: flat at 0 without 3D terrain; with it, the height from the elevation tiles
 // (times the exaggeration) – read from the tiles directly, not from what the view happens to have loaded (that gave 0 when the
 // camera looked up, away from the ground beneath it – v360)
@@ -99,7 +106,8 @@ function groundAt(lng, lat) {
   const h = demHeight(lng, lat); if (h != null) return Math.max(0, h) * (T.exaggeration ?? 1);
   try { return m.queryTerrainElevation([lng, lat]) || 0; } catch (_) { return 0; }
 }
-function camApply() {
+function camApply() { M.camApplying = true; try { camApply0(); } finally { M.camApplying = false; } }
+function camApply0() {
   const m = M.map, c = M.cam; if (!m || !c) return;
   c.pt = Math.max(0.5, Math.min(179.5, c.pt)); c.br = ((c.br % 360) + 360) % 360; c.lat = Math.max(-85, Math.min(85, c.lat)); c.lng = ((c.lng + 540) % 360) - 180;
   if (c.mode === 'fly') c.alt = Math.max(groundAt(c.lng, c.lat) + 2, c.alt);
@@ -189,7 +197,7 @@ function camTake(mode, c) {
   // (the engine lifts a camera it thinks is inside the terrain onto the ground, pointing at the centre – with the camera looking up
   // it misjudged that and set it down on the ground: switched off while the camera is ours, which keeps its own floor – v360)
   if (typeof m._elevateCameraIfInsideTerrain === 'function' && !m._elevOrig) { m._elevOrig = m._elevateCameraIfInsideTerrain; m._elevateCameraIfInsideTerrain = function (t) { return M.cam ? {} : this._elevOrig(t); }; }
-  M.cam = { mode, ...c }; camFog(); m.setCenterClampedToGround?.(false); camLimits(); camGestures(); camApply(); obelUpd(); m.triggerRepaint();
+  M.cam = { mode, ...c }; M.camMap = m; camFog(); m.setCenterClampedToGround?.(false); camLimits(); camGestures(); camApply(); obelUpd(); m.triggerRepaint();
 }
 // the engine's fog – always white, also at night – over the distant land in the flat view: off while flying (500c, v363)
 const FOG_OFF = { 'fog-color': 'rgba(0,0,0,0)', 'fog-ground-blend': 1, 'horizon-fog-blend': 0, 'sky-horizon-blend': 0 }, FOG_ON = { 'fog-color': '#ffffff', 'fog-ground-blend': 0.5, 'horizon-fog-blend': 0.8, 'sky-horizon-blend': 0.8 };
@@ -199,7 +207,11 @@ function camFog() {
   try { m.setSky(sky); } catch (_) {}
 }
 function camLeave() {
-  const m = M.map; if (!M.cam || !m) return; const was = M.camWas; M.cam = null; cancelAnimationFrame(FLY.raf); $('#flyUI')?.remove(); FLY.L = { x: 0, y: 0 }; FLY.R = { x: 0, y: 0 }; FLY.keys.clear();
+  const m = M.map; if (!M.cam || !m) return; const was = M.camWas, mode = M.cam.mode; cancelAnimationFrame(FLY.raf); $('#flyUI')?.remove(); FLY.L = { x: 0, y: 0 }; FLY.R = { x: 0, y: 0 }; FLY.keys.clear();
+  // (out of flight or the obelisk's view, with the explorer camera chosen: back to where it was; the lens as before – v392)
+  if (mode !== 'exp' && camExpOn()) { M.cam = M.camPrevExp ? { ...M.camPrevExp } : { mode: 'exp', ...camNow() }; M.camPrevExp = null;
+    camLimits(); camFog(); camApply(); camBar(); obelUpd(); m.triggerRepaint(); return; }
+  M.cam = null; cancelAnimationFrame(EXP.raf); EXP.raf = 0; EXP.hold = false;
   for (const h of ['dragPan', 'dragRotate', 'scrollZoom', 'touchZoomRotate', 'touchPitch', 'keyboard', 'doubleClickZoom', 'boxZoom']) m[h]?.enable();
   m.setCenterClampedToGround?.(true); camLimits(); camFog();
   if (was) m.jumpTo({ center: was.center, zoom: was.zoom, bearing: was.bearing, pitch: Math.min(was.pitch, m.getMaxPitch()), roll: camCfg().roll ? camCfg().rollv || 0 : 0 });
@@ -212,7 +224,7 @@ function camLeave() {
 // v363), so the land passes calmly high up, and low down not too slowly. The view looks ahead with the horizon a
 // third down the screen (the ground in front filling the rest); dragging elsewhere turns the head, ↺ brings it back.
 function camFly() {
-  if (!M.map) return; const c = camNow();
+  if (!M.map) return; const c = camNow(); if (M.cam?.mode === 'exp') M.camPrevExp = { ...M.cam };
   camTake('fly', { lng: c.lng, lat: c.lat, alt: c.alt, hd: c.br, ptA: 0, bank: 0, vF: 0, vR: 0, look: { y: 0, p: 0 }, br: c.br, pt: 70, roll: 0 });
   flyUI(); flyLoop();
 }
@@ -276,13 +288,13 @@ function flyPaint() { const c = M.cam, s = $('#flyInfo'); if (!s) return; const 
 function obelTip() { const g = M.cfg.gnomon; if (!g || !M.map) return null; const eye = (g.h || 30) * obelK(); return { lng: g.lng, lat: g.lat, alt: groundAt(g.lng, g.lat) + eye, eye }; }
 function camObelisk() {
   const t = obelTip(); if (!t) { note('Set up the obelisk first: drag it from the sundial onto the map.'); return; }
-  const s = sunOn() ? sunAt(sunPos(sunTime()), t.lng, t.lat) : null;
+  const s = sunOn() ? sunAt(sunPos(sunTime()), t.lng, t.lat) : null; if (M.cam?.mode === 'exp') M.camPrevExp = { ...M.cam };
   camTake('obel', { ...t, br: s && s.alt > -10 ? s.az : M.map.getBearing(), pt: 92, roll: camCfg().roll ? camCfg().rollv || 0 : 0 });   // (facing the sun, if it is up)
 }
 // the bar over the map while the camera is our own: what it is, and the ways out
 function camBar() {
   const box = M.map?.getContainer(); if (!box) return; let b = $('#camBar');
-  if (!M.cam) { b?.remove(); return; }
+  if (!M.cam || M.cam.mode === 'exp') { b?.remove(); return; }
   if (!b) { b = document.createElement('div'); b.id = 'camBar'; b.className = 'cambar'; box.append(b); }
   const o = M.cam.mode === 'obel', h = o ? `<span class="cbl">${OBEL_EYE_ICON}From the obelisk</span><button type="button" data-camnorth="1" title="Face north">N</button><button type="button" data-camzen="1" title="Look straight up">⤒</button><button type="button" data-camsky="1" title="All-sky view">◎</button><button type="button" data-camleave="1" title="Back to the map">✕</button>`
     : `<span class="cbl">${ICARUS_ICON}Free flight</span><small id="flyInfo"></small><button type="button" data-flyfwd="1" title="Look ahead again">↺</button><button type="button" data-camleave="1" title="Back to the map">✕</button>`;
@@ -296,30 +308,148 @@ function camGestures() {
   const P = new Map(); let g0 = null;
   const two = () => { const [a, b] = [...P.values()]; return { d: Math.hypot(b.x - a.x, b.y - a.y), a: Math.atan2(b.y - a.y, b.x - a.x), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
   const degPx = () => (m.getVerticalFieldOfView?.() || 37) / Math.max(200, el.clientHeight);
-  el.addEventListener('pointerdown', e => { if (!M.cam) return; P.set(e.pointerId, { x: e.clientX, y: e.clientY }); el.setPointerCapture?.(e.pointerId); if (P.size === 2) g0 = { ...two(), fov: m.getVerticalFieldOfView(), roll: M.cam.roll || 0 }; }, true);
+  el.addEventListener('pointerdown', e => { if (!M.cam) return; P.set(e.pointerId, { x: e.clientX, y: e.clientY }); el.setPointerCapture?.(e.pointerId); if (P.size === 2) g0 = { ...two(), fov: m.getVerticalFieldOfView(), roll: M.cam.roll || 0 };
+    if (M.cam.mode === 'exp') expDown(e, P, two); }, true);
   el.addEventListener('pointermove', e => {
     if (!M.cam || !P.has(e.pointerId)) return; const q = P.get(e.pointerId), dx = e.clientX - q.x, dy = e.clientY - q.y;
+    if (M.cam.mode === 'exp') { P.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (M.obGrab == null) expMoveG(e, P, two, dx, dy); return; }
     if (P.size === 1) { const k = degPx(); P.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (M.cam.mode === 'fly') { M.cam.look.y -= dx * k; M.cam.look.p = Math.max(-85, Math.min(85, M.cam.look.p + dy * k)); return; }   // (the head turned; the flight goes on)
       M.cam.br -= dx * k; M.cam.pt += dy * k; camApply(); return; }   // (look round: the world follows the finger)
     P.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (P.size !== 2 || !g0) return;
     if (M.cam.mode === 'fly') return;
     const t = two(); M.cam.roll = g0.roll + (t.a - g0.a) / RAD;
-    const f = Math.max(10, Math.min(150, g0.fov * g0.d / Math.max(10, t.d))); m.setVerticalFieldOfView(f); camCfg().fov = Math.round(f);
+    const f = Math.max(10, Math.min(150, g0.fov * g0.d / Math.max(10, t.d))); m.setVerticalFieldOfView(f); if (M.cam.mode !== 'obel') camCfg().fov = Math.round(f);   // (in the obelisk's view only for the while – v392)
     camApply();
   }, true);
-  const up = e => { P.delete(e.pointerId); if (P.size < 2) g0 = null; };
+  const up = e => { const had = P.has(e.pointerId); P.delete(e.pointerId); if (P.size < 2) g0 = null; if (had && M.cam?.mode === 'exp') expUp(e, P, two); };
   el.addEventListener('pointerup', up, true); el.addEventListener('pointercancel', up, true);
+  el.addEventListener('contextmenu', e => { if (M.cam?.mode === 'exp') e.preventDefault(); });   // (the right button turns the head)
   el.addEventListener('wheel', e => { if (!M.cam) return; e.preventDefault(); e.stopPropagation();
-    const f = Math.max(10, Math.min(150, m.getVerticalFieldOfView() * Math.exp(e.deltaY * 0.001))); m.setVerticalFieldOfView(f); camCfg().fov = Math.round(f); if (M.cam.mode !== 'fly') camApply(); }, { capture: true, passive: false });
+    if (M.cam.mode === 'exp') { expWheel(e); return; }
+    const f = Math.max(10, Math.min(150, m.getVerticalFieldOfView() * Math.exp(e.deltaY * 0.001))); m.setVerticalFieldOfView(f); if (M.cam.mode !== 'obel') camCfg().fov = Math.round(f); if (M.cam.mode !== 'fly') camApply(); }, { capture: true, passive: false });
   addEventListener('keydown', e => {
     if (!M.cam || e.target.closest?.('input, textarea, select, [contenteditable]')) return; const k = e.key.toLowerCase();
     if (M.cam.mode === 'fly' && ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { FLY.keys.add(k); e.preventDefault(); return; }   // (the keys as the sticks)
+    if (M.cam.mode === 'exp' && expKey(k)) { e.preventDefault(); return; }
     const tn = { arrowleft: [-3, 0], arrowright: [3, 0], arrowup: [0, 3], arrowdown: [0, -3] }[k];
     if (tn) { M.cam.br += tn[0]; M.cam.pt += tn[1]; camApply(); e.preventDefault(); }
-    if (k === 'escape') camLeave();
+    if (k === 'escape' && M.cam.mode !== 'exp') camLeave();
   });
   addEventListener('keyup', e => FLY.keys.delete(e.key.toLowerCase())); addEventListener('blur', () => FLY.keys.clear());
+}
+// ---------------------------------------------------------------- the explorer camera (593a–597a, v392)
+// The map's own camera hangs on the point in the middle of the view, held on the ground: as one pans, that point's height changes,
+// far ahead when tilted, and the camera rose and fell with it; tilted up, it could end beneath the ground and was thrown up again.
+// The explorer is a camera of its own, as in flight: a point with its height above the sea and its direction; every gesture moves
+// that point. One finger grabs the ground – the spot under it stays under it (594a); pointing at the sky, it moves forward, back
+// and sideways, the faster the higher. Two fingers fly towards or away from the point between them, along the line of sight (595a),
+// turn the view about it, and moved together up or down, tilt the head – no thresholds, every direction, straight down to straight
+// up. The mouse wheel as the pinch; the right button (or Ctrl) turns the head. A fling glides on. The only correction: a floor
+// 20 m above the ground beneath the camera – where the ground rises into it, the camera is lifted, eased over a third of a second
+// (596a); nothing else changes its height.
+const EXP_FLOOR = 20, EXP = { v: [0, 0], raf: 0, last: 0, hold: false, g: null, T: null, prev: null, look: false, tm: 0, tap: null, anim: null };
+const camExpOn = () => camCfg().style !== 'trad';
+function camExplore() {
+  const m = M.map; if (!m || M.cam || !camExpOn()) return;
+  const c = camNow(); camTake('exp', { lng: c.lng, lat: c.lat, alt: Math.max(c.alt, groundAt(c.lng, c.lat) + EXP_FLOOR), br: c.br, pt: c.pt, roll: c.roll });
+  // (moves made by others – a jump to a place, the north button – taken over as they happen)
+  if (!m._expSync) { m._expSync = true; m.on('move', () => { if (M.cam?.mode === 'exp' && !M.camApplying && !EXP.hold) { const n = camNow(); Object.assign(M.cam, { lng: n.lng, lat: n.lat, alt: n.alt, br: n.br, pt: n.pt }); } }); }
+}
+// the camera's own directions (x east, y north, z up): ahead, right, up
+function expBasis(c) {
+  const b = c.br * RAD, e = (c.pt - 90) * RAD, f = [Math.cos(e) * Math.sin(b), Math.cos(e) * Math.cos(b), Math.sin(e)], r0 = [Math.cos(b), -Math.sin(b), 0];
+  const u0 = [r0[1] * f[2] - r0[2] * f[1], r0[2] * f[0] - r0[0] * f[2], r0[0] * f[1] - r0[1] * f[0]], q = (c.roll || 0) * RAD;
+  return { f, r: r0.map((v, i) => v * Math.cos(q) + u0[i] * Math.sin(q)), u: u0.map((v, i) => v * Math.cos(q) - r0[i] * Math.sin(q)) };
+}
+// the line of sight through a point of the screen (client coordinates)
+function expRay(c, cx, cy) {
+  const m = M.map, R = m.getCanvas().getBoundingClientRect(), x = cx - R.left, y = cy - R.top, fp = R.height / 2 / Math.tan((m.getVerticalFieldOfView() || 37) * RAD / 2), { f, r, u } = expBasis(c);
+  const d = [0, 1, 2].map(i => f[i] * fp + r[i] * (x - R.width / 2) + u[i] * (R.height / 2 - y)), l = Math.hypot(...d); return d.map(v => v / l);
+}
+const expHgt = c => Math.max(1, c.alt - groundAt(c.lng, c.lat));
+const expMove = (c, de, dn) => { c.lat = Math.max(-85, Math.min(85, c.lat + dn / mPerDeg)); c.lng += de / (mPerDeg * Math.max(0.05, Math.cos(c.lat * RAD))); };
+const expOff = (c, p) => [(((p.lng - c.lng + 540) % 360) - 180) * mPerDeg * Math.cos(c.lat * RAD), (p.lat - c.lat) * mPerDeg];   // (metres east and north from the camera to p)
+// where a line of sight meets the ground: { lng, lat, h }, or null when it points at the sky (not farther than 60 times the height)
+function expGround(c, d) {
+  if (d[2] > -0.004) return null; const cap = Math.max(3000, 60 * expHgt(c)); let h = groundAt(c.lng, c.lat), p = null;
+  for (let k = 0; k < 5; k++) { const t = Math.min(cap, Math.max(0, (h - c.alt) / d[2])); p = { lng: c.lng + d[0] * t / (mPerDeg * Math.max(0.05, Math.cos(c.lat * RAD))), lat: c.lat + d[1] * t / mPerDeg }; h = groundAt(p.lng, p.lat); }
+  return { ...p, h };
+}
+// a point to fly towards: the ground under the screen point, or (at the sky) a point ahead as far as the camera is high
+function expTarget(c, cx, cy) {
+  const d = expRay(c, cx, cy), g = expGround(c, d); if (g) return g;
+  const t = Math.max(50, 2 * expHgt(c)); return { lng: c.lng + d[0] * t / (mPerDeg * Math.max(0.05, Math.cos(c.lat * RAD))), lat: c.lat + d[1] * t / mPerDeg, h: c.alt + d[2] * t };
+}
+// towards (k < 1) or away from (k > 1) a point, turned about it by db degrees of bearing; not into the floor while coming closer
+function expZoom(c, T, k, db = 0) {
+  const o = expOff(c, T), v = [-o[0], -o[1]], dist = Math.hypot(v[0], v[1], c.alt - T.h); if (k < 1 && dist * k < 5) k = 5 / Math.max(5, dist);
+  const q = db * RAD, w = [(v[0] * Math.cos(q) + v[1] * Math.sin(q)) * k, (-v[0] * Math.sin(q) + v[1] * Math.cos(q)) * k];
+  expMove(c, o[0] + w[0], o[1] + w[1]); c.alt = T.h + (c.alt - T.h) * k; c.br += db;
+  if (k < 1) c.alt = Math.max(c.alt, groundAt(c.lng, c.lat) + EXP_FLOOR);
+}
+// the glide after a fling, the lift where the ground rises into the floor, and a short flight (a double tap)
+function expTick() {
+  if (EXP.raf) return; EXP.last = performance.now();
+  const step = now => { EXP.raf = 0; const c = M.cam; if (!c || c.mode !== 'exp') return; const dt = Math.min(0.1, (now - EXP.last) / 1000); EXP.last = now; let more = false;
+    if (!EXP.hold && Math.hypot(EXP.v[0], EXP.v[1]) > 0.3 * Math.sqrt(expHgt(c))) { expMove(c, EXP.v[0] * dt, EXP.v[1] * dt); const f = Math.exp(-dt / 0.35); EXP.v = EXP.v.map(x => x * f); more = true; }
+    else if (!EXP.hold) EXP.v = [0, 0];
+    if (EXP.anim) more = EXP.anim(now) || more;
+    const g = groundAt(c.lng, c.lat); if (c.alt < g + 2) c.alt = g + 2;
+    if (c.alt < g + EXP_FLOOR - 0.05) { c.alt += (g + EXP_FLOOR - c.alt) * Math.min(1, dt / 0.33); more = true; }
+    camApply(); if (more) { EXP.raf = requestAnimationFrame(step); } };
+  EXP.raf = requestAnimationFrame(step);
+}
+function expDown(e, P, two) {
+  const c = M.cam; EXP.v = [0, 0]; EXP.anim = null;
+  if (P.size === 1) { EXP.hold = true; EXP.look = e.pointerType === 'mouse' && (e.button === 2 || e.ctrlKey || e.metaKey); EXP.tm = performance.now();
+    EXP.g = EXP.look ? null : expGround(c, expRay(c, e.clientX, e.clientY)); EXP.down = { x: e.clientX, y: e.clientY, t: EXP.tm }; }
+  else if (P.size === 2) { const t = two(); EXP.g = null; EXP.T = expTarget(c, t.x, t.y); EXP.prev = t; }
+}
+function expMoveG(e, P, two, dx, dy) {
+  const c = M.cam, m = M.map, H = m.getCanvas().clientHeight || 600;
+  if (P.size === 1) {
+    if (EXP.look) { const k = (m.getVerticalFieldOfView() || 37) / H; c.br -= dx * k; c.pt = Math.max(0.5, Math.min(179.5, c.pt + dy * k)); camApply(); return; }
+    const lat0 = c.lat, lng0 = c.lng, d = expRay(c, e.clientX, e.clientY), G = EXP.g;
+    if (G && d[2] < -0.004) {                                          // (the spot under the finger kept under it)
+      const t = Math.min(Math.max(3000, 60 * expHgt(c)), (G.h - c.alt) / d[2]);
+      if (t > 0) { const o = expOff(c, G); expMove(c, o[0] - d[0] * t, o[1] - d[1] * t); }
+    } else {                                                             // (at the sky: forward, back, sideways, the faster the higher)
+      const s = 2.5 * expHgt(c) / H, b = c.br * RAD, fw = dy * s, sd = -dx * s; expMove(c, fw * Math.sin(b) + sd * Math.cos(b), fw * Math.cos(b) - sd * Math.sin(b)); EXP.g = null; }
+    const now = performance.now(), dt = Math.max(0.008, (now - EXP.tm) / 1000); EXP.tm = now;
+    const v = [(((c.lng - lng0 + 540) % 360) - 180) * mPerDeg * Math.cos(c.lat * RAD) / dt, (c.lat - lat0) * mPerDeg / dt]; EXP.v = [0.6 * EXP.v[0] + 0.4 * v[0], 0.6 * EXP.v[1] + 0.4 * v[1]];
+    camApply(); expTick(); return;
+  }
+  if (P.size === 2 && EXP.T && EXP.prev) {
+    const t = two(), p = EXP.prev; EXP.prev = t; const k = p.d / Math.max(10, t.d), da = ((t.a - p.a) / RAD + 540) % 360 - 180;
+    if (Math.abs(k - 1) < 0.004 && Math.abs(da) < 0.3) { const kd = (m.getVerticalFieldOfView() || 37) / H; c.pt = Math.max(0.5, Math.min(179.5, c.pt - (t.y - p.y) * kd)); }   // (both fingers up or down: the head tilts)
+    else expZoom(c, EXP.T, k, -da);
+    camApply(); expTick();
+  }
+}
+function expUp(e, P, two) {
+  if (P.size === 1) { const [q] = [...P.values()]; EXP.prev = null; EXP.T = null; EXP.g = expGround(M.cam, expRay(M.cam, q.x, q.y)); EXP.tm = performance.now(); return; }   // (one finger left: it grabs on)
+  if (P.size) return;
+  EXP.hold = false; EXP.T = null; EXP.prev = null; if (performance.now() - EXP.tm > 90) EXP.v = [0, 0];
+  // a double tap: towards that point, halfway (with Shift, away)
+  const dn = EXP.down, now = performance.now();
+  if (dn && Math.hypot(e.clientX - dn.x, e.clientY - dn.y) < 8 && now - dn.t < 300) {
+    if (EXP.tap && now - EXP.tap.t < 350 && Math.hypot(e.clientX - EXP.tap.x, e.clientY - EXP.tap.y) < 30) { EXP.tap = null; EXP.v = [0, 0];
+      const T = expTarget(M.cam, e.clientX, e.clientY), K = e.shiftKey ? 2 : 0.5, t0 = now; let done = 0;
+      EXP.anim = n => { const u = Math.min(1, (n - t0) / 320), s = u * u * (3 - 2 * u), want = Math.pow(K, s), k = want / Math.pow(K, done); done = s; expZoom(M.cam, T, k); if (u >= 1) { EXP.anim = null; return false; } return true; }; }
+    else EXP.tap = { x: e.clientX, y: e.clientY, t: now }; }
+  expTick();
+}
+function expWheel(e) {
+  const c = M.cam, T = expTarget(c, e.clientX, e.clientY), k = Math.exp(Math.max(-1, Math.min(1, e.deltaY * (e.deltaMode ? 0.05 : 0.0015))));
+  EXP.v = [0, 0]; expZoom(c, T, k); camApply(); expTick();
+}
+function expKey(k) {
+  const c = M.cam, h = expHgt(c), b = c.br * RAD, mv = (f, s) => { expMove(c, f * Math.sin(b) + s * Math.cos(b), f * Math.cos(b) - s * Math.sin(b)); };
+  if (k === 'arrowup') mv(0.15 * h, 0); else if (k === 'arrowdown') mv(-0.15 * h, 0); else if (k === 'arrowleft') c.br -= 3; else if (k === 'arrowright') c.br += 3;
+  else if (k === '+' || k === '=') expZoom(c, expTarget(c, innerWidth / 2, innerHeight / 2), 0.8); else if (k === '-') expZoom(c, expTarget(c, innerWidth / 2, innerHeight / 2), 1.25);
+  else if (k === 'pageup') c.pt = Math.min(179.5, c.pt + 3); else if (k === 'pagedown') c.pt = Math.max(0.5, c.pt - 3); else return false;
+  camApply(); expTick(); return true;
 }
 // ---------------------------------------------------------------- the all-sky view (a fisheye straight up)
 // Drawn by Pult itself: the zenith in the middle, the horizon at nine tenths of the radius, a little below it to the rim (from
