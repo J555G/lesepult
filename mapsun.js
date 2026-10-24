@@ -965,9 +965,9 @@ function frescoHTML(p) {
     <g class="frsky"><rect id="${p}B0" x="-${big}" y="-${big}" width="${2 * big}" height="${2 * big}"/><path id="${p}B1" d=""/><path id="${p}B2" d=""/><path id="${p}B3" d=""/></g>
     <g clip-path="url(#${p}Ab)"><ellipse id="${p}Wa" rx="0" ry="0" fill="url(#${p}WaG)"/><path id="${p}St" class="frstar" d=""/><ellipse id="${p}Ha" rx="0" ry="0" fill="url(#${p}HaG)"/></g>
     <g class="frsea"><rect id="${p}S0" x="-${big}" y="0" width="${2 * big}" height="0"/><path id="${p}S1" d=""/><path id="${p}S2" d=""/><path id="${p}Hz" class="frhz" d=""/></g>
-    <g clip-path="url(#${p}Be)"><g id="${p}CrG" class="frcr" fill="#ece6cf"><path id="${p}Cr" d=""/></g>
-      <g mask="url(#${p}CoM)" id="${p}Co"><rect id="${p}CoW" x="-${big}" y="0" width="${2 * big}" height="${2 * big}"/><use href="#${p}Cr" id="${p}CoC"/></g>
-      <g mask="url(#${p}McM)" id="${p}Mc" fill="#e4e9f2"><rect id="${p}McW" x="-${big}" y="0" width="${2 * big}" height="${2 * big}"/><use href="#${p}Cr"/></g></g>
+    <g clip-path="url(#${p}Be)"><g id="${p}CrG" class="frcr" fill="#ece6cf"><g class="frl ${p}l0"><path id="${p}Cr0" d=""/></g><g class="frl ${p}l1" style="opacity:0"><path id="${p}Cr1" d=""/></g></g>
+      <g mask="url(#${p}CoM)" id="${p}Co"><rect id="${p}CoW" x="-${big}" y="0" width="${2 * big}" height="${2 * big}"/><g class="frl ${p}l0"><use href="#${p}Cr0"/></g><g class="frl ${p}l1" style="opacity:0"><use href="#${p}Cr1"/></g></g>
+      <g mask="url(#${p}McM)" id="${p}Mc" fill="#e4e9f2"><rect id="${p}McW" x="-${big}" y="0" width="${2 * big}" height="${2 * big}"/><g class="frl ${p}l0"><use href="#${p}Cr0"/></g><g class="frl ${p}l1" style="opacity:0"><use href="#${p}Cr1"/></g></g></g>
     <rect class="frchalk" x="-${big}" y="-${big}" width="${2 * big}" height="${2 * big}"/><rect class="frgrain" x="-${big}" y="-${big}" width="${2 * big}" height="${2 * big}" fill="url(#${p}Gr)"/>`;
 }
 // a brushed edge: level at y, wavering by up to a (fixed along x, so that it does not flicker as the bands move)
@@ -977,8 +977,8 @@ function frEdge(W, y, a, seed) {
   return d;
 }
 // the crests: little crescents like brushstrokes, in rows from the horizon down; longer and further apart towards the eye
-function frCrests(W, hz, yb, k) {
-  const hsh = n => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+function frCrests(W, hz, yb, k, seed = 0) {
+  const hsh = n => { const v = Math.sin(n * 127.1 + 311.7 + seed * 17.31) * 43758.5453; return v - Math.floor(v); };
   if (yb - hz < 4) return '';
   const out = []; let n = 0;
   for (let y = hz + 2 * k, row = 0; y < yb + 6 && row < 80; row++) {
@@ -990,18 +990,29 @@ function frCrests(W, hz, yb, k) {
     y += gap; }
   return out.join('');
 }
-// the gilded stars above the horizon: the view towards the equator (south from the north, north from the south), 180° across
+// the gilded stars above the horizon: the view towards the south, everywhere – east at the left, west at the right, as on the dial (569c);
+// 180° across, as many pixels to the degree upwards as across
+const frXY = (W, hz, az, alt) => { const ppd = W / 180; return [W / 2 + (az - 180) * ppd, hz - alt * ppd]; };
 const FR_STAR = Array.from({ length: 16 }, (_, i) => { const a = i * Math.PI / 8, r = i % 2 ? 0.42 : 1; return [Math.sin(a) * r, -Math.cos(a) * r]; });
 function frStars(W, hz, k, t) {
   const st = skyStars(); if (!st) return '';
   const c = sunRef(), d = t / 864e5 - 10957.5, g15 = ((18.697374558 + 24.06570982441908 * d) % 24 + 24) % 24 * 15, ppd = W / 180, out = [];
   for (const s of st) { if (s.s < 0.32) continue;                                  // (to the fourth magnitude)
     const a = sunAt({ dec: s.dec, lon: s.ra - g15 }, c.lng, c.lat); if (a.alt < 1) continue;
-    const az = c.lat >= 0 ? a.az - 180 : ((a.az + 180) % 360) - 180, x = W / 2 + az * ppd, y = hz - a.alt * ppd;
+    const [x, y] = frXY(W, hz, a.az, a.alt);
     if (x < -8 || x > W + 8 || y < -8) continue;
     const r = Math.min(5, 1.5 + 0.85 * (s.s - 0.32) / 0.15) * k;
     out.push('M' + FR_STAR.map(([u, v]) => `${(x + u * r).toFixed(1)} ${(y + v * r).toFixed(1)}`).join('L') + 'z'); }
   return out.join('');
+}
+// the fresh arrangement of the crests: drawn into the hidden layer, which then fades in as the other fades out
+let FR_TICK = null;
+function frTick() {
+  if (document.hidden) return; let any = false;
+  for (const [p, f] of Object.entries(FR)) { const a = document.getElementById(p + 'Cr0'); if (!a || !f.key) continue; any = true;
+    const o = f.o, n = 1 - f.cur; f.seed++; document.getElementById(p + 'Cr' + n).setAttribute('d', frCrests(o.W, f.hz, f.yb + 4, o.k, f.seed));
+    document.querySelectorAll('.' + p + 'l' + n).forEach(e => e.style.opacity = 1); document.querySelectorAll('.' + p + 'l' + f.cur).forEach(e => e.style.opacity = 0); f.cur = n; }
+  if (!any) { clearInterval(FR_TICK); FR_TICK = null; }
 }
 // the painting, by o: W, H (the area), hz (the horizon), yb (the sea's foot), k (the size of brushwork), ks (the dial's scale, for the
 // glows), sx, sy (the sun's handle), mx (where the moon's light falls), and the light of the moment from M.frS
@@ -1024,11 +1035,13 @@ function frescoPaint(p, o) {
   E('S1').setAttribute('d', frEdge(W, hz + 0.13 * Ds, 1.4 * k, 3.1) + `V${(yb + 8000).toFixed(0)}H-60z`); E('S1').setAttribute('fill', s1);
   E('S2').setAttribute('d', frEdge(W, hz + 0.52 * Ds, 1.8 * k, 5.7) + `V${(yb + 8000).toFixed(0)}H-60z`); E('S2').setAttribute('fill', s2);
   E('Hz').setAttribute('d', `M-60 ${hz.toFixed(1)}H${W + 60}`); E('Hz').setAttribute('stroke', hexMix(s2, '#000000', 0.25)); E('Hz').style.strokeWidth = (0.9 * k).toFixed(2);
-  // the crests (drawn anew when the horizon or the size changes – at most every 2 s, 561a)
-  const key = [Math.round(W), Math.round(hz), Math.round(yb), k.toFixed(2)].join(), f = FR[p] ||= {}; f.o = o;
+  // the crests (drawn anew when the horizon or the size changes – at most every 2 s, 561a); every few seconds, besides, a fresh
+  // arrangement fades in over the old (568a, b)
+  const key = [Math.round(W), Math.round(hz), Math.round(yb), k.toFixed(2)].join(), f = FR[p] ||= { cur: 0, seed: 0 }; f.o = o; f.hz = hz; f.yb = yb;
   if (f.key !== key) { const now = performance.now(), wait = 2000 - (now - (f.t || 0));
-    if (wait <= 0 || !f.key || !E('Cr').getAttribute('d')) { f.key = key; f.t = now; E('Cr').setAttribute('d', frCrests(W, hz, yb + 4, k)); }
+    if (wait <= 0 || !f.key || !E('Cr' + f.cur).getAttribute('d')) { f.key = key; f.t = now; E('Cr' + f.cur).setAttribute('d', frCrests(W, hz, yb + 4, k, f.seed)); E('Cr' + (1 - f.cur)).setAttribute('d', ''); }
     else if (!f.tm) f.tm = setTimeout(() => { f.tm = null; f.t = 0; frescoPaint(p, f.o); }, wait); }
+  FR_TICK ||= setInterval(frTick, 4500);
   const dayn = Math.max(0, Math.min(1, (alt + 6) / 14)); E('CrG').setAttribute('fill-opacity', (0.16 + 0.42 * dayn).toFixed(2));
   // the gilded stars, at night
   const so = Math.max(0, Math.min(1, (-alt - 5) / 11)), st = E('St');
@@ -1048,10 +1061,11 @@ function frescoPaint(p, o) {
     g.setAttribute('x1', (x - w1).toFixed(1)); g.setAttribute('x2', (x + w1).toFixed(1)); m.style.opacity = Math.min(1, a).toFixed(2); };
   { const low = Math.max(0, Math.min(1, 1 - alt / 45)), up = sy < hz - 1 && alt > -0.8 ? Math.min(1, (alt + 0.8) / 2.5) : 0;
     col('Co', Math.min(W - 4, Math.max(4, sx)), (3 + 7 * (1 - low)) * k, W * (0.08 + 0.2 * (1 - low)), up * (0.6 + 0.4 * low));
-    E('CoC').setAttribute('fill', hex(mixW(tc, 0.3))); E('CoW').setAttribute('fill', hex(tc)); E('CoW').setAttribute('fill-opacity', '0.26'); }
-  // … and the moon's, silver, by night: beneath its place on the ring, while it is up – the brighter the fuller
-  { const mo = S.moon, a = mo && mo.alt > 0 && o.mx != null ? (0.2 + 0.55 * mo.lit) * Math.max(0, Math.min(1, (-alt - 4) / 6)) * Math.min(1, mo.alt / 3) : 0;
-    col('Mc', o.mx ?? 0, 3 * k, W * 0.09, a); E('McW').setAttribute('fill-opacity', '0.1'); }
+    E('Co').setAttribute('fill', hex(mixW(tc, 0.3))); E('CoW').setAttribute('fill', hex(tc)); E('CoW').setAttribute('fill-opacity', '0.26'); }
+  // the moon is the handle on the dial (570b, as corrected): its light, silver, falls on the waves beneath the handle by night –
+  // the brighter the fuller (not painted in the sky)
+  { const mx = o.mx ?? sx, a = (0.3 + 0.7 * S.moon.lit) * Math.max(0, Math.min(1, (-alt - 4) / 6));
+    col('Mc', mx, 3 * k, W * 0.12, a); E('McW').setAttribute('fill-opacity', '0.15'); }
 }
 function sdPanelHTML() {
   const ticks = Array.from({ length: 24 }, (_, h) => { const [a, b] = sdXY(h, h % 6 ? SD.R - 4 : SD.R - 7), [c, d] = sdXY(h, SD.R); return `<line x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${c.toFixed(1)}" y2="${d.toFixed(1)}"/>`; }).join('');
@@ -1112,7 +1126,7 @@ function zodBigPaint() {
   const svg = d.querySelector('svg.zw'), ov = d.getBoundingClientRect(), q = svg.getBoundingClientRect(); if (!ov.width || !q.width) return;
   // (the horizon and the light where they stand on the dial's ring, the ring taken as the wheel's rim)
   const kz = q.width / 524, cx = q.left - ov.left + 262 * kz, cy = q.top - ov.top + 278 * kz, Rz = 250 * kz, P = (X, Y) => [cx + (X - SD.cx) / SD.R * Rz, cy + (Y - SD.cy) / SD.R * Rz];
-  const [sx, sy] = P(S.x, S.y); frescoPaint('fz', { W: ov.width, H: ov.height, hz: P(0, S.hy)[1], yb: ov.height, k: frK(ov.width), ks: Rz / SD.R, sx, sy, mx: P(S.moon.X, 0)[0] });
+  const [sx, sy] = P(S.x, S.y); frescoPaint('fz', { W: ov.width, H: ov.height, hz: P(0, S.hy)[1], yb: ov.height, k: frK(ov.width), ks: Rz / SD.R, sx, sy, mx: sx });
 }
 // the wheel large, in the map's pane
 function zodBigOpen() {
@@ -1213,8 +1227,8 @@ function sundialPaint() {
   // the fresco behind (v383): the light of the moment, shared with the large views; the moon's light falls beneath its place on the ring
   { const t = sunTime(), c = sunRef(), mp = moonPos(t), mlst = ((12 + (c.lng - mp.lon) / 15) % 24 + 24) % 24;
     M.frS = { t, alt, eve: lst >= 12, tc, lowG, gr0, len, x, y, hy, wl: Math.max(0, Math.min(1, (12 - alt) / 12)) * Math.max(0, Math.min(1, (alt + 7) / 7)),
-      moon: { alt: sunAt(mp, c.lng, c.lat).alt, lit: mp.lit, X: sdXY(mlst, SD.R)[0] } };
-    frescoPaint('fp', { W, H, hz: hyP, yb: H - SD.BAR + 2, k, ks: k, sx: tx + k * x, sy: ty + k * y, mx: tx + k * M.frS.moon.X }); }
+      moon: { ...sunAt(mp, c.lng, c.lat), lit: mp.lit, waxing: mp.waxing, X: sdXY(mlst, SD.R)[0] } };
+    frescoPaint('fp', { W, H, hz: hyP, yb: H - SD.BAR + 2, k, ks: k, sx: tx + k * x, sy: ty + k * y, mx: tx + k * x }); }
   // the daylight on the ring, and the shadow: long when the sun is low, short at noon, fading towards sunset
   if (len > 0 && len < 24) { const [ax, ay] = sdXY(rise, SD.R + 3), [bx, by] = sdXY(set, SD.R + 3); $('#sdDay').setAttribute('d', `M${ax.toFixed(1)} ${ay.toFixed(1)}A${SD.R + 3} ${SD.R + 3} 0 ${len > 12 ? 1 : 0} 1 ${bx.toFixed(1)} ${by.toFixed(1)}`); }
   else $('#sdDay').setAttribute('d', len >= 24 ? `M${SD.cx} ${SD.cy - SD.R - 3}a${SD.R + 3} ${SD.R + 3} 0 1 0 0.01 0` : '');
@@ -1293,7 +1307,7 @@ function dialBigPaint(l) {
   // the fresco behind, its horizon and light where they stand on the dial (v383)
   { const ov = d.getBoundingClientRect(), q = svg.getBoundingClientRect(), sb = q.width / (2 * DB), S = M.frS;
     if (S && ov.width && q.width) { const P = (X, Y) => [q.left - ov.left + (X - SD.cx + DB) * sb, q.top - ov.top + (Y - SD.cy + DB) * sb], [sx, sy] = P(S.x, S.y);
-      frescoPaint('fd', { W: ov.width, H: ov.height, hz: P(0, S.hy)[1], yb: ov.height, k: frK(ov.width), ks: sb, sx, sy, mx: P(S.moon.X, 0)[0] }); } }
+      frescoPaint('fd', { W: ov.width, H: ov.height, hz: P(0, S.hy)[1], yb: ov.height, k: frK(ov.width), ks: sb, sx, sy, mx: sx }); } }
   l ||= sunLabel(); const lb = $('#dialBigLab'); if (lb) lb.textContent = `${l.main} · ${l.sub}`;
 }
 document.addEventListener('change', ev => { if (ev.target.closest?.('[data-sunsw]')) sunSet({ sun: ev.target.checked }).then(() => { const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML(); sundialPaint(); }); });

@@ -2121,3 +2121,4 @@ dialog .sortpair button{transition:border-color .15s}
 .zodbig.inpane svg.zw{width:min(88cqw,76cqh,720px);position:relative}
 .zodbig.inpane.sdbig .dbw>svg{width:min(84cqw,70cqh,640px)}
 .zodbig.inpane .dbw,.zodbig.inpane .zl{position:relative}
+.frl{transition:opacity 1.6s ease-in-out}
