@@ -2111,4 +2111,13 @@ dialog .sortpair button{transition:border-color .15s}
 .msdial .sdsw:not(.on) .swsun,.msdial .sdsw:not(.on) .swmoon{fill:#8a8f98;stroke:#8a8f98}
 .msdial .sdsw.on{background:rgba(0,0,0,.3);border-color:rgba(255,255,255,.55)}
 
-.sdbig .dbbg{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+/* the fresco (v383) */
+.frchalk{fill:#efe6cf;opacity:.05;pointer-events:none}
+.frgrain{pointer-events:none}
+.frstar{fill:#e6be55;stroke:#7a5518;stroke-width:.5;stroke-linejoin:round}
+.frhz{fill:none}
+.zodbig.inpane{position:absolute;z-index:400;background:#0c1230;container-type:size}
+.zodbig svg.frbg{position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden;cursor:default;pointer-events:none}
+.zodbig.inpane svg.zw{width:min(88cqw,76cqh,720px);position:relative}
+.zodbig.inpane.sdbig .dbw>svg{width:min(84cqw,70cqh,640px)}
+.zodbig.inpane .dbw,.zodbig.inpane .zl{position:relative}

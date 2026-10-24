@@ -919,24 +919,148 @@ function sdLay(W) {
 const OWL = '<g class="sdowl"><g class="owlw"><ellipse cx="-6" cy="2" rx="4" ry="7" transform="rotate(25 -6 2)"/><ellipse cx="6" cy="2" rx="4" ry="7" transform="rotate(-25 6 2)"/></g>'
   + '<ellipse cx="0" cy="2" rx="6.5" ry="8.5" class="owlb"/><path d="M-5.5 -9-3.5-4H3.5L5.5-9 2-5.5h-4z" class="owlb"/><circle cx="-2.6" cy="-4" r="2.4" class="owle"/><circle cx="2.6" cy="-4" r="2.4" class="owle"/>'
   + '<circle cx="-2.6" cy="-4" r="1" class="owlp"/><circle cx="2.6" cy="-4" r="1" class="owlp"/><path d="M-0.9-2 0-0.4 0.9-2z" class="owlk"/><path d="M-3 10.2h2M1 10.2h2" class="owlf"/></g>';
+// ---------------------------------------------------------------- the fresco (556–567, v383)
+// The panel's sky and sea – and the whole pane behind the large dial and the large wheel – painted as a fresco after Simone Martini:
+// ultramarine by day, yellow ochre and cinnabar-rose low down at sunrise and sunset, blue-black at night (557a); the sky in four flat
+// bands with brushed edges (558a); the brighter stars gilded and eight-pointed, where they really stand (559a); the glow of sunrise and
+// sunset in flat rings (560a); the sea in green earth over azurite (563a), rows of crests in lime white, smaller and closer towards
+// the horizon (561a, 562a), those beneath the sun or the moon taking its light (564a); a fine grain of plaster over all (565a).
+// [height, top, foot]
+const FR_EVE = [[60, '#3152a6', '#9db2d6'], [25, '#3456a6', '#adbdd8'], [8, '#344a8c', '#d8a650'], [0, '#2f3a7a', '#c4573e'], [-6, '#222a5c', '#7a4255'], [-12, '#151d44', '#2a3058'], [-18, '#0c1230', '#151c3c']];
+const FR_MORN = [[60, '#3152a6', '#9db2d6'], [25, '#3456a6', '#adbdd8'], [8, '#3a5296', '#e0b98a'], [0, '#323e80', '#d88378'], [-6, '#242c5e', '#6b4868'], [-12, '#151d44', '#2a3058'], [-18, '#0c1230', '#151c3c']];
+function frSkyAt(alt, eve) {
+  const K = eve ? FR_EVE : FR_MORN;
+  if (alt >= K[0][0]) return K[0].slice(1); if (alt <= K[K.length - 1][0]) return K[K.length - 1].slice(1);
+  for (let i = 0; i < K.length - 1; i++) if (alt <= K[i][0] && alt >= K[i + 1][0]) { const t = (K[i][0] - alt) / (K[i][0] - K[i + 1][0]); return [hexMix(K[i][1], K[i + 1][1], t), hexMix(K[i][2], K[i + 1][2], t)]; }
+}
+// the plaster: a tile of fine specks, faint level brushstrokes and blotches, seamless (drawn once)
+let FR_GRAIN = null;
+function frGrain() {
+  if (FR_GRAIN) return FR_GRAIN;
+  const N = 192, c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d');
+  let sd = 4242; const r = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  const wrap = f => { for (const dx of [-N, 0, N]) for (const dy of [-N, 0, N]) f(dx, dy); };
+  for (let i = 0; i < 14; i++) { const cx = r() * N, cy = r() * N, rd = 18 + r() * 46, lt = r() < 0.5;
+    wrap((dx, dy) => { const g = x.createRadialGradient(cx + dx, cy + dy, 0, cx + dx, cy + dy, rd); g.addColorStop(0, lt ? 'rgba(255,246,222,.08)' : 'rgba(58,38,18,.07)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(cx + dx - rd, cy + dy - rd, 2 * rd, 2 * rd); }); }
+  x.lineCap = 'round';
+  for (let i = 0; i < 80; i++) { const cx = r() * N, cy = r() * N, l = 8 + r() * 36, b = (r() - 0.5) * 3, w = 0.8 + r() * 2.2, lt = r() < 0.55, a = 0.03 + r() * 0.045;
+    x.strokeStyle = lt ? `rgba(255,250,232,${a})` : `rgba(40,28,14,${a})`; x.lineWidth = w;
+    wrap((dx, dy) => { x.beginPath(); x.moveTo(cx + dx, cy + dy); x.quadraticCurveTo(cx + dx + l / 2, cy + dy + b, cx + dx + l, cy + dy + b * 0.4); x.stroke(); }); }
+  for (let i = 0; i < 2600; i++) { const px = (r() * N) | 0, py = (r() * N) | 0, lt = r() < 0.5, a = 0.04 + r() * 0.12;
+    x.fillStyle = lt ? `rgba(255,252,240,${a.toFixed(3)})` : `rgba(30,20,10,${a.toFixed(3)})`; x.fillRect(px, py, 1, 1); }
+  return FR_GRAIN = c.toDataURL();
+}
+// the layers, under ids beginning with p (fp: the panel; fd: the large dial; fz: the large wheel)
+function frescoHTML(p) {
+  const big = 8000;
+  return `<defs><pattern id="${p}Gr" patternUnits="userSpaceOnUse" width="192" height="192"><image href="${frGrain()}" width="192" height="192"/></pattern>
+      <radialGradient id="${p}HaG"><stop offset="0" id="${p}Ha0" stop-opacity=".95"/><stop offset=".27" id="${p}Ha0b" stop-opacity=".95"/><stop offset=".31" id="${p}Ha1" stop-opacity=".72"/><stop offset=".57" id="${p}Ha1b" stop-opacity=".72"/><stop offset=".62" id="${p}Ha2" stop-opacity=".42"/><stop offset=".84" id="${p}Ha2b" stop-opacity=".42"/><stop offset="1" id="${p}Ha3" stop-opacity="0"/></radialGradient>
+      <radialGradient id="${p}WaG"><stop offset="0" id="${p}Wa0" stop-opacity=".8"/><stop offset=".4" id="${p}Wa0b" stop-opacity=".8"/><stop offset=".44" id="${p}Wa1" stop-opacity=".5"/><stop offset=".7" id="${p}Wa1b" stop-opacity=".5"/><stop offset=".75" id="${p}Wa2" stop-opacity=".22"/><stop offset=".9" id="${p}Wa2b" stop-opacity=".22"/><stop offset="1" id="${p}Wa3" stop-opacity="0"/></radialGradient>
+      <linearGradient id="${p}CoG" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+      <linearGradient id="${p}McG" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+      <mask id="${p}CoM" maskUnits="userSpaceOnUse" x="-${big}" y="-${big}" width="${2 * big}" height="${2 * big}"><path id="${p}CoP" fill="url(#${p}CoG)" d=""/></mask>
+      <mask id="${p}McM" maskUnits="userSpaceOnUse" x="-${big}" y="-${big}" width="${2 * big}" height="${2 * big}"><path id="${p}McP" fill="url(#${p}McG)" d=""/></mask>
+      <clipPath id="${p}Ab"><rect id="${p}AbR" x="-${big}" y="-${big}" width="${2 * big}" height="0"/></clipPath>
+      <clipPath id="${p}Be"><rect id="${p}BeR" x="-${big}" y="0" width="${2 * big}" height="${2 * big}"/></clipPath></defs>
+    <g class="frsky"><rect id="${p}B0" x="-${big}" y="-${big}" width="${2 * big}" height="${2 * big}"/><path id="${p}B1" d=""/><path id="${p}B2" d=""/><path id="${p}B3" d=""/></g>
+    <g clip-path="url(#${p}Ab)"><ellipse id="${p}Wa" rx="0" ry="0" fill="url(#${p}WaG)"/><path id="${p}St" class="frstar" d=""/><ellipse id="${p}Ha" rx="0" ry="0" fill="url(#${p}HaG)"/></g>
+    <g class="frsea"><rect id="${p}S0" x="-${big}" y="0" width="${2 * big}" height="0"/><path id="${p}S1" d=""/><path id="${p}S2" d=""/><path id="${p}Hz" class="frhz" d=""/></g>
+    <g clip-path="url(#${p}Be)"><g id="${p}CrG" class="frcr" fill="#ece6cf"><path id="${p}Cr" d=""/></g>
+      <g mask="url(#${p}CoM)" id="${p}Co"><rect id="${p}CoW" x="-${big}" y="0" width="${2 * big}" height="${2 * big}"/><use href="#${p}Cr" id="${p}CoC"/></g>
+      <g mask="url(#${p}McM)" id="${p}Mc" fill="#e4e9f2"><rect id="${p}McW" x="-${big}" y="0" width="${2 * big}" height="${2 * big}"/><use href="#${p}Cr"/></g></g>
+    <rect class="frchalk" x="-${big}" y="-${big}" width="${2 * big}" height="${2 * big}"/><rect class="frgrain" x="-${big}" y="-${big}" width="${2 * big}" height="${2 * big}" fill="url(#${p}Gr)"/>`;
+}
+// a brushed edge: level at y, wavering by up to a (fixed along x, so that it does not flicker as the bands move)
+function frEdge(W, y, a, seed) {
+  let d = ''; for (let x = -60, i = 0; x <= W + 66; x += 6, i++) { const v = Math.sin(i * 12.9898 + seed * 78.233) * 43758.5453, n = v - Math.floor(v);
+    const yy = y + a * (0.55 * Math.sin(x / 37 + seed) + 0.3 * Math.sin(x / 13 + 2.1 * seed) + 0.3 * (n - 0.5)); d += `${i ? 'L' : 'M'}${x} ${yy.toFixed(1)}`; }
+  return d;
+}
+// the crests: little crescents like brushstrokes, in rows from the horizon down; longer and further apart towards the eye
+function frCrests(W, hz, yb, k) {
+  const hsh = n => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+  if (yb - hz < 4) return '';
+  const out = []; let n = 0;
+  for (let y = hz + 2 * k, row = 0; y < yb + 6 && row < 80; row++) {
+    const dy = y - hz, L = Math.min(46 * k, 2.6 * k + dy * 0.2), h = L * 0.2, th = 0.3 * h + 0.22 * k, gap = 1.7 * k + dy * 0.12;
+    for (let x = -hsh(row) * L * 2.5; x < W + L; n++) {
+      const j = hsh(n), j2 = hsh(n + 0.5), l = L * (0.7 + 0.6 * j2), yy = y + (j - 0.5) * gap * 0.5;
+      if (j > 0.13) out.push(`M${x.toFixed(1)} ${yy.toFixed(1)}q${(l / 2).toFixed(1)} ${(-2 * h).toFixed(2)} ${l.toFixed(1)} 0q${(-l / 2).toFixed(1)} ${(-2 * h + 2 * th).toFixed(2)} ${(-l).toFixed(1)} 0z`);
+      x += l * (1.5 + 1.3 * hsh(n + 0.25)); }
+    y += gap; }
+  return out.join('');
+}
+// the gilded stars above the horizon: the view towards the equator (south from the north, north from the south), 180° across
+const FR_STAR = Array.from({ length: 16 }, (_, i) => { const a = i * Math.PI / 8, r = i % 2 ? 0.42 : 1; return [Math.sin(a) * r, -Math.cos(a) * r]; });
+function frStars(W, hz, k, t) {
+  const st = skyStars(); if (!st) return '';
+  const c = sunRef(), d = t / 864e5 - 10957.5, g15 = ((18.697374558 + 24.06570982441908 * d) % 24 + 24) % 24 * 15, ppd = W / 180, out = [];
+  for (const s of st) { if (s.s < 0.32) continue;                                  // (to the fourth magnitude)
+    const a = sunAt({ dec: s.dec, lon: s.ra - g15 }, c.lng, c.lat); if (a.alt < 1) continue;
+    const az = c.lat >= 0 ? a.az - 180 : ((a.az + 180) % 360) - 180, x = W / 2 + az * ppd, y = hz - a.alt * ppd;
+    if (x < -8 || x > W + 8 || y < -8) continue;
+    const r = Math.min(5, 1.5 + 0.85 * (s.s - 0.32) / 0.15) * k;
+    out.push('M' + FR_STAR.map(([u, v]) => `${(x + u * r).toFixed(1)} ${(y + v * r).toFixed(1)}`).join('L') + 'z'); }
+  return out.join('');
+}
+// the painting, by o: W, H (the area), hz (the horizon), yb (the sea's foot), k (the size of brushwork), ks (the dial's scale, for the
+// glows), sx, sy (the sun's handle), mx (where the moon's light falls), and the light of the moment from M.frS
+const FR = {};
+function frescoPaint(p, o) {
+  const E = n => document.getElementById(p + n); if (!E('B0')) return;
+  const S = M.frS; if (!S) return;
+  const { W, k, ks, sx, sy } = o, H = o.H, hz = Math.max(-30, Math.min(H + 30, o.hz)), yb = o.yb;
+  const hex = c => '#' + c.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join(''), mixW = (c, t) => c.map(v => v + (255 - v) * t);
+  const mixC = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t), VERM = [200, 67, 46], tc = S.tc, alt = S.alt;
+  const [top, foot] = frSkyAt(alt, S.eve);
+  // the sky: four flat bands, the palest at the horizon
+  const Sk = Math.max(30, hz), lv = [0, 0.16, 0.37, 0.64], cs = [foot, hexMix(foot, top, 0.42), hexMix(foot, top, 0.74), top];
+  E('B0').setAttribute('fill', cs[0]);
+  for (let i = 1; i < 4; i++) { const b = E('B' + i); b.setAttribute('fill', cs[i]); b.setAttribute('d', frEdge(W, hz - lv[i] * Sk, 2.4 * k, i * 7.3) + `V-${8000}H-60z`); }
+  E('AbR').setAttribute('height', (hz + 8000).toFixed(1)); E('BeR').setAttribute('y', hz.toFixed(1));
+  // the sea: green earth over azurite, in three bands, darker towards the eye; the horizon a fine line
+  const Ds = Math.max(20, yb - hz), s0 = hexMix(foot, '#2e5a55', 0.72), s1 = hexMix(top, '#27494a', 0.55), s2 = hexMix(top, '#16302f', 0.72);
+  const s0e = E('S0'); s0e.setAttribute('y', hz.toFixed(1)); s0e.setAttribute('height', Math.max(0, yb - hz + 8000).toFixed(1)); s0e.setAttribute('fill', s0);
+  E('S1').setAttribute('d', frEdge(W, hz + 0.13 * Ds, 1.4 * k, 3.1) + `V${(yb + 8000).toFixed(0)}H-60z`); E('S1').setAttribute('fill', s1);
+  E('S2').setAttribute('d', frEdge(W, hz + 0.52 * Ds, 1.8 * k, 5.7) + `V${(yb + 8000).toFixed(0)}H-60z`); E('S2').setAttribute('fill', s2);
+  E('Hz').setAttribute('d', `M-60 ${hz.toFixed(1)}H${W + 60}`); E('Hz').setAttribute('stroke', hexMix(s2, '#000000', 0.25)); E('Hz').style.strokeWidth = (0.9 * k).toFixed(2);
+  // the crests (drawn anew when the horizon or the size changes – at most every 2 s, 561a)
+  const key = [Math.round(W), Math.round(hz), Math.round(yb), k.toFixed(2)].join(), f = FR[p] ||= {}; f.o = o;
+  if (f.key !== key) { const now = performance.now(), wait = 2000 - (now - (f.t || 0));
+    if (wait <= 0 || !f.key || !E('Cr').getAttribute('d')) { f.key = key; f.t = now; E('Cr').setAttribute('d', frCrests(W, hz, yb + 4, k)); }
+    else if (!f.tm) f.tm = setTimeout(() => { f.tm = null; f.t = 0; frescoPaint(p, f.o); }, wait); }
+  const dayn = Math.max(0, Math.min(1, (alt + 6) / 14)); E('CrG').setAttribute('fill-opacity', (0.16 + 0.42 * dayn).toFixed(2));
+  // the gilded stars, at night
+  const so = Math.max(0, Math.min(1, (-alt - 5) / 11)), st = E('St');
+  st.setAttribute('d', so > 0.01 ? frStars(W, hz, Math.max(0.8, k), S.t) : ''); st.style.opacity = so.toFixed(2);
+  // the sky warming above the horizon on the sun's side while it is low; the glow around it – both in flat rings (560a)
+  const wa = E('Wa');
+  if (S.wl > 0.01 && S.len > 0 && S.len < 24) { wa.setAttribute('cx', sx.toFixed(1)); wa.setAttribute('cy', hz.toFixed(1)); wa.setAttribute('rx', (W * 0.42).toFixed(1)); wa.setAttribute('ry', Math.max(10, Math.min(64 * ks, hz)).toFixed(1)); wa.style.opacity = S.wl.toFixed(2);
+    [['Wa0', mixW(tc, 0.25)], ['Wa0b', mixW(tc, 0.25)], ['Wa1', tc], ['Wa1b', tc], ['Wa2', mixC(tc, VERM, 0.5)], ['Wa2b', mixC(tc, VERM, 0.5)], ['Wa3', mixC(tc, VERM, 0.5)]].forEach(([n, c]) => E(n).setAttribute('stop-color', hex(c))); }
+  else { wa.setAttribute('rx', 0); wa.setAttribute('ry', 0); }
+  const ha = E('Ha');
+  if (S.lowG > 0.01) { ha.setAttribute('cx', sx.toFixed(1)); ha.setAttribute('cy', sy.toFixed(1)); ha.setAttribute('rx', (S.gr0 * ks * (1 + 3.2 * S.lowG)).toFixed(1)); ha.setAttribute('ry', (S.gr0 * ks * (1 + 0.3 * S.lowG)).toFixed(1)); ha.style.opacity = (0.9 * S.lowG).toFixed(2);
+    [['Ha0', mixW(tc, 0.6)], ['Ha0b', mixW(tc, 0.6)], ['Ha1', tc], ['Ha1b', tc], ['Ha2', mixC(tc, VERM, 0.45)], ['Ha2b', mixC(tc, VERM, 0.45)], ['Ha3', mixC(tc, VERM, 0.45)]].forEach(([n, c]) => E(n).setAttribute('stop-color', hex(c))); }
+  else { ha.setAttribute('rx', 0); ha.setAttribute('ry', 0); }
+  // the light on the waves (564a): the crests beneath the sun in its colour – narrow and bright when it is low, broad and paler high up
+  const col = (P, x, w0, w1, a) => { const m = E(P + 'P'), g = E(P + 'G'); if (a <= 0.005) { m.setAttribute('d', ''); return; }
+    m.setAttribute('d', `M${(x - w0).toFixed(1)} ${hz.toFixed(1)}H${(x + w0).toFixed(1)}L${(x + w1).toFixed(1)} ${(yb + 6).toFixed(1)}H${(x - w1).toFixed(1)}z`);
+    g.setAttribute('x1', (x - w1).toFixed(1)); g.setAttribute('x2', (x + w1).toFixed(1)); m.style.opacity = Math.min(1, a).toFixed(2); };
+  { const low = Math.max(0, Math.min(1, 1 - alt / 45)), up = sy < hz - 1 && alt > -0.8 ? Math.min(1, (alt + 0.8) / 2.5) : 0;
+    col('Co', Math.min(W - 4, Math.max(4, sx)), (3 + 7 * (1 - low)) * k, W * (0.08 + 0.2 * (1 - low)), up * (0.6 + 0.4 * low));
+    E('CoC').setAttribute('fill', hex(mixW(tc, 0.3))); E('CoW').setAttribute('fill', hex(tc)); E('CoW').setAttribute('fill-opacity', '0.26'); }
+  // … and the moon's, silver, by night: beneath its place on the ring, while it is up – the brighter the fuller
+  { const mo = S.moon, a = mo && mo.alt > 0 && o.mx != null ? (0.2 + 0.55 * mo.lit) * Math.max(0, Math.min(1, (-alt - 4) / 6)) * Math.min(1, mo.alt / 3) : 0;
+    col('Mc', o.mx ?? 0, 3 * k, W * 0.09, a); E('McW').setAttribute('fill-opacity', '0.1'); }
+}
 function sdPanelHTML() {
-  const stars = Array.from({ length: 46 }, (_, i) => { const x = (Math.sin(i * 12.9898) * 43758.5453 % 1 + 1) % 1, y = (Math.sin(i * 78.233) * 12543.21 % 1 + 1) % 1;
-    return `<circle cx="${(x * 100).toFixed(1)}%" cy="${(y * 55).toFixed(1)}%" r="${(0.5 + (i % 3) * 0.35).toFixed(2)}" style="animation-delay:${(i % 7) * 0.6}s"/>`; }).join('');
   const ticks = Array.from({ length: 24 }, (_, h) => { const [a, b] = sdXY(h, h % 6 ? SD.R - 4 : SD.R - 7), [c, d] = sdXY(h, SD.R); return `<line x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${c.toFixed(1)}" y2="${d.toFixed(1)}"/>`; }).join('');
   // three layers: the sky and the sea (fading upwards); the stone dial, drawn on a canvas; the ring, the zodiac and the labels
   return `<div class="msdial" id="sunPanel"><svg class="sdbg" id="sunBg" aria-hidden="true"><defs>
-      <linearGradient id="sdSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" id="sdSky0"/><stop offset="1" id="sdSky1"/></linearGradient>
-      <linearGradient id="sdSea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" id="sdSea0"/><stop offset="1" id="sdSea1"/></linearGradient>
       <linearGradient id="sdFadeG" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${SD.FADE}"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".46" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity="1"/></linearGradient>
       <mask id="sdFade" maskUnits="userSpaceOnUse" x="-50" y="-50" width="4000" height="4000"><rect x="-50" y="-50" width="4000" height="4000" fill="url(#sdFadeG)"/></mask>
-      <linearGradient id="sdGlitG" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="100"><stop offset="0" id="sdGlit0"/><stop offset="1" id="sdGlit1" stop-opacity="0"/></linearGradient>
-      <radialGradient id="sdHaloG"><stop offset="0" id="sdHa0" stop-opacity=".95"/><stop offset=".4" id="sdHa1" stop-opacity=".5"/><stop offset="1" id="sdHa2" stop-opacity="0"/></radialGradient>
-      <radialGradient id="sdWarmG"><stop offset="0" id="sdWa0"/><stop offset="1" id="sdWa1" stop-opacity="0"/></radialGradient>
-      <radialGradient id="sdReflG"><stop offset="0" id="sdRf0"/><stop offset="1" id="sdRf1" stop-opacity="0"/></radialGradient>
-      <clipPath id="sdBgClip"><path id="sdBgClipP" d=""/></clipPath>
-      <clipPath id="sdAboveBg"><rect id="sdAboveBgR" x="-50" y="-50" width="4000" height="0"/></clipPath></defs>
-    <g mask="url(#sdFade)"><g clip-path="url(#sdBgClip)"><rect x="-50" y="-50" width="4000" height="4000" fill="url(#sdSky)"/><g clip-path="url(#sdAboveBg)"><g class="sdstars" id="sdStars">${stars}</g></g>
-      <rect id="sdSeaR" x="-50" width="4000" height="0" fill="url(#sdSea)"/><g clip-path="url(#sdAboveBg)"><ellipse id="sdWarm" rx="0" ry="0" fill="url(#sdWarmG)"/><ellipse id="sdHalo" rx="0" ry="0" fill="url(#sdHaloG)"/></g><g id="sdRefl"><ellipse id="sdReflSun" rx="0" ry="0"/><path id="sdGlint" class="sdglint" d="" stroke="url(#sdGlitG)"/></g><rect id="sdBar" class="sdbar" x="-50" width="4000" height="${SD.BAR + 50}"/><path id="sdBarL" class="sdbarl" d=""/></g><path id="sdEdge" class="sdedge" d=""/></g></svg>
+      <clipPath id="sdBgClip"><path id="sdBgClipP" d=""/></clipPath></defs>
+    <g mask="url(#sdFade)"><g clip-path="url(#sdBgClip)">${frescoHTML('fp')}<rect id="sdBar" class="sdbar" x="-50" width="4000" height="${SD.BAR + 50}"/><path id="sdBarL" class="sdbarl" d=""/></g><path id="sdEdge" class="sdedge" d=""/></g></svg>
     <canvas class="sdsca" id="sdSca" aria-hidden="true"></canvas>
     <svg class="sdsvg" id="sunSvg" aria-hidden="true"><defs>
       <filter id="sdBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.3"/></filter>
@@ -976,16 +1100,30 @@ function zodWheelHTML() {
   return `<g id="sdZod" class="sdzod">${zodDiscSVG(SD.ZR, 4.5)}</g>
     <text id="sdZLab" class="sdlab sdzlab" text-anchor="middle"></text>`;
 }
-// the wheel large, over the map
+// the large dial and the large wheel fill the map's pane, the fresco behind them; the map is not drawn meanwhile (566b, v383)
+function bigMount(d) {
+  ($('#mapBody') || document.body).append(d); sundialPaint();
+  try { d._ro = new ResizeObserver(() => { if (d.isConnected) sundialPaint(); }); d._ro.observe(d); } catch (_) {}
+}
+function bigClose(d) { if (!d) return; d._ro?.disconnect(); d.remove(); M.map?.triggerRepaint(); }
+const frK = w => Math.max(0.9, Math.min(1.7, w / 520));
+function zodBigPaint() {
+  const d = $('#zodBig'), S = M.frS; if (!d || !S) return;
+  const svg = d.querySelector('svg.zw'), ov = d.getBoundingClientRect(), q = svg.getBoundingClientRect(); if (!ov.width || !q.width) return;
+  // (the horizon and the light where they stand on the dial's ring, the ring taken as the wheel's rim)
+  const kz = q.width / 524, cx = q.left - ov.left + 262 * kz, cy = q.top - ov.top + 278 * kz, Rz = 250 * kz, P = (X, Y) => [cx + (X - SD.cx) / SD.R * Rz, cy + (Y - SD.cy) / SD.R * Rz];
+  const [sx, sy] = P(S.x, S.y); frescoPaint('fz', { W: ov.width, H: ov.height, hz: P(0, S.hy)[1], yb: ov.height, k: frK(ov.width), ks: Rz / SD.R, sx, sy, mx: P(S.moon.X, 0)[0] });
+}
+// the wheel large, in the map's pane
 function zodBigOpen() {
   if ($('#zodBig')) return;
-  const d = document.createElement('div'); d.id = 'zodBig'; d.className = 'zodbig';
-  d.innerHTML = `<svg viewBox="-262 -278 524 540" aria-label="The zodiac wheel">${zodDiscSVG(250, 11)}</svg><div class="zl" id="zodBigLab"></div>
+  const d = document.createElement('div'); d.id = 'zodBig'; d.className = 'zodbig inpane';
+  d.innerHTML = `<svg class="frbg" aria-hidden="true">${frescoHTML('fz')}</svg><svg class="zw" viewBox="-262 -278 524 540" aria-label="The zodiac wheel">${zodDiscSVG(250, 11)}</svg><div class="zl" id="zodBigLab"></div>
     <button type="button" class="zx" aria-label="Close">✕</button>`;
-  document.body.append(d); sundialPaint();
+  bigMount(d);
   d.addEventListener('pointerdown', ev => {
-    const svg = d.querySelector('svg'), r = svg.getBoundingClientRect(), k = r.width / 524, c = { x: r.left + r.width / 2, y: r.top + 278 * k };
-    if (ev.target.closest('.zx') || Math.hypot(ev.clientX - c.x, ev.clientY - c.y) > 262 * k) { d.remove(); return; }   // (outside the wheel: closed)
+    const svg = d.querySelector('svg.zw'), r = svg.getBoundingClientRect(), k = r.width / 524, c = { x: r.left + r.width / 2, y: r.top + 278 * k };
+    if (ev.target.closest('.zx') || Math.hypot(ev.clientX - c.x, ev.clientY - c.y) > 262 * k) { bigClose(d); return; }   // (outside the wheel: closed)
     zodTurn(ev, () => c);
   });
 }
@@ -1030,7 +1168,7 @@ function sdCtlHTML() {
 }
 async function sdOpen(open) {
   const box = $('#mapBody'); if (!box) return;
-  $('#sunPanel')?.remove(); $('#sdMark')?.remove(); $('#dialBig')?.remove(); box.classList.toggle('sdopen', open); $('#mapSunBtn')?.classList.toggle('on', open);
+  $('#sunPanel')?.remove(); $('#sdMark')?.remove(); bigClose($('#dialBig')); bigClose($('#zodBig')); box.classList.toggle('sdopen', open); $('#mapSunBtn')?.classList.toggle('on', open);
   M.sdOpen = open; sunMoveHook();
   if (!open) { if (M.map && sunOn()) sunApply(); return; }
   M.sdH = M.sdW = null;
@@ -1062,48 +1200,21 @@ function sundialPaint() {
   const P = (x, y) => [tx + k * x, ty + k * y];                       // (the dial's space → the panel)
   // the horizon: level with sunrise and sunset on the ring
   const hy = len >= 24 ? SD.cy + SD.R + 12 : len <= 0 ? SD.cy - SD.R - 12 : sdXY(set, SD.R)[1], hyP = ty + k * hy;
-  const eve = lst >= 12, [top, foot] = skyAt(alt, eve);
-  $('#sdSky0').setAttribute('stop-color', top); $('#sdSky1').setAttribute('stop-color', foot);
-  $('#sdSea0').setAttribute('stop-color', hexMix(foot, '#0b2236', 0.45)); $('#sdSea1').setAttribute('stop-color', hexMix(top, '#03101c', 0.6));
-  const sea = $('#sdSeaR'); sea.setAttribute('y', hyP.toFixed(1)); sea.setAttribute('height', Math.max(0, H - hyP + 50).toFixed(1));
-  $('#sdAboveBgR').setAttribute('height', Math.max(0, hyP + 50).toFixed(1));
   $('#sdAboveR').setAttribute('height', Math.max(0, hy + 4000).toFixed(1)); $('#sdBelowR').setAttribute('y', hy.toFixed(1));
-  $('#sdStars').style.opacity = Math.max(0, Math.min(1, (-alt - 5) / 11)).toFixed(2);
   const [x, y] = sdXY(lst, SD.R); svg.querySelectorAll('.sdhpos').forEach(g => g.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`));
   // the glow: round when high; low down wider and flatter, spreading along the horizon (555a, v380)
   const g = $('#sdGlowC'), lowG = Math.max(0, Math.min(1, (10 - alt) / 12)) * Math.max(0, Math.min(1, (alt + 8) / 5)), gr0 = 12 + Math.max(0, alt) * 0.35;
   g.setAttribute('rx', gr0.toFixed(1)); g.setAttribute('ry', gr0.toFixed(1)); g.style.opacity = Math.max(0.25, Math.min(1, 0.35 + alt / 50)).toFixed(2);
-  // (the wide glow of sunrise and sunset behind the stone dial and the ring, in the sky layer – v381)
-  { const hg = $('#sdHalo'), [hx, hy0] = [tx + k * x, ty + k * y];
-    if (lowG > 0.01) { hg.setAttribute('cx', hx.toFixed(1)); hg.setAttribute('cy', hy0.toFixed(1)); hg.setAttribute('rx', (gr0 * k * (1 + 3.2 * lowG)).toFixed(1)); hg.setAttribute('ry', (gr0 * k * (1 + 0.3 * lowG)).toFixed(1)); hg.style.opacity = (0.9 * lowG).toFixed(2); }
-    else { hg.setAttribute('rx', 0); hg.setAttribute('ry', 0); }
-    M.sdHalo = lowG > 0.01 ? { x, y, rx: gr0 * (1 + 3.2 * lowG), ry: gr0 * (1 + 0.3 * lowG), op: 0.9 * lowG, hy } : null; }
   const day = lst >= rise && lst < set;
-  // the glitter of the sun (or the moon) on the water beneath it
   // the sun's colour of the moment, as in the sky: the handle, its glow, the light on the bowl and on the sea (v378)
   const tc = sunTint(alt, lst < 12), hex = c => '#' + c.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join(''), mixW = (c, t) => c.map(v => v + (255 - v) * t);
   const sunEl = svg.querySelector('.sdsun'); if (sunEl) { sunEl.style.fill = hex(mixW(tc, 0.18)); sunEl.style.stroke = hex(mixW(tc, 0.7)); }
-  $('#sdHa0')?.setAttribute('stop-color', hex(mixW(tc, 0.6))); $('#sdHa1')?.setAttribute('stop-color', hex(tc)); $('#sdHa2')?.setAttribute('stop-color', hex(tc));
   $('#sdGl0')?.setAttribute('stop-color', hex(mixW(tc, 0.75))); $('#sdGl1')?.setAttribute('stop-color', hex(tc)); $('#sdGl2')?.setAttribute('stop-color', hex(tc.map(v => v * 0.85)));
-  // the sky warming above the horizon on the sun's side while it is low (555a)
-  { const [sx0] = P(x, y), wl = Math.max(0, Math.min(1, (12 - alt) / 12)) * Math.max(0, Math.min(1, (alt + 7) / 7)), we = $('#sdWarm');
-    if (wl > 0.01 && len > 0 && len < 24) { we.setAttribute('cx', sx0.toFixed(1)); we.setAttribute('cy', hyP.toFixed(1)); we.setAttribute('rx', (W * 0.42).toFixed(1)); we.setAttribute('ry', Math.min(60, hyP).toFixed(1));
-      $('#sdWa0').setAttribute('stop-color', hex(tc)); $('#sdWa0').setAttribute('stop-opacity', (0.75 * wl).toFixed(2)); $('#sdWa1').setAttribute('stop-color', hex(tc)); }
-    else { we.setAttribute('rx', 0); we.setAttribute('ry', 0); } }
-  // its reflection in the sea (v378): the sun mirrored beneath the horizon, squeezed by the waves, and the path of glitter from it
-  // towards the eye – narrow and bright when the sun is low, broad and paler when it is high; none while it is below the horizon
-  { const [sx, sy] = P(x, y), up2 = day && sy < hyP - 1 && hyP < H - 6, gp = $('#sdGlint'), rs = $('#sdReflSun');
-    if (!up2) { gp.setAttribute('d', ''); rs.setAttribute('rx', 0); rs.setAttribute('ry', 0); }
-    else { const hgt = hyP - sy, low = Math.max(0, 1 - alt / 45), cx = Math.min(W - 6, Math.max(6, sx)), r0 = 8.5 * k, ry = hyP + Math.min(hgt * 0.45, (H - hyP) * 0.35) + r0 * 0.3;
-      rs.setAttribute('cx', cx.toFixed(1)); rs.setAttribute('cy', ry.toFixed(1)); rs.setAttribute('rx', (r0 * (1.3 + 0.6 * (1 - low))).toFixed(1)); rs.setAttribute('ry', (r0 * 0.38).toFixed(1));
-      rs.setAttribute('fill', 'url(#sdReflG)'); $('#sdRf0').setAttribute('stop-color', hex(mixW(tc, 0.35))); $('#sdRf0').setAttribute('stop-opacity', (0.5 + 0.4 * low).toFixed(2)); $('#sdRf1').setAttribute('stop-color', hex(tc));
-      const hsh = n => { const v = Math.sin(n * 91.7 + 13.1) * 43758.5453; return v - Math.floor(v); }, bot = H - 2, segs = [];
-      for (let i = 0, yy = hyP + 2.5; yy < bot && i < 60; i++, yy += 2.2 + (yy - hyP) * 0.07) {
-        const dz = (yy - hyP) / Math.max(1, bot - hyP), half = (2 + dz * 26 * (0.5 + (1 - low))) * (0.4 + 0.6 * hsh(i)), jx = (hsh(i + 50) - 0.5) * (2 + dz * 14);
-        segs.push(`M${(cx + jx - half).toFixed(1)} ${yy.toFixed(1)}h${(2 * half).toFixed(1)}`); }
-      gp.setAttribute('d', segs.join('')); gp.style.strokeWidth = (1 + 0.6 * k).toFixed(2);
-      const g0 = $('#sdGlit0'), g1 = $('#sdGlit1'), gg = $('#sdGlitG'); g0.setAttribute('stop-color', hex(mixW(tc, 0.5))); g0.setAttribute('stop-opacity', (0.45 + 0.45 * low).toFixed(2)); g1.setAttribute('stop-color', hex(tc));
-      gg.setAttribute('y1', hyP.toFixed(1)); gg.setAttribute('y2', bot.toFixed(1)); } }
+  // the fresco behind (v383): the light of the moment, shared with the large views; the moon's light falls beneath its place on the ring
+  { const t = sunTime(), c = sunRef(), mp = moonPos(t), mlst = ((12 + (c.lng - mp.lon) / 15) % 24 + 24) % 24;
+    M.frS = { t, alt, eve: lst >= 12, tc, lowG, gr0, len, x, y, hy, wl: Math.max(0, Math.min(1, (12 - alt) / 12)) * Math.max(0, Math.min(1, (alt + 7) / 7)),
+      moon: { alt: sunAt(mp, c.lng, c.lat).alt, lit: mp.lit, X: sdXY(mlst, SD.R)[0] } };
+    frescoPaint('fp', { W, H, hz: hyP, yb: H - SD.BAR + 2, k, ks: k, sx: tx + k * x, sy: ty + k * y, mx: tx + k * M.frS.moon.X }); }
   // the daylight on the ring, and the shadow: long when the sun is low, short at noon, fading towards sunset
   if (len > 0 && len < 24) { const [ax, ay] = sdXY(rise, SD.R + 3), [bx, by] = sdXY(set, SD.R + 3); $('#sdDay').setAttribute('d', `M${ax.toFixed(1)} ${ay.toFixed(1)}A${SD.R + 3} ${SD.R + 3} 0 ${len > 12 ? 1 : 0} 1 ${bx.toFixed(1)} ${by.toFixed(1)}`); }
   else $('#sdDay').setAttribute('d', len >= 24 ? `M${SD.cx} ${SD.cy - SD.R - 3}a${SD.R + 3} ${SD.R + 3} 0 1 0 0.01 0` : '');
@@ -1118,7 +1229,7 @@ function sundialPaint() {
   const l = sunLabel(), tl = $('#sdLab'); if (tl.firstChild?.nodeType === 3) tl.firstChild.nodeValue = l.main; else tl.insertBefore(document.createTextNode(l.main), tl.firstChild);
   const e = sunPos(sunTime()).ecl, zn = ZOD[Math.floor(e / 30)][(M.cfg.sunFmt || 'modern') === 'greek' ? 2 : M.cfg.sunFmt === 'roman' ? 1 : 0];
   document.querySelectorAll('.zrot').forEach(g => g.setAttribute('transform', `rotate(${e.toFixed(2)})`));   // (the small wheel and the large one)
-  const bl = $('#zodBigLab'); if (bl) bl.textContent = `${zn} · ${l.sub}`;
+  const bl = $('#zodBigLab'); if (bl) bl.textContent = `${zn} · ${l.sub}`; zodBigPaint();
   const zl = $('#sdZLab'); zl.textContent = `${zn} · ${l.sub}`; let tw = 0; try { tw = zl.getComputedTextLength(); } catch (_) {}
   zl.setAttribute('x', Math.max(tw / 2 + 8, Math.min(Ly.zx, W - 8 - tw / 2)).toFixed(1));     // (a long date kept inside the panel)
   dialBigPaint(l);
@@ -1159,14 +1270,14 @@ async function sdFmtNext() {
 const DB = SD.R + 30;
 function dialBigOpen() {
   if ($('#dialBig')) return;
-  const d = document.createElement('div'); d.id = 'dialBig'; d.className = 'zodbig sdbig';
-  d.innerHTML = `<div class="dbw"><svg class="dbbg" viewBox="${SD.cx - DB} ${SD.cy - DB} ${2 * DB} ${2 * DB}" aria-hidden="true"><defs><linearGradient id="dbFadeG" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#000"/></linearGradient><mask id="dbAbove" maskUnits="userSpaceOnUse" x="-4000" y="-4000" width="8000" height="8000"><rect x="-4000" y="-4000" width="8000" height="8000" fill="url(#dbFadeG)"/></mask></defs><g mask="url(#dbAbove)"><ellipse id="dbHalo" rx="0" ry="0" fill="url(#sdHaloG)"/></g></svg><canvas class="dbsca" aria-hidden="true"></canvas><svg viewBox="${SD.cx - DB} ${SD.cy - DB} ${2 * DB} ${2 * DB}" aria-label="The sundial"><g class="dbc"></g></svg></div><div class="zl" id="dialBigLab"></div>
+  const d = document.createElement('div'); d.id = 'dialBig'; d.className = 'zodbig sdbig inpane';
+  d.innerHTML = `<svg class="frbg" aria-hidden="true">${frescoHTML('fd')}</svg><div class="dbw"><canvas class="dbsca" aria-hidden="true"></canvas><svg viewBox="${SD.cx - DB} ${SD.cy - DB} ${2 * DB} ${2 * DB}" aria-label="The sundial"><g class="dbc"></g></svg></div><div class="zl" id="dialBigLab"></div>
     <button type="button" class="zx" aria-label="Close">✕</button>`;
-  document.body.append(d); dialBigPaint();
+  bigMount(d);
   d.addEventListener('pointerdown', ev => {
-    const svg = d.querySelector('svg:not(.dbbg)'), r = svg.getBoundingClientRect(), sc = r.width / (2 * DB);
+    const svg = d.querySelector('.dbw > svg'), r = svg.getBoundingClientRect(), sc = r.width / (2 * DB);
     const toDial = e => { const q = svg.getBoundingClientRect(); return { x: (e.clientX - q.left) / sc - DB, y: (e.clientY - q.top) / sc - DB }; };
-    const p = toDial(ev); if (ev.target.closest('.zx') || Math.hypot(p.x, p.y) > SD.R + 22) { d.remove(); return; }
+    const p = toDial(ev); if (ev.target.closest('.zx') || Math.hypot(p.x, p.y) > SD.R + 22) { bigClose(d); return; }
     ev.preventDefault(); dialDrag(ev, toDial, null);
   });
 }
@@ -1175,12 +1286,14 @@ function dialBigPaint(l) {
   const c = src.cloneNode(true); c.removeAttribute('id'); c.querySelectorAll('[id]').forEach(e => e.removeAttribute('id'));
   const g = d.querySelector('.dbc'); g.replaceChildren(c);
   // (the stone dial beneath the ring, sized to the large view; drawn a little less sharply than the screen allows, to stay quick)
-  const svg = d.querySelector('svg:not(.dbbg)'), cv = d.querySelector('.dbsca'), wb = svg.clientWidth; if (wb && cv) { const sb = wb / (2 * DB), dpr = Math.min(1.5, devicePixelRatio || 1);
+  const svg = d.querySelector('.dbw > svg'), cv = d.querySelector('.dbsca'), wb = svg.clientWidth; if (wb && cv) { const sb = wb / (2 * DB), dpr = Math.min(1.5, devicePixelRatio || 1);
     const cw = SD.SW * sb, ch = SD.SH * sb, pw = Math.round(cw * dpr), ph = Math.round(ch * dpr);
     if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; cv._key = null; }
     Object.assign(cv.style, { width: cw + 'px', height: ch + 'px', left: ((DB - SD.SW / 2) * sb) + 'px', top: ((DB - SD.SH / 2) * sb) + 'px' }); scaPaint(cv); }
-  // (the wide glow of sunrise and sunset, behind the stone here too, fading out softly below the horizon's height – v382)
-  { const h = M.sdHalo, e = $('#dbHalo'), fg = $('#dbFadeG'); if (e) { if (h) { e.setAttribute('cx', h.x); e.setAttribute('cy', h.y); e.setAttribute('rx', h.rx); e.setAttribute('ry', h.ry); e.style.opacity = h.op; fg.setAttribute('y1', h.hy - 4); fg.setAttribute('y2', h.hy + 14); } else { e.setAttribute('rx', 0); e.setAttribute('ry', 0); } } }
+  // the fresco behind, its horizon and light where they stand on the dial (v383)
+  { const ov = d.getBoundingClientRect(), q = svg.getBoundingClientRect(), sb = q.width / (2 * DB), S = M.frS;
+    if (S && ov.width && q.width) { const P = (X, Y) => [q.left - ov.left + (X - SD.cx + DB) * sb, q.top - ov.top + (Y - SD.cy + DB) * sb], [sx, sy] = P(S.x, S.y);
+      frescoPaint('fd', { W: ov.width, H: ov.height, hz: P(0, S.hy)[1], yb: ov.height, k: frK(ov.width), ks: sb, sx, sy, mx: P(S.moon.X, 0)[0] }); } }
   l ||= sunLabel(); const lb = $('#dialBigLab'); if (lb) lb.textContent = `${l.main} · ${l.sub}`;
 }
 document.addEventListener('change', ev => { if (ev.target.closest?.('[data-sunsw]')) sunSet({ sun: ev.target.checked }).then(() => { const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML(); sundialPaint(); }); });
