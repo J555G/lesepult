@@ -69,7 +69,7 @@ async function camClick(b) {
   if (d.camrollreset) { const c = camCfg(); c.rollv = 0; if (M.cam) M.cam.roll = 0; camLimits(); if (M.cam) camApply(); await saveMapCfg(); camPopRefresh(); return true; }
   if (d.flyfwd) { if (M.cam?.look) { M.cam.look = { y: 0, p: 0 }; } return true; }
   if (d.camleave) { camLeave(); camPopRefresh(); return true; }
-  if (d.camstyle) { const ex = d.camstyle === 'exp'; camCfg().style = ex ? undefined : 'trad'; await saveMapCfg();
+  if (d.camstyle) { const ex = d.camstyle === 'exp'; camCfg().style = ex ? 'exp' : undefined; await saveMapCfg();
     if (ex) camExplore(); else if (M.cam?.mode === 'exp') { M.camWas = null; camLeave(); }
     camLimits(); camPopRefresh(); return true; }
   if (d.camnorth) { if (M.cam) { M.cam.br = 0; camApply(); } return true; }
@@ -358,7 +358,7 @@ function camGestures() {
 // 20 m above the ground beneath the camera – where the ground rises into it, the camera is lifted, eased over a third of a second
 // (596a); nothing else changes its height.
 const EXP_FLOOR = 20, EXP = { v: [0, 0], raf: 0, last: 0, hold: false, g: null, T: null, prev: null, look: false, tm: 0, tap: null, anim: null };
-const camExpOn = () => camCfg().style !== 'trad';
+const camExpOn = () => camCfg().style === 'exp';   // (v400: the map's own camera again by default; the explorer only when chosen)
 function camExplore() {
   const m = M.map; if (!m || M.cam || !camExpOn()) return;
   const c = camNow(); camTake('exp', { lng: c.lng, lat: c.lat, alt: Math.max(c.alt, groundAt(c.lng, c.lat) + EXP_FLOOR), br: c.br, pt: c.pt, roll: c.roll });
