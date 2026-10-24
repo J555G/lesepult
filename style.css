@@ -1895,7 +1895,7 @@ dialog .sortpair button{transition:border-color .15s}
 #mapBody.sdopen .mtime{display:none!important}
 #mapBody.sdopen .mcred{bottom:calc(var(--sdh,250px) + 16px)}
 /* the mark at the middle of the panel's upper edge: its tip is the place the dial shows (until an obelisk stands) */
-.sdmark{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);width:28px;height:68px;z-index:5;pointer-events:none;transition:opacity .4s}
+.sdmark{position:absolute;left:50%;bottom:48px;transform:translateX(-50%);width:28px;height:68px;z-index:5;pointer-events:none;transition:opacity .4s}
 .sdmark .sdob{pointer-events:auto;cursor:grab;touch-action:none}
 .sdmark.away .sdsock,.sdmark.away .sdsockt{pointer-events:auto;cursor:pointer;touch-action:manipulation}
 .sdmark .sdobh{fill:transparent}
@@ -1904,12 +1904,6 @@ dialog .sortpair button{transition:border-color .15s}
 .sdsock{fill:#4a3a33;stroke:#2a1f1a;stroke-width:.8}
 .sdsockt{fill:#6e5a4e}
 .sdsockh{fill:#2a1f1a;opacity:.5}
-.sdst{fill:#4a1a2b;stroke:#2a0e18;stroke-width:.5}
-.sdsh0{fill:#8a3a52}.sdsh1{fill:#5a2233}
-.sdmark.lr .sdsh0,.sdghost.lr .sdsh0{fill:#5a2233}.sdmark.lr .sdsh1,.sdghost.lr .sdsh1{fill:#8a3a52}
-.sdtip0{fill:#ffd76a}.sdtip1{fill:#b98a1e}
-.sdmark.lr .sdtip0,.sdghost.lr .sdtip0{fill:#b98a1e}.sdmark.lr .sdtip1,.sdghost.lr .sdtip1{fill:#ffd76a}
-.sdmark.night .sdsh0,.sdmark.night .sdsh1{fill:#3a1622}.sdmark.night .sdtip0,.sdmark.night .sdtip1{fill:#7a5c1a}
 .sdghost{position:fixed;z-index:60;width:28px;height:68px;pointer-events:none;filter:drop-shadow(0 3px 4px rgba(0,0,0,.5))}
 .sdghost .sdsock,.sdghost .sdsockt,.sdghost .sdsockh{display:none}
 .sdghost.home{opacity:.55}
@@ -2089,3 +2083,28 @@ dialog .sortpair button{transition:border-color .15s}
 .msdial .sdzod{cursor:pointer}
 @media (max-width:420px){.msdial .sdrow{gap:4px}.msdial .sdrow .seg button{padding:.22rem .4rem;font-size:11.5px}.msdial .sdrow .msun output{display:none}}
 .sdbig svg{width:min(80vw,70vh,560px)}
+
+/* the small obelisk that follows the finger (v373 colours) */
+.sdghost .sdst{fill:#4a1a2b;stroke:#2a0e18;stroke-width:.5}.sdghost .sdsh0{fill:#8a3a52}.sdghost .sdsh1{fill:#5a2233}.sdghost .sdtip0{fill:#ffd76a}.sdghost .sdtip1{fill:#b98a1e}
+.sdghost.lr .sdsh0{fill:#5a2233}.sdghost.lr .sdsh1{fill:#8a3a52}.sdghost.lr .sdtip0{fill:#b98a1e}.sdghost.lr .sdtip1{fill:#ffd76a}
+/* the obelisk on its socket (v380): porphyry, the faces shaded by the sun; the gold polished; at night darker */
+.sdmark .sdst{stroke:#2a0e18;stroke-width:.5}
+.sdmark .sdshd0{fill:#fff;opacity:.1}.sdmark .sdshd1{fill:#000;opacity:.32}
+.sdmark.lr .sdshd0{fill:#000;opacity:.32}.sdmark.lr .sdshd1{fill:#fff;opacity:.1}
+.sdmark.night .sdshd0,.sdmark.night .sdshd1{fill:#05060d;opacity:.6}
+.sdmark .sdtipd{fill:#05060d;opacity:0}.sdmark.night .sdtipd{opacity:.55}
+/* while the obelisk stands on the map: the size slider upright where it stood */
+.sdmark .obszv{display:none;position:absolute;left:50%;bottom:calc(12px + 4px);transform-origin:0 50%;transform:translate(0,0) rotate(-90deg);pointer-events:auto;accent-color:#c46a7e;margin:0;height:22px}
+.sdmark.away .obszv{display:block}
+/* the bar at the panel's foot (551a, v380) */
+.msdial .sdbar{fill:rgba(4,10,22,.58)}
+.msdial .sdbarl{stroke:rgba(255,255,255,.28);stroke-width:1;fill:none}
+.msdial .sdrow{bottom:3px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;left:6px;right:6px}
+.msdial .sdrow .sdl{justify-content:flex-start}
+.msdial .sdrow .sdr{justify-content:flex-end}
+.msdial .sdsw{width:32px;height:32px}
+.msdial .sdsw .swsun{fill:#ffd166;stroke:#ffd166;stroke-width:1.5;stroke-linecap:round}
+.msdial .sdsw .swmoon{fill:#dfe6f2}
+.msdial .sdsw .swdiv{stroke:rgba(255,255,255,.35);stroke-width:.8}
+.msdial .sdsw:not(.on) .swsun,.msdial .sdsw:not(.on) .swmoon{fill:#8a8f98;stroke:#8a8f98}
+.msdial .sdsw.on{background:rgba(0,0,0,.3);border-color:rgba(255,255,255,.55)}

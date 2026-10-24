@@ -157,25 +157,35 @@ function obelPanelLight() {
   const mk = $('#sdMark'); if (!mk || !M.map) return;
   const r = sunRef(), s = sunAt(sunPos(sunTime()), r.lng, r.lat), right = Math.sin((s.az - M.map.getBearing()) * RAD) > 0;
   mk.classList.toggle('lr', right); mk.classList.toggle('night', sunOn() && s.alt < -2);
+  // (the gold: the face towards the sun the bright one)
+  const t0 = mk.querySelector('.sdtip0'), t1 = mk.querySelector('.sdtip1'), id = mk.querySelector('pattern')?.id?.slice(0, -1);
+  if (t0 && t1 && id) { t0.setAttribute('fill', `url(#${id}${right ? 'g1' : 'g0'})`); t1.setAttribute('fill', `url(#${id}${right ? 'g0' : 'g1'})`); }
+  const sl = mk.querySelector('.obszv'); if (sl && document.activeElement !== sl) sl.value = Math.round(Math.log(obelK() * 3) / Math.log(9) * 100);
 }
 // the obelisk at rest in the reworked panel (540a, v376): its socket on the panel's foot, its golden tip just over the top – as tall
 // as the panel; where the room between the two wheels is narrow, slimmer
 function obelPanelFit(Ly) {
   const mk = $('#sdMark'), pn = $('#sunPanel'); if (!mk) return;
-  const Hm = Ly.H - 12, U = Hm - 16, gap = (Ly.zx - (SD.ZR + 4) * Ly.k) - (Ly.dx + (SD.R + 6) * Ly.k) - 14, sx = Math.max(0.3, Math.min(1, gap / (0.34 * U + 10)));
+  // (on the bar since v380: from its top edge to the tip just over the panel's top)
+  const Hm = Ly.H - SD.BAR - 12, U = Hm - 16, gap = (Ly.zx - (SD.ZR + 4) * Ly.k) - (Ly.dx + (SD.R + 6) * Ly.k) - 14, sx = Math.max(0.3, Math.min(1, gap / (0.34 * U + 10)));
   const Wm = Math.ceil(0.34 * U * sx + 10), away = mk.classList.contains('away');
-  mk.style.width = Wm + 'px'; mk.style.height = Hm + 'px'; mk.innerHTML = obelTallSVG(Wm, Hm, U, sx); pn?.style.setProperty('--sock', Wm + 'px');
+  mk.style.width = Wm + 'px'; mk.style.height = Hm + 'px';
+  // (while the obelisk stands on the map: where it stood, a slider for its size – 552, v380)
+  mk.innerHTML = obelTallSVG(Wm, Hm, U, sx) + `<input type="range" class="obszv" min="0" max="100" value="${Math.round(Math.log(obelK() * 3) / Math.log(9) * 100)}" data-obsz="1" aria-label="Size of the obelisk" title="Size of the obelisk" style="width:${Math.max(40, Hm - 34)}px">`;
   mk.classList.toggle('away', away); obelPanelLight();
 }
 function obelTallSVG(Wm, Hm, U, sx) {
-  const X = Wm / 2, y = v => (4 + U * (1 - v)).toFixed(2), hw = d => (d * U * sx).toFixed(2), tip = 1 - OB_TIP, f = v => +v;
-  const h = d => f(hw(d));
-  return `<svg class="sdobs" width="${Wm}" height="${Hm}" viewBox="0 0 ${Wm} ${Hm}" aria-hidden="true">`
+  const X = Wm / 2, y = v => (4 + U * (1 - v)).toFixed(2), tip = 1 - OB_TIP, h = d => +(d * U * sx).toFixed(2), id = 'ob' + Math.round(Hm);
+  return `<svg class="sdobs" width="${Wm}" height="${Hm}" viewBox="0 0 ${Wm} ${Hm}" aria-hidden="true"><defs>`
+    + `<pattern id="${id}p" patternUnits="userSpaceOnUse" width="64" height="64"><image href="${porphyryURL()}" width="64" height="64"/></pattern>`
+    + `<linearGradient id="${id}g0" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#c9922a"/><stop offset=".45" stop-color="#ffe08a"/><stop offset=".55" stop-color="#fffbe6"/><stop offset=".7" stop-color="#ffd35c"/><stop offset="1" stop-color="#e0a52e"/></linearGradient>`
+    + `<linearGradient id="${id}g1" x1="1" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#7a5212"/><stop offset=".5" stop-color="#b98a1e"/><stop offset=".6" stop-color="#e6c066"/><stop offset="1" stop-color="#9a6d18"/></linearGradient></defs>`
     + `<path class="sdsock" d="M1 ${Hm - 12}h${Wm - 2}v12H1z"/><path class="sdsockt" d="M1 ${Hm - 12}h${Wm - 2}v2.2H1z"/><path class="sdsockh" d="M${X - h(0.17)} ${Hm - 12}h${2 * h(0.17)}v1.4H${X - h(0.17)}z"/>`
     + `<g class="sdob" role="button" aria-label="Obelisk: drag it onto the map to set it up there">`
-    + `<path class="sdst" d="M${X - h(0.17)} ${y(0)}h${2 * h(0.17)}V${y(0.05)}h${-2 * h(0.17)}z M${X - h(0.13)} ${y(0.05)}h${2 * h(0.13)}V${y(0.08)}h${-2 * h(0.13)}z"/>`
-    + `<path class="sdsh0" d="M${X - h(0.088)} ${y(0.08)}L${X - h(0.052)} ${y(tip)}H${X}V${y(0.08)}z"/><path class="sdsh1" d="M${X} ${y(0.08)}V${y(tip)}H${X + h(0.052)}L${X + h(0.088)} ${y(0.08)}z"/>`
-    + `<path class="sdtip0" d="M${X - h(0.052)} ${y(tip)}L${X} 4V${y(tip)}z"/><path class="sdtip1" d="M${X} 4L${X + h(0.052)} ${y(tip)}H${X}z"/></g></svg>`;
+    + `<path class="sdst" fill="url(#${id}p)" d="M${X - h(0.17)} ${y(0)}h${2 * h(0.17)}V${y(0.05)}h${-2 * h(0.17)}z M${X - h(0.13)} ${y(0.05)}h${2 * h(0.13)}V${y(0.08)}h${-2 * h(0.13)}z"/>`
+    + `<path class="sdsh0" fill="url(#${id}p)" d="M${X - h(0.088)} ${y(0.08)}L${X - h(0.052)} ${y(tip)}H${X}V${y(0.08)}z"/><path class="sdsh1" fill="url(#${id}p)" d="M${X} ${y(0.08)}V${y(tip)}H${X + h(0.052)}L${X + h(0.088)} ${y(0.08)}z"/>`
+    + `<path class="sdshd0" d="M${X - h(0.088)} ${y(0.08)}L${X - h(0.052)} ${y(tip)}H${X}V${y(0.08)}z"/><path class="sdshd1" d="M${X} ${y(0.08)}V${y(tip)}H${X + h(0.052)}L${X + h(0.088)} ${y(0.08)}z"/>`
+    + `<path class="sdtip0" fill="url(#${id}g0)" d="M${X - h(0.052)} ${y(tip)}L${X} 4V${y(tip)}z"/><path class="sdtip1" fill="url(#${id}g1)" d="M${X} 4L${X + h(0.052)} ${y(tip)}H${X}z"/><path class="sdtipd" d="M${X - h(0.052)} ${y(tip)}L${X} 4L${X + h(0.052)} ${y(tip)}z"/></g></svg>`;
 }
 // over the sundial (to put the obelisk back)
 function overDial(ev) { for (const el of [$('#sunPanel'), $('#sdMark')]) { const q = el?.getBoundingClientRect(); if (q && ev.clientX >= q.left && ev.clientX <= q.right && ev.clientY >= q.top && ev.clientY <= q.bottom) return true; } return false; }
@@ -302,13 +312,21 @@ const THREE_URL = 'lib/three-0.169.0.module.min.js';
 let threeP = null;
 const threeLib = () => threeP ??= import(new URL(THREE_URL, location.href).href).catch(e => { console.warn('three.js not available:', e.message); return null; });
 function porphyryTex(T) {
-  const n = 256, cv = document.createElement('canvas'); cv.width = cv.height = n; const x = cv.getContext('2d');
+  const t = new T.CanvasTexture(porphyryCanvas()); t.wrapS = t.wrapT = T.RepeatWrapping; t.colorSpace = T.SRGBColorSpace; t.anisotropy = 4; return t;
+}
+// the stone itself, once: deep red-purple with dark and pale specks and white crystals (the 3D obelisk, and as a picture the 2D one)
+let PORPH = null;
+function porphyryCanvas() {
+  if (PORPH) return PORPH;
+  const n = 256, cv = PORPH = document.createElement('canvas'); cv.width = cv.height = n; const x = cv.getContext('2d');
   x.fillStyle = '#6a2638'; x.fillRect(0, 0, n, n);
   let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (let i = 0; i < 2600; i++) { const r = rnd(); x.fillStyle = r < 0.5 ? `rgba(46,14,24,${0.25 + rnd() * 0.4})` : r < 0.85 ? `rgba(140,62,80,${0.25 + rnd() * 0.4})` : `rgba(236,214,218,${0.5 + rnd() * 0.5})`;
     const sz = r < 0.85 ? 1 + rnd() * 2.6 : 0.6 + rnd() * 1.4; x.beginPath(); x.arc(rnd() * n, rnd() * n, sz, 0, 7); x.fill(); }
-  const t = new T.CanvasTexture(cv); t.wrapS = t.wrapT = T.RepeatWrapping; t.colorSpace = T.SRGBColorSpace; t.anisotropy = 4; return t;
+  return cv;
 }
+let PORPH_URL = null;
+const porphyryURL = () => PORPH_URL ??= porphyryCanvas().toDataURL('image/png');
 function obel3dLayer(T) {
   return { id: 'obel3d', type: 'custom', renderingMode: '3d',
     onAdd(map, gl) {
@@ -323,7 +341,7 @@ function obel3dLayer(T) {
       shaft.rotation.y = Math.PI / 4; shaft.position.y = 0.08 + SH / 2; g.add(shaft);
       // the tip: a perfect pyramid of gold – four equilateral triangles on the shaft's square top (520a, v373)
       // (polished: it mirrors a simple sky and ground around it – 526b, v374; the mirror image made once, before its first drawing)
-      const gold = this.gold = new T.MeshStandardMaterial({ color: 0xffc94d, metalness: 1, roughness: 0.24 });
+      const gold = this.gold = new T.MeshStandardMaterial({ color: 0xffcf55, metalness: 1, roughness: 0.1 });   // (polished – 554, v380)
       const tip = new T.Mesh(new T.ConeGeometry(0.052 * Math.SQRT2, OB_TIP, 4, 1), gold); tip.rotation.y = Math.PI / 4; tip.position.y = 1 - OB_TIP / 2; g.add(tip);
       g.updateMatrixWorld(true); this.scene.add(g);
       // its shadow where the map is flat: the model pressed flat onto the ground along the sun's rays, five times from a sun moved a
@@ -364,7 +382,7 @@ function obel3dLayer(T) {
         sg.matrix.set(1, -lx / ly, 0, 0, 0, 0, 0, 0.001, 0, -lz / ly, 1, 0, 0, 0, 0, 1); sg.matrixWorldNeedsUpdate = true; sg.children[0].material.opacity = a1; });
       this.r.setViewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
       if (!this.env && this.gold) { this.env = 1; try { this.r.resetState(); this.gold.envMap = obelEnv(T, this.r); this.gold.needsUpdate = true; } catch (_) {} }
-      if (this.gold) this.gold.envMapIntensity = 0.25 + 0.95 * day;
+      if (this.gold) this.gold.envMapIntensity = 0.45 + 1.3 * day;
       this.r.resetState(); if (this.dr) gl.depthRange(this.dr[0], this.dr[1]); gl.clearStencil(0); gl.clear(gl.STENCIL_BUFFER_BIT); if (plane) this.r.render(this.shScene, this.cam); this.r.render(this.scene, this.cam);
     } };
 }
@@ -885,7 +903,7 @@ function skyAt(alt, eve) {
 // (v375: the panel reworked – dial at the left, the obelisk in the middle, the zodiac at the right, always; one row of buttons
 // along the bottom. The dial is drawn in its own space (centre cx, cy; ring R; plate P) and placed and scaled into the panel by
 // sdLay; ZR the zodiac's radius; FADE the height over which the panel's sky and its outline fade into the map; ROW the buttons.)
-const SD = { cx: 92, cy: 82, R: 70, P: 56, ZR: 72, FADE: 52, ROW: 40, H: 250, SW: 116, SH: 116 };   // (SW, SH: the stone dial's picture – the ring's inner circle, v377)   // (the fade: nothing above 24 px – the rounded corners – then in)   // the panel's height, the dial's centre, ring and plate radii;
+const SD = { cx: 92, cy: 82, R: 70, P: 56, ZR: 72, FADE: 52, ROW: 40, BAR: 40, H: 250, SW: 116, SH: 116 };   // (SW, SH: the stone dial's picture – the ring's inner circle, v377)   // (the fade: nothing above 24 px – the rounded corners – then in)   // the panel's height, the dial's centre, ring and plate radii;
                                                                     // the zodiac wheel's radius and centre height, and the least width of the panel that shows it
 const sdAng = h => (h - 12) / 24 * 2 * Math.PI;                        // (clockwise, as the day goes on; noon at the top – v330)
 const sdXY = (h, r) => [SD.cx + Math.sin(sdAng(h)) * r, SD.cy - Math.cos(sdAng(h)) * r];
@@ -910,11 +928,12 @@ function sdPanelHTML() {
       <linearGradient id="sdFadeG" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${SD.FADE}"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".46" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity="1"/></linearGradient>
       <mask id="sdFade" maskUnits="userSpaceOnUse" x="-50" y="-50" width="4000" height="4000"><rect x="-50" y="-50" width="4000" height="4000" fill="url(#sdFadeG)"/></mask>
       <linearGradient id="sdGlitG" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="100"><stop offset="0" id="sdGlit0"/><stop offset="1" id="sdGlit1" stop-opacity="0"/></linearGradient>
+      <radialGradient id="sdWarmG"><stop offset="0" id="sdWa0"/><stop offset="1" id="sdWa1" stop-opacity="0"/></radialGradient>
       <radialGradient id="sdReflG"><stop offset="0" id="sdRf0"/><stop offset="1" id="sdRf1" stop-opacity="0"/></radialGradient>
       <clipPath id="sdBgClip"><path id="sdBgClipP" d=""/></clipPath>
       <clipPath id="sdAboveBg"><rect id="sdAboveBgR" x="-50" y="-50" width="4000" height="0"/></clipPath></defs>
     <g mask="url(#sdFade)"><g clip-path="url(#sdBgClip)"><rect x="-50" y="-50" width="4000" height="4000" fill="url(#sdSky)"/><g clip-path="url(#sdAboveBg)"><g class="sdstars" id="sdStars">${stars}</g></g>
-      <rect id="sdSeaR" x="-50" width="4000" height="0" fill="url(#sdSea)"/><g id="sdRefl"><ellipse id="sdReflSun" rx="0" ry="0"/><path id="sdGlint" class="sdglint" d="" stroke="url(#sdGlitG)"/></g></g><path id="sdEdge" class="sdedge" d=""/></g></svg>
+      <rect id="sdSeaR" x="-50" width="4000" height="0" fill="url(#sdSea)"/><g clip-path="url(#sdAboveBg)"><ellipse id="sdWarm" rx="0" ry="0" fill="url(#sdWarmG)"/></g><g id="sdRefl"><ellipse id="sdReflSun" rx="0" ry="0"/><path id="sdGlint" class="sdglint" d="" stroke="url(#sdGlitG)"/></g><rect id="sdBar" class="sdbar" x="-50" width="4000" height="${SD.BAR + 50}"/><path id="sdBarL" class="sdbarl" d=""/></g><path id="sdEdge" class="sdedge" d=""/></g></svg>
     <canvas class="sdsca" id="sdSca" aria-hidden="true"></canvas>
     <svg class="sdsvg" id="sunSvg" aria-hidden="true"><defs>
       <filter id="sdBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.3"/></filter>
@@ -924,7 +943,7 @@ function sdPanelHTML() {
     <path class="sdrim" fill-rule="evenodd" d="M${SD.cx - SD.R - 6} ${SD.cy}a${SD.R + 6} ${SD.R + 6} 0 1 0 ${2 * (SD.R + 6)} 0a${SD.R + 6} ${SD.R + 6} 0 1 0 ${-2 * (SD.R + 6)} 0zM${SD.cx - SD.P - 2} ${SD.cy}a${SD.P + 2} ${SD.P + 2} 0 1 0 ${2 * (SD.P + 2)} 0a${SD.P + 2} ${SD.P + 2} 0 1 0 ${-2 * (SD.P + 2)} 0z"/>
     <g class="sdticks">${ticks}</g><path id="sdDay" class="sdday" d=""/>
     <g id="sdOwlPos" transform="translate(${SD.cx - 38} ${SD.cy - 14})">${OWL}</g>
-    <g clip-path="url(#sdAbove)"><g class="sdhpos"><circle r="22" fill="url(#sdGlow)" id="sdGlowC"/><circle r="8.5" class="sdsun"/></g></g>
+    <g clip-path="url(#sdAbove)"><g class="sdhpos"><ellipse rx="22" ry="22" fill="url(#sdGlow)" id="sdGlowC"/><circle r="8.5" class="sdsun"/></g></g>
     <g clip-path="url(#sdBelow)"><g class="sdhpos"><circle r="8" class="sdmoonc"/><path id="sdMoonLit" class="sdmoon" d=""/></g></g><g class="sdhpos"><circle r="16" class="sdgrab"/></g>
     </g></g>
     ${zodWheelHTML()}
@@ -992,17 +1011,19 @@ function zodTurn(ev, centre, onTap) {
 }
 // the row of buttons at the panel's foot (528a, v375): Now · Day ("Animate" until v379) · Year; while animating, play/pause and the speed; while the
 // obelisk stands on the map, its size; at the end, day and night on the map on or off
-const SUN_SW_ICON = '<svg width="18" height="18" viewBox="-9 -9 18 18" aria-hidden="true"><circle r="4" fill="currentColor"/><g stroke="currentColor" stroke-width="1.4" stroke-linecap="round">'
-  + Array.from({ length: 8 }, (_, i) => { const a = i * Math.PI / 4; return `<path d="M${(Math.sin(a) * 6).toFixed(2)} ${(-Math.cos(a) * 6).toFixed(2)}L${(Math.sin(a) * 8).toFixed(2)} ${(-Math.cos(a) * 8).toFixed(2)}"/>`; }).join('') + '</g></svg>';
+// the switch: a disc split down the middle – a small sun with rays at the left, a crescent moon at the right (553a, v380)
+const SUN_SW_ICON = '<svg width="24" height="24" viewBox="-12 -12 24 24" aria-hidden="true"><defs><clipPath id="swL"><rect x="-12" y="-12" width="12" height="24"/></clipPath><clipPath id="swR"><rect x="0" y="-12" width="12" height="24"/></clipPath></defs>'
+  + '<g clip-path="url(#swL)" class="swsun"><circle r="5"/>' + Array.from({ length: 8 }, (_, i) => { const a = i * Math.PI / 4; return `<path d="M${(Math.sin(a) * 7).toFixed(2)} ${(-Math.cos(a) * 7).toFixed(2)}L${(Math.sin(a) * 9.6).toFixed(2)} ${(-Math.cos(a) * 9.6).toFixed(2)}"/>`; }).join('') + '</g>'
+  + '<g clip-path="url(#swR)" class="swmoon"><path d="M0-8.5A8.5 8.5 0 0 1 0 8.5A6.2 8.5 0 0 0 0-8.5z" transform="translate(1.2 0)"/></g><path d="M0-10.5V10.5" class="swdiv"/></svg>';
 function sdCtlHTML() {
   const mode = M.cfg.sunMode || 'now', spd = M.cfg.sunSpeed || 20, yr = M.cfg.sunYear || 20, on = sunOn();
   const play = `<button type="button" class="mico2" data-sunplay="1" aria-label="${M.sunPause ? 'Play' : 'Pause'}">${M.sunPause ? '▶' : '❚❚'}</button>`;
-  // (split round the obelisk's socket in the middle – v376)
-  return `<div class="sdl"><div class="seg" role="group">${[['now', 'Now'], ['anim', 'Day'], ['year', 'Year']].map(([v, l]) => `<button type="button" data-sunmode="${v}" class="${mode === v ? 'on' : ''}">${l}</button>`).join('')}</div></div><div class="sdgap"></div><div class="sdr">`
+  // (v380: in the bar at the panel's foot – the switch in the left corner, the modes in the middle, play and speed at the right)
+  return `<div class="sdl"><button type="button" class="sdsw${on ? ' on' : ''}" data-sunsw2="1" aria-pressed="${on}" title="Day and night on the map: ${on ? 'on' : 'off'}" aria-label="Day and night on the map">${SUN_SW_ICON}</button></div>`
+    + `<div class="seg" role="group">${[['now', 'Now'], ['anim', 'Day'], ['year', 'Year']].map(([v, l]) => `<button type="button" data-sunmode="${v}" class="${mode === v ? 'on' : ''}">${l}</button>`).join('')}</div><div class="sdr">`
     + (mode === 'anim' ? `<div class="msun">${play}<input type="range" min="0" max="100" value="${spdToV(spd)}" data-sunspeed="1" aria-label="Speed"><output>${spdLabel(spd)}</output></div>` : '')
     + (mode === 'year' ? `<div class="msun">${play}<input type="range" min="0" max="100" value="${yrToV(yr)}" data-sunyear="1" aria-label="Speed"><output>${yrLabel(yr)}</output></div>` : '')
-    + (M.cfg.gnomon ? `<input type="range" class="obsz" min="0" max="100" value="${Math.round(Math.log(obelK() * 3) / Math.log(9) * 100)}" data-obsz="1" aria-label="Size of the obelisk" title="Size of the obelisk">` : '')
-    + `<button type="button" class="sdsw${on ? ' on' : ''}" data-sunsw2="1" aria-pressed="${on}" title="Day and night on the map: ${on ? 'on' : 'off'}" aria-label="Day and night on the map">${SUN_SW_ICON}</button></div>`;
+    + `</div>`;
 }
 async function sdOpen(open) {
   const box = $('#mapBody'); if (!box) return;
@@ -1022,7 +1043,7 @@ function sundialPaint() {
   const Ly = sdLay(W), { k, tx, ty, H } = Ly, pn = $('#sunPanel'), mb = $('#mapBody');
   if (Ly.H !== M.sdH || W !== M.sdW) { M.sdH = H; M.sdW = W; mb?.style.setProperty('--sdh', H + 'px'); if (pn) pn.style.height = H + 'px';
     const rt = 24, rb = 14, d = `M0 ${H - rb}V${rt}Q0 0 ${rt} 0H${W - rt}Q${W} 0 ${W} ${rt}V${H - rb}Q${W} ${H} ${W - rb} ${H}H${rb}Q0 ${H} 0 ${H - rb}z`;
-    $('#sdBgClipP').setAttribute('d', d);
+    $('#sdBgClipP').setAttribute('d', d); $('#sdBar').setAttribute('y', H - SD.BAR); $('#sdBarL').setAttribute('d', `M0 ${H - SD.BAR + 0.5}H${W}`);
     $('#sdEdge').setAttribute('d', `M0.5 ${H - rb}V${rt}Q0.5 0.5 ${rt} 0.5H${W - rt}Q${W - 0.5} 0.5 ${W - 0.5} ${rt}V${H - rb}Q${W - 0.5} ${H - 0.5} ${W - rb} ${H - 0.5}H${rb}Q0.5 ${H - 0.5} 0.5 ${H - rb}z`);
     $('#sdDialG').setAttribute('transform', `matrix(${k.toFixed(4)} 0 0 ${k.toFixed(4)} ${tx.toFixed(2)} ${ty.toFixed(2)})`);
     $('#sdZod').setAttribute('transform', `translate(${Ly.zx.toFixed(1)} ${Ly.cy.toFixed(1)}) scale(${k.toFixed(4)})`);
@@ -1046,13 +1067,20 @@ function sundialPaint() {
   $('#sdAboveR').setAttribute('height', Math.max(0, hy + 4000).toFixed(1)); $('#sdBelowR').setAttribute('y', hy.toFixed(1));
   $('#sdStars').style.opacity = Math.max(0, Math.min(1, (-alt - 5) / 11)).toFixed(2);
   const [x, y] = sdXY(lst, SD.R); svg.querySelectorAll('.sdhpos').forEach(g => g.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`));
-  const g = $('#sdGlowC'); g.setAttribute('r', (12 + Math.max(0, alt) * 0.35).toFixed(1)); g.style.opacity = Math.max(0.25, Math.min(1, 0.35 + alt / 50)).toFixed(2);
+  // the glow: round when high; low down wider and flatter, spreading along the horizon (555a, v380)
+  const g = $('#sdGlowC'), lowG = Math.max(0, Math.min(1, (10 - alt) / 12)) * (alt > -6 ? 1 : 0), gr0 = 12 + Math.max(0, alt) * 0.35;
+  g.setAttribute('rx', (gr0 * (1 + 3 * lowG)).toFixed(1)); g.setAttribute('ry', (gr0 * (1 + 0.15 * lowG)).toFixed(1)); g.style.opacity = Math.max(0.25, Math.min(1, 0.35 + alt / 50 + 0.5 * lowG)).toFixed(2);
   const day = lst >= rise && lst < set;
   // the glitter of the sun (or the moon) on the water beneath it
   // the sun's colour of the moment, as in the sky: the handle, its glow, the light on the bowl and on the sea (v378)
   const tc = sunTint(alt, lst < 12), hex = c => '#' + c.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join(''), mixW = (c, t) => c.map(v => v + (255 - v) * t);
   const sunEl = svg.querySelector('.sdsun'); if (sunEl) { sunEl.style.fill = hex(mixW(tc, 0.18)); sunEl.style.stroke = hex(mixW(tc, 0.7)); }
   $('#sdGl0')?.setAttribute('stop-color', hex(mixW(tc, 0.75))); $('#sdGl1')?.setAttribute('stop-color', hex(tc)); $('#sdGl2')?.setAttribute('stop-color', hex(tc.map(v => v * 0.85)));
+  // the sky warming above the horizon on the sun's side while it is low (555a)
+  { const [sx0] = P(x, y), wl = Math.max(0, Math.min(1, (12 - alt) / 12)) * Math.max(0, Math.min(1, (alt + 7) / 7)), we = $('#sdWarm');
+    if (wl > 0.01 && len > 0 && len < 24) { we.setAttribute('cx', sx0.toFixed(1)); we.setAttribute('cy', hyP.toFixed(1)); we.setAttribute('rx', (W * 0.42).toFixed(1)); we.setAttribute('ry', Math.min(60, hyP).toFixed(1));
+      $('#sdWa0').setAttribute('stop-color', hex(tc)); $('#sdWa0').setAttribute('stop-opacity', (0.75 * wl).toFixed(2)); $('#sdWa1').setAttribute('stop-color', hex(tc)); }
+    else { we.setAttribute('rx', 0); we.setAttribute('ry', 0); } }
   // its reflection in the sea (v378): the sun mirrored beneath the horizon, squeezed by the waves, and the path of glitter from it
   // towards the eye – narrow and bright when the sun is low, broad and paler when it is high; none while it is below the horizon
   { const [sx, sy] = P(x, y), up2 = day && sy < hyP - 1 && hyP < H - 6, gp = $('#sdGlint'), rs = $('#sdReflSun');
@@ -1321,7 +1349,7 @@ addEventListener('resize', () => { if (M.sdOpen) requestAnimationFrame(sundialPa
 // z up; the sphere's radius 1, its centre the rod's tip), seen from the front, a little from above. The shapes are worked out
 // once for each size and latitude; each time only the light: the sun (or at night the moon), the bowl's shade, the rod's shadow.
 // (v377: the stone itself only a half-bowl – the outer shell RO, cut flat at the top and the front; no ledge, no pillars – 543)
-const SCA = { X0: 1.3, Y0: 1.15, Z0: 1.28, ZF: 1.04, PW: 0.3, ZP: 0.28, rod: 0.022, shape: 'shell', ledge: false, pillars: false, el: 24, RO: 1.15 };
+const SCA = { X0: 1.3, Y0: 1.15, Z0: 1.28, ZF: 1.04, PW: 0.3, ZP: 0.28, rod: 0.022, shape: 'shell', ledge: false, pillars: false, el: 24, RO: 1.15, base: 'drum' };   // (base: the stone going on below the bowl as a drum, cut flat at the front – 550a, v380)
 // how far in front of the centre the front face stands, for a latitude: the sun's farthest reach towards the raised pole – at
 // sunrise in midsummer (sin 23.4° / cos φ), a little more for good measure; beyond the polar circles nearly the whole half
 const scaFront = alat => Math.min(0.97, Math.sin(24.4 * RAD) / Math.cos(Math.min(89, alat) * RAD) + 0.04);
