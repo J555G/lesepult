@@ -510,10 +510,10 @@ async function settingsDialog(focus) {
   // a joined switch for either/or settings: Light | Dark
   const seg = (k, cur, opts) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button type="button" class="${cur === v ? 'on' : ''}" data-setk="${k}" data-setv="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div>`;
   const line = (label, ctl, hint = '') => `<div class="mline"><span>${label}${hint ? `<small class="hint">${hint}</small>` : ''}</span>${ctl}</div>`;
-  let ver = '–'; try { const ks = (await caches.keys()).filter(k => k.startsWith('lesepult-v')).map(k => +k.split('-v')[1]); if (ks.length) ver = Math.max(...ks); } catch (_) { }
-  // the date of publication: worked out once per version and remembered – reading the app's stored files is slow in Safari, so a
-  // new version's date is filled in after the menu is shown (v368)
-  const pd = (await setting('pubDate')) || {}, pub = pd.ver === ver ? pd.date : '';
+  // the version and its date of publication: the last ones known shown at once, then checked once the menu is open – right after
+  // a start Safari's store of the app's files answered only after some 10 s (busy with the map's packages), and the menu waited
+  // (v369); the date is worked out once per version and remembered (v368)
+  const pd = (await setting('pubDate')) || {}, ver0 = pd.ver ?? '–', pub = pd.date || '';
   tm('version');
   const fold = (await setting('instFold')) || {};
   const want = { colours: 'read', grammar: 'read', map: 'map' }[focus];
@@ -543,11 +543,16 @@ async function settingsDialog(focus) {
       `<div class="srow1 sapp"><b>Appearance</b>${seg('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']])}</div>`
       + `<label class="srow1 swr sapp2"><span>Fades<small class="hint">buttons light up briefly when tapped, switches fade in and out</small></span>${SW('data-fades="1"', !document.body.classList.contains('nofade'))}</label>`
       + `<label class="srow1 swr sapp2"><span>Notices<small class="hint">short hints and confirmations at the bottom of the screen (warnings always show)</small></span>${SW('data-notices="1"', document.body.classList.contains('notices'))}</label>`)
-    + `<p class="sver">Pult · version ${ver}<span id="sverPub">${pub ? ' · published ' + pub : ''}</span><br><span id="sverTime"></span></p>`, []);
+    + `<p class="sver">Pult · version <span id="sverVer">${ver0}</span><span id="sverPub">${pub ? ' · published ' + pub : ''}</span><br><span id="sverTime"></span></p>`, []);
   tm('building'); syncGramRows($('#dlgForm')); scIdxInfo();
   // shown on screen: the time until the menu was drawn, and its parts
   requestAnimationFrame(() => setTimeout(() => { tm('drawing'); const el = $('#sverTime'); if (el) el.textContent = `opened in ${Math.round(performance.now() - T0)} ms: ` + TM.map(([k, v]) => `${k} ${Math.round(v)}`).join(' · '); }, 0));
-  if (!pub && ver !== '–') pultDate(ver).then(d => { if (!d) return; setting('pubDate', { ver, date: d }); const el = $('#sverPub'); if (el) el.textContent = ' · published ' + d; });
+  (async () => {
+    let ver = '–'; try { const ks = (await caches.keys()).filter(k => k.startsWith('lesepult-v')).map(k => +k.split('-v')[1]); if (ks.length) ver = Math.max(...ks); } catch (_) { }
+    if (ver === '–' || (ver === pd.ver && pd.date)) return;
+    const v = $('#sverVer'); if (v) v.textContent = ver; const p0 = $('#sverPub'); if (p0) p0.textContent = '';
+    const d = await pultDate(ver); setting('pubDate', { ver, date: d || '' }); const el = $('#sverPub'); if (el && d) el.textContent = ' · published ' + d;
+  })();
   if (focus) {                                                   // the part asked for, at the top of the dialog
     const el = focus === 'map' ? null : $('#dlgForm').querySelector(focus === 'colours' ? '.rsec.scolours' : '.rsec.sgram');
     const go = () => { if (!el || !$('#dlg').open) return; const d = $('#dlg'); d.scrollTop += el.getBoundingClientRect().top - d.getBoundingClientRect().top - 52; };

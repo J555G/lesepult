@@ -513,25 +513,66 @@ function skyGlow(y, m, P, W, H, t) {
     const [c0, a0] = glowAt(sa.alt, rising), [c1, a1] = glowAt(sa.alt + 7.2, rising), g = smooth01((-sa.alt - 13) / 6);   // (airglow where the upper air is dark)
     pts.push({ p, o, c0, a0: a0 * wT, c1, a1: a1 * wT, g });
   }
-  // a strip of four-sided pieces, each fading from the edge outwards, its colours the mean of its two ends (no steps, no seams)
+  // the strip: drawn by the graphics chip with its colours blended smoothly between the corners of each piece – drawn piece by
+  // piece on the canvas, overlapping pieces doubled the light in bright lines and the pieces' own shadings did not quite meet in
+  // steps (v369); the 2D drawing stays as a fallback
+  const dpr = devicePixelRatio || 1, gcv = glowGL(pts, W, H, dpr, y.canvas.width, y.canvas.height);
+  if (gcv) { y.save(); y.setTransform(1, 0, 0, 1, 0, 0); y.drawImage(gcv, 0, 0); y.restore(); return; }
   const mix = (q, r) => q.map((x, k) => (x + r[k]) / 2), rgba = (c, al) => `rgba(${c.map(Math.round).join(',')},${Math.max(0, al).toFixed(3)})`;
   y.save();
   for (let i = 0; i < N; i++) { const A1 = pts[i], B1 = pts[i + 1]; if (!A1 || !B1) continue;
     const a0 = (A1.a0 + B1.a0) / 2, a1 = (A1.a1 + B1.a1) / 2, gg = (A1.g + B1.g) / 2; if (a0 < 0.01 && a1 < 0.01 && gg < 0.01) continue;
-    if (Math.abs(A1.p[0] - B1.p[0]) > W * 2 || Math.abs(A1.p[1] - B1.p[1]) > H * 2) continue;   // (a piece thrown across the screen)
+    if (Math.abs(A1.p[0] - B1.p[0]) > W * 2 || Math.abs(A1.p[1] - B1.p[1]) > H * 2) continue;
     const mx = (A1.p[0] + B1.p[0]) / 2, my = (A1.p[1] + B1.p[1]) / 2, ox = (A1.o[0] + B1.o[0]) / 2, oy = (A1.o[1] + B1.o[1]) / 2;
     const c0 = mix(A1.c0, B1.c0), c1 = mix(A1.c1, B1.c1), cg = c1.map((x, k) => x + (GLOW_AIR[k] - x) * gg);
     const gr = y.createLinearGradient(mx - (ox - mx) * 0.25, my - (oy - my) * 0.25, ox, oy);
-    // (0.2 is the edge itself; 0.73 about 100 km up)
-    gr.addColorStop(0, rgba(c0, 0)); gr.addColorStop(0.2, rgba(c0, a0)); gr.addColorStop(0.36, rgba(c0, a0 * 0.75));
-    gr.addColorStop(0.52, rgba(c1, a1 * 0.55)); gr.addColorStop(0.73, rgba(cg, a1 * 0.25 * (1 - gg) + 0.13 * gg)); gr.addColorStop(1, rgba(cg, 0));
-    const bx = (q, r, k) => [q[0] + (q[0] - r[0]) * k, q[1] + (q[1] - r[1]) * k];
-    const p0 = bx(A1.p, A1.o, 0.25), q0 = bx(B1.p, B1.o, 0.25);
-    // (a hair wider along the edge, so the pieces meet)
-    const ex = (B1.p[0] - A1.p[0]) * 0.02, ey = (B1.p[1] - A1.p[1]) * 0.02;
-    y.fillStyle = gr; y.beginPath(); y.moveTo(p0[0] - ex, p0[1] - ey); y.lineTo(q0[0] + ex, q0[1] + ey); y.lineTo(B1.o[0] + ex, B1.o[1] + ey); y.lineTo(A1.o[0] - ex, A1.o[1] - ey); y.closePath(); y.fill();
+    GLOW_STOPS.forEach((st, k) => gr.addColorStop(st, rgba(...glowStop(k, c0, a0, c1, a1, cg, gg))));
+    const bx = (q, r, k) => [q[0] + (q[0] - r[0]) * k, q[1] + (q[1] - r[1]) * k], p0 = bx(A1.p, A1.o, 0.25), q0 = bx(B1.p, B1.o, 0.25);
+    y.fillStyle = gr; y.beginPath(); y.moveTo(p0[0], p0[1]); y.lineTo(q0[0], q0[1]); y.lineTo(B1.o[0], B1.o[1]); y.lineTo(A1.o[0], A1.o[1]); y.closePath(); y.fill();
   }
   y.restore();
+}
+// across the band, from a little inside the edge (0) through the edge (0.2) and the upper air to about 100 km (0.73) and beyond
+const GLOW_STOPS = [0, 0.2, 0.36, 0.52, 0.73, 1];
+function glowStop(k, c0, a0, c1, a1, cg, gg) {
+  return [[c0, 0], [c0, a0], [c0, a0 * 0.75], [c1, a1 * 0.55], [cg, a1 * 0.25 * (1 - gg) + 0.13 * gg], [cg, 0]][k];
+}
+// the band as triangles with a colour at each corner, on a small WebGL canvas of its own (null where WebGL is missing)
+function glowGL(pts, W, H, dpr, cw, ch) {
+  let G = SKY.glowGL;
+  if (G === undefined) {
+    G = SKY.glowGL = null;
+    try {
+      const cv = document.createElement('canvas'), gl = cv.getContext('webgl', { alpha: true, premultipliedAlpha: true, antialias: false, preserveDrawingBuffer: true });
+      if (gl) {
+        const sh = (t, src) => { const o = gl.createShader(t); gl.shaderSource(o, src); gl.compileShader(o); return o; }, pr = gl.createProgram();
+        gl.attachShader(pr, sh(gl.VERTEX_SHADER, 'attribute vec2 p;attribute vec4 c;uniform vec2 s;varying vec4 v;void main(){v=c;gl_Position=vec4(p.x/s.x*2.0-1.0,1.0-p.y/s.y*2.0,0.0,1.0);}'));
+        gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, 'precision mediump float;varying vec4 v;void main(){gl_FragColor=vec4(v.rgb*v.a,v.a);}'));
+        gl.linkProgram(pr);
+        if (gl.getProgramParameter(pr, gl.LINK_STATUS)) G = SKY.glowGL = { cv, gl, pr, buf: gl.createBuffer(), lp: gl.getAttribLocation(pr, 'p'), lc: gl.getAttribLocation(pr, 'c'), ls: gl.getUniformLocation(pr, 's') };
+      }
+    } catch (_) { G = SKY.glowGL = null; }
+  }
+  if (!G) return null;
+  const { cv, gl, pr, buf, lp, lc, ls } = G, K = GLOW_STOPS.length, out = [];
+  if (cv.width !== cw || cv.height !== ch) { cv.width = cw; cv.height = ch; }
+  // each point of the edge: its row of corners across the band, each with its colour
+  const row = q => { const ix = q.p[0] - (q.o[0] - q.p[0]) * 0.25, iy = q.p[1] - (q.o[1] - q.p[1]) * 0.25, cg = q.c1.map((x, k) => x + (GLOW_AIR[k] - x) * q.g);
+    return GLOW_STOPS.map((st, k) => { const [c, a] = glowStop(k, q.c0, q.a0, q.c1, q.a1, cg, q.g); return [ix + (q.o[0] - ix) * st, iy + (q.o[1] - iy) * st, c[0] / 255, c[1] / 255, c[2] / 255, Math.max(0, Math.min(1, a))]; }); };
+  let prev = null, prevQ = null;
+  for (const q of pts) {
+    const r = q ? row(q) : null;
+    if (r && prev && !(Math.abs(q.p[0] - prevQ.p[0]) > W * 2 || Math.abs(q.p[1] - prevQ.p[1]) > H * 2) && (q.a0 + q.a1 + q.g + prevQ.a0 + prevQ.a1 + prevQ.g) > 0.02)
+      for (let k = 0; k < K - 1; k++) out.push(...prev[k], ...r[k], ...r[k + 1], ...prev[k], ...r[k + 1], ...prev[k + 1]);
+    prev = r; prevQ = q;
+  }
+  gl.viewport(0, 0, cw, ch); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+  if (!out.length) return cv;
+  gl.useProgram(pr); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(out), gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(lp); gl.vertexAttribPointer(lp, 2, gl.FLOAT, false, 24, 0);
+  gl.enableVertexAttribArray(lc); gl.vertexAttribPointer(lc, 4, gl.FLOAT, false, 24, 8);
+  gl.uniform2f(ls, W, H); gl.disable(gl.BLEND); gl.drawArrays(gl.TRIANGLES, 0, out.length / 6);
+  return cv;
 }
 function skyDraw(args) {
   const m = M.map, box = m.getContainer(), W = box.clientWidth, H = box.clientHeight, dpr = devicePixelRatio || 1;
@@ -638,7 +679,7 @@ function sunClock() {
   if (mode === 'anim' && !M.sunPause) {
     let last = performance.now(), acc = 0;
     const step = now => { const dt = now - last; last = now; acc += dt;
-      M.sunT = sunTime() + dt * 86400 / (M.cfg.sunSpeed || 20);       // (sunSpeed: seconds of real time per day)
+      M.sunT = sunTime() + dt * 86400 / Math.max(7, Math.min(77, M.cfg.sunSpeed || 20));       // (sunSpeed: seconds of real time per day)
       if (acc > 50) { acc = 0; sunApply(); }
       M.sunRaf = requestAnimationFrame(step); };
     M.sunRaf = requestAnimationFrame(step);
@@ -905,8 +946,9 @@ document.addEventListener('pointerdown', ev => {
 });
 document.addEventListener('change', ev => { if (ev.target.closest?.('[data-sunsw]')) sunSet({ sun: ev.target.checked }).then(() => { const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML(); sundialPaint(); }); });
 // the speed: one day in 60 s … 5 s (a logarithmic slider)
-const spdToV = s => Math.round(Math.log(60 / s) / Math.log(12) * 100), vToSpd = v => 60 / 12 ** (v / 100);
-const spdLabel = s => `a day in ${s >= 9.95 ? Math.round(s) : s.toFixed(1)} s`;
+// (the slider: a day in 77 s at the left to 7 s at the right – v369)
+const spdToV = s => Math.round(Math.log(77 / Math.max(7, Math.min(77, s))) / Math.log(11) * 100), vToSpd = v => 77 / 11 ** (v / 100);
+const spdLabel = s => `a day in ${s >= 9.95 || Math.abs(s - Math.round(s)) < 0.05 ? Math.round(s) : s.toFixed(1)} s`;
 // the height exaggeration of 3D (1 … 3), and the spacing of the contour lines (the least room between them, 4 … 24 pixels)
 document.addEventListener('input', ev => {
   const x = ev.target.closest?.('input[data-exag]'), sp = ev.target.closest?.('input[data-cspace]'), sk = ev.target.closest?.('input[data-skysize]');
