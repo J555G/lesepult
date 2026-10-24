@@ -209,12 +209,15 @@ function camFog() {
 function camLeave() {
   const m = M.map; if (!M.cam || !m) return; const was = M.camWas, mode = M.cam.mode; cancelAnimationFrame(FLY.raf); $('#flyUI')?.remove(); FLY.L = { x: 0, y: 0 }; FLY.R = { x: 0, y: 0 }; FLY.keys.clear();
   // (out of flight or the obelisk's view, with the explorer camera chosen: back to where it was; the lens as before – v392)
-  if (mode !== 'exp' && camExpOn()) { M.cam = M.camPrevExp ? { ...M.camPrevExp } : { mode: 'exp', ...camNow() }; M.camPrevExp = null;
+  // (out of flight: exactly where the flight was – only the sticks go, v393; out of the obelisk's view: back to where one was)
+  if (mode !== 'exp' && camExpOn()) { const f = M.cam; M.cam = mode === 'fly' ? { mode: 'exp', lng: f.lng, lat: f.lat, alt: f.alt, br: f.br, pt: f.pt, roll: f.roll || 0 } : M.camPrevExp ? { ...M.camPrevExp } : { mode: 'exp', ...camNow() }; M.camPrevExp = null;
     camLimits(); camFog(); camApply(); camBar(); obelUpd(); m.triggerRepaint(); return; }
   M.cam = null; cancelAnimationFrame(EXP.raf); EXP.raf = 0; EXP.hold = false;
   for (const h of ['dragPan', 'dragRotate', 'scrollZoom', 'touchZoomRotate', 'touchPitch', 'keyboard', 'doubleClickZoom', 'boxZoom']) m[h]?.enable();
-  m.setCenterClampedToGround?.(true); camLimits(); camFog();
-  if (was) m.jumpTo({ center: was.center, zoom: was.zoom, bearing: was.bearing, pitch: Math.min(was.pitch, m.getMaxPitch()), roll: camCfg().roll ? camCfg().rollv || 0 : 0 });
+  // (with the map's own camera: out of flight the view stays as it is – the centre held to the ground again only once the map is moved)
+  if (mode === 'fly') m.once('movestart', () => { if (!M.cam) m.setCenterClampedToGround?.(true); }); else m.setCenterClampedToGround?.(true);
+  camLimits(); camFog();
+  if (was && mode !== 'fly') m.jumpTo({ center: was.center, zoom: was.zoom, bearing: was.bearing, pitch: Math.min(was.pitch, m.getMaxPitch()), roll: camCfg().roll ? camCfg().rollv || 0 : 0 });
   camBar(); obelUpd(); m.triggerRepaint();
 }
 // Free flight (v355): a craft that hovers – the left stick sets how fast it goes forward, back or sideways (let go, it glides
@@ -224,8 +227,10 @@ function camLeave() {
 // v363), so the land passes calmly high up, and low down not too slowly. The view looks ahead with the horizon a
 // third down the screen (the ground in front filling the rest); dragging elsewhere turns the head, ↺ brings it back.
 function camFly() {
-  if (!M.map) return; const c = camNow(); if (M.cam?.mode === 'exp') M.camPrevExp = { ...M.cam };
-  camTake('fly', { lng: c.lng, lat: c.lat, alt: c.alt, hd: c.br, ptA: 0, bank: 0, vF: 0, vR: 0, look: { y: 0, p: 0 }, br: c.br, pt: 70, roll: 0 });
+  if (!M.map) return; const c = M.cam?.mode === 'exp' ? { ...M.cam } : camNow();
+  // (taking off changes nothing in the view – only the sticks appear: the craft level, heading where the camera looks, the head
+  // turned up or down by as much as the view was – v393)
+  camTake('fly', { lng: c.lng, lat: c.lat, alt: Math.max(c.alt, groundAt(c.lng, c.lat) + 5), hd: c.br, ptA: 0, bank: 0, vF: 0, vR: 0, look: { y: 0, p: c.pt - 90 + flyDown() }, rollB: c.roll || 0, br: c.br, pt: c.pt, roll: c.roll || 0 });
   flyUI(); flyLoop();
 }
 // how far below level the eye looks, for the horizon to stand a third down the screen (with the lens as it is)
@@ -262,7 +267,7 @@ function flyLoop() {
 // (the eye tilts fully with the climb – pitching up, it looks up as the flight goes up – v357; with the bank only in part)
 // (past the vertical the view turns over: looking the other way, upside down)
 function flyView() {
-  const c = M.cam, phi = ((c.ptA + c.look.p - flyDown() + 180) % 360 + 360) % 360 - 180, rl = c.bank * 0.6 + (c.flip || 0);
+  const c = M.cam, phi = ((c.ptA + c.look.p - flyDown() + 180) % 360 + 360) % 360 - 180, rl = c.bank * 0.6 + (c.flip || 0) + (c.rollB || 0);
   if (Math.abs(phi) <= 90) { c.br = c.hd + c.look.y; c.pt = 90 + phi; c.roll = rl; }
   else { c.br = c.hd + c.look.y + 180; c.pt = 90 + Math.sign(phi) * 180 - phi; c.roll = rl + 180; }
 }
@@ -314,7 +319,7 @@ function camGestures() {
     if (!M.cam || !P.has(e.pointerId)) return; const q = P.get(e.pointerId), dx = e.clientX - q.x, dy = e.clientY - q.y;
     if (M.cam.mode === 'exp') { P.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (M.obGrab == null) expMoveG(e, P, two, dx, dy); return; }
     if (P.size === 1) { const k = degPx(); P.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (M.cam.mode === 'fly') { M.cam.look.y -= dx * k; M.cam.look.p = Math.max(-85, Math.min(85, M.cam.look.p + dy * k)); return; }   // (the head turned; the flight goes on)
+      if (M.cam.mode === 'fly') { M.cam.look.y -= dx * k; M.cam.look.p = Math.max(-96, Math.min(96, M.cam.look.p + dy * k)); return; }   // (the head turned; the flight goes on)
       M.cam.br -= dx * k; M.cam.pt += dy * k; camApply(); return; }   // (look round: the world follows the finger)
     P.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (P.size !== 2 || !g0) return;
     if (M.cam.mode === 'fly') return;
