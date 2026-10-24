@@ -863,10 +863,20 @@ function skyAt(alt, eve) {
   if (alt >= K[0][0]) return K[0].slice(1); if (alt <= K[K.length - 1][0]) return K[K.length - 1].slice(1);
   for (let i = 0; i < K.length - 1; i++) if (alt <= K[i][0] && alt >= K[i + 1][0]) { const t = (K[i][0] - alt) / (K[i][0] - K[i + 1][0]); return [hexMix(K[i][1], K[i + 1][1], t), hexMix(K[i][2], K[i + 1][2], t)]; }
 }
-const SD = { H: 198, cx: 92, cy: 82, R: 64, P: 50, ZR: 80, ZY: 92, ZW: 640 };   // the panel's height, the dial's centre, ring and plate radii;
+// (v375: the panel reworked – dial at the left, the obelisk in the middle, the zodiac at the right, always; one row of buttons
+// along the bottom. The dial is drawn in its own space (centre cx, cy; ring R; plate P) and placed and scaled into the panel by
+// sdLay; ZR the zodiac's radius; FADE the height over which the panel's sky and its outline fade into the map; ROW the buttons.)
+const SD = { cx: 92, cy: 82, R: 64, P: 50, ZR: 72, FADE: 52, ROW: 40, H: 250 };   // (the fade: nothing above 24 px – the rounded corners – then in)   // the panel's height, the dial's centre, ring and plate radii;
                                                                     // the zodiac wheel's radius and centre height, and the least width of the panel that shows it
 const sdAng = h => (h - 12) / 24 * 2 * Math.PI;                        // (clockwise, as the day goes on; noon at the top – v330)
 const sdXY = (h, r) => [SD.cx + Math.sin(sdAng(h)) * r, SD.cy - Math.cos(sdAng(h)) * r];
+// where the two wheels stand in a panel W wide: the same size up to 660 px, smaller on narrow screens so that the obelisk keeps
+// its room between them; the labels beneath; the row of buttons at the foot (k: the scale; tx, ty: the dial's space → the panel)
+function sdLay(W) {
+  const k = Math.max(0.6, Math.min(1, (W - 3 * 14 - 40) / (2 * (SD.R + 6) + 2 * (SD.ZR + 4))));
+  const cy = 22 + (SD.ZR + 13) * k, dx = 14 + (SD.R + 6) * k, zx = W - 14 - (SD.ZR + 4) * k, labY = cy + (SD.ZR + 4) * k + 18;
+  return { k, cy, dx, zx, labY, H: Math.round(labY + 8 + SD.ROW), tx: dx - k * SD.cx, ty: cy - k * SD.cy };
+}
 const OWL = '<g class="sdowl"><g class="owlw"><ellipse cx="-6" cy="2" rx="4" ry="7" transform="rotate(25 -6 2)"/><ellipse cx="6" cy="2" rx="4" ry="7" transform="rotate(-25 6 2)"/></g>'
   + '<ellipse cx="0" cy="2" rx="6.5" ry="8.5" class="owlb"/><path d="M-5.5 -9-3.5-4H3.5L5.5-9 2-5.5h-4z" class="owlb"/><circle cx="-2.6" cy="-4" r="2.4" class="owle"/><circle cx="2.6" cy="-4" r="2.4" class="owle"/>'
   + '<circle cx="-2.6" cy="-4" r="1" class="owlp"/><circle cx="2.6" cy="-4" r="1" class="owlp"/><path d="M-0.9-2 0-0.4 0.9-2z" class="owlk"/><path d="M-3 10.2h2M1 10.2h2" class="owlf"/></g>';
@@ -874,24 +884,30 @@ function sdPanelHTML() {
   const stars = Array.from({ length: 46 }, (_, i) => { const x = (Math.sin(i * 12.9898) * 43758.5453 % 1 + 1) % 1, y = (Math.sin(i * 78.233) * 12543.21 % 1 + 1) % 1;
     return `<circle cx="${(x * 100).toFixed(1)}%" cy="${(y * 55).toFixed(1)}%" r="${(0.5 + (i % 3) * 0.35).toFixed(2)}" style="animation-delay:${(i % 7) * 0.6}s"/>`; }).join('');
   const ticks = Array.from({ length: 24 }, (_, h) => { const [a, b] = sdXY(h, h % 6 ? SD.R - 4 : SD.R - 7), [c, d] = sdXY(h, SD.R); return `<line x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${c.toFixed(1)}" y2="${d.toFixed(1)}"/>`; }).join('');
-  return `<div class="msdial" id="sunPanel"><svg class="sdsvg" id="sunSvg" height="${SD.H}" aria-hidden="true"><defs>
+  return `<div class="msdial" id="sunPanel"><svg class="sdsvg" id="sunSvg" aria-hidden="true"><defs>
       <linearGradient id="sdSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" id="sdSky0"/><stop offset="1" id="sdSky1"/></linearGradient>
       <linearGradient id="sdSea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" id="sdSea0"/><stop offset="1" id="sdSea1"/></linearGradient>
+      <linearGradient id="sdFadeG" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${SD.FADE}"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".46" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity="1"/></linearGradient>
+      <mask id="sdFade" maskUnits="userSpaceOnUse" x="-50" y="-50" width="4000" height="4000"><rect x="-50" y="-50" width="4000" height="4000" fill="url(#sdFadeG)"/></mask>
       <filter id="sdBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.3"/></filter>
       <radialGradient id="sdGlow"><stop offset="0" stop-color="#fff6c8" stop-opacity=".95"/><stop offset=".35" stop-color="#ffd85a" stop-opacity=".55"/><stop offset="1" stop-color="#ffb030" stop-opacity="0"/></radialGradient>
       <radialGradient id="sdStone" cx=".42" cy=".38"><stop offset="0" stop-color="#e9dfc8"/><stop offset="1" stop-color="#b8aa8c"/></radialGradient>
-      <clipPath id="sdAbove"><rect id="sdAboveR" x="0" y="0" width="4000" height="0"/></clipPath><clipPath id="sdBelow"><rect id="sdBelowR" x="0" y="0" width="4000" height="4000"/></clipPath></defs>
-    <rect width="100%" height="100%" fill="url(#sdSky)"/><g clip-path="url(#sdAbove)"><g class="sdstars" id="sdStars">${stars}</g></g>
-    <rect id="sdSeaR" x="0" width="100%" height="${SD.H}" fill="url(#sdSea)"/><path id="sdGlint" class="sdglint" d=""/>
+      <clipPath id="sdBgClip"><path id="sdBgClipP" d=""/></clipPath>
+      <clipPath id="sdAboveBg"><rect id="sdAboveBgR" x="-50" y="-50" width="4000" height="0"/></clipPath>
+      <clipPath id="sdAbove"><rect id="sdAboveR" x="-4000" y="-4000" width="8000" height="0"/></clipPath><clipPath id="sdBelow"><rect id="sdBelowR" x="-4000" y="0" width="8000" height="8000"/></clipPath></defs>
+    <g mask="url(#sdFade)"><g clip-path="url(#sdBgClip)"><rect x="-50" y="-50" width="4000" height="4000" fill="url(#sdSky)"/><g clip-path="url(#sdAboveBg)"><g class="sdstars" id="sdStars">${stars}</g></g>
+      <rect id="sdSeaR" x="-50" width="4000" height="0" fill="url(#sdSea)"/><path id="sdGlint" class="sdglint" d=""/></g><path id="sdEdge" class="sdedge" d=""/></g>
+    <g id="sdDialG"><g id="sdDialC">
     <circle cx="${SD.cx}" cy="${SD.cy}" r="${SD.R + 6}" class="sdrim"/><circle cx="${SD.cx}" cy="${SD.cy}" r="${SD.P}" fill="url(#sdStone)" class="sdplate"/>
     <g class="sdticks">${ticks}</g><path id="sdDay" class="sdday" d=""/>
     <line id="sdShadow" class="sdshadow" filter="url(#sdBlur)" x1="${SD.cx}" y1="${SD.cy}" x2="${SD.cx}" y2="${SD.cy}"/><path class="sdgnomon" d="M${SD.cx - 3} ${SD.cy + 3}L${SD.cx} ${SD.cy - 14}L${SD.cx + 3} ${SD.cy + 3}z"/>
     <g id="sdOwlPos" transform="translate(${SD.cx} ${SD.cy - 22})">${OWL}</g>
     <g clip-path="url(#sdAbove)"><g class="sdhpos"><circle r="22" fill="url(#sdGlow)" id="sdGlowC"/><circle r="8.5" class="sdsun"/></g></g>
     <g clip-path="url(#sdBelow)"><g class="sdhpos"><circle r="8" class="sdmoonc"/><path id="sdMoonLit" class="sdmoon" d=""/></g></g><g class="sdhpos"><circle r="16" class="sdgrab"/></g>
+    </g></g>
     ${zodWheelHTML()}
-    <text id="sdLab" class="sdlab" x="${SD.cx}" y="${SD.H - 12}" text-anchor="middle"></text></svg>
-    <div class="sdctl" id="sunCtl"></div><button type="button" class="sdx" id="sdSwap" data-sdswap="1"></button></div>`;
+    <text id="sdLab" class="sdlab sdtime" text-anchor="middle"><title>Tap: modern, Roman or Greek numerals</title></text></svg>
+    <div class="sdrow" id="sunCtl"></div></div>`;
 }
 // the zodiac wheel: the wheel of Ptolemy's Handy Tables (Vat. gr. 1291, fol. 9r, Constantinople, early 9th c.) – the signs
 // anticlockwise, as in the sky, the months, the hours, and Helios in his chariot (v350). The rings turn so that the sun's
@@ -914,7 +930,7 @@ const SWAP_DN = '<svg width="18" height="18" viewBox="-10 -10 20 20" aria-hidden
 const zXY = (a, r) => [(Math.sin(a * RAD) * r).toFixed(2), (-Math.cos(a * RAD) * r).toFixed(2)];
 function zodWheelHTML() {
   return `<g id="sdZod" class="sdzod">${zodDiscSVG(SD.ZR, 4.5)}</g>
-    <text id="sdZLab" class="sdlab sdzlab" y="${SD.H - 6}" text-anchor="middle"></text>`;
+    <text id="sdZLab" class="sdlab sdzlab" text-anchor="middle"></text>`;
 }
 // the wheel large, over the map
 function zodBigOpen() {
@@ -952,45 +968,61 @@ function zodTurn(ev, centre, onTap) {
   const up = () => { M.sunDrag = false; removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); if (!moved) onTap?.(); };
   addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);
 }
+// the row of buttons at the panel's foot (528a, v375): Now · Animate · Year; while animating, play/pause and the speed; while the
+// obelisk stands on the map, its size; at the end, day and night on the map on or off
+const SUN_SW_ICON = '<svg width="18" height="18" viewBox="-9 -9 18 18" aria-hidden="true"><circle r="4" fill="currentColor"/><g stroke="currentColor" stroke-width="1.4" stroke-linecap="round">'
+  + Array.from({ length: 8 }, (_, i) => { const a = i * Math.PI / 4; return `<path d="M${(Math.sin(a) * 6).toFixed(2)} ${(-Math.cos(a) * 6).toFixed(2)}L${(Math.sin(a) * 8).toFixed(2)} ${(-Math.cos(a) * 8).toFixed(2)}"/>`; }).join('') + '</g></svg>';
 function sdCtlHTML() {
-  const mode = M.cfg.sunMode || 'now', spd = M.cfg.sunSpeed || 20, yr = M.cfg.sunYear || 20;
+  const mode = M.cfg.sunMode || 'now', spd = M.cfg.sunSpeed || 20, yr = M.cfg.sunYear || 20, on = sunOn();
   const play = `<button type="button" class="mico2" data-sunplay="1" aria-label="${M.sunPause ? 'Play' : 'Pause'}">${M.sunPause ? '▶' : '❚❚'}</button>`;
-  return `<label class="sdrow">${SW('data-sunsw="1" aria-label="Day and night on the map"', sunOn())}<span>Day and night</span></label>`
-    + `<div class="seg" role="group">${[['now', 'Now'], ['anim', 'Animate'], ['year', 'Year']].map(([v, l]) => `<button type="button" data-sunmode="${v}" class="${mode === v ? 'on' : ''}">${l}</button>`).join('')}</div>`
+  return `<div class="seg" role="group">${[['now', 'Now'], ['anim', 'Animate'], ['year', 'Year']].map(([v, l]) => `<button type="button" data-sunmode="${v}" class="${mode === v ? 'on' : ''}">${l}</button>`).join('')}</div>`
     + (mode === 'anim' ? `<div class="msun">${play}<input type="range" min="0" max="100" value="${spdToV(spd)}" data-sunspeed="1" aria-label="Speed"><output>${spdLabel(spd)}</output></div>` : '')
     + (mode === 'year' ? `<div class="msun">${play}<input type="range" min="0" max="100" value="${yrToV(yr)}" data-sunyear="1" aria-label="Speed"><output>${yrLabel(yr)}</output></div>` : '')
-    + `<div class="seg" role="group">${[['modern', 'Modern'], ['roman', 'Roman'], ['greek', 'Greek']].map(([v, l]) => `<button type="button" data-sunfmt="${v}" class="${(M.cfg.sunFmt || 'modern') === v ? 'on' : ''}">${l}</button>`).join('')}</div>`
-    + `<div class="sdtg">`   // (the Sun and Moon switches retired: both always in the sky – v372)
-    + (M.cfg.gnomon ? `<input type="range" class="obsz" min="0" max="100" value="${Math.round(Math.log(obelK() * 3) / Math.log(9) * 100)}" data-obsz="1" aria-label="Size of the obelisk" title="Size of the obelisk">` : '') + `</div>`
-    + `<small class="sdsub" id="sdSub"></small>`;
+    + (M.cfg.gnomon ? `<input type="range" class="obsz" min="0" max="100" value="${Math.round(Math.log(obelK() * 3) / Math.log(9) * 100)}" data-obsz="1" aria-label="Size of the obelisk" title="Size of the obelisk">` : '')
+    + `<button type="button" class="sdsw${on ? ' on' : ''}" data-sunsw2="1" aria-pressed="${on}" title="Day and night on the map: ${on ? 'on' : 'off'}" aria-label="Day and night on the map">${SUN_SW_ICON}</button>`;
 }
 async function sdOpen(open) {
   const box = $('#mapBody'); if (!box) return;
-  $('#sunPanel')?.remove(); $('#sdMark')?.remove(); box.classList.toggle('sdopen', open); $('#mapSunBtn')?.classList.toggle('on', open);
+  $('#sunPanel')?.remove(); $('#sdMark')?.remove(); $('#dialBig')?.remove(); box.classList.toggle('sdopen', open); $('#mapSunBtn')?.classList.toggle('on', open);
   M.sdOpen = open; sunMoveHook();
   if (!open) { if (M.map && sunOn()) sunApply(); return; }
+  M.sdH = M.sdW = null;
   box.insertAdjacentHTML('beforeend', sdPanelHTML() + `<div class="sdmark" id="sdMark">${obelPanelSVG()}</div>`);
-  $('#sunCtl').innerHTML = sdCtlHTML(); sdRefUpd();
+  $('#sunCtl').innerHTML = sdCtlHTML(); sundialPaint(); sdRefUpd();
   if (!sunOn()) await sunSet({ sun: true });
-  $('#sunCtl').innerHTML = sdCtlHTML(); M.sdOwl = null; sundialPaint();
+  $('#sunCtl').innerHTML = sdCtlHTML(); M.sdOwl = null; sundialPaint(); sdRefUpd();
 }
 function sundialPaint() {
   const svg = $('#sunSvg'); if (!svg) return;
-  const { lst, rise, set, alt, az } = sunHour(), W = svg.clientWidth || 400, len = set - rise;
+  const { lst, rise, set, alt } = sunHour(), W = svg.clientWidth || 400, len = set - rise;
+  // the layout: the panel's height, the wheels' places, the outline – rounded at the top, fading upwards with the sky (530)
+  const Ly = sdLay(W), { k, tx, ty, H } = Ly, pn = $('#sunPanel'), mb = $('#mapBody');
+  if (Ly.H !== M.sdH || W !== M.sdW) { M.sdH = H; M.sdW = W; mb?.style.setProperty('--sdh', H + 'px'); if (pn) pn.style.height = H + 'px';
+    const rt = 24, rb = 14, d = `M0 ${H - rb}V${rt}Q0 0 ${rt} 0H${W - rt}Q${W} 0 ${W} ${rt}V${H - rb}Q${W} ${H} ${W - rb} ${H}H${rb}Q0 ${H} 0 ${H - rb}z`;
+    $('#sdBgClipP').setAttribute('d', d);
+    $('#sdEdge').setAttribute('d', `M0.5 ${H - rb}V${rt}Q0.5 0.5 ${rt} 0.5H${W - rt}Q${W - 0.5} 0.5 ${W - 0.5} ${rt}V${H - rb}Q${W - 0.5} ${H - 0.5} ${W - rb} ${H - 0.5}H${rb}Q0.5 ${H - 0.5} 0.5 ${H - rb}z`);
+    $('#sdDialG').setAttribute('transform', `matrix(${k.toFixed(4)} 0 0 ${k.toFixed(4)} ${tx.toFixed(2)} ${ty.toFixed(2)})`);
+    $('#sdZod').setAttribute('transform', `translate(${Ly.zx.toFixed(1)} ${Ly.cy.toFixed(1)}) scale(${k.toFixed(4)})`);
+    const tl = $('#sdLab'); tl.setAttribute('x', Ly.dx.toFixed(1)); tl.setAttribute('y', Ly.labY.toFixed(1));
+    $('#sdZLab').setAttribute('y', Ly.labY.toFixed(1));
+    M.sdT = Ly; M.zc = { x: Ly.zx, y: Ly.cy, r: (SD.ZR + 8) * k };
+    sdRefUpd(); }
+  const P = (x, y) => [tx + k * x, ty + k * y];                       // (the dial's space → the panel)
   // the horizon: level with sunrise and sunset on the ring
-  const hy = len >= 24 ? SD.cy + SD.R + 12 : len <= 0 ? SD.cy - SD.R - 12 : sdXY(set, SD.R)[1];
+  const hy = len >= 24 ? SD.cy + SD.R + 12 : len <= 0 ? SD.cy - SD.R - 12 : sdXY(set, SD.R)[1], hyP = ty + k * hy;
   const eve = lst >= 12, [top, foot] = skyAt(alt, eve);
-  $('#sdSky0').setAttribute('stop-color', top); $('#sdSky1').setAttribute('stop-color', foot); const pnl = $('#sunPanel'); if (pnl) pnl.style.background = top;
+  $('#sdSky0').setAttribute('stop-color', top); $('#sdSky1').setAttribute('stop-color', foot);
   $('#sdSea0').setAttribute('stop-color', hexMix(foot, '#0b2236', 0.45)); $('#sdSea1').setAttribute('stop-color', hexMix(top, '#03101c', 0.6));
-  const sea = $('#sdSeaR'); sea.setAttribute('y', hy.toFixed(1)); sea.setAttribute('height', Math.max(0, SD.H - hy).toFixed(1));
-  $('#sdAboveR').setAttribute('height', Math.max(0, hy).toFixed(1)); $('#sdBelowR').setAttribute('y', hy.toFixed(1));
+  const sea = $('#sdSeaR'); sea.setAttribute('y', hyP.toFixed(1)); sea.setAttribute('height', Math.max(0, H - hyP + 50).toFixed(1));
+  $('#sdAboveBgR').setAttribute('height', Math.max(0, hyP + 50).toFixed(1));
+  $('#sdAboveR').setAttribute('height', Math.max(0, hy + 4000).toFixed(1)); $('#sdBelowR').setAttribute('y', hy.toFixed(1));
   $('#sdStars').style.opacity = Math.max(0, Math.min(1, (-alt - 5) / 11)).toFixed(2);
   const [x, y] = sdXY(lst, SD.R); svg.querySelectorAll('.sdhpos').forEach(g => g.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`));
   const g = $('#sdGlowC'); g.setAttribute('r', (12 + Math.max(0, alt) * 0.35).toFixed(1)); g.style.opacity = Math.max(0.25, Math.min(1, 0.35 + alt / 50)).toFixed(2);
   const day = lst >= rise && lst < set;
   // the glitter of the sun (or the moon) on the water beneath it
-  const gx = Math.min(W - 8, Math.max(8, x)), gl = day ? Math.max(0, 1 - alt / 40) : 0.35;
-  $('#sdGlint').setAttribute('d', hy < SD.H - 4 ? [0, 1, 2, 3].map(i => `M${(gx - 14 + i * 3).toFixed(1)} ${(hy + 4 + i * 5).toFixed(1)}h${(28 - i * 6).toFixed(1)}`).join('') : '');
+  const gx = Math.min(W - 8, Math.max(8, P(x, y)[0])), gl = day ? Math.max(0, 1 - alt / 40) : 0.35;
+  $('#sdGlint').setAttribute('d', hyP < H - 4 ? [0, 1, 2, 3].map(i => `M${(gx - 14 + i * 3).toFixed(1)} ${(hyP + 4 + i * 5).toFixed(1)}h${(28 - i * 6).toFixed(1)}`).join('') : '');
   $('#sdGlint').style.opacity = (len > 0 && len < 24 ? gl * 0.8 : 0).toFixed(2);
   // the daylight on the ring, and the shadow: long when the sun is low, short at noon, fading towards sunset
   if (len > 0 && len < 24) { const [ax, ay] = sdXY(rise, SD.R + 3), [bx, by] = sdXY(set, SD.R + 3); $('#sdDay').setAttribute('d', `M${ax.toFixed(1)} ${ay.toFixed(1)}A${SD.R + 3} ${SD.R + 3} 0 ${len > 12 ? 1 : 0} 1 ${bx.toFixed(1)} ${by.toFixed(1)}`); }
@@ -1002,38 +1034,70 @@ function sundialPaint() {
   // the owl: lands when the handle enters the night, flies off when it leaves
   if (M.sdOwl !== !day) { M.sdOwl = !day; const o = $('#sdOwlPos .sdowl'); o.classList.remove('land', 'away'); void o.getBoundingClientRect(); o.classList.add(day ? 'away' : 'land'); }
   // the moon on the dial in its real phase: lit on the right while waxing, on the left while waning (as seen from the north)
-  { const mo = moonPos(sunTime()), k = mo.lit, r = 8, rx = Math.max(0.01, r * Math.abs(2 * k - 1)), sgn = mo.waxing ? 1 : -1;
-    $('#sdMoonLit')?.setAttribute('d', `M0 ${-r}A${r} ${r} 0 0 ${sgn > 0 ? 1 : 0} 0 ${r}A${rx.toFixed(2)} ${r} 0 0 ${(k > 0.5) === (sgn > 0) ? 1 : 0} 0 ${-r}z`); }
-  const l = sunLabel(); $('#sdLab').textContent = l.main; const sub = $('#sdSub'); if (sub) sub.textContent = l.sub;
-  // the zodiac wheel, where there is room: at the right, beside the controls; else in turn with them
-  const zw = W >= SD.ZW, zp = !zw && M.sdPage === 'zod', pn = $('#sunPanel'); pn?.classList.toggle('zw', zw); pn?.classList.toggle('zp', zp);
-  const sw = $('#sdSwap'); if (sw) { sw.hidden = zw; const t = zp ? 'Day and night' : 'Time of year'; if (sw.title !== t) { sw.title = t; sw.setAttribute('aria-label', t); sw.innerHTML = zp ? SWAP_DN : SWAP_ZOD; } }
+  { const mo = moonPos(sunTime()), kk = mo.lit, r = 8, rx = Math.max(0.01, r * Math.abs(2 * kk - 1)), sgn = mo.waxing ? 1 : -1;
+    $('#sdMoonLit')?.setAttribute('d', `M0 ${-r}A${r} ${r} 0 0 ${sgn > 0 ? 1 : 0} 0 ${r}A${rx.toFixed(2)} ${r} 0 0 ${(kk > 0.5) === (sgn > 0) ? 1 : 0} 0 ${-r}z`); }
+  // the labels: the time under the dial; the sign and the date under the wheel
+  const l = sunLabel(), tl = $('#sdLab'); if (tl.firstChild?.nodeType === 3) tl.firstChild.nodeValue = l.main; else tl.insertBefore(document.createTextNode(l.main), tl.firstChild);
   const e = sunPos(sunTime()).ecl, zn = ZOD[Math.floor(e / 30)][(M.cfg.sunFmt || 'modern') === 'greek' ? 2 : M.cfg.sunFmt === 'roman' ? 1 : 0];
   document.querySelectorAll('.zrot').forEach(g => g.setAttribute('transform', `rotate(${e.toFixed(2)})`));   // (the small wheel and the large one)
   const bl = $('#zodBigLab'); if (bl) bl.textContent = `${zn} · ${l.sub}`;
-  if (zw || zp) { const zx = zw ? W - SD.ZR - 16 : 2 * SD.cx + (W - 2 * SD.cx) / 2;
-    M.zc = { x: zx, y: SD.ZY };
-    $('#sdZod').setAttribute('transform', `translate(${zx.toFixed(1)} ${SD.ZY})`);
-    const zl = $('#sdZLab'); zl.textContent = `${zn} · ${l.sub}`; let tw = 0; try { tw = zl.getComputedTextLength(); } catch (_) {}
-    zl.setAttribute('x', Math.min(zx, W - 8 - tw / 2).toFixed(1)); }     // (a long date kept inside the panel)
+  const zl = $('#sdZLab'); zl.textContent = `${zn} · ${l.sub}`; let tw = 0; try { tw = zl.getComputedTextLength(); } catch (_) {}
+  zl.setAttribute('x', Math.max(tw / 2 + 8, Math.min(Ly.zx, W - 8 - tw / 2)).toFixed(1));     // (a long date kept inside the panel)
+  dialBigPaint(l);
 }
-// a finger (or the mouse) on the dial sets the hour; the day stays
+// a finger (or the mouse) on the dial sets the hour, the day staying; a tap in its middle opens it large (527, v375); a tap on the
+// time beneath it changes the numerals: modern, Roman, Greek (529a); the zodiac: turned, the day of the year; tapped, large
 document.addEventListener('pointerdown', ev => {
-  const svg = ev.target.closest?.('#sunSvg'); if (!svg) return;
-  const near = e => { const r = svg.getBoundingClientRect(), x = e.clientX - r.left - SD.cx, y = e.clientY - r.top - SD.cy; return { x, y, d: Math.hypot(x, y) }; };
-  const mode = M.cfg.sunMode || 'now', pn = $('#sunPanel'), zc = (pn?.classList.contains('zw') || pn?.classList.contains('zp')) && M.zc;
-  if (zc) { const r = svg.getBoundingClientRect();
-    if (Math.hypot(ev.clientX - r.left - zc.x, ev.clientY - r.top - zc.y) <= SD.ZR + 8) {   // the wheel: turned, the day of the year; tapped, large
-      zodTurn(ev, () => { const q = svg.getBoundingClientRect(); return { x: q.left + M.zc.x, y: q.top + M.zc.y }; }, zodBigOpen); return; } }
-  if (near(ev).d > SD.R + 22) return;                                   // (only on and around the dial)
+  const svg = ev.target.closest?.('#sunSvg'); if (!svg || !M.sdT) return;
+  if (ev.target.closest('#sdLab')) { ev.preventDefault(); sdFmtNext(); return; }
+  const r0 = svg.getBoundingClientRect(), L = M.sdT;
+  if (M.zc && Math.hypot(ev.clientX - r0.left - M.zc.x, ev.clientY - r0.top - M.zc.y) <= M.zc.r) {
+    zodTurn(ev, () => { const q = svg.getBoundingClientRect(); return { x: q.left + M.zc.x, y: q.top + M.zc.y }; }, zodBigOpen); return; }
+  const toDial = e => { const r = svg.getBoundingClientRect(); return { x: (e.clientX - r.left - L.tx) / L.k - SD.cx, y: (e.clientY - r.top - L.ty) / L.k - SD.cy }; };
+  const p0 = toDial(ev), d0 = Math.hypot(p0.x, p0.y); if (d0 > SD.R + 22) return;     // (only on and around the dial)
   ev.preventDefault(); svg.setPointerCapture?.(ev.pointerId);
-  const setT = e => { const { x, y } = near(e), h = ((12 + Math.atan2(x, -y) / (2 * Math.PI) * 24) % 24 + 24) % 24, { lst } = sunHour();
-    let dh = h - lst; if (dh > 12) dh -= 24; if (dh < -12) dh += 24; M.sunT = sunTime() + dh * 36e5; sunApply(); };
-  if (mode !== 'set' && mode !== 'year') { M.cfg.sunMode = 'set'; saveMapCfg(); sunClock(); $('#sunCtl').innerHTML = sdCtlHTML(); }
-  M.sunDrag = true; setT(ev);                                           // (the year, running, waits while the hour is set)
-  const mv = e => setT(e), up = () => { M.sunDrag = false; removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); };
-  addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+  dialDrag(ev, toDial, d0 < SD.P * 0.6 ? dialBigOpen : null);
 });
+// setting the hour by the angle of the finger round the dial's centre; pressed in the middle, it waits to see whether the finger
+// moves (then it sets the hour) or lifts (a tap: onTap)
+function dialDrag(ev, toDial, onTap) {
+  const x0 = ev.clientX, y0 = ev.clientY; let on = false;
+  const setT = e => { const { x, y } = toDial(e), h = ((12 + Math.atan2(x, -y) / (2 * Math.PI) * 24) % 24 + 24) % 24, { lst } = sunHour();
+    let dh = h - lst; if (dh > 12) dh -= 24; if (dh < -12) dh += 24; M.sunT = sunTime() + dh * 36e5; sunApply(); };
+  const begin = () => { on = true; const mode = M.cfg.sunMode || 'now';
+    if (mode !== 'set' && mode !== 'year') { M.cfg.sunMode = 'set'; saveMapCfg(); sunClock(); const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML(); }
+    M.sunDrag = true; };                                                // (the year, running, waits while the hour is set)
+  if (!onTap) { begin(); setT(ev); }
+  const mv = e => { if (!on) { if (Math.hypot(e.clientX - x0, e.clientY - y0) < 6) return; begin(); } setT(e); };
+  const up = () => { M.sunDrag = false; removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); if (!on) onTap?.(); };
+  addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+}
+async function sdFmtNext() {
+  const f = M.cfg.sunFmt || 'modern'; M.cfg.sunFmt = f === 'modern' ? 'roman' : f === 'roman' ? 'greek' : 'modern';
+  await saveMapCfg(); sundialPaint(); sunClock();
+}
+// the dial large, over the map (as the zodiac wheel): a copy of the panel's dial, renewed whenever it changes; a finger on it sets
+// the hour; a tap outside it, or ✕, closes it
+const DB = SD.R + 30;
+function dialBigOpen() {
+  if ($('#dialBig')) return;
+  const d = document.createElement('div'); d.id = 'dialBig'; d.className = 'zodbig sdbig';
+  d.innerHTML = `<svg viewBox="${SD.cx - DB} ${SD.cy - DB} ${2 * DB} ${2 * DB}" aria-label="The sundial"><g class="dbc"></g></svg><div class="zl" id="dialBigLab"></div>
+    <button type="button" class="zx" aria-label="Close">✕</button>`;
+  document.body.append(d); dialBigPaint();
+  d.addEventListener('pointerdown', ev => {
+    const svg = d.querySelector('svg'), r = svg.getBoundingClientRect(), sc = r.width / (2 * DB);
+    const toDial = e => { const q = svg.getBoundingClientRect(); return { x: (e.clientX - q.left) / sc - DB, y: (e.clientY - q.top) / sc - DB }; };
+    const p = toDial(ev); if (ev.target.closest('.zx') || Math.hypot(p.x, p.y) > SD.R + 22) { d.remove(); return; }
+    ev.preventDefault(); dialDrag(ev, toDial, null);
+  });
+}
+function dialBigPaint(l) {
+  const d = $('#dialBig'), src = $('#sdDialC'); if (!d || !src) return;
+  const c = src.cloneNode(true); c.removeAttribute('id'); c.querySelectorAll('[id]').forEach(e => e.removeAttribute('id'));
+  const g = d.querySelector('.dbc'); g.replaceChildren(c);
+  l ||= sunLabel(); const lb = $('#dialBigLab'); if (lb) lb.textContent = `${l.main} · ${l.sub}`;
+}
 document.addEventListener('change', ev => { if (ev.target.closest?.('[data-sunsw]')) sunSet({ sun: ev.target.checked }).then(() => { const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML(); sundialPaint(); }); });
 // the speed: one day in 60 s … 5 s (a logarithmic slider)
 // (the slider: a day in 77 s at the left to 7 s at the right – v369)
@@ -1170,9 +1234,9 @@ async function mapOptsClick(b) {
   if (b.id === 'mapCompBtn') { M.cfg.compass = M.cfg.compass === false; await saveMapCfg(); b.classList.toggle('on', M.cfg.compass); b.setAttribute('aria-pressed', M.cfg.compass); compassUpd(); return true; }
   if (b.id === 'mapNorth' || d.mnorth) { M.map?.easeTo({ bearing: 0, duration: 500 }); return true; }
   if (b.id === 'mapSunBtn') { await sdOpen(!M.sdOpen); return true; }
-  if (d.sdswap) { M.sdPage = M.sdPage === 'zod' ? 'ctl' : 'zod'; sundialPaint(); return true; }
   if (d.sunfmt) { M.cfg.sunFmt = d.sunfmt; await saveMapCfg(); $('#sunCtl').innerHTML = sdCtlHTML(); sundialPaint(); return true; }
   if (d.sunmode) { M.sunPause = false; delete M.cfg.sunPaused; delete M.cfg.sunPausedT; if (d.sunmode === 'now') M.sunT = Date.now(); await sunSet({ sunMode: d.sunmode }); $('#sunCtl').innerHTML = sdCtlHTML(); return true; }
+  if (d.sunsw2) { await sunSet({ sun: !sunOn() }); const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML(); sundialPaint(); return true; }
   if (d.sunplay) { M.sunPause = !M.sunPause; M.cfg.sunPaused = M.sunPause; if (M.sunPause) M.cfg.sunPausedT = sunTime(); else delete M.cfg.sunPausedT; saveMapCfg(); sunClock(); $('#sunCtl').innerHTML = sdCtlHTML(); return true; }
   return false;
 }
@@ -1194,3 +1258,6 @@ document.addEventListener('change', async ev => {
 });
 // (a paused animation keeps the moment it shows when the app is left – also after the dial's hand was moved meanwhile – v370)
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && M.sunPause && M.cfg?.sunPaused) { M.cfg.sunPausedT = sunTime(); saveMapCfg(); } });
+
+// (the panel laid out anew when the window changes its size)
+addEventListener('resize', () => { if (M.sdOpen) requestAnimationFrame(sundialPaint); });
