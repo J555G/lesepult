@@ -2094,7 +2094,7 @@ dialog .sortpair button{transition:border-color .15s}
 .sdmark .sdtipd{fill:#05060d;opacity:calc(var(--obn,0) * .55)}
 .sdmark .sdshn{fill:#05060d;opacity:calc(var(--obn,0) * .6)}
 /* while the obelisk stands on the map: the size slider upright where it stood */
-.sdmark .obszv{display:none;position:absolute;left:50%;bottom:30px;touch-action:none;transform-origin:0 50%;transform:translate(0,0) rotate(-90deg);pointer-events:auto;accent-color:#c46a7e;margin:0;height:22px}
+.sdmark .obszv{display:none;position:absolute;left:50%;bottom:42px;touch-action:none;transform-origin:0 50%;transform:translate(0,0) rotate(-90deg);pointer-events:auto;accent-color:#c46a7e;margin:0;height:22px}
 .sdmark.away .obszv{display:block}
 /* the bar at the panel's foot (551a, v380) */
 .msdial .sdbar{fill:rgba(4,10,22,.58)}
@@ -2131,5 +2131,6 @@ dialog .sortpair button{transition:border-color .15s}
 .msdial .sdfmt{flex:none;height:30px;min-width:46px;padding:0 9px;margin-left:6px;border-radius:15px;border:1px solid rgba(255,255,255,.45);background:rgba(0,0,0,.28);color:#fff;font:600 13px var(--greek);cursor:pointer;touch-action:manipulation}
 .sdghost .sdball{fill:#f3c84e;stroke:#a87a18;stroke-width:.4}
 .sdmark .sdball{stroke:#7a5514;stroke-width:.3}
-.sdmark .sdsockn{font:600 6.4px var(--greek);fill:#dccbaa;text-anchor:middle;letter-spacing:.3px;pointer-events:none}
+.sdmark .sdsockn{font:600 8.6px var(--greek);fill:#dccbaa;text-anchor:middle;letter-spacing:.3px;pointer-events:none}
 .sdmark .sdsockl{fill:#160f0b;opacity:.7}
+.sdghost .sdtp{fill:#6e2b3e}
