@@ -1897,7 +1897,8 @@ dialog .sortpair button{transition:border-color .15s}
 /* the mark at the middle of the panel's upper edge: its tip is the place the dial shows (until an obelisk stands) */
 .sdmark{position:absolute;left:50%;bottom:48px;transform:translateX(-50%);width:28px;height:68px;z-index:5;pointer-events:none;transition:opacity .4s}
 .sdmark .sdob{pointer-events:auto;cursor:grab;touch-action:none}
-.sdmark.away .sdsock,.sdmark.away .sdsockt{pointer-events:auto;cursor:pointer;touch-action:manipulation}
+.sdmark .sdsockhit{fill:transparent;pointer-events:none}
+.sdmark.away .sdsockhit,.sdmark.away .sdsock,.sdmark.away .sdsockt{pointer-events:auto;cursor:pointer;touch-action:manipulation}
 .sdmark .sdobh{fill:transparent}
 .sdmark.away .sdob{display:none}
 .sdmark.off .sdob{opacity:.45}
@@ -2094,7 +2095,7 @@ dialog .sortpair button{transition:border-color .15s}
 .sdmark .sdtipd{fill:#05060d;opacity:calc(var(--obn,0) * .55)}
 .sdmark .sdshn{fill:#05060d;opacity:calc(var(--obn,0) * .6)}
 /* while the obelisk stands on the map: the size slider upright where it stood */
-.sdmark .obszv{display:none;position:absolute;left:50%;bottom:calc(12px + 4px);transform-origin:0 50%;transform:translate(0,0) rotate(-90deg);pointer-events:auto;accent-color:#c46a7e;margin:0;height:22px}
+.sdmark .obszv{display:none;position:absolute;left:50%;bottom:30px;touch-action:none;transform-origin:0 50%;transform:translate(0,0) rotate(-90deg);pointer-events:auto;accent-color:#c46a7e;margin:0;height:22px}
 .sdmark.away .obszv{display:block}
 /* the bar at the panel's foot (551a, v380) */
 .msdial .sdbar{fill:rgba(4,10,22,.58)}
@@ -2109,3 +2110,5 @@ dialog .sortpair button{transition:border-color .15s}
 .msdial .sdsw .swdiv{stroke:rgba(255,255,255,.35);stroke-width:.8}
 .msdial .sdsw:not(.on) .swsun,.msdial .sdsw:not(.on) .swmoon{fill:#8a8f98;stroke:#8a8f98}
 .msdial .sdsw.on{background:rgba(0,0,0,.3);border-color:rgba(255,255,255,.55)}
+
+.sdbig .dbbg{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none}

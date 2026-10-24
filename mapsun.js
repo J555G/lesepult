@@ -173,7 +173,7 @@ function obelPanelFit(Ly) {
   const Wm = Math.ceil(0.34 * U * sx + 10), away = mk.classList.contains('away');
   mk.style.width = Wm + 'px'; mk.style.height = Hm + 'px';
   // (while the obelisk stands on the map: where it stood, a slider for its size – 552, v380)
-  mk.innerHTML = obelTallSVG(Wm, Hm, U, sx) + `<input type="range" class="obszv" min="0" max="100" value="${Math.round(Math.log(obelK() * 3) / Math.log(9) * 100)}" data-obsz="1" aria-label="Size of the obelisk" title="Size of the obelisk" style="width:${Math.max(40, Hm - 34)}px">`;
+  mk.innerHTML = obelTallSVG(Wm, Hm, U, sx) + `<input type="range" class="obszv" min="0" max="100" value="${Math.round(Math.log(obelK() * 3) / Math.log(9) * 100)}" data-obsz="1" aria-label="Size of the obelisk" title="Size of the obelisk" style="width:${Math.max(40, Hm - 52)}px">`;
   mk.classList.toggle('away', away); obelPanelLight();
 }
 function obelTallSVG(Wm, Hm, U, sx) {
@@ -182,7 +182,7 @@ function obelTallSVG(Wm, Hm, U, sx) {
     + `<pattern id="${id}p" patternUnits="userSpaceOnUse" width="64" height="64"><image href="${porphyryURL()}" width="64" height="64"/></pattern>`
     + `<linearGradient id="${id}g0" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#d8a032"/><stop offset=".38" stop-color="#ffe9a8"/><stop offset=".5" stop-color="#ffffff"/><stop offset=".62" stop-color="#ffe490"/><stop offset="1" stop-color="#f0b83a"/></linearGradient>`
     + `<linearGradient id="${id}g1" x1="1" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#6e4a10"/><stop offset=".45" stop-color="#b8861c"/><stop offset=".55" stop-color="#fff0c0"/><stop offset=".65" stop-color="#c9971f"/><stop offset="1" stop-color="#8a6014"/></linearGradient></defs>`
-    + `<path class="sdsock" d="M1 ${Hm - 12}h${Wm - 2}v12H1z"/><path class="sdsockt" d="M1 ${Hm - 12}h${Wm - 2}v2.2H1z"/><path class="sdsockh" d="M${X - h(0.17)} ${Hm - 12}h${2 * h(0.17)}v1.4H${X - h(0.17)}z"/>`
+    + `<path class="sdsockhit" d="M0 ${Hm - 30}h${Wm}v30H0z"/><path class="sdsock" d="M1 ${Hm - 12}h${Wm - 2}v12H1z"/><path class="sdsockt" d="M1 ${Hm - 12}h${Wm - 2}v2.2H1z"/><path class="sdsockh" d="M${X - h(0.17)} ${Hm - 12}h${2 * h(0.17)}v1.4H${X - h(0.17)}z"/>`
     + `<g class="sdob" role="button" aria-label="Obelisk: drag it onto the map to set it up there">`
     + `<path class="sdst" fill="url(#${id}p)" d="M${X - h(0.17)} ${y(0)}h${2 * h(0.17)}V${y(0.05)}h${-2 * h(0.17)}z M${X - h(0.13)} ${y(0.05)}h${2 * h(0.13)}V${y(0.08)}h${-2 * h(0.13)}z"/>`
     + `<path class="sdsh0" fill="url(#${id}p)" d="M${X - h(0.088)} ${y(0.08)}L${X - h(0.052)} ${y(tip)}H${X}V${y(0.08)}z"/><path class="sdsh1" fill="url(#${id}p)" d="M${X} ${y(0.08)}V${y(tip)}H${X + h(0.052)}L${X + h(0.088)} ${y(0.08)}z"/>`
@@ -1076,7 +1076,8 @@ function sundialPaint() {
   // (the wide glow of sunrise and sunset behind the stone dial and the ring, in the sky layer – v381)
   { const hg = $('#sdHalo'), [hx, hy0] = [tx + k * x, ty + k * y];
     if (lowG > 0.01) { hg.setAttribute('cx', hx.toFixed(1)); hg.setAttribute('cy', hy0.toFixed(1)); hg.setAttribute('rx', (gr0 * k * (1 + 3.2 * lowG)).toFixed(1)); hg.setAttribute('ry', (gr0 * k * (1 + 0.3 * lowG)).toFixed(1)); hg.style.opacity = (0.9 * lowG).toFixed(2); }
-    else { hg.setAttribute('rx', 0); hg.setAttribute('ry', 0); } }
+    else { hg.setAttribute('rx', 0); hg.setAttribute('ry', 0); }
+    M.sdHalo = lowG > 0.01 ? { x, y, rx: gr0 * (1 + 3.2 * lowG), ry: gr0 * (1 + 0.3 * lowG), op: 0.9 * lowG, hy } : null; }
   const day = lst >= rise && lst < set;
   // the glitter of the sun (or the moon) on the water beneath it
   // the sun's colour of the moment, as in the sky: the handle, its glow, the light on the bowl and on the sea (v378)
@@ -1159,11 +1160,11 @@ const DB = SD.R + 30;
 function dialBigOpen() {
   if ($('#dialBig')) return;
   const d = document.createElement('div'); d.id = 'dialBig'; d.className = 'zodbig sdbig';
-  d.innerHTML = `<div class="dbw"><canvas class="dbsca" aria-hidden="true"></canvas><svg viewBox="${SD.cx - DB} ${SD.cy - DB} ${2 * DB} ${2 * DB}" aria-label="The sundial"><g class="dbc"></g></svg></div><div class="zl" id="dialBigLab"></div>
+  d.innerHTML = `<div class="dbw"><svg class="dbbg" viewBox="${SD.cx - DB} ${SD.cy - DB} ${2 * DB} ${2 * DB}" aria-hidden="true"><defs><linearGradient id="dbFadeG" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#000"/></linearGradient><mask id="dbAbove" maskUnits="userSpaceOnUse" x="-4000" y="-4000" width="8000" height="8000"><rect x="-4000" y="-4000" width="8000" height="8000" fill="url(#dbFadeG)"/></mask></defs><g mask="url(#dbAbove)"><ellipse id="dbHalo" rx="0" ry="0" fill="url(#sdHaloG)"/></g></svg><canvas class="dbsca" aria-hidden="true"></canvas><svg viewBox="${SD.cx - DB} ${SD.cy - DB} ${2 * DB} ${2 * DB}" aria-label="The sundial"><g class="dbc"></g></svg></div><div class="zl" id="dialBigLab"></div>
     <button type="button" class="zx" aria-label="Close">✕</button>`;
   document.body.append(d); dialBigPaint();
   d.addEventListener('pointerdown', ev => {
-    const svg = d.querySelector('svg'), r = svg.getBoundingClientRect(), sc = r.width / (2 * DB);
+    const svg = d.querySelector('svg:not(.dbbg)'), r = svg.getBoundingClientRect(), sc = r.width / (2 * DB);
     const toDial = e => { const q = svg.getBoundingClientRect(); return { x: (e.clientX - q.left) / sc - DB, y: (e.clientY - q.top) / sc - DB }; };
     const p = toDial(ev); if (ev.target.closest('.zx') || Math.hypot(p.x, p.y) > SD.R + 22) { d.remove(); return; }
     ev.preventDefault(); dialDrag(ev, toDial, null);
@@ -1174,10 +1175,12 @@ function dialBigPaint(l) {
   const c = src.cloneNode(true); c.removeAttribute('id'); c.querySelectorAll('[id]').forEach(e => e.removeAttribute('id'));
   const g = d.querySelector('.dbc'); g.replaceChildren(c);
   // (the stone dial beneath the ring, sized to the large view; drawn a little less sharply than the screen allows, to stay quick)
-  const svg = d.querySelector('svg'), cv = d.querySelector('.dbsca'), wb = svg.clientWidth; if (wb && cv) { const sb = wb / (2 * DB), dpr = Math.min(1.5, devicePixelRatio || 1);
+  const svg = d.querySelector('svg:not(.dbbg)'), cv = d.querySelector('.dbsca'), wb = svg.clientWidth; if (wb && cv) { const sb = wb / (2 * DB), dpr = Math.min(1.5, devicePixelRatio || 1);
     const cw = SD.SW * sb, ch = SD.SH * sb, pw = Math.round(cw * dpr), ph = Math.round(ch * dpr);
     if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; cv._key = null; }
     Object.assign(cv.style, { width: cw + 'px', height: ch + 'px', left: ((DB - SD.SW / 2) * sb) + 'px', top: ((DB - SD.SH / 2) * sb) + 'px' }); scaPaint(cv); }
+  // (the wide glow of sunrise and sunset, behind the stone here too, fading out softly below the horizon's height – v382)
+  { const h = M.sdHalo, e = $('#dbHalo'), fg = $('#dbFadeG'); if (e) { if (h) { e.setAttribute('cx', h.x); e.setAttribute('cy', h.y); e.setAttribute('rx', h.rx); e.setAttribute('ry', h.ry); e.style.opacity = h.op; fg.setAttribute('y1', h.hy - 4); fg.setAttribute('y2', h.hy + 14); } else { e.setAttribute('rx', 0); e.setAttribute('ry', 0); } } }
   l ||= sunLabel(); const lb = $('#dialBigLab'); if (lb) lb.textContent = `${l.main} · ${l.sub}`;
 }
 document.addEventListener('change', ev => { if (ev.target.closest?.('[data-sunsw]')) sunSet({ sun: ev.target.checked }).then(() => { const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML(); sundialPaint(); }); });
@@ -1399,7 +1402,7 @@ function scaHit(o, d, yc) {
   for (const [k, m] of [['F', 3], ['L', 4], ['R', 4]]) { if (!X[k]) continue; const h = scaBox(o, d, X[k]); if (h) take(h[0], h[2], m); }
   // (the stone below the bowl, reaching down out of the picture: a drum or a square block – both cut flat at the front like the bowl,
   // nothing of them inside the bowl – or a foot narrowing to a stem)
-  if (SCA.base) { const stem = SCA.base === 'stem', R = stem ? 0.62 : SCA.RO, zt = stem ? -1.09 : -0.35, yf = stem ? -9 : -yc;
+  if (SCA.base) { const stem = SCA.base === 'stem', R = stem ? 0.62 : SCA.RO, zt = stem ? -1.09 : 0, yf = stem ? -9 : -yc;   // (the drum up to the rim: no step where it met the bowl – v382)
     const ok = (t, n) => { const p = [o[0] + d[0] * t, o[1] + d[1] * t, o[2] + d[2] * t]; if (p[2] > zt + 1e-6 || p[2] < -6 || p[1] < yf - 1e-6) return;
       if (SCA.base === 'block' ? (Math.abs(p[0]) > R + 1e-6 || p[1] > R + 1e-6) : p[0] * p[0] + p[1] * p[1] > R * R + 1e-6) return;
       if (p[0] * p[0] + p[1] * p[1] + p[2] * p[2] < 1 - 1e-6) return; take(t, n, 1); };
