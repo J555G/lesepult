@@ -5,7 +5,8 @@
 // below the horizon, as wide as it really is at each place and season), and the relief lit from where the sun stands over the middle of the map. “Now” follows the real
 // sun; “Animate” lets the days run (one day in 5 s … 60 s), “Year” the year (in 7 s … 77 s, the hour kept); the sundial sets the hour
 // by hand, the zodiac wheel beside it the day of the year.
-// Settings (mapCfg): sun, sunMode ('now' | 'anim' | 'year' | 'set'), sunSpeed (seconds per day), sunYear (seconds per year),
+// Settings (mapCfg): sun, sunMode ('now' | 'anim' | 'year' | 'set'), sunPaused + sunPausedT (an animation paused, and when – v370),
+// sunSpeed (seconds per day), sunYear (seconds per year),
 // sunFmt ('modern' | 'roman' | 'greek').
 
 // ---------------------------------------------------------------- the sun's position
@@ -1086,8 +1087,8 @@ async function mapOptsClick(b) {
   if (d.sunhere) { await sunHere(); return true; }
   if (d.sdswap) { M.sdPage = M.sdPage === 'zod' ? 'ctl' : 'zod'; sundialPaint(); return true; }
   if (d.sunfmt) { M.cfg.sunFmt = d.sunfmt; await saveMapCfg(); $('#sunCtl').innerHTML = sdCtlHTML(); sundialPaint(); return true; }
-  if (d.sunmode) { M.sunPause = false; if (d.sunmode === 'now') M.sunT = Date.now(); await sunSet({ sunMode: d.sunmode }); $('#sunCtl').innerHTML = sdCtlHTML(); return true; }
-  if (d.sunplay) { M.sunPause = !M.sunPause; sunClock(); $('#sunCtl').innerHTML = sdCtlHTML(); return true; }
+  if (d.sunmode) { M.sunPause = false; delete M.cfg.sunPaused; delete M.cfg.sunPausedT; if (d.sunmode === 'now') M.sunT = Date.now(); await sunSet({ sunMode: d.sunmode }); $('#sunCtl').innerHTML = sdCtlHTML(); return true; }
+  if (d.sunplay) { M.sunPause = !M.sunPause; M.cfg.sunPaused = M.sunPause; if (M.sunPause) M.cfg.sunPausedT = sunTime(); else delete M.cfg.sunPausedT; saveMapCfg(); sunClock(); $('#sunCtl').innerHTML = sdCtlHTML(); return true; }
   return false;
 }
 // the compass: shown while the map is turned, pointing north
@@ -1106,3 +1107,5 @@ document.addEventListener('change', async ev => {
   if (k === 'elev') { if (!v && viewOn('t3d')) M.map?.setTerrain(null); if (M.map) { M.map.setStyle(mapStyle(M.colors)); M.map.once('styledata', () => setTimeout(refreshMapData, 50)); } refreshLayersPop(); return; }
   applyLayers();
 });
+// (a paused animation keeps the moment it shows when the app is left – also after the dial's hand was moved meanwhile – v370)
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && M.sunPause && M.cfg?.sunPaused) { M.cfg.sunPausedT = sunTime(); saveMapCfg(); } });

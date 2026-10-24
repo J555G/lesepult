@@ -50,6 +50,8 @@ async function mapCfg() {
     if (!saved.v4) { saved.v4 = true; if (!Object.values(saved.cats || {}).some(Boolean)) saved.cats = { settl: true }; }   // kinds of places: settlements by default
     M.cfg = Object.assign({ mark: false, jump: true, pfOn: true, sel: [], scope: 'section', names: 'text', peoples: false, borders: false, rough: true, persons: 'unsure' }, JSON.parse(JSON.stringify(LCFG)), saved);
     M.esriKey ??= (await setting('esriKey')) || '';
+    // an animation paused when the app was closed: paused again, at the moment where it stood (v370)
+    if (M.cfg.sunPaused && ['anim', 'year'].includes(M.cfg.sunMode)) { M.sunPause = true; if (M.cfg.sunPausedT) M.sunT = M.cfg.sunPausedT; }
   }
   return M.cfg;
 }
