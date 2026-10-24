@@ -909,14 +909,16 @@ function sdPanelHTML() {
       <linearGradient id="sdSea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" id="sdSea0"/><stop offset="1" id="sdSea1"/></linearGradient>
       <linearGradient id="sdFadeG" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${SD.FADE}"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".46" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity="1"/></linearGradient>
       <mask id="sdFade" maskUnits="userSpaceOnUse" x="-50" y="-50" width="4000" height="4000"><rect x="-50" y="-50" width="4000" height="4000" fill="url(#sdFadeG)"/></mask>
+      <linearGradient id="sdGlitG" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="100"><stop offset="0" id="sdGlit0"/><stop offset="1" id="sdGlit1" stop-opacity="0"/></linearGradient>
+      <radialGradient id="sdReflG"><stop offset="0" id="sdRf0"/><stop offset="1" id="sdRf1" stop-opacity="0"/></radialGradient>
       <clipPath id="sdBgClip"><path id="sdBgClipP" d=""/></clipPath>
       <clipPath id="sdAboveBg"><rect id="sdAboveBgR" x="-50" y="-50" width="4000" height="0"/></clipPath></defs>
     <g mask="url(#sdFade)"><g clip-path="url(#sdBgClip)"><rect x="-50" y="-50" width="4000" height="4000" fill="url(#sdSky)"/><g clip-path="url(#sdAboveBg)"><g class="sdstars" id="sdStars">${stars}</g></g>
-      <rect id="sdSeaR" x="-50" width="4000" height="0" fill="url(#sdSea)"/><path id="sdGlint" class="sdglint" d=""/></g><path id="sdEdge" class="sdedge" d=""/></g></svg>
+      <rect id="sdSeaR" x="-50" width="4000" height="0" fill="url(#sdSea)"/><g id="sdRefl"><ellipse id="sdReflSun" rx="0" ry="0"/><path id="sdGlint" class="sdglint" d="" stroke="url(#sdGlitG)"/></g></g><path id="sdEdge" class="sdedge" d=""/></g></svg>
     <canvas class="sdsca" id="sdSca" aria-hidden="true"></canvas>
     <svg class="sdsvg" id="sunSvg" aria-hidden="true"><defs>
       <filter id="sdBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.3"/></filter>
-      <radialGradient id="sdGlow"><stop offset="0" stop-color="#fff6c8" stop-opacity=".95"/><stop offset=".35" stop-color="#ffd85a" stop-opacity=".55"/><stop offset="1" stop-color="#ffb030" stop-opacity="0"/></radialGradient>
+      <radialGradient id="sdGlow"><stop offset="0" id="sdGl0" stop-color="#fff6c8" stop-opacity=".95"/><stop offset=".35" id="sdGl1" stop-color="#ffd85a" stop-opacity=".55"/><stop offset="1" id="sdGl2" stop-color="#ffb030" stop-opacity="0"/></radialGradient>
       <clipPath id="sdAbove"><rect id="sdAboveR" x="-4000" y="-4000" width="8000" height="0"/></clipPath><clipPath id="sdBelow"><rect id="sdBelowR" x="-4000" y="0" width="8000" height="8000"/></clipPath></defs>
     <g id="sdDialG"><g id="sdDialC">
     <path class="sdrim" fill-rule="evenodd" d="M${SD.cx - SD.R - 6} ${SD.cy}a${SD.R + 6} ${SD.R + 6} 0 1 0 ${2 * (SD.R + 6)} 0a${SD.R + 6} ${SD.R + 6} 0 1 0 ${-2 * (SD.R + 6)} 0zM${SD.cx - SD.P - 2} ${SD.cy}a${SD.P + 2} ${SD.P + 2} 0 1 0 ${2 * (SD.P + 2)} 0a${SD.P + 2} ${SD.P + 2} 0 1 0 ${-2 * (SD.P + 2)} 0z"/>
@@ -1047,9 +1049,24 @@ function sundialPaint() {
   const g = $('#sdGlowC'); g.setAttribute('r', (12 + Math.max(0, alt) * 0.35).toFixed(1)); g.style.opacity = Math.max(0.25, Math.min(1, 0.35 + alt / 50)).toFixed(2);
   const day = lst >= rise && lst < set;
   // the glitter of the sun (or the moon) on the water beneath it
-  const gx = Math.min(W - 8, Math.max(8, P(x, y)[0])), gl = day ? Math.max(0, 1 - alt / 40) : 0.35;
-  $('#sdGlint').setAttribute('d', hyP < H - 4 ? [0, 1, 2, 3].map(i => `M${(gx - 14 + i * 3).toFixed(1)} ${(hyP + 4 + i * 5).toFixed(1)}h${(28 - i * 6).toFixed(1)}`).join('') : '');
-  $('#sdGlint').style.opacity = (len > 0 && len < 24 ? gl * 0.8 : 0).toFixed(2);
+  // the sun's colour of the moment, as in the sky: the handle, its glow, the light on the bowl and on the sea (v378)
+  const tc = sunTint(alt, lst < 12), hex = c => '#' + c.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join(''), mixW = (c, t) => c.map(v => v + (255 - v) * t);
+  const sunEl = svg.querySelector('.sdsun'); if (sunEl) { sunEl.style.fill = hex(mixW(tc, 0.18)); sunEl.style.stroke = hex(mixW(tc, 0.7)); }
+  $('#sdGl0')?.setAttribute('stop-color', hex(mixW(tc, 0.75))); $('#sdGl1')?.setAttribute('stop-color', hex(tc)); $('#sdGl2')?.setAttribute('stop-color', hex(tc.map(v => v * 0.85)));
+  // its reflection in the sea (v378): the sun mirrored beneath the horizon, squeezed by the waves, and the path of glitter from it
+  // towards the eye – narrow and bright when the sun is low, broad and paler when it is high; none while it is below the horizon
+  { const [sx, sy] = P(x, y), up2 = day && sy < hyP - 1 && hyP < H - 6, gp = $('#sdGlint'), rs = $('#sdReflSun');
+    if (!up2) { gp.setAttribute('d', ''); rs.setAttribute('rx', 0); rs.setAttribute('ry', 0); }
+    else { const hgt = hyP - sy, low = Math.max(0, 1 - alt / 45), cx = Math.min(W - 6, Math.max(6, sx)), r0 = 8.5 * k, ry = hyP + Math.min(hgt * 0.45, (H - hyP) * 0.35) + r0 * 0.3;
+      rs.setAttribute('cx', cx.toFixed(1)); rs.setAttribute('cy', ry.toFixed(1)); rs.setAttribute('rx', (r0 * (1.3 + 0.6 * (1 - low))).toFixed(1)); rs.setAttribute('ry', (r0 * 0.38).toFixed(1));
+      rs.setAttribute('fill', 'url(#sdReflG)'); $('#sdRf0').setAttribute('stop-color', hex(mixW(tc, 0.35))); $('#sdRf0').setAttribute('stop-opacity', (0.5 + 0.4 * low).toFixed(2)); $('#sdRf1').setAttribute('stop-color', hex(tc));
+      const hsh = n => { const v = Math.sin(n * 91.7 + 13.1) * 43758.5453; return v - Math.floor(v); }, bot = H - 2, segs = [];
+      for (let i = 0, yy = hyP + 2.5; yy < bot && i < 60; i++, yy += 2.2 + (yy - hyP) * 0.07) {
+        const dz = (yy - hyP) / Math.max(1, bot - hyP), half = (2 + dz * 26 * (0.5 + (1 - low))) * (0.4 + 0.6 * hsh(i)), jx = (hsh(i + 50) - 0.5) * (2 + dz * 14);
+        segs.push(`M${(cx + jx - half).toFixed(1)} ${yy.toFixed(1)}h${(2 * half).toFixed(1)}`); }
+      gp.setAttribute('d', segs.join('')); gp.style.strokeWidth = (1 + 0.6 * k).toFixed(2);
+      const g0 = $('#sdGlit0'), g1 = $('#sdGlit1'), gg = $('#sdGlitG'); g0.setAttribute('stop-color', hex(mixW(tc, 0.5))); g0.setAttribute('stop-opacity', (0.45 + 0.45 * low).toFixed(2)); g1.setAttribute('stop-color', hex(tc));
+      gg.setAttribute('y1', hyP.toFixed(1)); gg.setAttribute('y2', bot.toFixed(1)); } }
   // the daylight on the ring, and the shadow: long when the sun is low, short at noon, fading towards sunset
   if (len > 0 && len < 24) { const [ax, ay] = sdXY(rise, SD.R + 3), [bx, by] = sdXY(set, SD.R + 3); $('#sdDay').setAttribute('d', `M${ax.toFixed(1)} ${ay.toFixed(1)}A${SD.R + 3} ${SD.R + 3} 0 ${len > 12 ? 1 : 0} 1 ${bx.toFixed(1)} ${by.toFixed(1)}`); }
   else $('#sdDay').setAttribute('d', len >= 24 ? `M${SD.cx} ${SD.cy - SD.R - 3}a${SD.R + 3} ${SD.R + 3} 0 1 0 0.01 0` : '');
@@ -1398,17 +1415,17 @@ function scaLines(lat) {
 }
 // the picture: the light of the moment on the stone (s: towards the sun or the moon, in the true frame; kL its strength; amb the
 // sky's light)
-function scaDraw(cv, lat, s0, kL, amb, night) {
+function scaDraw(cv, lat, s0, kL, amb, night, lc) {
   const w = cv.width, h = cv.height; if (!w || !h) return;
   const alat = Math.round(Math.abs(lat)), s = scaLoc(s0, lat), up = s[2] > 0 && kL > 0;
-  // the viewpoint (544a): from the front a little above – raised in steps when the shadow's point would be hidden, so that the time
-  // can always be read; kept while the point stays in sight (no needless jumps)
-  const el = scaView(cv, alat, up ? [-s[0], -s[1], -s[2]] : null);
+  // the viewpoint (544a): from the front a little above – as steep as this latitude needs for the shadow's point to be seen at every
+  // hour of the year (set by the place only, not the hour – v378)
+  const el = scaTilt(alat);
   let G = cv._sca; if (!G || G.w !== w || G.h !== h || G.alat !== alat || G.el !== el) G = cv._sca = scaGeo(w, h, alat, el);
   const x = cv.getContext('2d'), img = x.createImageData(w, h), D = img.data, { P, N, Mt, G: gr, yc } = G;
   const A = [0, 1, 0.012], Bc = [0, 0, 0];
   // (by moonlight: silvery, and the shadows soft and faint – the light taken from several points of the moon's disc and beyond)
-  const tint = night ? [0.8, 0.86, 1.0] : [1, 0.97, 0.9], base = { 1: [0.86, 0.82, 0.72], 2: [0.9, 0.86, 0.76], 3: [0.76, 0.72, 0.63], 4: [0.8, 0.76, 0.66] };
+  const tint = night ? [0.8, 0.86, 1.0] : (lc || [1, 0.97, 0.9]), base = { 1: [0.86, 0.82, 0.72], 2: [0.9, 0.86, 0.76], 3: [0.76, 0.72, 0.63], 4: [0.8, 0.76, 0.66] };
   const jit = night ? [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].map(([a, b]) => { const e1 = norm3([s[1], -s[0], 0]), e2 = [s[1] * e1[2] - s[2] * e1[1], s[2] * e1[0] - s[0] * e1[2], s[0] * e1[1] - s[1] * e1[0]], k = 0.035; return norm3([s[0] + k * (a * e1[0] + b * e2[0]), s[1] + k * (a * e1[1] + b * e2[1]), s[2] + k * (a * e1[2] + b * e2[2])]); }) : [s];
   // (the shortest distance between the ray towards the light and the rod: in its shadow when closer than its thickness)
   const ab = [Bc[0] - A[0], Bc[1] - A[1], Bc[2] - A[2]], abl = Math.hypot(...ab);
@@ -1455,15 +1472,22 @@ function scaDraw(cv, lat, s0, kL, amb, night) {
   const a = G.C.toScr(A), c = G.C.toScr(Bc); x.strokeStyle = night ? '#2a2418' : '#4b3a20'; x.lineWidth = Math.max(1, w / 110); x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(c[0], c[1]); x.stroke();
   x.strokeStyle = 'rgba(255,220,150,.35)'; x.lineWidth = Math.max(0.5, w / 330); x.beginPath(); x.moveTo(a[0], a[1] - x.lineWidth); x.lineTo(c[0], c[1] - x.lineWidth); x.stroke();
 }
-// the elevation to look from: the lowest of 24°, 30° … 66° from which the shadow's point is in sight (the last one kept while it is)
-function scaView(cv, alat, sh) {
-  const keep = cv._el ?? 24; if (!sh) return cv._el = keep;
-  const yc = scaFront(alat), seen = el => { if (sh[2] > -1e-3 || sh[1] < -yc) return true;   // (not on the bowl: nothing to look for)
-    const C = scaCam(64, 64, el), d = norm3([sh[0] - C.E[0], sh[1] - C.E[1], sh[2] - C.E[2]]), hit = scaHit(C.E, d, yc), dist = Math.hypot(sh[0] - C.E[0], sh[1] - C.E[1], sh[2] - C.E[2]);
-    return hit && hit.m === 2 && Math.abs(hit.t - dist) < 0.03; };
-  if (cv._el != null && seen(cv._el) && (cv._el === 24 || !seen(cv._el - 6))) return cv._el;
-  for (let el = 24; el <= 66; el += 6) if (seen(el)) return cv._el = el;
-  return cv._el = 66;
+// the elevation to look from, for a latitude: the lowest of 24°, 30° … 84° from which the shadow's point is in sight at every hour
+// of every day of the year – wherever it falls on the lit part of the bowl (in the rim's own shade it cannot be read anyway)
+const SCA_TILT = new Map();
+function scaTilt(alat) {
+  if (SCA_TILT.has(alat)) return SCA_TILT.get(alat);
+  const f = alat * RAD, yc = scaFront(alat), pts = [];
+  for (let dec = -23.44; dec <= 23.45; dec += 23.44 / 5) {
+    const c = -Math.tan(f) * Math.tan(dec * RAD), H0 = c <= -1 ? Math.PI : c >= 1 ? 0 : Math.acos(c);
+    for (let k = 0; k <= 24; k++) { const H = -H0 + 2 * H0 * k / 24, d = dec * RAD, alt = Math.asin(Math.sin(f) * Math.sin(d) + Math.cos(f) * Math.cos(d) * Math.cos(H)); if (alt < 2 * RAD) continue;
+      const az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(f) - Math.tan(d) * Math.cos(f)) + Math.PI, sv = [Math.sin(az) * Math.cos(alt), Math.cos(az) * Math.cos(alt), Math.sin(alt)], p = sv.map(v => -v);
+      const sp = scaSphere(p, sv); if (sp) { const t = sp[1]; if (p[2] + sv[2] * t < -1e-3 && p[1] + sv[1] * t > -yc + 1e-3) continue; }   // (in the rim's shade)
+      pts.push(p); } }
+  let best = 84;
+  for (let el = 24; el <= 84; el += 6) { const C = scaCam(64, 64, el);
+    if (pts.every(sh => { const d = norm3([sh[0] - C.E[0], sh[1] - C.E[1], sh[2] - C.E[2]]), hit = scaHit(C.E, d, yc), dist = Math.hypot(sh[0] - C.E[0], sh[1] - C.E[1], sh[2] - C.E[2]); return hit && hit.m === 2 && Math.abs(hit.t - dist) < 0.03; })) { best = el; break; } }
+  SCA_TILT.set(alat, best); return best;
 }
 function scaSeen(G, p) {                                              // a point of the bowl not hidden from the eye
   const q = G.C.toScr(p), xi = Math.floor(q[0]), yi = Math.floor(q[1]); if (xi < 0 || yi < 0 || xi >= G.w || yi >= G.h) return false;
@@ -1473,12 +1497,14 @@ function scaSeen(G, p) {                                              // a point
 function scaLight() {
   const r = sunRef(), t = sunTime(), sa = sunAt(sunPos(t), r.lng, r.lat), dir = (az, alt) => [Math.sin(az * RAD) * Math.cos(alt * RAD), Math.cos(az * RAD) * Math.cos(alt * RAD), Math.sin(alt * RAD)];
   const sm = (a, b, v) => { const u = Math.max(0, Math.min(1, (v - a) / (b - a))); return u * u * (3 - 2 * u); };
-  if (sa.alt > -1) return { lat: Math.round(r.lat * 2) / 2, s: dir(sa.az, sa.alt), kL: 0.95 * sm(-1, 6, sa.alt), amb: 0.22 + 0.25 * sm(-6, 20, sa.alt), night: false };
+  // (the sunlight's colour as the sun's own in the sky: red, rose, gold low down, nearly white high up – v378)
+  if (sa.alt > -1) { const tc = sunTint(sa.alt, sa.az < 180), u = sm(4, 24, sa.alt), lc = [1, 0.97, 0.9].map((v, i) => +(v * u + (0.25 + 0.75 * tc[i] / 255) * (1 - u)).toFixed(2));
+    return { lat: Math.round(r.lat * 2) / 2, s: dir(sa.az, sa.alt), kL: 0.95 * sm(-1, 6, sa.alt), amb: 0.22 + 0.25 * sm(-6, 20, sa.alt), night: false, lc }; }
   const mo = moonPos(t), ma = sunAt(mo, r.lng, r.lat), dayGlow = sm(-12, 0, sa.alt);
   if (ma && ma.alt > 0) return { lat: Math.round(r.lat * 2) / 2, s: dir(ma.az, ma.alt), kL: 0.35 * mo.lit, amb: 0.1 + 0.15 * dayGlow, night: true };
   return { lat: Math.round(r.lat * 2) / 2, s: [0, 0, -1], kL: 0, amb: 0.1 + 0.15 * dayGlow, night: true };
 }
 function scaPaint(cv) {
-  if (!cv) return; const L = scaLight(), key = [cv.width, cv.height, L.lat, ...L.s.map(v => v.toFixed(3)), L.kL.toFixed(2), L.amb.toFixed(2), L.night].join();
-  if (cv._key === key) return; cv._key = key; scaDraw(cv, L.lat, L.s, L.kL, L.amb, L.night);
+  if (!cv) return; const L = scaLight(), key = [cv.width, cv.height, L.lat, ...L.s.map(v => v.toFixed(3)), L.kL.toFixed(2), L.amb.toFixed(2), L.night, L.lc].join();
+  if (cv._key === key) return; cv._key = key; scaDraw(cv, L.lat, L.s, L.kL, L.amb, L.night, L.lc);
 }
