@@ -2036,7 +2036,7 @@ dialog .sortpair button{transition:border-color .15s}
 .msdial .sdzod{cursor:pointer}
 
 /* the camera: the bar while the camera is its own, and the all-sky view (v354) */
-.cambar{position:absolute;z-index:6;top:calc(58px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:4px 6px 4px 12px;border-radius:20px;background:rgba(14,18,28,.78);color:#fff;font:600 13px var(--ui);box-shadow:0 4px 14px rgba(0,0,0,.3)}
+.cambar{position:absolute;z-index:6;bottom:calc(20px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:4px 6px 4px 12px;border-radius:20px;background:rgba(14,18,28,.78);color:#fff;font:600 13px var(--ui);box-shadow:0 4px 14px rgba(0,0,0,.3)}
 .cambar button{width:32px;height:30px;border:1px solid rgba(255,255,255,.35);border-radius:15px;background:transparent;color:#fff;font:600 14px var(--ui);cursor:pointer}
 .cambar span{margin-right:4px;white-space:nowrap}
 .allsky{position:absolute;inset:0;z-index:7;background:#0a0f1e;touch-action:none;-webkit-user-select:none;user-select:none}
@@ -2134,3 +2134,9 @@ dialog .sortpair button{transition:border-color .15s}
 .sdmark .sdsockn{font:600 8.6px var(--greek);fill:#dccbaa;text-anchor:middle;letter-spacing:.3px;pointer-events:none}
 .sdmark .sdsockl{fill:#160f0b;opacity:.7}
 .sdghost .sdtp{fill:#6e2b3e}
+/* the flight bar at the foot of the map, below the sticks; both above the sundial's panel when it is open (604a, v394) */
+#mapBody.sdopen .cambar{bottom:calc(var(--sdh,250px) + 14px)}
+#mapBody.sdopen #flyUI .joy{bottom:calc(var(--sdh,250px) + 70px)}
+/* (above the timeline when it is shown) */
+#mapBody:not(.sdopen):has(.mtime:not([hidden])) .cambar{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
+#mapBody:not(.sdopen):has(.mtime:not([hidden])) #flyUI .joy{bottom:calc(150px + env(safe-area-inset-bottom,0px))}

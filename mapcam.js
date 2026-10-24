@@ -202,7 +202,7 @@ function camTake(mode, c) {
 // the engine's fog – always white, also at night – over the distant land in the flat view: off while flying (500c, v363)
 const FOG_OFF = { 'fog-color': 'rgba(0,0,0,0)', 'fog-ground-blend': 1, 'horizon-fog-blend': 0, 'sky-horizon-blend': 0 }, FOG_ON = { 'fog-color': '#ffffff', 'fog-ground-blend': 0.5, 'horizon-fog-blend': 0.8, 'sky-horizon-blend': 0.8 };
 function camFog() {
-  const m = M.map; if (!m?.setSky) return; const sky = { ...(m.getStyle()?.sky || {}) }, fly = M.cam?.mode === 'fly';
+  const m = M.map; if (!m?.setSky) return; const sky = { ...(m.getStyle()?.sky || {}) }, fly = M.cam?.mode === 'fly' || M.cam?.mode === 'exp';   // (the explorer as flight: no haze – 603a, v394)
   Object.assign(sky, fly ? FOG_OFF : FOG_ON);   // (the engine changes only what is named: its defaults named back)
   try { m.setSky(sky); } catch (_) {}
 }
@@ -223,8 +223,8 @@ function camLeave() {
 // Free flight (v355): a craft that hovers – the left stick sets how fast it goes forward, back or sideways (let go, it glides
 // to a stop); the right stick sets its attitude – how steeply it climbs or dives, how far it banks; banked, it turns of itself
 // (let go, it levels out). Level flight keeps the height above the sea; a floor keeps it 5 m above the ground. Full speed is
-// ten times the square root of its height above the ground, metres a second (360 km/h at 100 m, 3,600 km/h at 10 km – 498a,
-// v363), so the land passes calmly high up, and low down not too slowly. The view looks ahead with the horizon a
+// half the height above the ground per second (since v394, 602a – before: ten times its square root): 180 km/h at 100 m, 18,000 km/h
+// at 10 km, 500 km/s at 1,000 km, so the land crosses the view at the same pace at every height. The view looks ahead with the horizon a
 // third down the screen (the ground in front filling the rest); dragging elsewhere turns the head, ↺ brings it back.
 function camFly() {
   if (!M.map) return; const c = M.cam?.mode === 'exp' ? { ...M.cam } : camNow();
@@ -242,7 +242,8 @@ function flyLoop() {
     const c = M.cam; if (!c || c.mode !== 'fly') return; const dt = Math.min(0.1, (now - last) / 1000); last = now;
     const K = FLY.keys, kx = (K.has('d') ? 1 : 0) - (K.has('a') ? 1 : 0), ky = (K.has('s') ? 1 : 0) - (K.has('w') ? 1 : 0), rx = (K.has('arrowright') ? 1 : 0) - (K.has('arrowleft') ? 1 : 0), ry = (K.has('arrowdown') ? 1 : 0) - (K.has('arrowup') ? 1 : 0);
     const L = { x: FLY.L.x || kx, y: FLY.L.y || ky }, R = { x: FLY.R.x || rx, y: FLY.R.y || ry };
-    const hgt = Math.max(5, c.alt - groundAt(c.lng, c.lat)), vmax = Math.min(3e5, 10 * Math.sqrt(hgt)), ease = (v, t, tau) => v + (t - v) * Math.min(1, dt / tau);
+    // (602a, v394: full speed half the height above the ground per second – the land crosses the view at the same pace at every height)
+    const hgt = Math.max(5, c.alt - groundAt(c.lng, c.lat)), vmax = Math.min(1e6, 0.5 * hgt), ease = (v, t, tau) => v + (t - v) * Math.min(1, dt / tau);
     // the sticks: a gentle curve, fine near the middle; the speed glides, the attitude follows
     const cv = x => Math.sign(x) * x * x;
     c.vF = ease(c.vF, -cv(L.y) * vmax, 0.7); c.vR = ease(c.vR, cv(L.x) * vmax, 0.7);
@@ -288,7 +289,7 @@ function flyUI() {
   }
 }
 function flyPaint() { const c = M.cam, s = $('#flyInfo'); if (!s) return; const h = c.alt - groundAt(c.lng, c.lat);
-  s.textContent = `${fmtEle(Math.max(0, h))} above the ground · ${Math.round(Math.abs(c.vF) * 3.6).toLocaleString('en')} km/h`; }
+  const v = Math.abs(c.vF) * 3.6; s.textContent = `${fmtEle(Math.max(0, h))} above the ground · ${v > 10000 ? (v / 3600).toLocaleString('en', { maximumFractionDigits: 1 }) + ' km/s' : Math.round(v).toLocaleString('en') + ' km/h'}`; }
 // the tip of the obelisk: the ground where it stands and its height as placed (times its size)
 function obelTip() { const g = M.cfg.gnomon; if (!g || !M.map) return null; const eye = (g.h || 30) * obelK(); return { lng: g.lng, lat: g.lat, alt: groundAt(g.lng, g.lat) + eye, eye }; }
 function camObelisk() {

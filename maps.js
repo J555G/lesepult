@@ -632,7 +632,7 @@ function mapStyle(C) {
   st.projection = { type: viewOn('globe') ? 'globe' : 'mercator' };
   st.sky = { 'sky-color': 'rgba(0,0,0,0)', 'horizon-color': 'rgba(0,0,0,0)',   // (above the horizon, Pult's own sky behind the map shows – v354)
     'atmosphere-blend': sunOn() && M.cfg.sunAtm !== false ? ['interpolate', ['linear'], ['zoom'], 0, 0.33, 5, 0.33, 7, 0] : 0 };   // (only with day and night, faint: it hazes the lit half)   // (the globe's halo, fading as one zooms in)
-  if (M.cam?.mode === 'fly' && typeof FOG_OFF === 'object') Object.assign(st.sky, FOG_OFF);   // (no white fog while flying – mapcam.js)
+  if ((M.cam?.mode === 'fly' || M.cam?.mode === 'exp') && typeof FOG_OFF === 'object') Object.assign(st.sky, FOG_OFF);   // (no white fog while flying – mapcam.js)
   return st;
 }
 function mapStyle0(C) {
