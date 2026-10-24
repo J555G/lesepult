@@ -912,7 +912,7 @@ const sdXY = (h, r) => [SD.cx + Math.sin(sdAng(h)) * r, SD.cy - Math.cos(sdAng(h
 // where the two wheels stand in a panel W wide: the same size up to 660 px, smaller on narrow screens so that the obelisk keeps
 // its room between them; the labels beneath; the row of buttons at the foot (k: the scale; tx, ty: the dial's space → the panel)
 function sdLay(W) {
-  const k = Math.max(0.6, Math.min(1, (W - 3 * 14 - 40) / (2 * (SD.R + 6) + 2 * (SD.ZR + 4))));
+  const k = Math.max(0.5, Math.min(1, (W - 3 * 14 - 56) / (2 * (SD.R + 6) + 2 * (SD.ZR + 4))));   // (a clear gap of 56 px kept for the obelisk – 579a, v386)
   const cy = 22 + (SD.ZR + 13) * k, dx = 14 + (SD.R + 6) * k, zx = W - 14 - (SD.ZR + 4) * k, labY = cy + (SD.ZR + 4) * k + 18;
   return { k, cy, dx, zx, labY, H: Math.round(labY + 8 + SD.ROW), tx: dx - k * SD.cx, ty: cy - k * SD.cy };
 }
@@ -1715,4 +1715,7 @@ function scaLight() {
 function scaPaint(cv) {
   if (!cv) return; const L = scaLight(), key = JSON.stringify([cv.width, cv.height, L.lat, L.Ls.map(l => [l.s.map(v => v.toFixed(3)), l.k.toFixed(3), l.col]), L.amb.toFixed(3), L.ambCol, L.nf.toFixed(2)]);
   if (cv._key === key) return; cv._key = key; scaDraw(cv, L.lat, L.Ls, L.amb, L.ambCol, L.nf);
+  // (north of the equator the dial is seen facing north, east at the right, while the ring shows the sky facing south: the picture
+  // is mirrored there, so that the shadow falls away from the sun on the ring, as it does in the south – 578a, v386)
+  cv.style.transform = L.lat >= 0 ? 'scaleX(-1)' : '';
 }
