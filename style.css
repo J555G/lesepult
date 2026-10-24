@@ -1895,7 +1895,7 @@ dialog .sortpair button{transition:border-color .15s}
 #mapBody.sdopen .mtime{display:none!important}
 #mapBody.sdopen .mcred{bottom:calc(var(--sdh,250px) + 16px)}
 /* the mark at the middle of the panel's upper edge: its tip is the place the dial shows (until an obelisk stands) */
-.sdmark{position:absolute;left:50%;bottom:calc(var(--sdh,250px) - 72px);transform:translateX(-50%);width:28px;height:68px;z-index:5;pointer-events:none;transition:opacity .4s}
+.sdmark{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);width:28px;height:68px;z-index:5;pointer-events:none;transition:opacity .4s}
 .sdmark .sdob{pointer-events:auto;cursor:grab;touch-action:none}
 .sdmark.away .sdsock,.sdmark.away .sdsockt{pointer-events:auto;cursor:pointer;touch-action:manipulation}
 .sdmark .sdobh{fill:transparent}
@@ -1919,11 +1919,19 @@ dialog .sortpair button{transition:border-color .15s}
 /* (the upper edge fades into the map; the band above the dial takes the sky's colour) */
 .msdial{position:absolute;left:50%;transform:translateX(-50%);bottom:8px;width:calc(100% - 16px);max-width:660px;height:var(--sdh,250px);z-index:4;overflow:visible}
 .msdial .sdsvg{position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;display:block;touch-action:none;-webkit-user-select:none;user-select:none}
+.msdial .sdbg{position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;display:block;pointer-events:none}
+.msdial .sdsca{position:absolute;pointer-events:none}
+.msdial .sdrow .sdl,.msdial .sdrow .sdr{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:6px}
+.msdial .sdrow .sdl{justify-content:flex-end}
+.msdial .sdrow .sdr{justify-content:flex-start}
+.msdial .sdrow .sdgap{flex:none;width:calc(var(--sock,40px) + 6px)}
+.sdbig .dbw{position:relative;line-height:0}
+.sdbig .dbsca{position:absolute;pointer-events:none}
 .msdial .sdedge{fill:none;stroke:rgba(255,255,255,.42);stroke-width:1}
 .msdial .sdstars circle{fill:#fff;animation:sdtw 3.4s ease-in-out infinite alternate}
 @keyframes sdtw{from{opacity:1}to{opacity:.35}}
 .msdial .sdglint{stroke:#fff3c8;stroke-width:1.2;stroke-linecap:round;fill:none}
-:is(.msdial,.sdbig) .sdrim{fill:rgba(20,16,10,.28);stroke:rgba(255,255,255,.35);stroke-width:1}
+:is(.msdial,.sdbig) .sdrim{fill:rgba(20,16,10,.32);stroke:rgba(255,255,255,.35);stroke-width:1}
 :is(.msdial,.sdbig) .sdplate{stroke:#8a7b60;stroke-width:1}
 :is(.msdial,.sdbig) .sdticks line{stroke:rgba(255,255,255,.75);stroke-width:1}
 :is(.msdial,.sdbig) .sdday{fill:none;stroke:#ffd166;stroke-width:2.2;stroke-linecap:round;opacity:.7}
@@ -2067,7 +2075,7 @@ dialog .sortpair button{transition:border-color .15s}
 .cambar .cbl svg{width:18px;height:18px}
 
 /* the sundial panel's row of buttons (v375) */
-.msdial .sdrow{position:absolute;left:8px;right:8px;bottom:6px;height:34px;display:flex;align-items:center;justify-content:center;gap:6px;font:13px var(--ui);color:#fff;overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap}
+.msdial .sdrow{position:absolute;left:8px;right:8px;bottom:14px;height:34px;display:flex;align-items:center;justify-content:center;gap:0;font:13px var(--ui);color:#fff;overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap}
 .msdial .sdrow::-webkit-scrollbar{display:none}
 .msdial .sdrow .seg{flex:none}
 .msdial .sdrow .msun{display:flex;align-items:center;gap:5px;margin:0;flex:0 1 230px;min-width:96px}

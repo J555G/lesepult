@@ -158,6 +158,25 @@ function obelPanelLight() {
   const r = sunRef(), s = sunAt(sunPos(sunTime()), r.lng, r.lat), right = Math.sin((s.az - M.map.getBearing()) * RAD) > 0;
   mk.classList.toggle('lr', right); mk.classList.toggle('night', sunOn() && s.alt < -2);
 }
+// the obelisk at rest in the reworked panel (540a, v376): its socket on the panel's foot, its golden tip just over the top – as tall
+// as the panel; where the room between the two wheels is narrow, slimmer
+function obelPanelFit(Ly) {
+  const mk = $('#sdMark'), pn = $('#sunPanel'); if (!mk) return;
+  const Hm = Ly.H - 12, U = Hm - 16, gap = (Ly.zx - (SD.ZR + 4) * Ly.k) - (Ly.dx + (SD.R + 6) * Ly.k) - 14, sx = Math.max(0.3, Math.min(1, gap / (0.34 * U + 10)));
+  const Wm = Math.ceil(0.34 * U * sx + 10), away = mk.classList.contains('away');
+  mk.style.width = Wm + 'px'; mk.style.height = Hm + 'px'; mk.innerHTML = obelTallSVG(Wm, Hm, U, sx); pn?.style.setProperty('--sock', Wm + 'px');
+  mk.classList.toggle('away', away); obelPanelLight();
+}
+function obelTallSVG(Wm, Hm, U, sx) {
+  const X = Wm / 2, y = v => (4 + U * (1 - v)).toFixed(2), hw = d => (d * U * sx).toFixed(2), tip = 1 - OB_TIP, f = v => +v;
+  const h = d => f(hw(d));
+  return `<svg class="sdobs" width="${Wm}" height="${Hm}" viewBox="0 0 ${Wm} ${Hm}" aria-hidden="true">`
+    + `<path class="sdsock" d="M1 ${Hm - 12}h${Wm - 2}v12H1z"/><path class="sdsockt" d="M1 ${Hm - 12}h${Wm - 2}v2.2H1z"/><path class="sdsockh" d="M${X - h(0.17)} ${Hm - 12}h${2 * h(0.17)}v1.4H${X - h(0.17)}z"/>`
+    + `<g class="sdob" role="button" aria-label="Obelisk: drag it onto the map to set it up there">`
+    + `<path class="sdst" d="M${X - h(0.17)} ${y(0)}h${2 * h(0.17)}V${y(0.05)}h${-2 * h(0.17)}z M${X - h(0.13)} ${y(0.05)}h${2 * h(0.13)}V${y(0.08)}h${-2 * h(0.13)}z"/>`
+    + `<path class="sdsh0" d="M${X - h(0.088)} ${y(0.08)}L${X - h(0.052)} ${y(tip)}H${X}V${y(0.08)}z"/><path class="sdsh1" d="M${X} ${y(0.08)}V${y(tip)}H${X + h(0.052)}L${X + h(0.088)} ${y(0.08)}z"/>`
+    + `<path class="sdtip0" d="M${X - h(0.052)} ${y(tip)}L${X} 4V${y(tip)}z"/><path class="sdtip1" d="M${X} 4L${X + h(0.052)} ${y(tip)}H${X}z"/></g></svg>`;
+}
 // over the sundial (to put the obelisk back)
 function overDial(ev) { for (const el of [$('#sunPanel'), $('#sdMark')]) { const q = el?.getBoundingClientRect(); if (q && ev.clientX >= q.left && ev.clientX <= q.right && ev.clientY >= q.top && ev.clientY <= q.bottom) return true; } return false; }
 async function obelHome() {
@@ -174,7 +193,7 @@ document.addEventListener('pointerup', ev => {
 document.addEventListener('pointerdown', ev => {
   const ob = ev.target.closest?.('#sdMark .sdob'); if (!ob || M.cfg?.gnomon || !M.map || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
   ev.preventDefault(); ev.stopPropagation();
-  const mk = $('#sdMark'), q = mk.getBoundingClientRect(), dx = ev.clientX - q.left, dy = ev.clientY - q.top, x0 = ev.clientX, y0 = ev.clientY;
+  const mk = $('#sdMark'), dx = 14, dy = 30, x0 = ev.clientX, y0 = ev.clientY;   // (the copy that follows: the small obelisk, held by its shaft)
   let gh = null;
   const mv = e => { if (e.pointerId !== ev.pointerId) return; e.preventDefault();
     if (!gh) { if (Math.hypot(e.clientX - x0, e.clientY - y0) < 6) return; gh = document.createElement('div'); gh.className = 'sdghost' + (mk.classList.contains('lr') ? ' lr' : ''); gh.innerHTML = obelPanelSVG(); document.body.append(gh); mk.classList.add('away'); }
@@ -866,7 +885,7 @@ function skyAt(alt, eve) {
 // (v375: the panel reworked – dial at the left, the obelisk in the middle, the zodiac at the right, always; one row of buttons
 // along the bottom. The dial is drawn in its own space (centre cx, cy; ring R; plate P) and placed and scaled into the panel by
 // sdLay; ZR the zodiac's radius; FADE the height over which the panel's sky and its outline fade into the map; ROW the buttons.)
-const SD = { cx: 92, cy: 82, R: 64, P: 50, ZR: 72, FADE: 52, ROW: 40, H: 250 };   // (the fade: nothing above 24 px – the rounded corners – then in)   // the panel's height, the dial's centre, ring and plate radii;
+const SD = { cx: 92, cy: 82, R: 70, P: 56, ZR: 72, FADE: 52, ROW: 40, H: 250, SW: 100, SH: 72 };   // (SW, SH: the stone dial's picture inside the ring – v376)   // (the fade: nothing above 24 px – the rounded corners – then in)   // the panel's height, the dial's centre, ring and plate radii;
                                                                     // the zodiac wheel's radius and centre height, and the least width of the panel that shows it
 const sdAng = h => (h - 12) / 24 * 2 * Math.PI;                        // (clockwise, as the day goes on; noon at the top – v330)
 const sdXY = (h, r) => [SD.cx + Math.sin(sdAng(h)) * r, SD.cy - Math.cos(sdAng(h)) * r];
@@ -884,24 +903,25 @@ function sdPanelHTML() {
   const stars = Array.from({ length: 46 }, (_, i) => { const x = (Math.sin(i * 12.9898) * 43758.5453 % 1 + 1) % 1, y = (Math.sin(i * 78.233) * 12543.21 % 1 + 1) % 1;
     return `<circle cx="${(x * 100).toFixed(1)}%" cy="${(y * 55).toFixed(1)}%" r="${(0.5 + (i % 3) * 0.35).toFixed(2)}" style="animation-delay:${(i % 7) * 0.6}s"/>`; }).join('');
   const ticks = Array.from({ length: 24 }, (_, h) => { const [a, b] = sdXY(h, h % 6 ? SD.R - 4 : SD.R - 7), [c, d] = sdXY(h, SD.R); return `<line x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${c.toFixed(1)}" y2="${d.toFixed(1)}"/>`; }).join('');
-  return `<div class="msdial" id="sunPanel"><svg class="sdsvg" id="sunSvg" aria-hidden="true"><defs>
+  // three layers: the sky and the sea (fading upwards); the stone dial, drawn on a canvas; the ring, the zodiac and the labels
+  return `<div class="msdial" id="sunPanel"><svg class="sdbg" id="sunBg" aria-hidden="true"><defs>
       <linearGradient id="sdSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" id="sdSky0"/><stop offset="1" id="sdSky1"/></linearGradient>
       <linearGradient id="sdSea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" id="sdSea0"/><stop offset="1" id="sdSea1"/></linearGradient>
       <linearGradient id="sdFadeG" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${SD.FADE}"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".46" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity="1"/></linearGradient>
       <mask id="sdFade" maskUnits="userSpaceOnUse" x="-50" y="-50" width="4000" height="4000"><rect x="-50" y="-50" width="4000" height="4000" fill="url(#sdFadeG)"/></mask>
+      <clipPath id="sdBgClip"><path id="sdBgClipP" d=""/></clipPath>
+      <clipPath id="sdAboveBg"><rect id="sdAboveBgR" x="-50" y="-50" width="4000" height="0"/></clipPath></defs>
+    <g mask="url(#sdFade)"><g clip-path="url(#sdBgClip)"><rect x="-50" y="-50" width="4000" height="4000" fill="url(#sdSky)"/><g clip-path="url(#sdAboveBg)"><g class="sdstars" id="sdStars">${stars}</g></g>
+      <rect id="sdSeaR" x="-50" width="4000" height="0" fill="url(#sdSea)"/><path id="sdGlint" class="sdglint" d=""/></g><path id="sdEdge" class="sdedge" d=""/></g></svg>
+    <canvas class="sdsca" id="sdSca" aria-hidden="true"></canvas>
+    <svg class="sdsvg" id="sunSvg" aria-hidden="true"><defs>
       <filter id="sdBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.3"/></filter>
       <radialGradient id="sdGlow"><stop offset="0" stop-color="#fff6c8" stop-opacity=".95"/><stop offset=".35" stop-color="#ffd85a" stop-opacity=".55"/><stop offset="1" stop-color="#ffb030" stop-opacity="0"/></radialGradient>
-      <radialGradient id="sdStone" cx=".42" cy=".38"><stop offset="0" stop-color="#e9dfc8"/><stop offset="1" stop-color="#b8aa8c"/></radialGradient>
-      <clipPath id="sdBgClip"><path id="sdBgClipP" d=""/></clipPath>
-      <clipPath id="sdAboveBg"><rect id="sdAboveBgR" x="-50" y="-50" width="4000" height="0"/></clipPath>
       <clipPath id="sdAbove"><rect id="sdAboveR" x="-4000" y="-4000" width="8000" height="0"/></clipPath><clipPath id="sdBelow"><rect id="sdBelowR" x="-4000" y="0" width="8000" height="8000"/></clipPath></defs>
-    <g mask="url(#sdFade)"><g clip-path="url(#sdBgClip)"><rect x="-50" y="-50" width="4000" height="4000" fill="url(#sdSky)"/><g clip-path="url(#sdAboveBg)"><g class="sdstars" id="sdStars">${stars}</g></g>
-      <rect id="sdSeaR" x="-50" width="4000" height="0" fill="url(#sdSea)"/><path id="sdGlint" class="sdglint" d=""/></g><path id="sdEdge" class="sdedge" d=""/></g>
     <g id="sdDialG"><g id="sdDialC">
-    <circle cx="${SD.cx}" cy="${SD.cy}" r="${SD.R + 6}" class="sdrim"/><circle cx="${SD.cx}" cy="${SD.cy}" r="${SD.P}" fill="url(#sdStone)" class="sdplate"/>
+    <path class="sdrim" fill-rule="evenodd" d="M${SD.cx - SD.R - 6} ${SD.cy}a${SD.R + 6} ${SD.R + 6} 0 1 0 ${2 * (SD.R + 6)} 0a${SD.R + 6} ${SD.R + 6} 0 1 0 ${-2 * (SD.R + 6)} 0zM${SD.cx - SD.P - 2} ${SD.cy}a${SD.P + 2} ${SD.P + 2} 0 1 0 ${2 * (SD.P + 2)} 0a${SD.P + 2} ${SD.P + 2} 0 1 0 ${-2 * (SD.P + 2)} 0z"/>
     <g class="sdticks">${ticks}</g><path id="sdDay" class="sdday" d=""/>
-    <line id="sdShadow" class="sdshadow" filter="url(#sdBlur)" x1="${SD.cx}" y1="${SD.cy}" x2="${SD.cx}" y2="${SD.cy}"/><path class="sdgnomon" d="M${SD.cx - 3} ${SD.cy + 3}L${SD.cx} ${SD.cy - 14}L${SD.cx + 3} ${SD.cy + 3}z"/>
-    <g id="sdOwlPos" transform="translate(${SD.cx} ${SD.cy - 22})">${OWL}</g>
+    <g id="sdOwlPos" transform="translate(${SD.cx - 38} ${SD.cy - 14})">${OWL}</g>
     <g clip-path="url(#sdAbove)"><g class="sdhpos"><circle r="22" fill="url(#sdGlow)" id="sdGlowC"/><circle r="8.5" class="sdsun"/></g></g>
     <g clip-path="url(#sdBelow)"><g class="sdhpos"><circle r="8" class="sdmoonc"/><path id="sdMoonLit" class="sdmoon" d=""/></g></g><g class="sdhpos"><circle r="16" class="sdgrab"/></g>
     </g></g>
@@ -975,11 +995,12 @@ const SUN_SW_ICON = '<svg width="18" height="18" viewBox="-9 -9 18 18" aria-hidd
 function sdCtlHTML() {
   const mode = M.cfg.sunMode || 'now', spd = M.cfg.sunSpeed || 20, yr = M.cfg.sunYear || 20, on = sunOn();
   const play = `<button type="button" class="mico2" data-sunplay="1" aria-label="${M.sunPause ? 'Play' : 'Pause'}">${M.sunPause ? '▶' : '❚❚'}</button>`;
-  return `<div class="seg" role="group">${[['now', 'Now'], ['anim', 'Animate'], ['year', 'Year']].map(([v, l]) => `<button type="button" data-sunmode="${v}" class="${mode === v ? 'on' : ''}">${l}</button>`).join('')}</div>`
+  // (split round the obelisk's socket in the middle – v376)
+  return `<div class="sdl"><div class="seg" role="group">${[['now', 'Now'], ['anim', 'Animate'], ['year', 'Year']].map(([v, l]) => `<button type="button" data-sunmode="${v}" class="${mode === v ? 'on' : ''}">${l}</button>`).join('')}</div></div><div class="sdgap"></div><div class="sdr">`
     + (mode === 'anim' ? `<div class="msun">${play}<input type="range" min="0" max="100" value="${spdToV(spd)}" data-sunspeed="1" aria-label="Speed"><output>${spdLabel(spd)}</output></div>` : '')
     + (mode === 'year' ? `<div class="msun">${play}<input type="range" min="0" max="100" value="${yrToV(yr)}" data-sunyear="1" aria-label="Speed"><output>${yrLabel(yr)}</output></div>` : '')
     + (M.cfg.gnomon ? `<input type="range" class="obsz" min="0" max="100" value="${Math.round(Math.log(obelK() * 3) / Math.log(9) * 100)}" data-obsz="1" aria-label="Size of the obelisk" title="Size of the obelisk">` : '')
-    + `<button type="button" class="sdsw${on ? ' on' : ''}" data-sunsw2="1" aria-pressed="${on}" title="Day and night on the map: ${on ? 'on' : 'off'}" aria-label="Day and night on the map">${SUN_SW_ICON}</button>`;
+    + `<button type="button" class="sdsw${on ? ' on' : ''}" data-sunsw2="1" aria-pressed="${on}" title="Day and night on the map: ${on ? 'on' : 'off'}" aria-label="Day and night on the map">${SUN_SW_ICON}</button></div>`;
 }
 async function sdOpen(open) {
   const box = $('#mapBody'); if (!box) return;
@@ -1006,6 +1027,11 @@ function sundialPaint() {
     const tl = $('#sdLab'); tl.setAttribute('x', Ly.dx.toFixed(1)); tl.setAttribute('y', Ly.labY.toFixed(1));
     $('#sdZLab').setAttribute('y', Ly.labY.toFixed(1));
     M.sdT = Ly; M.zc = { x: Ly.zx, y: Ly.cy, r: (SD.ZR + 8) * k };
+    // (the stone dial's canvas over the ring's middle; sharp on the screen)
+    const cv = $('#sdSca'), dpr = Math.min(2, devicePixelRatio || 1), cw = SD.SW * k, ch = SD.SH * k;
+    if (cv) { cv.style.left = (Ly.dx - cw / 2).toFixed(1) + 'px'; cv.style.top = (Ly.cy - ch / 2 + 4 * k).toFixed(1) + 'px'; cv.style.width = cw.toFixed(1) + 'px'; cv.style.height = ch.toFixed(1) + 'px';
+      cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr); cv._key = null; }
+    obelPanelFit(Ly);
     sdRefUpd(); }
   const P = (x, y) => [tx + k * x, ty + k * y];                       // (the dial's space → the panel)
   // the horizon: level with sunrise and sunset on the ring
@@ -1027,10 +1053,8 @@ function sundialPaint() {
   // the daylight on the ring, and the shadow: long when the sun is low, short at noon, fading towards sunset
   if (len > 0 && len < 24) { const [ax, ay] = sdXY(rise, SD.R + 3), [bx, by] = sdXY(set, SD.R + 3); $('#sdDay').setAttribute('d', `M${ax.toFixed(1)} ${ay.toFixed(1)}A${SD.R + 3} ${SD.R + 3} 0 ${len > 12 ? 1 : 0} 1 ${bx.toFixed(1)} ${by.toFixed(1)}`); }
   else $('#sdDay').setAttribute('d', len >= 24 ? `M${SD.cx} ${SD.cy - SD.R - 3}a${SD.R + 3} ${SD.R + 3} 0 1 0 0.01 0` : '');
-  const sh = $('#sdShadow'), up = day && alt > -0.8;
-  if (up) { const L = Math.min(SD.P - 4, 9 / Math.tan(Math.max(1.5, alt) * RAD)), a = sdAng(lst) + Math.PI;   // (opposite the sun on the ring, as before v327)
-    sh.setAttribute('x2', (SD.cx + Math.sin(a) * L).toFixed(1)); sh.setAttribute('y2', (SD.cy - Math.cos(a) * L).toFixed(1)); sh.style.opacity = Math.max(0.12, Math.min(0.75, alt / 12)).toFixed(2); }
-  else sh.style.opacity = 0;
+  // the stone dial inside the ring: its picture in the light of the moment
+  scaPaint($('#sdSca'));
   // the owl: lands when the handle enters the night, flies off when it leaves
   if (M.sdOwl !== !day) { M.sdOwl = !day; const o = $('#sdOwlPos .sdowl'); o.classList.remove('land', 'away'); void o.getBoundingClientRect(); o.classList.add(day ? 'away' : 'land'); }
   // the moon on the dial in its real phase: lit on the right while waxing, on the left while waning (as seen from the north)
@@ -1082,7 +1106,7 @@ const DB = SD.R + 30;
 function dialBigOpen() {
   if ($('#dialBig')) return;
   const d = document.createElement('div'); d.id = 'dialBig'; d.className = 'zodbig sdbig';
-  d.innerHTML = `<svg viewBox="${SD.cx - DB} ${SD.cy - DB} ${2 * DB} ${2 * DB}" aria-label="The sundial"><g class="dbc"></g></svg><div class="zl" id="dialBigLab"></div>
+  d.innerHTML = `<div class="dbw"><canvas class="dbsca" aria-hidden="true"></canvas><svg viewBox="${SD.cx - DB} ${SD.cy - DB} ${2 * DB} ${2 * DB}" aria-label="The sundial"><g class="dbc"></g></svg></div><div class="zl" id="dialBigLab"></div>
     <button type="button" class="zx" aria-label="Close">✕</button>`;
   document.body.append(d); dialBigPaint();
   d.addEventListener('pointerdown', ev => {
@@ -1096,6 +1120,11 @@ function dialBigPaint(l) {
   const d = $('#dialBig'), src = $('#sdDialC'); if (!d || !src) return;
   const c = src.cloneNode(true); c.removeAttribute('id'); c.querySelectorAll('[id]').forEach(e => e.removeAttribute('id'));
   const g = d.querySelector('.dbc'); g.replaceChildren(c);
+  // (the stone dial beneath the ring, sized to the large view; drawn a little less sharply than the screen allows, to stay quick)
+  const svg = d.querySelector('svg'), cv = d.querySelector('.dbsca'), wb = svg.clientWidth; if (wb && cv) { const sb = wb / (2 * DB), dpr = Math.min(1.5, devicePixelRatio || 1);
+    const cw = SD.SW * sb, ch = SD.SH * sb, pw = Math.round(cw * dpr), ph = Math.round(ch * dpr);
+    if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; cv._key = null; }
+    Object.assign(cv.style, { width: cw + 'px', height: ch + 'px', left: ((DB - SD.SW / 2) * sb) + 'px', top: ((DB - SD.SH / 2 + 4) * sb) + 'px' }); scaPaint(cv); }
   l ||= sunLabel(); const lb = $('#dialBigLab'); if (lb) lb.textContent = `${l.main} · ${l.sub}`;
 }
 document.addEventListener('change', ev => { if (ev.target.closest?.('[data-sunsw]')) sunSet({ sun: ev.target.checked }).then(() => { const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML(); sundialPaint(); }); });
@@ -1261,3 +1290,148 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
 // (the panel laid out anew when the window changes its size)
 addEventListener('resize', () => { if (M.sdOpen) requestAnimationFrame(sundialPaint); });
+
+// ================================================================ the hemispherical sundial (v376)
+// After the dial from Ai Khanoum (Bactria, 3rd–2nd c. BC): a limestone block on a low ledge, a sphere cut into its top and front –
+// the front face standing just so far forward of the centre that the bowl catches the shadow at every hour of every day of the
+// year at the latitude it is laid out for (a quarter sphere and a little more in the south of Europe, nearly a half towards the
+// poles); a bronze rod reaching from a notch in the rim to the sphere's centre; at
+// the sides two pillars with carved stems and lions' paws, drawn but casting no shadow on the bowl. The tip's shadow falls on the
+// bowl opposite the sun – the sky turned inside out. Engraved: 11 lines dividing the daylight into 12 seasonal hours, and the
+// curves of the winter solstice, the equinoxes and the summer solstice – laid out for the latitude of the place the dial refers
+// to (533a–537a). On the southern half of the earth it faces the other way: always seen from the equator's side, its back to
+// the raised pole. Drawn by tracing rays through a small model (in its own frame: x to the right, y towards the raised pole,
+// z up; the sphere's radius 1, its centre the rod's tip), seen from the front, a little from above. The shapes are worked out
+// once for each size and latitude; each time only the light: the sun (or at night the moon), the bowl's shade, the rod's shadow.
+const SCA = { X0: 1.3, Y0: 1.15, Z0: 1.28, ZF: 1.04, PW: 0.3, ZP: 0.28, rod: 0.022 };
+// how far in front of the centre the front face stands, for a latitude: the sun's farthest reach towards the raised pole – at
+// sunrise in midsummer (sin 23.4° / cos φ), a little more for good measure; beyond the polar circles nearly the whole half
+const scaFront = alat => Math.min(0.97, Math.sin(24.4 * RAD) / Math.cos(Math.min(89, alat) * RAD) + 0.04);
+function scaBoxes(yc = 0.5) {
+  const { X0, Y0, Z0, ZF, PW, ZP } = SCA, yl = -1.25;
+  return { U: [-X0, -yc, -ZF, X0, Y0, 0], F: [-X0, yl, -Z0, X0, Y0, -ZF], L: [-X0 - PW, yl, -Z0, -X0, Y0, ZP], R: [X0, yl, -Z0, X0 + PW, Y0, ZP] };
+}
+function scaBox(o, d, b) {                                            // the slab test: [enter, leave, the face's normal] or null
+  let t0 = -1e9, t1 = 1e9, n = null;
+  for (let a = 0; a < 3; a++) {
+    if (Math.abs(d[a]) < 1e-12) { if (o[a] < b[a] || o[a] > b[a + 3]) return null; continue; }
+    let u = (b[a] - o[a]) / d[a], v = (b[a + 3] - o[a]) / d[a]; if (u > v) { const w = u; u = v; v = w; }
+    if (u > t0) { t0 = u; n = [0, 0, 0]; n[a] = -Math.sign(d[a]); }
+    if (v < t1) t1 = v; if (t0 > t1) return null;
+  }
+  return t1 > 1e-6 ? [t0, t1, n] : null;
+}
+function scaSphere(o, d) {                                            // the sphere of radius 1 about the centre: [in, out] or null
+  const b = o[0] * d[0] + o[1] * d[1] + o[2] * d[2], c = o[0] * o[0] + o[1] * o[1] + o[2] * o[2] - 1, D = b * b - c;
+  if (D <= 0) return null; const q = Math.sqrt(D); return [-b - q, -b + q];
+}
+// the nearest stone along a ray: { t, n, m } (m: 1 the block's faces, 2 the bowl, 3 the base, 4 the pillars) or null
+function scaHit(o, d, yc) {
+  const X = scaBoxes(yc); let best = null;
+  const take = (t, n, m) => { if (t > 1e-5 && (!best || t < best.t)) best = { t, n, m }; };
+  const b = scaBox(o, d, X.U);
+  if (b) { const t0 = b[0], t1 = b[1], s = scaSphere(o, d), te = Math.max(t0, 0);
+    if (!(s && s[0] < te && te < s[1])) take(t0, b[2], 1);
+    else if (s[1] < t1) { const p = [o[0] + d[0] * s[1], o[1] + d[1] * s[1], o[2] + d[2] * s[1]]; take(s[1], [-p[0], -p[1], -p[2]], 2); } }
+  for (const [k, m] of [['F', 3], ['L', 4], ['R', 4]]) { const h = scaBox(o, d, X[k]); if (h) take(h[0], h[2], m); }
+  return best;
+}
+// the camera: from the front (the equator's side), a little from above; the picture fitted to the stone
+function scaCam(w, h) {
+  const E = [0, -6.4, 2.9], T = [0, 0.12, -0.55], f = norm3([T[0] - E[0], T[1] - E[1], T[2] - E[2]]), r = norm3([f[1], -f[0], 0]), u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
+  const X = scaBoxes(), pts = []; for (const b of Object.values(X)) for (const x of [b[0], b[3]]) for (const y of [b[1], b[4]]) for (const z of [b[2], b[5]]) pts.push([x, y, z]);
+  const pr = p => { const v = [p[0] - E[0], p[1] - E[1], p[2] - E[2]], z = v[0] * f[0] + v[1] * f[1] + v[2] * f[2]; return [(v[0] * r[0] + v[1] * r[1] + v[2] * r[2]) / z, (v[0] * u[0] + v[1] * u[1] + v[2] * u[2]) / z]; };
+  const q = pts.map(pr), x0 = Math.min(...q.map(a => a[0])), x1 = Math.max(...q.map(a => a[0])), y0 = Math.min(...q.map(a => a[1])), y1 = Math.max(...q.map(a => a[1]));
+  const S = Math.min(w * 0.98 / (x1 - x0), h * 0.98 / (y1 - y0)), cx = w / 2 - S * (x0 + x1) / 2, cy = h / 2 + S * (y0 + y1) / 2;
+  return { E, f, r, u, S, cx, cy, toScr: p => { const a = pr(p); return [cx + S * a[0], cy - S * a[1]]; },
+    ray: (px, py) => norm3([f[0] + r[0] * (px - cx) / S - u[0] * (py - cy) / S, f[1] + r[1] * (px - cx) / S - u[1] * (py - cy) / S, f[2] + r[2] * (px - cx) / S - u[2] * (py - cy) / S]) };
+}
+function norm3(v) { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; }
+// the shapes, once for each size and latitude: for every pixel its point, normal, kind of stone and grain
+function scaGeo(w, h, alat) {
+  const C = scaCam(w, h), yc = scaFront(alat), n = w * h, P = new Float32Array(n * 3), N = new Float32Array(n * 3), Mt = new Uint8Array(n), G = new Float32Array(n), Dp = new Float32Array(n).fill(1e9);
+  const hsh = (a, b, c) => { const s = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5453; return s - Math.floor(s); };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const d = C.ray(x + 0.5, y + 0.5), hit = scaHit(C.E, d, yc), i = y * w + x; if (!hit) continue;
+    const p = [C.E[0] + d[0] * hit.t, C.E[1] + d[1] * hit.t, C.E[2] + d[2] * hit.t];
+    P.set(p, i * 3); N.set(hit.n, i * 3); Mt[i] = hit.m; Dp[i] = hit.t;
+    G[i] = 0.93 + 0.05 * hsh(Math.floor(p[0] * 40), Math.floor(p[1] * 40), Math.floor(p[2] * 40)) + 0.04 * hsh(Math.floor(p[0] * 9), Math.floor(p[1] * 9), Math.floor(p[2] * 9));
+  }
+  return { w, h, alat, yc, C, P, N, Mt, G, Dp };
+}
+// a direction in the sky (true: x east, y north, z up) in the dial's frame (turned round on the southern half of the earth)
+const scaLoc = (v, lat) => lat < 0 ? [-v[0], -v[1], v[2]] : v;
+// the engraved lines for a latitude (degrees): polylines on the bowl (points on the unit sphere, the shadow's places)
+function scaLines(lat) {
+  const f = lat * RAD, at = (dec, H) => { const d = dec * RAD, sa = Math.sin(f) * Math.sin(d) + Math.cos(f) * Math.cos(d) * Math.cos(H), alt = Math.asin(sa);
+    const az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(f) - Math.tan(d) * Math.cos(f)) + Math.PI;
+    return scaLoc([-Math.sin(az) * Math.cos(alt), -Math.cos(az) * Math.cos(alt), -Math.sin(alt)], lat); };   // (the shadow: opposite the sun)
+  const half = dec => { const c = -Math.tan(f) * Math.tan(dec * RAD); return c <= -1 ? Math.PI : c >= 1 ? 0 : Math.acos(c); };
+  const lines = [];
+  for (const dec of [-23.44, 0, 23.44]) { const H0 = half(dec), L = []; if (H0 > 0) { for (let i = 0; i <= 48; i++) L.push(at(dec, -H0 + 2 * H0 * i / 48)); lines.push({ k: 'day', p: L }); } }
+  for (let hr = 1; hr <= 11; hr++) { const L = []; for (let j = 0; j <= 16; j++) { const dec = -23.44 + 46.88 * j / 16, H0 = half(dec); if (H0 > 0 && H0 < Math.PI) L.push(at(dec, -H0 + 2 * H0 * hr / 12)); } lines.push({ k: hr === 6 ? 'noon' : 'hour', p: L }); }
+  return lines;
+}
+// the picture: the light of the moment on the stone (s: towards the sun or the moon, in the true frame; kL its strength; amb the
+// sky's light)
+function scaDraw(cv, lat, s0, kL, amb, night) {
+  const w = cv.width, h = cv.height; if (!w || !h) return;
+  const alat = Math.round(Math.abs(lat)); let G = cv._sca; if (!G || G.w !== w || G.h !== h || G.alat !== alat) G = cv._sca = scaGeo(w, h, alat);
+  const s = scaLoc(s0, lat), x = cv.getContext('2d'), img = x.createImageData(w, h), D = img.data, { P, N, Mt, G: gr, yc } = G;
+  const A = [0, 1, 0.012], Bc = [0, 0, 0], up = s[2] > 0 && kL > 0;
+  const tint = night ? [0.62, 0.7, 0.9] : [1, 0.97, 0.9], base = { 1: [0.86, 0.82, 0.72], 2: [0.9, 0.86, 0.76], 3: [0.76, 0.72, 0.63], 4: [0.8, 0.76, 0.66] };
+  // (the shortest distance between the ray towards the light and the rod: in its shadow when closer than its thickness)
+  const ab = [Bc[0] - A[0], Bc[1] - A[1], Bc[2] - A[2]], abl = Math.hypot(...ab);
+  const rodShade = p => { const w0 = [p[0] - A[0], p[1] - A[1], p[2] - A[2]], b = (s[0] * ab[0] + s[1] * ab[1] + s[2] * ab[2]) / abl,
+      d = s[0] * w0[0] + s[1] * w0[1] + s[2] * w0[2], e = (ab[0] * w0[0] + ab[1] * w0[1] + ab[2] * w0[2]) / abl, den = 1 - b * b;
+    let t = den > 1e-9 ? (b * e - d) / den : 0, u = den > 1e-9 ? (e - b * d) / den : e; if (t < 0) { t = 0; u = e; } u = Math.max(0, Math.min(abl, u));
+    const q = [p[0] + s[0] * t - (A[0] + ab[0] / abl * u), p[1] + s[1] * t - (A[1] + ab[1] / abl * u), p[2] + s[2] * t - (A[2] + ab[2] / abl * u)];
+    return Math.hypot(...q) < SCA.rod; };
+  for (let i = 0, n = w * h; i < n; i++) {
+    const m = Mt[i]; if (!m) continue;
+    const p = [P[3 * i], P[3 * i + 1], P[3 * i + 2]], nn = [N[3 * i], N[3 * i + 1], N[3 * i + 2]];
+    let lit = 0;
+    if (up) { lit = Math.max(0, nn[0] * s[0] + nn[1] * s[1] + nn[2] * s[2]);
+      // (the bowl: lit where the light comes in through the opening – the ray leaves the sphere above the top or in front of the face)
+      if (lit > 0 && m === 2) { const sp = scaSphere(p, s); if (sp) { const t = sp[1], q = [p[0] + s[0] * t, p[1] + s[1] * t, p[2] + s[2] * t]; if (q[2] < -1e-3 && q[1] > -yc + 1e-3) lit = 0; } }
+      if (lit > 0 && m === 2 && rodShade(p)) lit = 0; }
+    const k = (amb + kL * lit * 1.05) * gr[i], b = base[m];
+    D[4 * i] = Math.min(255, 255 * b[0] * k * tint[0]); D[4 * i + 1] = Math.min(255, 255 * b[1] * k * tint[1]); D[4 * i + 2] = Math.min(255, 255 * b[2] * k * tint[2]); D[4 * i + 3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  // the engraved lines, where the bowl is seen (each piece checked against the picture's depth)
+  const lw = Math.max(0.6, w / 260); x.lineCap = 'round';
+  for (const L of (G.lines?.lat === lat ? G.lines.v : (G.lines = { lat, v: scaLines(lat) }).v)) {
+    x.strokeStyle = L.k === 'hour' ? 'rgba(70,58,40,.55)' : 'rgba(70,58,40,.75)'; x.lineWidth = L.k === 'hour' ? lw : lw * 1.3; x.beginPath(); let on = false;
+    for (const p of L.p) { const seen = p[2] < -0.005 && scaSeen(G, p); if (!seen) { on = false; continue; } const q = G.C.toScr(p); x[on ? 'lineTo' : 'moveTo'](q[0], q[1]); on = true; }
+    x.stroke(); }
+  // the pillars' carving on their fronts: a stem winding up, with leaves; at the foot a lion's paw (light and dark edges, as in relief)
+  { const { X0, Z0, PW, ZP } = SCA, yf = -1.25, ink = night ? 'rgba(30,26,22,.5)' : 'rgba(70,56,38,.5)', hi = night ? 'rgba(200,210,230,.18)' : 'rgba(255,246,220,.45)';
+    const lw2 = Math.max(0.6, w / 300);
+    for (const sd of [-1, 1]) { const xc = sd * (X0 + PW / 2), stem = []; for (let i = 0; i <= 40; i++) { const z = -Z0 + 0.3 + (ZP - 0.08 + Z0 - 0.3) * i / 40; stem.push([xc + 0.07 * Math.sin(z * 8.5), yf, z]); }
+      for (const [col, off] of [[hi, -0.6], [ink, 0.6]]) { x.strokeStyle = col; x.lineWidth = lw2; x.beginPath(); stem.forEach((p, i) => { const q = G.C.toScr(p); x[i ? 'lineTo' : 'moveTo'](q[0] + off * lw2, q[1] + off * lw2); }); x.stroke();
+        for (let i = 4; i < 40; i += 6) { const p = stem[i], dir = Math.sin(p[2] * 8.5 + 1.6) > 0 ? 1 : -1, q0 = G.C.toScr(p), q1 = G.C.toScr([p[0] + dir * 0.085, yf, p[2] + 0.06]);
+          x.beginPath(); x.moveTo(q0[0] + off * lw2, q0[1] + off * lw2); x.quadraticCurveTo((q0[0] + q1[0]) / 2 + off * lw2, q1[1] + off * lw2 - lw2 * 2, q1[0] + off * lw2, q1[1] + off * lw2); x.stroke(); } }
+      x.fillStyle = night ? 'rgba(60,62,70,.55)' : 'rgba(120,104,78,.55)';
+      for (let tI = -1; tI <= 1; tI++) { const q = G.C.toScr([xc + tI * PW * 0.27, yf, -Z0 + 0.09]), r = Math.max(1, PW * 0.12 * G.C.S / Math.hypot(G.C.E[1] - yf, G.C.E[2] + Z0)); x.beginPath(); x.ellipse(q[0], q[1], r, r * 0.8, 0, 0, 7); x.fill(); } } }
+  // the rod, bronze
+  const a = G.C.toScr(A), c = G.C.toScr(Bc); x.strokeStyle = night ? '#2a2418' : '#4b3a20'; x.lineWidth = Math.max(1, w / 110); x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(c[0], c[1]); x.stroke();
+  x.strokeStyle = 'rgba(255,220,150,.35)'; x.lineWidth = Math.max(0.5, w / 330); x.beginPath(); x.moveTo(a[0], a[1] - x.lineWidth); x.lineTo(c[0], c[1] - x.lineWidth); x.stroke();
+}
+function scaSeen(G, p) {                                              // a point of the bowl not hidden from the eye
+  const q = G.C.toScr(p), xi = Math.floor(q[0]), yi = Math.floor(q[1]); if (xi < 0 || yi < 0 || xi >= G.w || yi >= G.h) return false;
+  const i = yi * G.w + xi, dist = Math.hypot(p[0] - G.C.E[0], p[1] - G.C.E[1], p[2] - G.C.E[2]); return G.Mt[i] === 2 && Math.abs(G.Dp[i] - dist) < 0.08;
+}
+// the light of the moment for the place the dial shows: the sun by day; the moon, fainter and bluer, when the sun is down
+function scaLight() {
+  const r = sunRef(), t = sunTime(), sa = sunAt(sunPos(t), r.lng, r.lat), dir = (az, alt) => [Math.sin(az * RAD) * Math.cos(alt * RAD), Math.cos(az * RAD) * Math.cos(alt * RAD), Math.sin(alt * RAD)];
+  const sm = (a, b, v) => { const u = Math.max(0, Math.min(1, (v - a) / (b - a))); return u * u * (3 - 2 * u); };
+  if (sa.alt > -1) return { lat: Math.round(r.lat * 2) / 2, s: dir(sa.az, sa.alt), kL: 0.95 * sm(-1, 6, sa.alt), amb: 0.22 + 0.25 * sm(-6, 20, sa.alt), night: false };
+  const mo = moonPos(t), ma = sunAt(mo, r.lng, r.lat), dayGlow = sm(-12, 0, sa.alt);
+  if (ma && ma.alt > 0) return { lat: Math.round(r.lat * 2) / 2, s: dir(ma.az, ma.alt), kL: 0.35 * mo.lit, amb: 0.1 + 0.15 * dayGlow, night: true };
+  return { lat: Math.round(r.lat * 2) / 2, s: [0, 0, -1], kL: 0, amb: 0.1 + 0.15 * dayGlow, night: true };
+}
+function scaPaint(cv) {
+  if (!cv) return; const L = scaLight(), key = [cv.width, cv.height, L.lat, ...L.s.map(v => v.toFixed(3)), L.kL.toFixed(2), L.amb.toFixed(2), L.night].join();
+  if (cv._key === key) return; cv._key = key; scaDraw(cv, L.lat, L.s, L.kL, L.amb, L.night);
+}
