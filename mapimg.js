@@ -86,6 +86,9 @@ function imgCredit() {
   const m = M.map; let osm = false;
   if (m?.getLayer('osm-rivers') && M.cfg.rivers !== false) { try { osm = m.queryRenderedFeatures({ layers: ['osm-rivers', 'osm-lakes'].filter(l => m.getLayer(l)) }).length > 0; } catch (_) { osm = true; } }
   if (osm) parts.push('© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>');
+  // (the elevation – shading, contour lines, 3D terrain – credited while any of it is shown, 605a, v396)
+  if (m && M.relDem && M.cfg.elev !== false && (m.getTerrain?.() || (typeof relOn === 'function' && (relOn('relShade') || relOn('relContours')))))
+    parts.push('<a href="https://mapterhorn.com/attribution" target="_blank" rel="noopener">Mapterhorn</a>');
   const h = parts.join(' · '); if (el.innerHTML !== h) el.innerHTML = h; el.hidden = !parts.length;
   if (m && !m._credHook) { m._credHook = true; m.on('idle', () => { clearTimeout(M.credT); M.credT = setTimeout(imgCredit, 150); }); }
 }
