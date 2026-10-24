@@ -124,7 +124,7 @@ function camApply0() {
   let L = Math.max(30, Math.min(2e6, h));
   const globe = m.getProjection?.()?.type === 'globe', roll = (((c.roll || 0) + 180) % 360 + 360) % 360 - 180;
   if (!globe) {   // (the flat map: worked out flat – the earth there has no curve)
-    if (e < -0.01) L = Math.min(L, Math.max(5, 0.9 * h / Math.sin(-e)));
+    if (e < -0.01) L = Math.min(3e7, Math.max(5, h / Math.sin(-e)));   // (looking down: the centre where the line of sight meets the ground – v399)
     const D = L * Math.cos(e), tlat = c.lat + D * Math.cos(b) / mPerDeg, tlng = c.lng + D * Math.sin(b) / (mPerDeg * Math.max(0.05, Math.cos(c.lat * RAD)));
     const zoom = Math.log2(m.transform.cameraToCenterDistance * 2 * Math.PI * ER * Math.cos(tlat * RAD) / (512 * L));
     try { m.jumpTo({ center: [tlng, tlat], elevation: c.alt + L * Math.sin(e), zoom, pitch: c.pt, bearing: c.br, roll }); } catch (_) {}
@@ -132,7 +132,9 @@ function camApply0() {
   }
   // (looking down: not beyond the ground the line of sight meets)
   const pv = P[0] * v[0] + P[1] * v[1] + P[2] * v[2], rg = ER + g, disc = pv * pv - (r0 * r0 - rg * rg);
-  if (pv < 0 && disc > 0) L = Math.min(L, Math.max(5, 0.9 * (-pv - Math.sqrt(disc))));
+  // (v399: the centre exactly where the line of sight meets the ground – not some way short of it, up in the air: there the engine
+  // picked its tiles for a nearer ground than the one seen, loading far too many and too fine, and far out it lost the globe)
+  if (pv < 0 && disc > 0) L = Math.max(5, -pv - Math.sqrt(disc));
   const T = [0, 1, 2].map(i => P[i] + L * v[i]), rT = Math.hypot(...T), tlat = Math.asin(T[1] / rT), tlng = Math.atan2(T[0], T[2]);
   const U2 = T.map(x => x / rT), N2 = [-Math.sin(tlat) * Math.sin(tlng), Math.cos(tlat), -Math.sin(tlat) * Math.cos(tlng)], E2 = [Math.cos(tlng), 0, -Math.sin(tlng)];
   const dot = (a, q) => a[0] * q[0] + a[1] * q[1] + a[2] * q[2], vu = dot(v, U2), ve = dot(v, E2), vn = dot(v, N2);
