@@ -2145,3 +2145,4 @@ dialog .sortpair button{transition:border-color .15s}
 #mapBody:has(.mtime:not([hidden])) .mcred,#mapBody.sdopen .mcred{bottom:calc(2px + env(safe-area-inset-bottom,0px))}
 #mapBody:has(#mapCred:not([hidden])) .msdial{bottom:18px}
 #mapBody:has(#mapCred:not([hidden])) .sdmark{bottom:58px}
+.mnadir{position:absolute;top:100px;right:8px;z-index:3}
