@@ -1920,13 +1920,13 @@ dialog .sortpair button{transition:border-color .15s}
 .msdial{position:absolute;left:50%;transform:translateX(-50%);bottom:8px;width:calc(100% - 16px);max-width:660px;height:var(--sdh,250px);z-index:4;overflow:visible}
 .msdial .sdsvg{position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;display:block;touch-action:none;-webkit-user-select:none;user-select:none}
 .msdial .sdbg{position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;display:block;pointer-events:none}
-.msdial .sdsca{position:absolute;pointer-events:none}
+.msdial .sdsca{position:absolute;pointer-events:none;border-radius:50%}
 .msdial .sdrow .sdl,.msdial .sdrow .sdr{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:6px}
 .msdial .sdrow .sdl{justify-content:flex-end}
 .msdial .sdrow .sdr{justify-content:flex-start}
 .msdial .sdrow .sdgap{flex:none;width:calc(var(--sock,40px) + 6px)}
 .sdbig .dbw{position:relative;line-height:0}
-.sdbig .dbsca{position:absolute;pointer-events:none}
+.sdbig .dbsca{position:absolute;pointer-events:none;border-radius:50%}
 .msdial .sdedge{fill:none;stroke:rgba(255,255,255,.42);stroke-width:1}
 .msdial .sdstars circle{fill:#fff;animation:sdtw 3.4s ease-in-out infinite alternate}
 @keyframes sdtw{from{opacity:1}to{opacity:.35}}

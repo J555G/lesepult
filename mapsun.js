@@ -885,7 +885,7 @@ function skyAt(alt, eve) {
 // (v375: the panel reworked – dial at the left, the obelisk in the middle, the zodiac at the right, always; one row of buttons
 // along the bottom. The dial is drawn in its own space (centre cx, cy; ring R; plate P) and placed and scaled into the panel by
 // sdLay; ZR the zodiac's radius; FADE the height over which the panel's sky and its outline fade into the map; ROW the buttons.)
-const SD = { cx: 92, cy: 82, R: 70, P: 56, ZR: 72, FADE: 52, ROW: 40, H: 250, SW: 100, SH: 72 };   // (SW, SH: the stone dial's picture inside the ring – v376)   // (the fade: nothing above 24 px – the rounded corners – then in)   // the panel's height, the dial's centre, ring and plate radii;
+const SD = { cx: 92, cy: 82, R: 70, P: 56, ZR: 72, FADE: 52, ROW: 40, H: 250, SW: 116, SH: 116 };   // (SW, SH: the stone dial's picture – the ring's inner circle, v377)   // (the fade: nothing above 24 px – the rounded corners – then in)   // the panel's height, the dial's centre, ring and plate radii;
                                                                     // the zodiac wheel's radius and centre height, and the least width of the panel that shows it
 const sdAng = h => (h - 12) / 24 * 2 * Math.PI;                        // (clockwise, as the day goes on; noon at the top – v330)
 const sdXY = (h, r) => [SD.cx + Math.sin(sdAng(h)) * r, SD.cy - Math.cos(sdAng(h)) * r];
@@ -1029,7 +1029,7 @@ function sundialPaint() {
     M.sdT = Ly; M.zc = { x: Ly.zx, y: Ly.cy, r: (SD.ZR + 8) * k };
     // (the stone dial's canvas over the ring's middle; sharp on the screen)
     const cv = $('#sdSca'), dpr = Math.min(2, devicePixelRatio || 1), cw = SD.SW * k, ch = SD.SH * k;
-    if (cv) { cv.style.left = (Ly.dx - cw / 2).toFixed(1) + 'px'; cv.style.top = (Ly.cy - ch / 2 + 4 * k).toFixed(1) + 'px'; cv.style.width = cw.toFixed(1) + 'px'; cv.style.height = ch.toFixed(1) + 'px';
+    if (cv) { cv.style.left = (Ly.dx - cw / 2).toFixed(1) + 'px'; cv.style.top = (Ly.cy - ch / 2).toFixed(1) + 'px'; cv.style.width = cw.toFixed(1) + 'px'; cv.style.height = ch.toFixed(1) + 'px';
       cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr); cv._key = null; }
     obelPanelFit(Ly);
     sdRefUpd(); }
@@ -1124,7 +1124,7 @@ function dialBigPaint(l) {
   const svg = d.querySelector('svg'), cv = d.querySelector('.dbsca'), wb = svg.clientWidth; if (wb && cv) { const sb = wb / (2 * DB), dpr = Math.min(1.5, devicePixelRatio || 1);
     const cw = SD.SW * sb, ch = SD.SH * sb, pw = Math.round(cw * dpr), ph = Math.round(ch * dpr);
     if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; cv._key = null; }
-    Object.assign(cv.style, { width: cw + 'px', height: ch + 'px', left: ((DB - SD.SW / 2) * sb) + 'px', top: ((DB - SD.SH / 2 + 4) * sb) + 'px' }); scaPaint(cv); }
+    Object.assign(cv.style, { width: cw + 'px', height: ch + 'px', left: ((DB - SD.SW / 2) * sb) + 'px', top: ((DB - SD.SH / 2) * sb) + 'px' }); scaPaint(cv); }
   l ||= sunLabel(); const lb = $('#dialBigLab'); if (lb) lb.textContent = `${l.main} · ${l.sub}`;
 }
 document.addEventListener('change', ev => { if (ev.target.closest?.('[data-sunsw]')) sunSet({ sun: ev.target.checked }).then(() => { const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML(); sundialPaint(); }); });
@@ -1303,13 +1303,17 @@ addEventListener('resize', () => { if (M.sdOpen) requestAnimationFrame(sundialPa
 // the raised pole. Drawn by tracing rays through a small model (in its own frame: x to the right, y towards the raised pole,
 // z up; the sphere's radius 1, its centre the rod's tip), seen from the front, a little from above. The shapes are worked out
 // once for each size and latitude; each time only the light: the sun (or at night the moon), the bowl's shade, the rod's shadow.
-const SCA = { X0: 1.3, Y0: 1.15, Z0: 1.28, ZF: 1.04, PW: 0.3, ZP: 0.28, rod: 0.022 };
+// (v377: the stone itself only a half-bowl – the outer shell RO, cut flat at the top and the front; no ledge, no pillars – 543)
+const SCA = { X0: 1.3, Y0: 1.15, Z0: 1.28, ZF: 1.04, PW: 0.3, ZP: 0.28, rod: 0.022, shape: 'shell', ledge: false, pillars: false, el: 24, RO: 1.15 };
 // how far in front of the centre the front face stands, for a latitude: the sun's farthest reach towards the raised pole – at
 // sunrise in midsummer (sin 23.4° / cos φ), a little more for good measure; beyond the polar circles nearly the whole half
 const scaFront = alat => Math.min(0.97, Math.sin(24.4 * RAD) / Math.cos(Math.min(89, alat) * RAD) + 0.04);
 function scaBoxes(yc = 0.5) {
-  const { X0, Y0, Z0, ZF, PW, ZP } = SCA, yl = -1.25;
-  return { U: [-X0, -yc, -ZF, X0, Y0, 0], F: [-X0, yl, -Z0, X0, Y0, -ZF], L: [-X0 - PW, yl, -Z0, -X0, Y0, ZP], R: [X0, yl, -Z0, X0 + PW, Y0, ZP] };
+  const { X0, Y0, Z0, ZF, PW, ZP } = SCA, yl = SCA.ledge ? -1.25 : -yc, o = { U: [-X0, -yc, SCA.ledge ? -ZF : -Z0, X0, Y0, 0] };
+  if (SCA.ledge) o.F = [-X0, yl, -Z0, X0, Y0, -ZF];
+  if (SCA.pillars) { o.L = [-X0 - PW, yl, -Z0, -X0, Y0, ZP]; o.R = [X0, yl, -Z0, X0 + PW, Y0, ZP]; }
+  if (SCA.shape === 'shell') return { U: [-SCA.RO, -yc, -SCA.RO, SCA.RO, SCA.RO, 0] };
+  return o;
 }
 function scaBox(o, d, b) {                                            // the slab test: [enter, leave, the face's normal] or null
   let t0 = -1e9, t1 = 1e9, n = null;
@@ -1329,38 +1333,58 @@ function scaSphere(o, d) {                                            // the sph
 function scaHit(o, d, yc) {
   const X = scaBoxes(yc); let best = null;
   const take = (t, n, m) => { if (t > 1e-5 && (!best || t < best.t)) best = { t, n, m }; };
-  const b = scaBox(o, d, X.U);
+  let b = scaBox(o, d, X.U);
+  if (b && SCA.shape === 'shell') {                                   // (a stone half-shell: the outer sphere, cut flat at the top and the front)
+    const R2 = SCA.RO * SCA.RO, bb = o[0] * d[0] + o[1] * d[1] + o[2] * d[2], cc = o[0] * o[0] + o[1] * o[1] + o[2] * o[2] - R2, D = bb * bb - cc;
+    if (D <= 0) b = null; else { const q = Math.sqrt(D), u0 = -bb - q, u1 = -bb + q;
+      if (u0 > b[0]) { const p = [o[0] + d[0] * u0, o[1] + d[1] * u0, o[2] + d[2] * u0]; b = [u0, b[1], p.map(v => v / SCA.RO)]; }
+      b[1] = Math.min(b[1], u1); if (b[0] >= b[1]) b = null; } }
   if (b) { const t0 = b[0], t1 = b[1], s = scaSphere(o, d), te = Math.max(t0, 0);
     if (!(s && s[0] < te && te < s[1])) take(t0, b[2], 1);
     else if (s[1] < t1) { const p = [o[0] + d[0] * s[1], o[1] + d[1] * s[1], o[2] + d[2] * s[1]]; take(s[1], [-p[0], -p[1], -p[2]], 2); } }
-  for (const [k, m] of [['F', 3], ['L', 4], ['R', 4]]) { const h = scaBox(o, d, X[k]); if (h) take(h[0], h[2], m); }
+  for (const [k, m] of [['F', 3], ['L', 4], ['R', 4]]) { if (!X[k]) continue; const h = scaBox(o, d, X[k]); if (h) take(h[0], h[2], m); }
   return best;
 }
 // the camera: from the front (the equator's side), a little from above; the picture fitted to the stone
-function scaCam(w, h) {
-  const E = [0, -6.4, 2.9], T = [0, 0.12, -0.55], f = norm3([T[0] - E[0], T[1] - E[1], T[2] - E[2]]), r = norm3([f[1], -f[0], 0]), u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
+// (v377: the elevation as asked; the rim's widest points – left and right at the top – pinned to the middle of the picture's left and
+// right edges, so that the bowl's widest line lies on the ring's, whatever the elevation – 545)
+function scaCam(w, h, elD = SCA.el) {
+  const el = elD * RAD, T = [0, 0.12, -0.5], E = [0, T[1] - 7 * Math.cos(el), T[2] + 7 * Math.sin(el)], f = norm3([T[0] - E[0], T[1] - E[1], T[2] - E[2]]), r = norm3([f[1], -f[0], 0]), u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
   const X = scaBoxes(), pts = []; for (const b of Object.values(X)) for (const x of [b[0], b[3]]) for (const y of [b[1], b[4]]) for (const z of [b[2], b[5]]) pts.push([x, y, z]);
   const pr = p => { const v = [p[0] - E[0], p[1] - E[1], p[2] - E[2]], z = v[0] * f[0] + v[1] * f[1] + v[2] * f[2]; return [(v[0] * r[0] + v[1] * r[1] + v[2] * r[2]) / z, (v[0] * u[0] + v[1] * u[1] + v[2] * u[2]) / z]; };
   const q = pts.map(pr), x0 = Math.min(...q.map(a => a[0])), x1 = Math.max(...q.map(a => a[0])), y0 = Math.min(...q.map(a => a[1])), y1 = Math.max(...q.map(a => a[1]));
-  const S = Math.min(w * 0.98 / (x1 - x0), h * 0.98 / (y1 - y0)), cx = w / 2 - S * (x0 + x1) / 2, cy = h / 2 + S * (y0 + y1) / 2;
+  let S = Math.min(w * 0.98 / (x1 - x0), h * 0.98 / (y1 - y0)), cx = w / 2 - S * (x0 + x1) / 2, cy = h / 2 + S * (y0 + y1) / 2;
+  if (SCA.shape === 'shell') { const a = pr([SCA.RO, 0, 0]); S = (w / 2) / a[0]; cx = w / 2; cy = h / 2 + S * a[1]; }
   return { E, f, r, u, S, cx, cy, toScr: p => { const a = pr(p); return [cx + S * a[0], cy - S * a[1]]; },
     ray: (px, py) => norm3([f[0] + r[0] * (px - cx) / S - u[0] * (py - cy) / S, f[1] + r[1] * (px - cx) / S - u[1] * (py - cy) / S, f[2] + r[2] * (px - cx) / S - u[2] * (py - cy) / S]) };
 }
 function norm3(v) { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; }
 // the shapes, once for each size and latitude: for every pixel its point, normal, kind of stone and grain
-function scaGeo(w, h, alat) {
-  const C = scaCam(w, h), yc = scaFront(alat), n = w * h, P = new Float32Array(n * 3), N = new Float32Array(n * 3), Mt = new Uint8Array(n), G = new Float32Array(n), Dp = new Float32Array(n).fill(1e9);
+function scaGeo(w, h, alat, el) {
+  const C = scaCam(w, h, el), yc = scaFront(alat), n = w * h, P = new Float32Array(n * 3), N = new Float32Array(n * 3), Mt = new Uint8Array(n), G = new Float32Array(n), Dp = new Float32Array(n).fill(1e9);
   const hsh = (a, b, c) => { const s = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5453; return s - Math.floor(s); };
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const d = C.ray(x + 0.5, y + 0.5), hit = scaHit(C.E, d, yc), i = y * w + x; if (!hit) continue;
     const p = [C.E[0] + d[0] * hit.t, C.E[1] + d[1] * hit.t, C.E[2] + d[2] * hit.t];
     P.set(p, i * 3); N.set(hit.n, i * 3); Mt[i] = hit.m; Dp[i] = hit.t;
-    G[i] = 0.93 + 0.05 * hsh(Math.floor(p[0] * 40), Math.floor(p[1] * 40), Math.floor(p[2] * 40)) + 0.04 * hsh(Math.floor(p[0] * 9), Math.floor(p[1] * 9), Math.floor(p[2] * 9));
+    G[i] = scaStone(p);
   }
-  return { w, h, alat, yc, C, P, N, Mt, G, Dp };
+  return { w, h, alat, el, yc, C, P, N, Mt, G, Dp };
 }
 // a direction in the sky (true: x east, y north, z up) in the dial's frame (turned round on the southern half of the earth)
 const scaLoc = (v, lat) => lat < 0 ? [-v[0], -v[1], v[2]] : v;
+// the stone's surface: limestone – a mottling at several scales, fine pits, faint veins (a factor about 1)
+function scaNoise(x, y, z) {
+  const fl = Math.floor, X = fl(x), Y = fl(y), Z = fl(z), fx = x - X, fy = y - Y, fz = z - Z, sm = t => t * t * (3 - 2 * t), u = sm(fx), v = sm(fy), w = sm(fz);
+  const h = (a, b, c) => { const s = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5453; return s - fl(s); }, L = (a, b, t) => a + (b - a) * t;
+  return L(L(L(h(X, Y, Z), h(X + 1, Y, Z), u), L(h(X, Y + 1, Z), h(X + 1, Y + 1, Z), u), v), L(L(h(X, Y, Z + 1), h(X + 1, Y, Z + 1), u), L(h(X, Y + 1, Z + 1), h(X + 1, Y + 1, Z + 1), u), v), w);
+}
+function scaStone(p) {
+  let f = 0, a = 0.5, k = 3; for (let o = 0; o < 4; o++) { f += a * scaNoise(p[0] * k + 11, p[1] * k + 7, p[2] * k + 3); a *= 0.5; k *= 2.3; }
+  const pit = scaNoise(p[0] * 70, p[1] * 70, p[2] * 70) > 0.86 ? 0.88 : 1;
+  const vein = Math.pow(1 - Math.abs(Math.sin(p[0] * 2.2 + p[2] * 1.3 + f * 5)), 22) * 0.07;
+  return (0.86 + 0.2 * f) * pit - vein;
+}
 // the engraved lines for a latitude (degrees): polylines on the bowl (points on the unit sphere, the shadow's places)
 function scaLines(lat) {
   const f = lat * RAD, at = (dec, H) => { const d = dec * RAD, sa = Math.sin(f) * Math.sin(d) + Math.cos(f) * Math.cos(d) * Math.cos(H), alt = Math.asin(sa);
@@ -1376,13 +1400,19 @@ function scaLines(lat) {
 // sky's light)
 function scaDraw(cv, lat, s0, kL, amb, night) {
   const w = cv.width, h = cv.height; if (!w || !h) return;
-  const alat = Math.round(Math.abs(lat)); let G = cv._sca; if (!G || G.w !== w || G.h !== h || G.alat !== alat) G = cv._sca = scaGeo(w, h, alat);
-  const s = scaLoc(s0, lat), x = cv.getContext('2d'), img = x.createImageData(w, h), D = img.data, { P, N, Mt, G: gr, yc } = G;
-  const A = [0, 1, 0.012], Bc = [0, 0, 0], up = s[2] > 0 && kL > 0;
-  const tint = night ? [0.62, 0.7, 0.9] : [1, 0.97, 0.9], base = { 1: [0.86, 0.82, 0.72], 2: [0.9, 0.86, 0.76], 3: [0.76, 0.72, 0.63], 4: [0.8, 0.76, 0.66] };
+  const alat = Math.round(Math.abs(lat)), s = scaLoc(s0, lat), up = s[2] > 0 && kL > 0;
+  // the viewpoint (544a): from the front a little above – raised in steps when the shadow's point would be hidden, so that the time
+  // can always be read; kept while the point stays in sight (no needless jumps)
+  const el = scaView(cv, alat, up ? [-s[0], -s[1], -s[2]] : null);
+  let G = cv._sca; if (!G || G.w !== w || G.h !== h || G.alat !== alat || G.el !== el) G = cv._sca = scaGeo(w, h, alat, el);
+  const x = cv.getContext('2d'), img = x.createImageData(w, h), D = img.data, { P, N, Mt, G: gr, yc } = G;
+  const A = [0, 1, 0.012], Bc = [0, 0, 0];
+  // (by moonlight: silvery, and the shadows soft and faint – the light taken from several points of the moon's disc and beyond)
+  const tint = night ? [0.8, 0.86, 1.0] : [1, 0.97, 0.9], base = { 1: [0.86, 0.82, 0.72], 2: [0.9, 0.86, 0.76], 3: [0.76, 0.72, 0.63], 4: [0.8, 0.76, 0.66] };
+  const jit = night ? [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].map(([a, b]) => { const e1 = norm3([s[1], -s[0], 0]), e2 = [s[1] * e1[2] - s[2] * e1[1], s[2] * e1[0] - s[0] * e1[2], s[0] * e1[1] - s[1] * e1[0]], k = 0.035; return norm3([s[0] + k * (a * e1[0] + b * e2[0]), s[1] + k * (a * e1[1] + b * e2[1]), s[2] + k * (a * e1[2] + b * e2[2])]); }) : [s];
   // (the shortest distance between the ray towards the light and the rod: in its shadow when closer than its thickness)
   const ab = [Bc[0] - A[0], Bc[1] - A[1], Bc[2] - A[2]], abl = Math.hypot(...ab);
-  const rodShade = p => { const w0 = [p[0] - A[0], p[1] - A[1], p[2] - A[2]], b = (s[0] * ab[0] + s[1] * ab[1] + s[2] * ab[2]) / abl,
+  const rodShade = (p, s) => { const w0 = [p[0] - A[0], p[1] - A[1], p[2] - A[2]], b = (s[0] * ab[0] + s[1] * ab[1] + s[2] * ab[2]) / abl,
       d = s[0] * w0[0] + s[1] * w0[1] + s[2] * w0[2], e = (ab[0] * w0[0] + ab[1] * w0[1] + ab[2] * w0[2]) / abl, den = 1 - b * b;
     let t = den > 1e-9 ? (b * e - d) / den : 0, u = den > 1e-9 ? (e - b * d) / den : e; if (t < 0) { t = 0; u = e; } u = Math.max(0, Math.min(abl, u));
     const q = [p[0] + s[0] * t - (A[0] + ab[0] / abl * u), p[1] + s[1] * t - (A[1] + ab[1] / abl * u), p[2] + s[2] * t - (A[2] + ab[2] / abl * u)];
@@ -1391,11 +1421,18 @@ function scaDraw(cv, lat, s0, kL, amb, night) {
     const m = Mt[i]; if (!m) continue;
     const p = [P[3 * i], P[3 * i + 1], P[3 * i + 2]], nn = [N[3 * i], N[3 * i + 1], N[3 * i + 2]];
     let lit = 0;
-    if (up) { lit = Math.max(0, nn[0] * s[0] + nn[1] * s[1] + nn[2] * s[2]);
-      // (the bowl: lit where the light comes in through the opening – the ray leaves the sphere above the top or in front of the face)
-      if (lit > 0 && m === 2) { const sp = scaSphere(p, s); if (sp) { const t = sp[1], q = [p[0] + s[0] * t, p[1] + s[1] * t, p[2] + s[2] * t]; if (q[2] < -1e-3 && q[1] > -yc + 1e-3) lit = 0; } }
-      if (lit > 0 && m === 2 && rodShade(p)) lit = 0; }
-    const k = (amb + kL * lit * 1.05) * gr[i], b = base[m];
+    let gl = 0;
+    if (up) { const lam = Math.max(0, nn[0] * s[0] + nn[1] * s[1] + nn[2] * s[2]);
+      if (lam > 0) { let vis = 0;
+        for (const sj of jit) { let ok = true;
+          // (the bowl: lit where the light comes in through the opening – the ray leaves the sphere above the top or in front of the face)
+          if (m === 2) { const sp = scaSphere(p, sj); if (sp) { const t = sp[1]; if (p[2] + sj[2] * t < -1e-3 && p[1] + sj[1] * t > -yc + 1e-3) ok = false; } if (ok && rodShade(p, sj)) ok = false; }
+          if (ok) vis++; }
+        vis /= jit.length; if (night) vis = 0.45 + 0.55 * vis;           // (by moonlight the shadow only half as dark)
+        lit = lam * vis;
+        // (the moon's sheen: a soft highlight where the stone faces between the moon and the eye)
+        if (night) { const v = norm3([G.C.E[0] - p[0], G.C.E[1] - p[1], G.C.E[2] - p[2]]), hv = norm3([v[0] + s[0], v[1] + s[1], v[2] + s[2]]); gl = Math.pow(Math.max(0, nn[0] * hv[0] + nn[1] * hv[1] + nn[2] * hv[2]), 18) * 0.5 * kL * vis; } } }
+    const k = (amb + kL * lit * 1.05) * gr[i] + gl, b = base[m];
     D[4 * i] = Math.min(255, 255 * b[0] * k * tint[0]); D[4 * i + 1] = Math.min(255, 255 * b[1] * k * tint[1]); D[4 * i + 2] = Math.min(255, 255 * b[2] * k * tint[2]); D[4 * i + 3] = 255;
   }
   x.putImageData(img, 0, 0);
@@ -1405,7 +1442,7 @@ function scaDraw(cv, lat, s0, kL, amb, night) {
     x.strokeStyle = L.k === 'hour' ? 'rgba(70,58,40,.55)' : 'rgba(70,58,40,.75)'; x.lineWidth = L.k === 'hour' ? lw : lw * 1.3; x.beginPath(); let on = false;
     for (const p of L.p) { const seen = p[2] < -0.005 && scaSeen(G, p); if (!seen) { on = false; continue; } const q = G.C.toScr(p); x[on ? 'lineTo' : 'moveTo'](q[0], q[1]); on = true; }
     x.stroke(); }
-  // the pillars' carving on their fronts: a stem winding up, with leaves; at the foot a lion's paw (light and dark edges, as in relief)
+  if (SCA.pillars) // the pillars' carving on their fronts: a stem winding up, with leaves; at the foot a lion's paw (light and dark edges, as in relief)
   { const { X0, Z0, PW, ZP } = SCA, yf = -1.25, ink = night ? 'rgba(30,26,22,.5)' : 'rgba(70,56,38,.5)', hi = night ? 'rgba(200,210,230,.18)' : 'rgba(255,246,220,.45)';
     const lw2 = Math.max(0.6, w / 300);
     for (const sd of [-1, 1]) { const xc = sd * (X0 + PW / 2), stem = []; for (let i = 0; i <= 40; i++) { const z = -Z0 + 0.3 + (ZP - 0.08 + Z0 - 0.3) * i / 40; stem.push([xc + 0.07 * Math.sin(z * 8.5), yf, z]); }
@@ -1417,6 +1454,16 @@ function scaDraw(cv, lat, s0, kL, amb, night) {
   // the rod, bronze
   const a = G.C.toScr(A), c = G.C.toScr(Bc); x.strokeStyle = night ? '#2a2418' : '#4b3a20'; x.lineWidth = Math.max(1, w / 110); x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(c[0], c[1]); x.stroke();
   x.strokeStyle = 'rgba(255,220,150,.35)'; x.lineWidth = Math.max(0.5, w / 330); x.beginPath(); x.moveTo(a[0], a[1] - x.lineWidth); x.lineTo(c[0], c[1] - x.lineWidth); x.stroke();
+}
+// the elevation to look from: the lowest of 24°, 30° … 66° from which the shadow's point is in sight (the last one kept while it is)
+function scaView(cv, alat, sh) {
+  const keep = cv._el ?? 24; if (!sh) return cv._el = keep;
+  const yc = scaFront(alat), seen = el => { if (sh[2] > -1e-3 || sh[1] < -yc) return true;   // (not on the bowl: nothing to look for)
+    const C = scaCam(64, 64, el), d = norm3([sh[0] - C.E[0], sh[1] - C.E[1], sh[2] - C.E[2]]), hit = scaHit(C.E, d, yc), dist = Math.hypot(sh[0] - C.E[0], sh[1] - C.E[1], sh[2] - C.E[2]);
+    return hit && hit.m === 2 && Math.abs(hit.t - dist) < 0.03; };
+  if (cv._el != null && seen(cv._el) && (cv._el === 24 || !seen(cv._el - 6))) return cv._el;
+  for (let el = 24; el <= 66; el += 6) if (seen(el)) return cv._el = el;
+  return cv._el = 66;
 }
 function scaSeen(G, p) {                                              // a point of the bowl not hidden from the eye
   const q = G.C.toScr(p), xi = Math.floor(q[0]), yi = Math.floor(q[1]); if (xi < 0 || yi < 0 || xi >= G.w || yi >= G.h) return false;
