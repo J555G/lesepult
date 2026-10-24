@@ -2079,7 +2079,6 @@ dialog .sortpair button{transition:border-color .15s}
 .msdial .sdrow .obsz{flex:0 1 80px;min-width:44px;accent-color:#c46a7e}
 .msdial .sdsw{flex:none;width:30px;height:30px;padding:0;border-radius:50%;border:1px solid rgba(255,255,255,.45);background:rgba(0,0,0,.28);color:rgba(255,255,255,.7);display:grid;place-items:center;cursor:pointer}
 .msdial .sdsw.on{background:rgba(255,209,102,.3);border-color:#ffd166;color:#ffd166}
-.msdial .sdtime{cursor:pointer}
 .msdial .sdzlab{font-size:13px}
 .msdial .sdzod{cursor:pointer}
 @media (max-width:420px){.msdial .sdrow{gap:4px}.msdial .sdrow .seg button{padding:.22rem .4rem;font-size:11.5px}.msdial .sdrow .msun output{display:none}}
@@ -2121,4 +2120,12 @@ dialog .sortpair button{transition:border-color .15s}
 .zodbig.inpane svg.zw{width:min(88cqw,76cqh,720px);position:relative}
 .zodbig.inpane.sdbig .dbw>svg{width:min(84cqw,70cqh,640px)}
 .zodbig.inpane .dbw,.zodbig.inpane .zl{position:relative}
-.frl{transition:opacity 1.6s ease-in-out}
+.frwl{transition:opacity 3.3s ease-in-out}
+:is(.msdial,.sdbig) .sdnum{font:600 6.2px var(--greek);fill:rgba(255,255,255,.88);text-anchor:middle;dominant-baseline:central;paint-order:stroke;stroke:rgba(0,0,0,.45);stroke-width:1px}
+:is(.msdial,.sdbig) .sdsun{stroke-width:.6}
+:is(.msdial,.sdbig) .sdsunr{stroke-width:.35;stroke-linejoin:round}
+:is(.msdial,.sdbig) .sdsunp{opacity:.85}
+:is(.msdial,.sdbig) .sdmoon{fill:#eeeadc}
+:is(.msdial,.sdbig) .sdmoonc{fill:#3b4466;opacity:1}
+:is(.msdial,.sdbig) .sdmoono{fill:none;stroke:#b8913f;stroke-width:.8}
+.msdial .sdfmt{flex:none;height:30px;min-width:46px;padding:0 9px;margin-left:6px;border-radius:15px;border:1px solid rgba(255,255,255,.45);background:rgba(0,0,0,.28);color:#fff;font:600 13px var(--greek);cursor:pointer;touch-action:manipulation}

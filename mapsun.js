@@ -890,7 +890,7 @@ function sunLabel() {
   if (fmt === 'modern' || set - rise <= 0 || set - rise >= 24) return { main: hm, sub: date };
   if (lst >= rise && lst < set) { const n = Math.min(11, Math.floor((lst - rise) / ((set - rise) / 12)));
     return { main: fmt === 'roman' ? (n ? `hora ${RO_NUM[n]}` : 'hora prima') : `ὥρα ${GR_NUM[n]}`, sub: date }; }
-  const night = 24 - (set - rise), w = Math.min(3, Math.floor(((lst - set + 24) % 24) / (night / 4)));
+  const night = 24 - (set - rise), nW = fmt === 'greek' ? 3 : 4, w = Math.min(nW - 1, Math.floor(((lst - set + 24) % 24) / (night / nW)));
   return { main: fmt === 'roman' ? `vigilia ${RO_NUM[w]}` : `φυλακὴ ${GR_NUM[w]}`, sub: date };
 }
 // the sky by the sun's height: [height, top, foot] – the evening red, the morning rose
@@ -957,17 +957,14 @@ function frescoHTML(p) {
       <radialGradient id="${p}HaG"><stop offset="0" id="${p}Ha0" stop-opacity=".95"/><stop offset=".27" id="${p}Ha0b" stop-opacity=".95"/><stop offset=".31" id="${p}Ha1" stop-opacity=".72"/><stop offset=".57" id="${p}Ha1b" stop-opacity=".72"/><stop offset=".62" id="${p}Ha2" stop-opacity=".42"/><stop offset=".84" id="${p}Ha2b" stop-opacity=".42"/><stop offset="1" id="${p}Ha3" stop-opacity="0"/></radialGradient>
       <radialGradient id="${p}WaG"><stop offset="0" id="${p}Wa0" stop-opacity=".8"/><stop offset=".4" id="${p}Wa0b" stop-opacity=".8"/><stop offset=".44" id="${p}Wa1" stop-opacity=".5"/><stop offset=".7" id="${p}Wa1b" stop-opacity=".5"/><stop offset=".75" id="${p}Wa2" stop-opacity=".22"/><stop offset=".9" id="${p}Wa2b" stop-opacity=".22"/><stop offset="1" id="${p}Wa3" stop-opacity="0"/></radialGradient>
       <linearGradient id="${p}CoG" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
-      <linearGradient id="${p}McG" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
       <mask id="${p}CoM" maskUnits="userSpaceOnUse" x="-${big}" y="-${big}" width="${2 * big}" height="${2 * big}"><path id="${p}CoP" fill="url(#${p}CoG)" d=""/></mask>
-      <mask id="${p}McM" maskUnits="userSpaceOnUse" x="-${big}" y="-${big}" width="${2 * big}" height="${2 * big}"><path id="${p}McP" fill="url(#${p}McG)" d=""/></mask>
       <clipPath id="${p}Ab"><rect id="${p}AbR" x="-${big}" y="-${big}" width="${2 * big}" height="0"/></clipPath>
       <clipPath id="${p}Be"><rect id="${p}BeR" x="-${big}" y="0" width="${2 * big}" height="${2 * big}"/></clipPath></defs>
     <g class="frsky"><rect id="${p}B0" x="-${big}" y="-${big}" width="${2 * big}" height="${2 * big}"/><path id="${p}B1" d=""/><path id="${p}B2" d=""/><path id="${p}B3" d=""/></g>
     <g clip-path="url(#${p}Ab)"><ellipse id="${p}Wa" rx="0" ry="0" fill="url(#${p}WaG)"/><path id="${p}St" class="frstar" d=""/><ellipse id="${p}Ha" rx="0" ry="0" fill="url(#${p}HaG)"/></g>
     <g class="frsea"><rect id="${p}S0" x="-${big}" y="0" width="${2 * big}" height="0"/><path id="${p}S1" d=""/><path id="${p}S2" d=""/><path id="${p}Hz" class="frhz" d=""/></g>
-    <g clip-path="url(#${p}Be)"><g id="${p}CrG" class="frcr" fill="#ece6cf"><g class="frl ${p}l0"><path id="${p}Cr0" d=""/></g><g class="frl ${p}l1" style="opacity:0"><path id="${p}Cr1" d=""/></g></g>
-      <g mask="url(#${p}CoM)" id="${p}Co"><rect id="${p}CoW" x="-${big}" y="0" width="${2 * big}" height="${2 * big}"/><g class="frl ${p}l0"><use href="#${p}Cr0"/></g><g class="frl ${p}l1" style="opacity:0"><use href="#${p}Cr1"/></g></g>
-      <g mask="url(#${p}McM)" id="${p}Mc" fill="#e4e9f2"><rect id="${p}McW" x="-${big}" y="0" width="${2 * big}" height="${2 * big}"/><g class="frl ${p}l0"><use href="#${p}Cr0"/></g><g class="frl ${p}l1" style="opacity:0"><use href="#${p}Cr1"/></g></g></g>
+    <g clip-path="url(#${p}Be)"><g id="${p}CrG" class="frcr" fill="#ece6cf"><g class="frwl ${p}l0"><path id="${p}Cr0" d=""/></g><g class="frwl ${p}l1" style="opacity:0"><path id="${p}Cr1" d=""/></g></g>
+      <g mask="url(#${p}CoM)" id="${p}Co"><rect id="${p}CoW" x="-${big}" y="0" width="${2 * big}" height="${2 * big}"/><g class="frwl ${p}l0"><use href="#${p}Cr0"/></g><g class="frwl ${p}l1" style="opacity:0"><use href="#${p}Cr1"/></g></g></g>
     <rect class="frchalk" x="-${big}" y="-${big}" width="${2 * big}" height="${2 * big}"/><rect class="frgrain" x="-${big}" y="-${big}" width="${2 * big}" height="${2 * big}" fill="url(#${p}Gr)"/>`;
 }
 // a brushed edge: level at y, wavering by up to a (fixed along x, so that it does not flicker as the bands move)
@@ -1041,8 +1038,8 @@ function frescoPaint(p, o) {
   if (f.key !== key) { const now = performance.now(), wait = 2000 - (now - (f.t || 0));
     if (wait <= 0 || !f.key || !E('Cr' + f.cur).getAttribute('d')) { f.key = key; f.t = now; E('Cr' + f.cur).setAttribute('d', frCrests(W, hz, yb + 4, k, f.seed)); E('Cr' + (1 - f.cur)).setAttribute('d', ''); }
     else if (!f.tm) f.tm = setTimeout(() => { f.tm = null; f.t = 0; frescoPaint(p, f.o); }, wait); }
-  FR_TICK ||= setInterval(frTick, 4500);
-  const dayn = Math.max(0, Math.min(1, (alt + 6) / 14)); E('CrG').setAttribute('fill-opacity', (0.16 + 0.42 * dayn).toFixed(2));
+  FR_TICK ||= setInterval(frTick, 5500);
+  const dayn = Math.max(0, Math.min(1, (alt + 6) / 14)); E('CrG').setAttribute('fill-opacity', (0.22 + 0.36 * dayn).toFixed(2));
   // the gilded stars, at night
   const so = Math.max(0, Math.min(1, (-alt - 5) / 11)), st = E('St');
   st.setAttribute('d', so > 0.01 ? frStars(W, hz, Math.max(0.8, k), S.t) : ''); st.style.opacity = so.toFixed(2);
@@ -1055,20 +1052,37 @@ function frescoPaint(p, o) {
   if (S.lowG > 0.01) { ha.setAttribute('cx', sx.toFixed(1)); ha.setAttribute('cy', sy.toFixed(1)); ha.setAttribute('rx', (S.gr0 * ks * (1 + 3.2 * S.lowG)).toFixed(1)); ha.setAttribute('ry', (S.gr0 * ks * (1 + 0.3 * S.lowG)).toFixed(1)); ha.style.opacity = (0.9 * S.lowG).toFixed(2);
     [['Ha0', mixW(tc, 0.6)], ['Ha0b', mixW(tc, 0.6)], ['Ha1', tc], ['Ha1b', tc], ['Ha2', mixC(tc, VERM, 0.45)], ['Ha2b', mixC(tc, VERM, 0.45)], ['Ha3', mixC(tc, VERM, 0.45)]].forEach(([n, c]) => E(n).setAttribute('stop-color', hex(c))); }
   else { ha.setAttribute('rx', 0); ha.setAttribute('ry', 0); }
-  // the light on the waves (564a): the crests beneath the sun in its colour – narrow and bright when it is low, broad and paler high up
+  // the light on the waves (564a): the crests beneath the sun in its colour
   const col = (P, x, w0, w1, a) => { const m = E(P + 'P'), g = E(P + 'G'); if (a <= 0.005) { m.setAttribute('d', ''); return; }
     m.setAttribute('d', `M${(x - w0).toFixed(1)} ${hz.toFixed(1)}H${(x + w0).toFixed(1)}L${(x + w1).toFixed(1)} ${(yb + 6).toFixed(1)}H${(x - w1).toFixed(1)}z`);
     g.setAttribute('x1', (x - w1).toFixed(1)); g.setAttribute('x2', (x + w1).toFixed(1)); m.style.opacity = Math.min(1, a).toFixed(2); };
-  { const low = Math.max(0, Math.min(1, 1 - alt / 45)), up = sy < hz - 1 && alt > -0.8 ? Math.min(1, (alt + 0.8) / 2.5) : 0;
-    col('Co', Math.min(W - 4, Math.max(4, sx)), (3 + 7 * (1 - low)) * k, W * (0.08 + 0.2 * (1 - low)), up * (0.6 + 0.4 * low));
+  // (while any of the sun's disc shows above the horizon – a sliver already gives a clear path – and only while it stands low:
+  // fading out between 8° and 20°)
+  { const rs = 8.5 * ks, f = Math.max(0, Math.min(1, (hz - (sy - rs)) / (2 * rs))), lowS = Math.max(0, Math.min(1, (20 - alt) / 12));
+    col('Co', Math.min(W - 4, Math.max(4, sx)), 3.5 * k, W * 0.1, Math.sqrt(f) * lowS * 0.95);
     E('Co').setAttribute('fill', hex(mixW(tc, 0.3))); E('CoW').setAttribute('fill', hex(tc)); E('CoW').setAttribute('fill-opacity', '0.26'); }
-  // the moon is the handle on the dial (570b, as corrected): its light, silver, falls on the waves beneath the handle by night –
-  // the brighter the fuller (not painted in the sky)
-  { const mx = o.mx ?? sx, a = (0.3 + 0.7 * S.moon.lit) * Math.max(0, Math.min(1, (-alt - 4) / 6));
-    col('Mc', mx, 3 * k, W * 0.12, a); E('McW').setAttribute('fill-opacity', '0.15'); }
+}
+// the sun on the handle, gilded and tooled as Simone Martini's haloes (572a): sixteen rays, long and short, and a ring of punched
+// dots; the moon lime-white, its dark part in the blue-grey of the night sky, an ochre line round it (573a – v385)
+const SD_RAYS = Array.from({ length: 16 }, (_, i) => { const a = i * Math.PI / 8, r1 = i % 2 ? 11.2 : 13.4, w = 0.2, P = (r, b) => `${(Math.sin(b) * r).toFixed(2)} ${(-Math.cos(b) * r).toFixed(2)}`;
+  return `M${P(7.8, a - w)}L${P(r1, a)}L${P(7.8, a + w)}z`; }).join('');
+const SD_PUNCH = Array.from({ length: 16 }, (_, i) => { const a = (i + 0.5) * Math.PI / 8, x = Math.sin(a) * 6.6, y = -Math.cos(a) * 6.6;
+  return `M${(x - 0.55).toFixed(2)} ${y.toFixed(2)}a.55 .55 0 1 0 1.1 0a.55 .55 0 1 0-1.1 0z`; }).join('');
+// the ring's marks (574b, v385): in the modern manner the 24 equal hours; in the Roman and the Greek the twelve hours of the day,
+// from sunrise to sunset, and the watches of the night – four in the Roman, three in the Greek (575b) – moving with the seasons;
+// numerals in the third, sixth, ninth and twelfth hours and in each watch. (Where the sun does not rise or set: the equal hours.)
+function sdTicksSVG(fmt, rise, set) {
+  const len = set - rise, L = (h, r0) => { const [a, b] = sdXY(h, r0), [c, d] = sdXY(h, SD.R); return `<line x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${c.toFixed(1)}" y2="${d.toFixed(1)}"/>`; };
+  if (fmt === 'modern' || !(len > 0 && len < 24)) return Array.from({ length: 24 }, (_, h) => L(h, h % 6 ? SD.R - 4 : SD.R - 7)).join('');
+  const nW = fmt === 'greek' ? 3 : 4, N = fmt === 'greek' ? GR_NUM : RO_NUM, nl = 24 - len; let o = '';
+  for (let i = 0; i <= 12; i++) o += L(rise + i * len / 12, i % 12 === 0 ? SD.R - 8 : i % 3 ? SD.R - 3.5 : SD.R - 5.5);
+  for (let j = 1; j < nW; j++) o += L(set + j * nl / nW, SD.R - 5.5);
+  const T = (h, t) => { const [x, y] = sdXY(h, SD.R - 9.5); return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" class="sdnum">${t}</text>`; };
+  for (const i of [2, 5, 8, 11]) o += T(rise + (i + 0.5) * len / 12, N[i]);
+  for (let j = 0; j < nW; j++) o += T(set + (j + 0.5) * nl / nW, N[j]);
+  return o;
 }
 function sdPanelHTML() {
-  const ticks = Array.from({ length: 24 }, (_, h) => { const [a, b] = sdXY(h, h % 6 ? SD.R - 4 : SD.R - 7), [c, d] = sdXY(h, SD.R); return `<line x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${c.toFixed(1)}" y2="${d.toFixed(1)}"/>`; }).join('');
   // three layers: the sky and the sea (fading upwards); the stone dial, drawn on a canvas; the ring, the zodiac and the labels
   return `<div class="msdial" id="sunPanel"><svg class="sdbg" id="sunBg" aria-hidden="true"><defs>
       <linearGradient id="sdFadeG" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${SD.FADE}"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".46" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity="1"/></linearGradient>
@@ -1079,16 +1093,20 @@ function sdPanelHTML() {
     <svg class="sdsvg" id="sunSvg" aria-hidden="true"><defs>
       <filter id="sdBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.3"/></filter>
       <radialGradient id="sdGlow"><stop offset="0" id="sdGl0" stop-color="#fff6c8" stop-opacity=".95"/><stop offset=".35" id="sdGl1" stop-color="#ffd85a" stop-opacity=".55"/><stop offset="1" id="sdGl2" stop-color="#ffb030" stop-opacity="0"/></radialGradient>
-      <clipPath id="sdAbove"><rect id="sdAboveR" x="-4000" y="-4000" width="8000" height="0"/></clipPath><clipPath id="sdBelow"><rect id="sdBelowR" x="-4000" y="0" width="8000" height="8000"/></clipPath></defs>
+      <linearGradient id="sdHzA" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#000"/></linearGradient>
+      <linearGradient id="sdHzB" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#000"/><stop offset="1" stop-color="#fff"/></linearGradient>
+      <mask id="sdAbove" maskUnits="userSpaceOnUse" x="-4000" y="-4000" width="8000" height="8000"><rect x="-4000" y="-4000" width="8000" height="8000" fill="url(#sdHzA)"/></mask>
+      <mask id="sdBelow" maskUnits="userSpaceOnUse" x="-4000" y="-4000" width="8000" height="8000"><rect x="-4000" y="-4000" width="8000" height="8000" fill="url(#sdHzB)"/></mask>
+      <radialGradient id="sdSunG" cx=".42" cy=".38" r=".62"><stop offset="0" id="sdSg0"/><stop offset=".55" id="sdSg1"/><stop offset="1" id="sdSg2"/></radialGradient></defs>
     <g id="sdDialG"><g id="sdDialC">
     <path class="sdrim" fill-rule="evenodd" d="M${SD.cx - SD.R - 6} ${SD.cy}a${SD.R + 6} ${SD.R + 6} 0 1 0 ${2 * (SD.R + 6)} 0a${SD.R + 6} ${SD.R + 6} 0 1 0 ${-2 * (SD.R + 6)} 0zM${SD.cx - SD.P - 2} ${SD.cy}a${SD.P + 2} ${SD.P + 2} 0 1 0 ${2 * (SD.P + 2)} 0a${SD.P + 2} ${SD.P + 2} 0 1 0 ${-2 * (SD.P + 2)} 0z"/>
-    <g class="sdticks">${ticks}</g><path id="sdDay" class="sdday" d=""/>
+    <g class="sdticks" id="sdTicks"></g><path id="sdDay" class="sdday" d=""/>
     <g id="sdOwlPos" transform="translate(${SD.cx - 38} ${SD.cy - 14})">${OWL}</g>
-    <g clip-path="url(#sdAbove)"><g class="sdhpos"><ellipse rx="22" ry="22" fill="url(#sdGlow)" id="sdGlowC"/><circle r="8.5" class="sdsun"/></g></g>
-    <g clip-path="url(#sdBelow)"><g class="sdhpos"><circle r="8" class="sdmoonc"/><path id="sdMoonLit" class="sdmoon" d=""/></g></g><g class="sdhpos"><circle r="16" class="sdgrab"/></g>
+    <g mask="url(#sdAbove)"><g class="sdhpos"><ellipse rx="22" ry="22" fill="url(#sdGlow)" id="sdGlowC"/><path class="sdsunr" d="${SD_RAYS}"/><circle r="8.5" class="sdsun" fill="url(#sdSunG)"/><path class="sdsunp" d="${SD_PUNCH}"/></g></g>
+    <g mask="url(#sdBelow)"><g class="sdhpos"><circle r="8" class="sdmoonc"/><path id="sdMoonLit" class="sdmoon" d=""/><circle r="8" class="sdmoono"/></g></g><g class="sdhpos"><circle r="16" class="sdgrab"/></g>
     </g></g>
     ${zodWheelHTML()}
-    <text id="sdLab" class="sdlab sdtime" text-anchor="middle"><title>Tap: modern, Roman or Greek numerals</title></text></svg>
+    <text id="sdLab" class="sdlab sdtime" text-anchor="middle"></text></svg>
     <div class="sdrow" id="sunCtl"></div></div>`;
 }
 // the zodiac wheel: the wheel of Ptolemy's Handy Tables (Vat. gr. 1291, fol. 9r, Constantinople, early 9th c.) – the signs
@@ -1174,7 +1192,7 @@ function sdCtlHTML() {
   const mode = M.cfg.sunMode || 'now', spd = M.cfg.sunSpeed || 20, yr = M.cfg.sunYear || 20, on = sunOn();
   const play = `<button type="button" class="mico2" data-sunplay="1" aria-label="${M.sunPause ? 'Play' : 'Pause'}">${M.sunPause ? '▶' : '❚❚'}</button>`;
   // (v380: in the bar at the panel's foot – the switch in the left corner, the modes in the middle, play and speed at the right)
-  return `<div class="sdl"><button type="button" class="sdsw${on ? ' on' : ''}" data-sunsw2="1" aria-pressed="${on}" title="Day and night on the map: ${on ? 'on' : 'off'}" aria-label="Day and night on the map">${SUN_SW_ICON}</button></div>`
+  return `<div class="sdl"><button type="button" class="sdsw${on ? ' on' : ''}" data-sunsw2="1" aria-pressed="${on}" title="Day and night on the map: ${on ? 'on' : 'off'}" aria-label="Day and night on the map">${SUN_SW_ICON}</button><button type="button" class="sdfmt" data-sunfmt="1" title="The hours: modern, Roman or Greek" aria-label="The hours: ${({ modern: 'modern', roman: 'Roman', greek: 'Greek' })[M.cfg.sunFmt || 'modern']}">${({ modern: '24 h', roman: 'hora', greek: 'ὥρα' })[M.cfg.sunFmt || 'modern']}</button></div>`
     + `<div class="seg" role="group">${[['now', 'Now'], ['anim', 'Day'], ['year', 'Year']].map(([v, l]) => `<button type="button" data-sunmode="${v}" class="${mode === v ? 'on' : ''}">${l}</button>`).join('')}</div><div class="sdr">`
     + (mode === 'anim' ? `<div class="msun">${play}<input type="range" min="0" max="100" value="${spdToV(spd)}" data-sunspeed="1" aria-label="Speed"><output>${spdLabel(spd)}</output></div>` : '')
     + (mode === 'year' ? `<div class="msun">${play}<input type="range" min="0" max="100" value="${yrToV(yr)}" data-sunyear="1" aria-label="Speed"><output>${yrLabel(yr)}</output></div>` : '')
@@ -1214,7 +1232,9 @@ function sundialPaint() {
   const P = (x, y) => [tx + k * x, ty + k * y];                       // (the dial's space → the panel)
   // the horizon: level with sunrise and sunset on the ring
   const hy = len >= 24 ? SD.cy + SD.R + 12 : len <= 0 ? SD.cy - SD.R - 12 : sdXY(set, SD.R)[1], hyP = ty + k * hy;
-  $('#sdAboveR').setAttribute('height', Math.max(0, hy + 4000).toFixed(1)); $('#sdBelowR').setAttribute('y', hy.toFixed(1));
+  // (the handle turns from sun to moon softly across the horizon – v385)
+  for (const id of ['#sdHzA', '#sdHzB']) { const e = $(id); e.setAttribute('y1', (hy - 5).toFixed(1)); e.setAttribute('y2', (hy + 5).toFixed(1)); }
+  { const fm = M.cfg.sunFmt || 'modern', key = fm + (fm === 'modern' ? '' : rise.toFixed(3) + set.toFixed(3)), te = $('#sdTicks'); if (te && te._key !== key) { te._key = key; te.innerHTML = sdTicksSVG(fm, rise, set); } }
   const [x, y] = sdXY(lst, SD.R); svg.querySelectorAll('.sdhpos').forEach(g => g.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`));
   // the glow: round when high; low down wider and flatter, spreading along the horizon (555a, v380)
   const g = $('#sdGlowC'), lowG = Math.max(0, Math.min(1, (10 - alt) / 12)) * Math.max(0, Math.min(1, (alt + 8) / 5)), gr0 = 12 + Math.max(0, alt) * 0.35;
@@ -1222,7 +1242,9 @@ function sundialPaint() {
   const day = lst >= rise && lst < set;
   // the sun's colour of the moment, as in the sky: the handle, its glow, the light on the bowl and on the sea (v378)
   const tc = sunTint(alt, lst < 12), hex = c => '#' + c.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join(''), mixW = (c, t) => c.map(v => v + (255 - v) * t);
-  const sunEl = svg.querySelector('.sdsun'); if (sunEl) { sunEl.style.fill = hex(mixW(tc, 0.18)); sunEl.style.stroke = hex(mixW(tc, 0.7)); }
+  { const dk = (c, t) => c.map(v => v * t); $('#sdSg0').setAttribute('stop-color', hex(mixW(tc, 0.62))); $('#sdSg1').setAttribute('stop-color', hex(mixW(tc, 0.12))); $('#sdSg2').setAttribute('stop-color', hex(dk(tc, 0.7)));
+    const sr = svg.querySelector('.sdsunr'), sp = svg.querySelector('.sdsunp'), se = svg.querySelector('.sdsun');
+    sr.style.fill = hex(mixW(tc, 0.08)); sr.style.stroke = hex(dk(tc, 0.55)); sp.style.fill = hex(dk(tc, 0.5)); se.style.stroke = hex(dk(tc, 0.55)); }
   $('#sdGl0')?.setAttribute('stop-color', hex(mixW(tc, 0.75))); $('#sdGl1')?.setAttribute('stop-color', hex(tc)); $('#sdGl2')?.setAttribute('stop-color', hex(tc.map(v => v * 0.85)));
   // the fresco behind (v383): the light of the moment, shared with the large views; the moon's light falls beneath its place on the ring
   { const t = sunTime(), c = sunRef(), mp = moonPos(t), mlst = ((12 + (c.lng - mp.lon) / 15) % 24 + 24) % 24;
@@ -1243,16 +1265,19 @@ function sundialPaint() {
   const l = sunLabel(), tl = $('#sdLab'); if (tl.firstChild?.nodeType === 3) tl.firstChild.nodeValue = l.main; else tl.insertBefore(document.createTextNode(l.main), tl.firstChild);
   const e = sunPos(sunTime()).ecl, zn = ZOD[Math.floor(e / 30)][(M.cfg.sunFmt || 'modern') === 'greek' ? 2 : M.cfg.sunFmt === 'roman' ? 1 : 0];
   document.querySelectorAll('.zrot').forEach(g => g.setAttribute('transform', `rotate(${e.toFixed(2)})`));   // (the small wheel and the large one)
-  const bl = $('#zodBigLab'); if (bl) bl.textContent = `${zn} · ${l.sub}`; zodBigPaint();
-  const zl = $('#sdZLab'); zl.textContent = `${zn} · ${l.sub}`; let tw = 0; try { tw = zl.getComputedTextLength(); } catch (_) {}
-  zl.setAttribute('x', Math.max(tw / 2 + 8, Math.min(Ly.zx, W - 8 - tw / 2)).toFixed(1));     // (a long date kept inside the panel)
+  // the sign and the date: the Greek date names the sign itself, so it stands alone; where the room runs out (between the obelisk and
+  // the panel's edge) shortened step by step – the sign dropped, then the Roman "a. d.", the Greek to sign and degree (577a, v385)
+  const fm = M.cfg.sunFmt || 'modern', dt = l.sub, forms = fm === 'greek' ? [dt, dt.replace(/^ἐν (\S+) μοίρᾳ /, '$1 ')] : fm === 'roman' ? [`${zn} · ${dt}`, dt, dt.replace(/^a\. d\. /, '')] : [`${zn} · ${dt}`, dt];
+  const bl = $('#zodBigLab'); if (bl) bl.textContent = forms[0]; zodBigPaint();
+  const zl = $('#sdZLab'), mk = $('#sdMark')?.getBoundingClientRect(), sv = svg.getBoundingClientRect(), x0 = mk?.width ? mk.right - sv.left + 6 : W / 2, room = W - 8 - x0;
+  let tw = 0; for (const f of forms) { zl.textContent = f; try { tw = zl.getComputedTextLength(); } catch (_) { tw = 0; } if (tw <= room) break; }
+  zl.setAttribute('x', Math.max(x0 + tw / 2, Math.min(Ly.zx, W - 8 - tw / 2)).toFixed(1));     // (kept between the obelisk and the panel's edge)
   dialBigPaint(l);
 }
 // a finger (or the mouse) on the dial sets the hour, the day staying; a tap in its middle opens it large (527, v375); a tap on the
 // time beneath it changes the numerals: modern, Roman, Greek (529a); the zodiac: turned, the day of the year; tapped, large
 document.addEventListener('pointerdown', ev => {
   const svg = ev.target.closest?.('#sunSvg'); if (!svg || !M.sdT) return;
-  if (ev.target.closest('#sdLab')) { ev.preventDefault(); sdFmtNext(); return; }
   const r0 = svg.getBoundingClientRect(), L = M.sdT;
   if (M.zc && Math.hypot(ev.clientX - r0.left - M.zc.x, ev.clientY - r0.top - M.zc.y) <= M.zc.r) {
     zodTurn(ev, () => { const q = svg.getBoundingClientRect(); return { x: q.left + M.zc.x, y: q.top + M.zc.y }; }, zodBigOpen); return; }
@@ -1446,9 +1471,9 @@ async function mapOptsClick(b) {
   if (b.id === 'mapCompBtn') { M.cfg.compass = M.cfg.compass === false; await saveMapCfg(); b.classList.toggle('on', M.cfg.compass); b.setAttribute('aria-pressed', M.cfg.compass); compassUpd(); return true; }
   if (b.id === 'mapNorth' || d.mnorth) { M.map?.easeTo({ bearing: 0, duration: 500 }); return true; }
   if (b.id === 'mapSunBtn') { await sdOpen(!M.sdOpen); return true; }
-  if (d.sunfmt) { M.cfg.sunFmt = d.sunfmt; await saveMapCfg(); $('#sunCtl').innerHTML = sdCtlHTML(); sundialPaint(); return true; }
   // (Day and Year chosen start paused, at the moment shown – the play button sets them going – v381)
   if (d.sunmode) { const run = d.sunmode === 'anim' || d.sunmode === 'year'; M.sunPause = run; if (run) { M.cfg.sunPaused = true; M.cfg.sunPausedT = sunTime(); } else { delete M.cfg.sunPaused; delete M.cfg.sunPausedT; } if (d.sunmode === 'now') M.sunT = Date.now(); await sunSet({ sunMode: d.sunmode }); $('#sunCtl').innerHTML = sdCtlHTML(); return true; }
+  if (d.sunfmt) { await sdFmtNext(); const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML(); return true; }
   if (d.sunsw2) { await sunSet({ sun: !sunOn() }); const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML(); sundialPaint(); return true; }
   if (d.sunplay) { M.sunPause = !M.sunPause; M.cfg.sunPaused = M.sunPause; if (M.sunPause) M.cfg.sunPausedT = sunTime(); else delete M.cfg.sunPausedT; saveMapCfg(); sunClock(); $('#sunCtl').innerHTML = sdCtlHTML(); return true; }
   return false;
