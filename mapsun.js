@@ -990,7 +990,7 @@ function zodTurn(ev, centre, onTap) {
   const up = () => { M.sunDrag = false; removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); if (!moved) onTap?.(); };
   addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);
 }
-// the row of buttons at the panel's foot (528a, v375): Now · Animate · Year; while animating, play/pause and the speed; while the
+// the row of buttons at the panel's foot (528a, v375): Now · Day ("Animate" until v379) · Year; while animating, play/pause and the speed; while the
 // obelisk stands on the map, its size; at the end, day and night on the map on or off
 const SUN_SW_ICON = '<svg width="18" height="18" viewBox="-9 -9 18 18" aria-hidden="true"><circle r="4" fill="currentColor"/><g stroke="currentColor" stroke-width="1.4" stroke-linecap="round">'
   + Array.from({ length: 8 }, (_, i) => { const a = i * Math.PI / 4; return `<path d="M${(Math.sin(a) * 6).toFixed(2)} ${(-Math.cos(a) * 6).toFixed(2)}L${(Math.sin(a) * 8).toFixed(2)} ${(-Math.cos(a) * 8).toFixed(2)}"/>`; }).join('') + '</g></svg>';
@@ -998,7 +998,7 @@ function sdCtlHTML() {
   const mode = M.cfg.sunMode || 'now', spd = M.cfg.sunSpeed || 20, yr = M.cfg.sunYear || 20, on = sunOn();
   const play = `<button type="button" class="mico2" data-sunplay="1" aria-label="${M.sunPause ? 'Play' : 'Pause'}">${M.sunPause ? '▶' : '❚❚'}</button>`;
   // (split round the obelisk's socket in the middle – v376)
-  return `<div class="sdl"><div class="seg" role="group">${[['now', 'Now'], ['anim', 'Animate'], ['year', 'Year']].map(([v, l]) => `<button type="button" data-sunmode="${v}" class="${mode === v ? 'on' : ''}">${l}</button>`).join('')}</div></div><div class="sdgap"></div><div class="sdr">`
+  return `<div class="sdl"><div class="seg" role="group">${[['now', 'Now'], ['anim', 'Day'], ['year', 'Year']].map(([v, l]) => `<button type="button" data-sunmode="${v}" class="${mode === v ? 'on' : ''}">${l}</button>`).join('')}</div></div><div class="sdgap"></div><div class="sdr">`
     + (mode === 'anim' ? `<div class="msun">${play}<input type="range" min="0" max="100" value="${spdToV(spd)}" data-sunspeed="1" aria-label="Speed"><output>${spdLabel(spd)}</output></div>` : '')
     + (mode === 'year' ? `<div class="msun">${play}<input type="range" min="0" max="100" value="${yrToV(yr)}" data-sunyear="1" aria-label="Speed"><output>${yrLabel(yr)}</output></div>` : '')
     + (M.cfg.gnomon ? `<input type="range" class="obsz" min="0" max="100" value="${Math.round(Math.log(obelK() * 3) / Math.log(9) * 100)}" data-obsz="1" aria-label="Size of the obelisk" title="Size of the obelisk">` : '')
@@ -1070,8 +1070,8 @@ function sundialPaint() {
   // the daylight on the ring, and the shadow: long when the sun is low, short at noon, fading towards sunset
   if (len > 0 && len < 24) { const [ax, ay] = sdXY(rise, SD.R + 3), [bx, by] = sdXY(set, SD.R + 3); $('#sdDay').setAttribute('d', `M${ax.toFixed(1)} ${ay.toFixed(1)}A${SD.R + 3} ${SD.R + 3} 0 ${len > 12 ? 1 : 0} 1 ${bx.toFixed(1)} ${by.toFixed(1)}`); }
   else $('#sdDay').setAttribute('d', len >= 24 ? `M${SD.cx} ${SD.cy - SD.R - 3}a${SD.R + 3} ${SD.R + 3} 0 1 0 0.01 0` : '');
-  // the stone dial inside the ring: its picture in the light of the moment
-  scaPaint($('#sdSca'));
+  // the stone dial inside the ring: its picture in the light of the moment; the obelisk on its socket lit with it (v379)
+  scaPaint($('#sdSca')); obelPanelLight();
   // the owl: lands when the handle enters the night, flies off when it leaves
   if (M.sdOwl !== !day) { M.sdOwl = !day; const o = $('#sdOwlPos .sdowl'); o.classList.remove('land', 'away'); void o.getBoundingClientRect(); o.classList.add(day ? 'away' : 'land'); }
   // the moon on the dial in its real phase: lit on the right while waxing, on the left while waning (as seen from the north)
@@ -1360,6 +1360,17 @@ function scaHit(o, d, yc) {
     if (!(s && s[0] < te && te < s[1])) take(t0, b[2], 1);
     else if (s[1] < t1) { const p = [o[0] + d[0] * s[1], o[1] + d[1] * s[1], o[2] + d[2] * s[1]]; take(s[1], [-p[0], -p[1], -p[2]], 2); } }
   for (const [k, m] of [['F', 3], ['L', 4], ['R', 4]]) { if (!X[k]) continue; const h = scaBox(o, d, X[k]); if (h) take(h[0], h[2], m); }
+  // (the stone below the bowl, reaching down out of the picture: a drum or a square block – both cut flat at the front like the bowl,
+  // nothing of them inside the bowl – or a foot narrowing to a stem)
+  if (SCA.base) { const stem = SCA.base === 'stem', R = stem ? 0.62 : SCA.RO, zt = stem ? -1.09 : -0.35, yf = stem ? -9 : -yc;
+    const ok = (t, n) => { const p = [o[0] + d[0] * t, o[1] + d[1] * t, o[2] + d[2] * t]; if (p[2] > zt + 1e-6 || p[2] < -6 || p[1] < yf - 1e-6) return;
+      if (SCA.base === 'block' ? (Math.abs(p[0]) > R + 1e-6 || p[1] > R + 1e-6) : p[0] * p[0] + p[1] * p[1] > R * R + 1e-6) return;
+      if (p[0] * p[0] + p[1] * p[1] + p[2] * p[2] < 1 - 1e-6) return; take(t, n, 1); };
+    if (SCA.base === 'block') { const h = scaBox(o, d, [-R, yf, -6, R, R, zt]); if (h) ok(h[0], h[2]); }
+    else { const a = d[0] * d[0] + d[1] * d[1], bq = o[0] * d[0] + o[1] * d[1], cq = o[0] * o[0] + o[1] * o[1] - R * R, D = bq * bq - a * cq;
+      if (a > 1e-12 && D > 0) { const t = (-bq - Math.sqrt(D)) / a; ok(t, norm3([o[0] + d[0] * t, o[1] + d[1] * t, 0])); } }
+    if (Math.abs(d[2]) > 1e-12) { const t = (zt - o[2]) / d[2]; ok(t, [0, 0, 1]); }                          // (its top, around the bowl)
+    if (!stem && Math.abs(d[1]) > 1e-12) { const t = (yf - o[1]) / d[1]; ok(t, [0, -1, 0]); } }            // (its flat front)
   return best;
 }
 // the camera: from the front (the equator's side), a little from above; the picture fitted to the stone
