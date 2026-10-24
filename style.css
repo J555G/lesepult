@@ -2091,15 +2091,16 @@ dialog .sortpair button{transition:border-color .15s}
 .sdmark .sdst{stroke:#2a0e18;stroke-width:.5}
 .sdmark .sdshd0{fill:#fff;opacity:.1}.sdmark .sdshd1{fill:#000;opacity:.32}
 .sdmark.lr .sdshd0{fill:#000;opacity:.32}.sdmark.lr .sdshd1{fill:#fff;opacity:.1}
-.sdmark.night .sdshd0,.sdmark.night .sdshd1{fill:#05060d;opacity:.6}
-.sdmark .sdtipd{fill:#05060d;opacity:0}.sdmark.night .sdtipd{opacity:.55}
+.sdmark .sdtipd{fill:#05060d;opacity:calc(var(--obn,0) * .55)}
+.sdmark .sdshn{fill:#05060d;opacity:calc(var(--obn,0) * .6)}
 /* while the obelisk stands on the map: the size slider upright where it stood */
 .sdmark .obszv{display:none;position:absolute;left:50%;bottom:calc(12px + 4px);transform-origin:0 50%;transform:translate(0,0) rotate(-90deg);pointer-events:auto;accent-color:#c46a7e;margin:0;height:22px}
 .sdmark.away .obszv{display:block}
 /* the bar at the panel's foot (551a, v380) */
 .msdial .sdbar{fill:rgba(4,10,22,.58)}
 .msdial .sdbarl{stroke:rgba(255,255,255,.28);stroke-width:1;fill:none}
-.msdial .sdrow{bottom:3px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;left:6px;right:6px}
+.msdial .sdrow{bottom:3px;display:flex;justify-content:flex-start;align-items:center;gap:8px;left:6px;right:6px}
+.msdial .sdrow .sdl,.msdial .sdrow .sdr{flex:none}
 .msdial .sdrow .sdl{justify-content:flex-start}
 .msdial .sdrow .sdr{justify-content:flex-end}
 .msdial .sdsw{width:32px;height:32px}

@@ -156,7 +156,9 @@ const obelPanelSVG = () => OB_PSVG ??= (() => {
 function obelPanelLight() {
   const mk = $('#sdMark'); if (!mk || !M.map) return;
   const r = sunRef(), s = sunAt(sunPos(sunTime()), r.lng, r.lat), right = Math.sin((s.az - M.map.getBearing()) * RAD) > 0;
-  mk.classList.toggle('lr', right); mk.classList.toggle('night', sunOn() && s.alt < -2);
+  mk.classList.toggle('lr', right); mk.classList.remove('night');
+  // (darker by degrees through the twilight – v381)
+  { const u = Math.max(0, Math.min(1, (s.alt + 8) / 10)), n = sunOn() ? 1 - u * u * (3 - 2 * u) : 0; mk.style.setProperty('--obn', n.toFixed(2)); }
   // (the gold: the face towards the sun the bright one)
   const t0 = mk.querySelector('.sdtip0'), t1 = mk.querySelector('.sdtip1'), id = mk.querySelector('pattern')?.id?.slice(0, -1);
   if (t0 && t1 && id) { t0.setAttribute('fill', `url(#${id}${right ? 'g1' : 'g0'})`); t1.setAttribute('fill', `url(#${id}${right ? 'g0' : 'g1'})`); }
@@ -178,14 +180,14 @@ function obelTallSVG(Wm, Hm, U, sx) {
   const X = Wm / 2, y = v => (4 + U * (1 - v)).toFixed(2), tip = 1 - OB_TIP, h = d => +(d * U * sx).toFixed(2), id = 'ob' + Math.round(Hm);
   return `<svg class="sdobs" width="${Wm}" height="${Hm}" viewBox="0 0 ${Wm} ${Hm}" aria-hidden="true"><defs>`
     + `<pattern id="${id}p" patternUnits="userSpaceOnUse" width="64" height="64"><image href="${porphyryURL()}" width="64" height="64"/></pattern>`
-    + `<linearGradient id="${id}g0" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#c9922a"/><stop offset=".45" stop-color="#ffe08a"/><stop offset=".55" stop-color="#fffbe6"/><stop offset=".7" stop-color="#ffd35c"/><stop offset="1" stop-color="#e0a52e"/></linearGradient>`
-    + `<linearGradient id="${id}g1" x1="1" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#7a5212"/><stop offset=".5" stop-color="#b98a1e"/><stop offset=".6" stop-color="#e6c066"/><stop offset="1" stop-color="#9a6d18"/></linearGradient></defs>`
+    + `<linearGradient id="${id}g0" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#d8a032"/><stop offset=".38" stop-color="#ffe9a8"/><stop offset=".5" stop-color="#ffffff"/><stop offset=".62" stop-color="#ffe490"/><stop offset="1" stop-color="#f0b83a"/></linearGradient>`
+    + `<linearGradient id="${id}g1" x1="1" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#6e4a10"/><stop offset=".45" stop-color="#b8861c"/><stop offset=".55" stop-color="#fff0c0"/><stop offset=".65" stop-color="#c9971f"/><stop offset="1" stop-color="#8a6014"/></linearGradient></defs>`
     + `<path class="sdsock" d="M1 ${Hm - 12}h${Wm - 2}v12H1z"/><path class="sdsockt" d="M1 ${Hm - 12}h${Wm - 2}v2.2H1z"/><path class="sdsockh" d="M${X - h(0.17)} ${Hm - 12}h${2 * h(0.17)}v1.4H${X - h(0.17)}z"/>`
     + `<g class="sdob" role="button" aria-label="Obelisk: drag it onto the map to set it up there">`
     + `<path class="sdst" fill="url(#${id}p)" d="M${X - h(0.17)} ${y(0)}h${2 * h(0.17)}V${y(0.05)}h${-2 * h(0.17)}z M${X - h(0.13)} ${y(0.05)}h${2 * h(0.13)}V${y(0.08)}h${-2 * h(0.13)}z"/>`
     + `<path class="sdsh0" fill="url(#${id}p)" d="M${X - h(0.088)} ${y(0.08)}L${X - h(0.052)} ${y(tip)}H${X}V${y(0.08)}z"/><path class="sdsh1" fill="url(#${id}p)" d="M${X} ${y(0.08)}V${y(tip)}H${X + h(0.052)}L${X + h(0.088)} ${y(0.08)}z"/>`
     + `<path class="sdshd0" d="M${X - h(0.088)} ${y(0.08)}L${X - h(0.052)} ${y(tip)}H${X}V${y(0.08)}z"/><path class="sdshd1" d="M${X} ${y(0.08)}V${y(tip)}H${X + h(0.052)}L${X + h(0.088)} ${y(0.08)}z"/>`
-    + `<path class="sdtip0" fill="url(#${id}g0)" d="M${X - h(0.052)} ${y(tip)}L${X} 4V${y(tip)}z"/><path class="sdtip1" fill="url(#${id}g1)" d="M${X} 4L${X + h(0.052)} ${y(tip)}H${X}z"/><path class="sdtipd" d="M${X - h(0.052)} ${y(tip)}L${X} 4L${X + h(0.052)} ${y(tip)}z"/></g></svg>`;
+    + `<path class="sdtip0" fill="url(#${id}g0)" d="M${X - h(0.052)} ${y(tip)}L${X} 4V${y(tip)}z"/><path class="sdtip1" fill="url(#${id}g1)" d="M${X} 4L${X + h(0.052)} ${y(tip)}H${X}z"/><path class="sdshn" d="M${X - h(0.17)} ${y(0)}h${2 * h(0.17)}V${y(0.08)}H${X + h(0.088)}L${X + h(0.052)} ${y(tip)}H${X - h(0.052)}L${X - h(0.088)} ${y(0.08)}H${X - h(0.17)}z"/><path class="sdtipd" d="M${X - h(0.052)} ${y(tip)}L${X} 4L${X + h(0.052)} ${y(tip)}z"/></g></svg>`;
 }
 // over the sundial (to put the obelisk back)
 function overDial(ev) { for (const el of [$('#sunPanel'), $('#sdMark')]) { const q = el?.getBoundingClientRect(); if (q && ev.clientX >= q.left && ev.clientX <= q.right && ev.clientY >= q.top && ev.clientY <= q.bottom) return true; } return false; }
@@ -341,7 +343,7 @@ function obel3dLayer(T) {
       shaft.rotation.y = Math.PI / 4; shaft.position.y = 0.08 + SH / 2; g.add(shaft);
       // the tip: a perfect pyramid of gold – four equilateral triangles on the shaft's square top (520a, v373)
       // (polished: it mirrors a simple sky and ground around it – 526b, v374; the mirror image made once, before its first drawing)
-      const gold = this.gold = new T.MeshStandardMaterial({ color: 0xffcf55, metalness: 1, roughness: 0.1 });   // (polished – 554, v380)
+      const gold = this.gold = new T.MeshStandardMaterial({ color: 0xffd866, metalness: 1, roughness: 0.04 });   // (polished – 554, v380; more so v381)
       const tip = new T.Mesh(new T.ConeGeometry(0.052 * Math.SQRT2, OB_TIP, 4, 1), gold); tip.rotation.y = Math.PI / 4; tip.position.y = 1 - OB_TIP / 2; g.add(tip);
       g.updateMatrixWorld(true); this.scene.add(g);
       // its shadow where the map is flat: the model pressed flat onto the ground along the sun's rays, five times from a sun moved a
@@ -382,7 +384,7 @@ function obel3dLayer(T) {
         sg.matrix.set(1, -lx / ly, 0, 0, 0, 0, 0, 0.001, 0, -lz / ly, 1, 0, 0, 0, 0, 1); sg.matrixWorldNeedsUpdate = true; sg.children[0].material.opacity = a1; });
       this.r.setViewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
       if (!this.env && this.gold) { this.env = 1; try { this.r.resetState(); this.gold.envMap = obelEnv(T, this.r); this.gold.needsUpdate = true; } catch (_) {} }
-      if (this.gold) this.gold.envMapIntensity = 0.45 + 1.3 * day;
+      if (this.gold) this.gold.envMapIntensity = 0.6 + 1.9 * day;
       this.r.resetState(); if (this.dr) gl.depthRange(this.dr[0], this.dr[1]); gl.clearStencil(0); gl.clear(gl.STENCIL_BUFFER_BIT); if (plane) this.r.render(this.shScene, this.cam); this.r.render(this.scene, this.cam);
     } };
 }
@@ -391,7 +393,7 @@ function obel3dLayer(T) {
 function obelEnv(T, r) {
   const face = (top, bot) => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'), g = x.createLinearGradient(0, 0, 0, 32); g.addColorStop(0, top); g.addColorStop(1, bot); x.fillStyle = g; x.fillRect(0, 0, 32, 32); return c; };
   // (nearly white above: a blue sky made the gold look grey in a mirror this small)
-  const side = face('#f4f1ea', '#7a6448'), up = face('#e9eef5', '#e9eef5'), dn = face('#5e4c38', '#5e4c38');
+  const side = face('#ffffff', '#6e5a40'), up = face('#ffffff', '#f2f6fb'), dn = face('#4e3f2d', '#4e3f2d');   // (bright above, dark below: a mirror's contrast – v381)
   const cube = new T.CubeTexture([side, side, up, dn, side, side]); cube.colorSpace = T.SRGBColorSpace; cube.needsUpdate = true;
   const pm = new T.PMREMGenerator(r), tex = pm.fromCubemap(cube).texture; pm.dispose(); return tex;
 }
@@ -928,12 +930,13 @@ function sdPanelHTML() {
       <linearGradient id="sdFadeG" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${SD.FADE}"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".46" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity="1"/></linearGradient>
       <mask id="sdFade" maskUnits="userSpaceOnUse" x="-50" y="-50" width="4000" height="4000"><rect x="-50" y="-50" width="4000" height="4000" fill="url(#sdFadeG)"/></mask>
       <linearGradient id="sdGlitG" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="100"><stop offset="0" id="sdGlit0"/><stop offset="1" id="sdGlit1" stop-opacity="0"/></linearGradient>
+      <radialGradient id="sdHaloG"><stop offset="0" id="sdHa0" stop-opacity=".95"/><stop offset=".4" id="sdHa1" stop-opacity=".5"/><stop offset="1" id="sdHa2" stop-opacity="0"/></radialGradient>
       <radialGradient id="sdWarmG"><stop offset="0" id="sdWa0"/><stop offset="1" id="sdWa1" stop-opacity="0"/></radialGradient>
       <radialGradient id="sdReflG"><stop offset="0" id="sdRf0"/><stop offset="1" id="sdRf1" stop-opacity="0"/></radialGradient>
       <clipPath id="sdBgClip"><path id="sdBgClipP" d=""/></clipPath>
       <clipPath id="sdAboveBg"><rect id="sdAboveBgR" x="-50" y="-50" width="4000" height="0"/></clipPath></defs>
     <g mask="url(#sdFade)"><g clip-path="url(#sdBgClip)"><rect x="-50" y="-50" width="4000" height="4000" fill="url(#sdSky)"/><g clip-path="url(#sdAboveBg)"><g class="sdstars" id="sdStars">${stars}</g></g>
-      <rect id="sdSeaR" x="-50" width="4000" height="0" fill="url(#sdSea)"/><g clip-path="url(#sdAboveBg)"><ellipse id="sdWarm" rx="0" ry="0" fill="url(#sdWarmG)"/></g><g id="sdRefl"><ellipse id="sdReflSun" rx="0" ry="0"/><path id="sdGlint" class="sdglint" d="" stroke="url(#sdGlitG)"/></g><rect id="sdBar" class="sdbar" x="-50" width="4000" height="${SD.BAR + 50}"/><path id="sdBarL" class="sdbarl" d=""/></g><path id="sdEdge" class="sdedge" d=""/></g></svg>
+      <rect id="sdSeaR" x="-50" width="4000" height="0" fill="url(#sdSea)"/><g clip-path="url(#sdAboveBg)"><ellipse id="sdWarm" rx="0" ry="0" fill="url(#sdWarmG)"/><ellipse id="sdHalo" rx="0" ry="0" fill="url(#sdHaloG)"/></g><g id="sdRefl"><ellipse id="sdReflSun" rx="0" ry="0"/><path id="sdGlint" class="sdglint" d="" stroke="url(#sdGlitG)"/></g><rect id="sdBar" class="sdbar" x="-50" width="4000" height="${SD.BAR + 50}"/><path id="sdBarL" class="sdbarl" d=""/></g><path id="sdEdge" class="sdedge" d=""/></g></svg>
     <canvas class="sdsca" id="sdSca" aria-hidden="true"></canvas>
     <svg class="sdsvg" id="sunSvg" aria-hidden="true"><defs>
       <filter id="sdBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.3"/></filter>
@@ -1068,13 +1071,18 @@ function sundialPaint() {
   $('#sdStars').style.opacity = Math.max(0, Math.min(1, (-alt - 5) / 11)).toFixed(2);
   const [x, y] = sdXY(lst, SD.R); svg.querySelectorAll('.sdhpos').forEach(g => g.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`));
   // the glow: round when high; low down wider and flatter, spreading along the horizon (555a, v380)
-  const g = $('#sdGlowC'), lowG = Math.max(0, Math.min(1, (10 - alt) / 12)) * (alt > -6 ? 1 : 0), gr0 = 12 + Math.max(0, alt) * 0.35;
-  g.setAttribute('rx', (gr0 * (1 + 3 * lowG)).toFixed(1)); g.setAttribute('ry', (gr0 * (1 + 0.15 * lowG)).toFixed(1)); g.style.opacity = Math.max(0.25, Math.min(1, 0.35 + alt / 50 + 0.5 * lowG)).toFixed(2);
+  const g = $('#sdGlowC'), lowG = Math.max(0, Math.min(1, (10 - alt) / 12)) * Math.max(0, Math.min(1, (alt + 8) / 5)), gr0 = 12 + Math.max(0, alt) * 0.35;
+  g.setAttribute('rx', gr0.toFixed(1)); g.setAttribute('ry', gr0.toFixed(1)); g.style.opacity = Math.max(0.25, Math.min(1, 0.35 + alt / 50)).toFixed(2);
+  // (the wide glow of sunrise and sunset behind the stone dial and the ring, in the sky layer – v381)
+  { const hg = $('#sdHalo'), [hx, hy0] = [tx + k * x, ty + k * y];
+    if (lowG > 0.01) { hg.setAttribute('cx', hx.toFixed(1)); hg.setAttribute('cy', hy0.toFixed(1)); hg.setAttribute('rx', (gr0 * k * (1 + 3.2 * lowG)).toFixed(1)); hg.setAttribute('ry', (gr0 * k * (1 + 0.3 * lowG)).toFixed(1)); hg.style.opacity = (0.9 * lowG).toFixed(2); }
+    else { hg.setAttribute('rx', 0); hg.setAttribute('ry', 0); } }
   const day = lst >= rise && lst < set;
   // the glitter of the sun (or the moon) on the water beneath it
   // the sun's colour of the moment, as in the sky: the handle, its glow, the light on the bowl and on the sea (v378)
   const tc = sunTint(alt, lst < 12), hex = c => '#' + c.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join(''), mixW = (c, t) => c.map(v => v + (255 - v) * t);
   const sunEl = svg.querySelector('.sdsun'); if (sunEl) { sunEl.style.fill = hex(mixW(tc, 0.18)); sunEl.style.stroke = hex(mixW(tc, 0.7)); }
+  $('#sdHa0')?.setAttribute('stop-color', hex(mixW(tc, 0.6))); $('#sdHa1')?.setAttribute('stop-color', hex(tc)); $('#sdHa2')?.setAttribute('stop-color', hex(tc));
   $('#sdGl0')?.setAttribute('stop-color', hex(mixW(tc, 0.75))); $('#sdGl1')?.setAttribute('stop-color', hex(tc)); $('#sdGl2')?.setAttribute('stop-color', hex(tc.map(v => v * 0.85)));
   // the sky warming above the horizon on the sun's side while it is low (555a)
   { const [sx0] = P(x, y), wl = Math.max(0, Math.min(1, (12 - alt) / 12)) * Math.max(0, Math.min(1, (alt + 7) / 7)), we = $('#sdWarm');
@@ -1309,7 +1317,8 @@ async function mapOptsClick(b) {
   if (b.id === 'mapNorth' || d.mnorth) { M.map?.easeTo({ bearing: 0, duration: 500 }); return true; }
   if (b.id === 'mapSunBtn') { await sdOpen(!M.sdOpen); return true; }
   if (d.sunfmt) { M.cfg.sunFmt = d.sunfmt; await saveMapCfg(); $('#sunCtl').innerHTML = sdCtlHTML(); sundialPaint(); return true; }
-  if (d.sunmode) { M.sunPause = false; delete M.cfg.sunPaused; delete M.cfg.sunPausedT; if (d.sunmode === 'now') M.sunT = Date.now(); await sunSet({ sunMode: d.sunmode }); $('#sunCtl').innerHTML = sdCtlHTML(); return true; }
+  // (Day and Year chosen start paused, at the moment shown – the play button sets them going – v381)
+  if (d.sunmode) { const run = d.sunmode === 'anim' || d.sunmode === 'year'; M.sunPause = run; if (run) { M.cfg.sunPaused = true; M.cfg.sunPausedT = sunTime(); } else { delete M.cfg.sunPaused; delete M.cfg.sunPausedT; } if (d.sunmode === 'now') M.sunT = Date.now(); await sunSet({ sunMode: d.sunmode }); $('#sunCtl').innerHTML = sdCtlHTML(); return true; }
   if (d.sunsw2) { await sunSet({ sun: !sunOn() }); const c = $('#sunCtl'); if (c) c.innerHTML = sdCtlHTML(); sundialPaint(); return true; }
   if (d.sunplay) { M.sunPause = !M.sunPause; M.cfg.sunPaused = M.sunPause; if (M.sunPause) M.cfg.sunPausedT = sunTime(); else delete M.cfg.sunPausedT; saveMapCfg(); sunClock(); $('#sunCtl').innerHTML = sdCtlHTML(); return true; }
   return false;
@@ -1454,18 +1463,21 @@ function scaLines(lat) {
 }
 // the picture: the light of the moment on the stone (s: towards the sun or the moon, in the true frame; kL its strength; amb the
 // sky's light)
-function scaDraw(cv, lat, s0, kL, amb, night, lc) {
+// (v381: several lights at once – the sun and the moon – each with its strength and colour, and the sky's light; nf how far into the
+// night (0 day … 1 night): through the twilight everything changes gradually, nothing at one step)
+function scaDraw(cv, lat, Ls, amb, ambCol, nf) {
   const w = cv.width, h = cv.height; if (!w || !h) return;
-  const alat = Math.round(Math.abs(lat)), s = scaLoc(s0, lat), up = s[2] > 0 && kL > 0;
+  const alat = Math.round(Math.abs(lat)), night = nf > 0.5;
   // the viewpoint (544a): from the front a little above – as steep as this latitude needs for the shadow's point to be seen at every
   // hour of the year (set by the place only, not the hour – v378)
   const el = scaTilt(alat);
   let G = cv._sca; if (!G || G.w !== w || G.h !== h || G.alat !== alat || G.el !== el) G = cv._sca = scaGeo(w, h, alat, el);
   const x = cv.getContext('2d'), img = x.createImageData(w, h), D = img.data, { P, N, Mt, G: gr, yc } = G;
-  const A = [0, 1, 0.012], Bc = [0, 0, 0];
-  // (by moonlight: silvery, and the shadows soft and faint – the light taken from several points of the moon's disc and beyond)
-  const tint = night ? [0.8, 0.86, 1.0] : (lc || [1, 0.97, 0.9]), base = { 1: [0.86, 0.82, 0.72], 2: [0.9, 0.86, 0.76], 3: [0.76, 0.72, 0.63], 4: [0.8, 0.76, 0.66] };
-  const jit = night ? [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].map(([a, b]) => { const e1 = norm3([s[1], -s[0], 0]), e2 = [s[1] * e1[2] - s[2] * e1[1], s[2] * e1[0] - s[0] * e1[2], s[0] * e1[1] - s[1] * e1[0]], k = 0.035; return norm3([s[0] + k * (a * e1[0] + b * e2[0]), s[1] + k * (a * e1[1] + b * e2[1]), s[2] + k * (a * e1[2] + b * e2[2])]); }) : [s];
+  const A = [0, 1, 0.012], Bc = [0, 0, 0], base = { 1: [0.86, 0.82, 0.72], 2: [0.9, 0.86, 0.76], 3: [0.76, 0.72, 0.63], 4: [0.8, 0.76, 0.66] };
+  // the lights in the dial's frame; the moon's taken from several points of its disc and beyond: soft, faint shadows
+  const lights = Ls.map(L => { const s = scaLoc(L.s, lat);
+    const jit = L.moon ? [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].map(([a, b]) => { const e1 = norm3([s[1], -s[0], 0]), e2 = [s[1] * e1[2] - s[2] * e1[1], s[2] * e1[0] - s[0] * e1[2], s[0] * e1[1] - s[1] * e1[0]], k = 0.035; return norm3([s[0] + k * (a * e1[0] + b * e2[0]), s[1] + k * (a * e1[1] + b * e2[1]), s[2] + k * (a * e1[2] + b * e2[2])]); }) : [s];
+    return { s, jit, k: L.k, col: L.col, moon: !!L.moon }; }).filter(L => L.s[2] > 0 && L.k > 0.002);
   // (the shortest distance between the ray towards the light and the rod: in its shadow when closer than its thickness)
   const ab = [Bc[0] - A[0], Bc[1] - A[1], Bc[2] - A[2]], abl = Math.hypot(...ab);
   const rodShade = (p, s) => { const w0 = [p[0] - A[0], p[1] - A[1], p[2] - A[2]], b = (s[0] * ab[0] + s[1] * ab[1] + s[2] * ab[2]) / abl,
@@ -1476,20 +1488,19 @@ function scaDraw(cv, lat, s0, kL, amb, night, lc) {
   for (let i = 0, n = w * h; i < n; i++) {
     const m = Mt[i]; if (!m) continue;
     const p = [P[3 * i], P[3 * i + 1], P[3 * i + 2]], nn = [N[3 * i], N[3 * i + 1], N[3 * i + 2]];
-    let lit = 0;
-    let gl = 0;
-    if (up) { const lam = Math.max(0, nn[0] * s[0] + nn[1] * s[1] + nn[2] * s[2]);
-      if (lam > 0) { let vis = 0;
-        for (const sj of jit) { let ok = true;
-          // (the bowl: lit where the light comes in through the opening – the ray leaves the sphere above the top or in front of the face)
-          if (m === 2) { const sp = scaSphere(p, sj); if (sp) { const t = sp[1]; if (p[2] + sj[2] * t < -1e-3 && p[1] + sj[1] * t > -yc + 1e-3) ok = false; } if (ok && rodShade(p, sj)) ok = false; }
-          if (ok) vis++; }
-        vis /= jit.length; if (night) vis = 0.45 + 0.55 * vis;           // (by moonlight the shadow only half as dark)
-        lit = lam * vis;
-        // (the moon's sheen: a soft highlight where the stone faces between the moon and the eye)
-        if (night) { const v = norm3([G.C.E[0] - p[0], G.C.E[1] - p[1], G.C.E[2] - p[2]]), hv = norm3([v[0] + s[0], v[1] + s[1], v[2] + s[2]]); gl = Math.pow(Math.max(0, nn[0] * hv[0] + nn[1] * hv[1] + nn[2] * hv[2]), 18) * 0.5 * kL * vis; } } }
-    const k = (amb + kL * lit * 1.05) * gr[i] + gl, b = base[m];
-    D[4 * i] = Math.min(255, 255 * b[0] * k * tint[0]); D[4 * i + 1] = Math.min(255, 255 * b[1] * k * tint[1]); D[4 * i + 2] = Math.min(255, 255 * b[2] * k * tint[2]); D[4 * i + 3] = 255;
+    let r = amb * ambCol[0], g = amb * ambCol[1], bl = amb * ambCol[2], gls = 0;
+    for (const L of lights) { const s = L.s, lam = Math.max(0, nn[0] * s[0] + nn[1] * s[1] + nn[2] * s[2]); if (lam <= 0) continue;
+      let vis = 0;
+      for (const sj of L.jit) { let ok = true;
+        // (the bowl: lit where the light comes in through the opening – the ray leaves the sphere above the top or in front of the face)
+        if (m === 2) { const sp = scaSphere(p, sj); if (sp) { const t = sp[1]; if (p[2] + sj[2] * t < -1e-3 && p[1] + sj[1] * t > -yc + 1e-3) ok = false; } if (ok && rodShade(p, sj)) ok = false; }
+        if (ok) vis++; }
+      vis /= L.jit.length; if (L.moon) vis = 0.45 + 0.55 * vis;          // (by moonlight the shadow only half as dark)
+      const e = L.k * lam * vis * 1.05; r += e * L.col[0]; g += e * L.col[1]; bl += e * L.col[2];
+      // (the moon's sheen: a soft highlight where the stone faces between the moon and the eye)
+      if (L.moon) { const v = norm3([G.C.E[0] - p[0], G.C.E[1] - p[1], G.C.E[2] - p[2]]), hv = norm3([v[0] + s[0], v[1] + s[1], v[2] + s[2]]); gls += Math.pow(Math.max(0, nn[0] * hv[0] + nn[1] * hv[1] + nn[2] * hv[2]), 18) * 0.5 * L.k * vis; } }
+    const q = gr[i], b = base[m];
+    D[4 * i] = Math.min(255, 255 * (b[0] * r * q + gls * 0.8)); D[4 * i + 1] = Math.min(255, 255 * (b[1] * g * q + gls * 0.86)); D[4 * i + 2] = Math.min(255, 255 * (b[2] * bl * q + gls)); D[4 * i + 3] = 255;
   }
   x.putImageData(img, 0, 0);
   // the engraved lines, where the bowl is seen (each piece checked against the picture's depth)
@@ -1508,7 +1519,7 @@ function scaDraw(cv, lat, s0, kL, amb, night, lc) {
       x.fillStyle = night ? 'rgba(60,62,70,.55)' : 'rgba(120,104,78,.55)';
       for (let tI = -1; tI <= 1; tI++) { const q = G.C.toScr([xc + tI * PW * 0.27, yf, -Z0 + 0.09]), r = Math.max(1, PW * 0.12 * G.C.S / Math.hypot(G.C.E[1] - yf, G.C.E[2] + Z0)); x.beginPath(); x.ellipse(q[0], q[1], r, r * 0.8, 0, 0, 7); x.fill(); } } }
   // the rod, bronze
-  const a = G.C.toScr(A), c = G.C.toScr(Bc); x.strokeStyle = night ? '#2a2418' : '#4b3a20'; x.lineWidth = Math.max(1, w / 110); x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(c[0], c[1]); x.stroke();
+  const a = G.C.toScr(A), c = G.C.toScr(Bc); x.strokeStyle = `rgb(${Math.round(75 - 33 * nf)},${Math.round(58 - 22 * nf)},${Math.round(32 - 8 * nf)})`; x.lineWidth = Math.max(1, w / 110); x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(c[0], c[1]); x.stroke();
   x.strokeStyle = 'rgba(255,220,150,.35)'; x.lineWidth = Math.max(0.5, w / 330); x.beginPath(); x.moveTo(a[0], a[1] - x.lineWidth); x.lineTo(c[0], c[1] - x.lineWidth); x.stroke();
 }
 // the elevation to look from, for a latitude: the lowest of 24°, 30° … 84° from which the shadow's point is in sight at every hour
@@ -1536,14 +1547,17 @@ function scaSeen(G, p) {                                              // a point
 function scaLight() {
   const r = sunRef(), t = sunTime(), sa = sunAt(sunPos(t), r.lng, r.lat), dir = (az, alt) => [Math.sin(az * RAD) * Math.cos(alt * RAD), Math.cos(az * RAD) * Math.cos(alt * RAD), Math.sin(alt * RAD)];
   const sm = (a, b, v) => { const u = Math.max(0, Math.min(1, (v - a) / (b - a))); return u * u * (3 - 2 * u); };
+  // through the twilight (the sun from 2° above to 8° below the horizon) the day's light gives way to the night's gradually (v381)
+  const day = sm(-8, 2, sa.alt), silver = [0.8, 0.86, 1.0], Ls = [];
   // (the sunlight's colour as the sun's own in the sky: red, rose, gold low down, nearly white high up – v378)
-  if (sa.alt > -1) { const tc = sunTint(sa.alt, sa.az < 180), u = sm(4, 24, sa.alt), lc = [1, 0.97, 0.9].map((v, i) => +(v * u + (0.25 + 0.75 * tc[i] / 255) * (1 - u)).toFixed(2));
-    return { lat: Math.round(r.lat * 2) / 2, s: dir(sa.az, sa.alt), kL: 0.95 * sm(-1, 6, sa.alt), amb: 0.22 + 0.25 * sm(-6, 20, sa.alt), night: false, lc }; }
-  const mo = moonPos(t), ma = sunAt(mo, r.lng, r.lat), dayGlow = sm(-12, 0, sa.alt);
-  if (ma && ma.alt > 0) return { lat: Math.round(r.lat * 2) / 2, s: dir(ma.az, ma.alt), kL: 0.35 * mo.lit, amb: 0.1 + 0.15 * dayGlow, night: true };
-  return { lat: Math.round(r.lat * 2) / 2, s: [0, 0, -1], kL: 0, amb: 0.1 + 0.15 * dayGlow, night: true };
+  const tc = sunTint(sa.alt, sa.az < 180), u = sm(4, 24, sa.alt), lc = [1, 0.97, 0.9].map((v, i) => +(v * u + (0.25 + 0.75 * tc[i] / 255) * (1 - u)).toFixed(3));
+  if (sa.alt > -2) Ls.push({ s: dir(sa.az, sa.alt), k: 0.95 * sm(-2, 6, sa.alt), col: lc });
+  const mo = moonPos(t), ma = sunAt(mo, r.lng, r.lat);
+  if (ma.alt > 0 && day < 1) Ls.push({ s: dir(ma.az, ma.alt), k: 0.35 * mo.lit * (1 - day), col: silver, moon: true });
+  const amb = 0.1 + 0.12 * sm(-12, -1, sa.alt) + 0.25 * sm(-6, 20, sa.alt), ambCol = silver.map((v, i) => +(v + (lc[i] - v) * day).toFixed(3));
+  return { lat: Math.round(r.lat * 2) / 2, Ls, amb, ambCol, nf: 1 - day };
 }
 function scaPaint(cv) {
-  if (!cv) return; const L = scaLight(), key = [cv.width, cv.height, L.lat, ...L.s.map(v => v.toFixed(3)), L.kL.toFixed(2), L.amb.toFixed(2), L.night, L.lc].join();
-  if (cv._key === key) return; cv._key = key; scaDraw(cv, L.lat, L.s, L.kL, L.amb, L.night, L.lc);
+  if (!cv) return; const L = scaLight(), key = JSON.stringify([cv.width, cv.height, L.lat, L.Ls.map(l => [l.s.map(v => v.toFixed(3)), l.k.toFixed(3), l.col]), L.amb.toFixed(3), L.ambCol, L.nf.toFixed(2)]);
+  if (cv._key === key) return; cv._key = key; scaDraw(cv, L.lat, L.Ls, L.amb, L.ambCol, L.nf);
 }
