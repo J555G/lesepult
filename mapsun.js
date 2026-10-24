@@ -1644,8 +1644,9 @@ function scaGeo(w, h, alat, el) {
   }
   return { w, h, alat, el, yc, C, P, N, Mt, G, Dp };
 }
-// a direction in the sky (true: x east, y north, z up) in the dial's frame (turned round on the southern half of the earth)
-const scaLoc = (v, lat) => lat < 0 ? [-v[0], -v[1], v[2]] : v;
+// a direction in the sky (true: x east, y north, z up) in the dial's frame: m 1 the bowl opening to the south, −1 turned round,
+// opening to the north (where the noon sun stands north of the zenith – 592a, v391)
+const scaLoc = (v, m) => m < 0 ? [-v[0], -v[1], v[2]] : v;
 // the stone's surface: limestone – a mottling at several scales, fine pits, faint veins (a factor about 1)
 function scaNoise(x, y, z) {
   const fl = Math.floor, X = fl(x), Y = fl(y), Z = fl(z), fx = x - X, fy = y - Y, fz = z - Z, sm = t => t * t * (3 - 2 * t), u = sm(fx), v = sm(fy), w = sm(fz);
@@ -1659,10 +1660,10 @@ function scaStone(p) {
   return (0.86 + 0.2 * f) * pit - vein;
 }
 // the engraved lines for a latitude (degrees): polylines on the bowl (points on the unit sphere, the shadow's places)
-function scaLines(lat) {
+function scaLines(lat, m) {
   const f = lat * RAD, at = (dec, H) => { const d = dec * RAD, sa = Math.sin(f) * Math.sin(d) + Math.cos(f) * Math.cos(d) * Math.cos(H), alt = Math.asin(sa);
     const az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(f) - Math.tan(d) * Math.cos(f)) + Math.PI;
-    return scaLoc([-Math.sin(az) * Math.cos(alt), -Math.cos(az) * Math.cos(alt), -Math.sin(alt)], lat); };   // (the shadow: opposite the sun)
+    return scaLoc([-Math.sin(az) * Math.cos(alt), -Math.cos(az) * Math.cos(alt), -Math.sin(alt)], m); };   // (the shadow: opposite the sun)
   const half = dec => { const c = -Math.tan(f) * Math.tan(dec * RAD); return c <= -1 ? Math.PI : c >= 1 ? 0 : Math.acos(c); };
   const lines = [];
   for (const dec of [-23.44, 0, 23.44]) { const H0 = half(dec), L = []; if (H0 > 0) { for (let i = 0; i <= 48; i++) L.push(at(dec, -H0 + 2 * H0 * i / 48)); lines.push({ k: 'day', p: L }); } }
@@ -1673,7 +1674,7 @@ function scaLines(lat) {
 // sky's light)
 // (v381: several lights at once – the sun and the moon – each with its strength and colour, and the sky's light; nf how far into the
 // night (0 day … 1 night): through the twilight everything changes gradually, nothing at one step)
-function scaDraw(cv, lat, Ls, amb, ambCol, nf) {
+function scaDraw(cv, lat, Ls, amb, ambCol, nf, m = lat >= 0 ? 1 : -1) {
   const w = cv.width, h = cv.height; if (!w || !h) return;
   const alat = Math.round(Math.abs(lat)), night = nf > 0.5;
   // the viewpoint (544a): from the front a little above – as steep as this latitude needs for the shadow's point to be seen at every
@@ -1683,7 +1684,7 @@ function scaDraw(cv, lat, Ls, amb, ambCol, nf) {
   const x = cv.getContext('2d'), img = x.createImageData(w, h), D = img.data, { P, N, Mt, G: gr, yc } = G;
   const A = [0, 1, 0.012], Bc = [0, 0, 0], base = { 1: [0.86, 0.82, 0.72], 2: [0.9, 0.86, 0.76], 3: [0.76, 0.72, 0.63], 4: [0.8, 0.76, 0.66] };
   // the lights in the dial's frame; the moon's taken from several points of its disc and beyond: soft, faint shadows
-  const lights = Ls.map(L => { const s = scaLoc(L.s, lat);
+  const lights = Ls.map(L => { const s = scaLoc(L.s, m);
     const jit = L.moon ? [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].map(([a, b]) => { const e1 = norm3([s[1], -s[0], 0]), e2 = [s[1] * e1[2] - s[2] * e1[1], s[2] * e1[0] - s[0] * e1[2], s[0] * e1[1] - s[1] * e1[0]], k = 0.035; return norm3([s[0] + k * (a * e1[0] + b * e2[0]), s[1] + k * (a * e1[1] + b * e2[1]), s[2] + k * (a * e1[2] + b * e2[2])]); }) : [s];
     return { s, jit, k: L.k, col: L.col, moon: !!L.moon }; }).filter(L => L.s[2] > 0 && L.k > 0.002);
   // (the shortest distance between the ray towards the light and the rod: in its shadow when closer than its thickness)
@@ -1713,7 +1714,7 @@ function scaDraw(cv, lat, Ls, amb, ambCol, nf) {
   x.putImageData(img, 0, 0);
   // the engraved lines, where the bowl is seen (each piece checked against the picture's depth)
   const lw = Math.max(0.6, w / 260); x.lineCap = 'round';
-  for (const L of (G.lines?.lat === lat ? G.lines.v : (G.lines = { lat, v: scaLines(lat) }).v)) {
+  for (const L of (G.lines?.k === lat + '|' + m ? G.lines.v : (G.lines = { k: lat + '|' + m, v: scaLines(lat, m) }).v)) {
     x.strokeStyle = L.k === 'hour' ? 'rgba(70,58,40,.55)' : 'rgba(70,58,40,.75)'; x.lineWidth = L.k === 'hour' ? lw : lw * 1.3; x.beginPath(); let on = false;
     for (const p of L.p) { const seen = p[2] < -0.005 && scaSeen(G, p); if (!seen) { on = false; continue; } const q = G.C.toScr(p); x[on ? 'lineTo' : 'moveTo'](q[0], q[1]); on = true; }
     x.stroke(); }
@@ -1761,16 +1762,26 @@ function scaLight() {
   const tc = sunTint(sa.alt, sa.az < 180), u = sm(4, 24, sa.alt), lc = [1, 0.97, 0.9].map((v, i) => +(v * u + (0.25 + 0.75 * tc[i] / 255) * (1 - u)).toFixed(3));
   if (sa.alt > -2) Ls.push({ s: dir(sa.az, sa.alt), k: 0.95 * sm(-2, 6, sa.alt), col: lc });
   const mo = moonPos(t), ma = sunAt(mo, r.lng, r.lat);
-  // (587b, v390: the moon on the dial is the handle – its light falls from where a full moon would stand, opposite the sun, so that
-  // the shadow agrees with the handle; as strong as the moon really is full)
-  if (sa.alt < 0 && day < 1) Ls.push({ s: dir((sa.az + 180) % 360, -sa.alt), k: 0.35 * mo.lit * (1 - day), col: silver, moon: true });
+  // (587b, v391: the moon on the dial is the handle – its light falls from the handle's side as the sun's does by day: the sun's
+  // place below the horizon turned over about the east–west line (north and south, above and below exchanged), so that the shadow
+  // falls away from the handle; as strong as the moon really is full)
+  if (sa.alt < 0 && day < 1) { const v = dir(sa.az, sa.alt); Ls.push({ s: [v[0], -v[1], -v[2]], k: 0.35 * mo.lit * (1 - day), col: silver, moon: true }); }
   const amb = 0.1 + 0.12 * sm(-12, -1, sa.alt) + 0.25 * sm(-6, 20, sa.alt), ambCol = silver.map((v, i) => +(v + (lc[i] - v) * day).toFixed(3));
-  return { lat: Math.round(r.lat * 2) / 2, Ls, amb, ambCol, nf: 1 - day };
+  // the bowl opens towards the side where the noon sun stands (592a): south while the sun's declination is below the latitude, north
+  // while above; within a degree either way the two pictures fade into each other (592c)
+  const dd = r.lat - sunPos(t).dec / RAD, wS = sm(-1, 1, dd);
+  return { lat: Math.round(r.lat * 2) / 2, Ls, amb, ambCol, nf: 1 - day, wS };
 }
 function scaPaint(cv) {
-  if (!cv) return; const L = scaLight(), key = JSON.stringify([cv.width, cv.height, L.lat, L.Ls.map(l => [l.s.map(v => v.toFixed(3)), l.k.toFixed(3), l.col]), L.amb.toFixed(3), L.ambCol, L.nf.toFixed(2)]);
-  if (cv._key === key) return; cv._key = key; scaDraw(cv, L.lat, L.Ls, L.amb, L.ambCol, L.nf);
-  // (north of the equator the dial is seen facing north, east at the right, while the ring shows the sky facing south: the picture
-  // is mirrored there, so that the shadow falls away from the sun on the ring, as it does in the south – 578a, v386)
-  cv.style.transform = L.lat >= 0 ? 'scaleX(-1)' : '';
+  if (!cv) return; const L = scaLight(), key = JSON.stringify([cv.width, cv.height, L.lat, L.Ls.map(l => [l.s.map(v => v.toFixed(3)), l.k.toFixed(3), l.col]), L.amb.toFixed(3), L.ambCol, L.nf.toFixed(2), L.wS.toFixed(2)]);
+  if (cv._key === key) return; cv._key = key;
+  // (the bowl opening south is seen facing north, east at the right, while the ring shows the sky facing south: that picture is
+  // mirrored, so that the shadow falls away from the sun on the ring – 578a, v386; each facing drawn on a canvas of its own, the two
+  // laid over each other while they fade – 592c, v391)
+  const ctx = cv.getContext('2d'), off = mm => { const o = (cv._off ||= {})[mm] ||= document.createElement('canvas'); if (o.width !== cv.width || o.height !== cv.height) { o.width = cv.width; o.height = cv.height; } return o; };
+  const parts = [[1, L.wS], [-1, 1 - L.wS]].filter(([, w]) => w > 0.004).sort((a, b) => b[1] - a[1]);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height); cv.style.transform = '';
+  parts.forEach(([mm, w], i) => { const o = off(mm); scaDraw(o, L.lat, L.Ls, L.amb, L.ambCol, L.nf, mm);
+    ctx.globalAlpha = i ? w : 1; if (mm > 0) ctx.setTransform(-1, 0, 0, 1, cv.width, 0); else ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(o, 0, 0); });
+  ctx.globalAlpha = 1; ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
