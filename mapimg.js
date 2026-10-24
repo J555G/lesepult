@@ -82,8 +82,12 @@ function imgCredit() {
     if (on && k === 's2') parts.push(`<a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless – s2maps.eu</a> by EOX IT Services GmbH (Contains modified Copernicus Sentinel data ${esc(on.s2year)})`);
     if (on && k === 'esri') parts.push('Esri, Maxar, Earthstar Geographics, and the GIS User Community' + (on.wbDate ? ` · Wayback ${esc(on.wbDate)}` : ''));
   }
-  if (M.map?.getLayer('osm-rivers') && M.cfg.rivers !== false) parts.push('© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>');   // (its licence asks for it on the map)
-  el.innerHTML = parts.join(' · '); el.hidden = !parts.length;
+  // (OpenStreetMap's waters credited – as its licence asks – only while some of them are actually drawn in the view, v395)
+  const m = M.map; let osm = false;
+  if (m?.getLayer('osm-rivers') && M.cfg.rivers !== false) { try { osm = m.queryRenderedFeatures({ layers: ['osm-rivers', 'osm-lakes'].filter(l => m.getLayer(l)) }).length > 0; } catch (_) { osm = true; } }
+  if (osm) parts.push('© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>');
+  const h = parts.join(' · '); if (el.innerHTML !== h) el.innerHTML = h; el.hidden = !parts.length;
+  if (m && !m._credHook) { m._credHook = true; m.on('idle', () => { clearTimeout(M.credT); M.credT = setTimeout(imgCredit, 150); }); }
 }
 // online or offline again: the layers follow
 function imgNetChange() {

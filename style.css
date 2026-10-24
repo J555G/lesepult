@@ -2140,3 +2140,8 @@ dialog .sortpair button{transition:border-color .15s}
 /* (above the timeline when it is shown) */
 #mapBody:not(.sdopen):has(.mtime:not([hidden])) .cambar{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
 #mapBody:not(.sdopen):has(.mtime:not([hidden])) #flyUI .joy{bottom:calc(150px + env(safe-area-inset-bottom,0px))}
+/* the map's credits: only those needed for what is in view, on one line along the bottom edge, beneath every panel (v395) */
+.mcred{left:6px;right:6px;bottom:calc(2px + env(safe-area-inset-bottom,0px));max-width:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font:10px/12px var(--ui);z-index:8}
+#mapBody:has(.mtime:not([hidden])) .mcred,#mapBody.sdopen .mcred{bottom:calc(2px + env(safe-area-inset-bottom,0px))}
+#mapBody:has(#mapCred:not([hidden])) .msdial{bottom:18px}
+#mapBody:has(#mapCred:not([hidden])) .sdmark{bottom:58px}
