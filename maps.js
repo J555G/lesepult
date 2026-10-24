@@ -633,6 +633,14 @@ function mapStyle(C) {
   st.sky = { 'sky-color': 'rgba(0,0,0,0)', 'horizon-color': 'rgba(0,0,0,0)',   // (above the horizon, Pult's own sky behind the map shows – v354)
     'atmosphere-blend': sunOn() && M.cfg.sunAtm !== false ? ['interpolate', ['linear'], ['zoom'], 0, 0.33, 5, 0.33, 7, 0] : 0 };   // (only with day and night, faint: it hazes the lit half)   // (the globe's halo, fading as one zooms in)
   if ((M.cam?.mode === 'fly' || M.cam?.mode === 'exp') && typeof FOG_OFF === 'object') Object.assign(st.sky, FOG_OFF);   // (no white fog while flying – mapcam.js)
+  // the poles as two white caps (v402): the map ends at 85.05°; beyond it the engine stretched the map's last row of pixels into
+  // streaks – a white band at the edge is stretched instead, over the imagery, beneath the night's shade and everything else
+  if (st.projection.type === 'globe') {
+    const ring = (a, b) => [[[-180, a], [-90, a], [0, a], [90, a], [180, a], [180, b], [90, b], [0, b], [-90, b], [-180, b], [-180, a]]];
+    st.sources.polecaps = { type: 'geojson', data: { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: ring(84.9, 85.0511) } }, { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: ring(-85.0511, -84.9) } }] } };
+    const ids = st.layers.map(l => l.id), k = Math.max(ids.lastIndexOf('img-on'), ids.lastIndexOf('img-bm'), ids.indexOf('land'));
+    st.layers.splice(k + 1, 0, { id: 'polecaps', type: 'fill', source: 'polecaps', paint: { 'fill-color': '#ffffff', 'fill-antialias': false } });
+  }
   return st;
 }
 function mapStyle0(C) {

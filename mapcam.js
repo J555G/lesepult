@@ -233,11 +233,11 @@ function camLeave() {
 // forward and back along the line of sight (climbing as it looks up, diving as it looks down), right and left; let go, it glides to a
 // stop. The right stick turns the view – left and right, up and down – and where it is turned it stays: nothing levels it out, nothing
 // banks it. Full speed is half the height above the ground per second (602a). Every gesture of the explorer works in flight as well;
-// a floor keeps the craft 5 m above the ground. Moves are made on the sphere, so a flight goes on over the poles.
+// a floor keeps the craft 7 m above the ground (v402). Moves are made on the sphere, so a flight goes on over the poles.
 function camFly() {
   if (!M.map) return; const c = M.cam?.mode === 'exp' ? { ...M.cam } : camNow();
   // (taking off changes nothing in the view – only the sticks appear – v393)
-  camTake('fly', { lng: c.lng, lat: c.lat, alt: Math.max(c.alt, groundAt(c.lng, c.lat) + 5), br: c.br, pt: c.pt, roll: c.roll || 0, vF: 0, vR: 0 });
+  camTake('fly', { lng: c.lng, lat: c.lat, alt: Math.max(c.alt, groundAt(c.lng, c.lat) + 7), br: c.br, pt: c.pt, roll: c.roll || 0, vF: 0, vR: 0 });
   flyUI(); flyLoop();
 }
 const FLY = { L: { x: 0, y: 0 }, R: { x: 0, y: 0 }, keys: new Set() };
@@ -255,7 +255,7 @@ function flyLoop() {
     if (Math.abs(c.vF) + Math.abs(c.vR) > 1e-3) {
       const F = camFrame(c), D = [0, 1, 2].map(i => F.v[i] * c.vF + F.r[i] * c.vR), U = norm3(F.P), up = dot3(D, U);
       expTravel(c, F, D.map((x, i) => x - up * U[i]), dt); c.alt += up * dt; }
-    { const g = groundAt(c.lng, c.lat); if (c.alt < g + 5) c.alt = g + 5; }
+    { const g = groundAt(c.lng, c.lat); if (c.alt < g + 7) c.alt = g + 7; }
     camApply(); flyPaint();
     FLY.raf = requestAnimationFrame(step);
   };
@@ -336,14 +336,14 @@ function camGestures() {
 // far ahead when tilted, and the camera rose and fell with it; tilted up, it could end beneath the ground and was thrown up again.
 // The explorer is a camera of its own: a point with its height above the sea and its direction; every gesture moves that point.
 // One finger grabs the ground – the spot under it stays under it, near and far, zoomed in or out (the globe turned like a ball, over
-// the poles too – v401); a finger on the sky moves forward, back and sideways, the faster the higher, and a tap moves nothing.
+// the poles too – v401); a finger on the sky moves nothing (v402).
 // Two fingers pinch to fly towards or away from the point between them (595a), twist to turn the view about it, and moved up or down
 // together tilt the head (v401: no longer panning). Three fingers up or down tilt as well. The mouse wheel as the pinch; the right
 // button (or Ctrl) turns the head; a double tap on the ground flies halfway there. A fling glides on. The only correction: a floor
 // 20 m above the ground beneath the camera – where the ground rises into it, the camera is lifted, eased over a third of a second
 // (596a). Every move is made on the sphere (the camera's place and its directions turned together about the earth's centre).
 const EXP_FLOOR = 20, EXP = { w: [0, 0, 0], raf: 0, last: 0, hold: false, G: null, T: null, prev: null, look: false, tm: 0, tap: null, anim: null, moved: 0 };
-const expFloor = c => c.mode === 'fly' ? 5 : EXP_FLOOR;
+const expFloor = c => c.mode === 'fly' ? 7 : EXP_FLOOR;   // (in flight 7 m – v402)
 const camExpOn = () => camCfg().style !== 'trad';   // (the explorer by default again, as in v399 – v401)
 function camExplore() {
   const m = M.map; if (!m || M.cam || !camExpOn()) return;
@@ -463,8 +463,7 @@ function expMoveG(e, P, two, dx, dy) {
       let Hp; if (t != null) Hp = add3(F.P, mul3(d, t)); else { const q = add3(F.P, mul3(d, Math.max(0, -dot3(F.P, d)))); Hp = mul3(norm3(q), R); }
       const G = EXP.G.p, x = cross3(Hp, G), s = Math.hypot(...x);
       if (s > 1e-9) { const n = mul3(x, 1 / s), a = Math.min(Math.atan2(s, dot3(Hp, G)), Math.max(5 * expHgt(c), 2000) / ER); frameRot(c, F, n, a); expW(n, a, dt); }
-    } else {                                                             // (at the sky: forward, back, sideways, the faster the higher)
-      const s = 2.5 * expHgt(c) / H, b = c.br * RAD, fw = dy * s, sd = -dx * s, r = expShift(c, fw * Math.sin(b) + sd * Math.cos(b), fw * Math.cos(b) - sd * Math.sin(b)); if (r) expW(r[0], r[1], dt); }
+    } else return;                                                       // (a finger on the sky moves nothing – v402)
     camApply(); expTick(); return;
   }
   if (P.size === 2 && EXP.T && EXP.prev) { if (!EXP.pend) { EXP.pend = true; requestAnimationFrame(exp2); } return; }
