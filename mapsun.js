@@ -234,7 +234,7 @@ function sdRefUpd() {
   sockNameSoon();
 }
 // the name on the socket (583a–585a, v387): the nearest ancient settlement of the gazetteer (Pleiades) within 25 km of the place the
-// dial shows – a more significant one preferred over a slightly nearer one; "Mare" at sea; else the coordinates. Cut in tiny
+// dial shows – the most significant one there, unless another is less than a third as far (586b); "Mare" at sea; else the coordinates. Cut in tiny
 // capitals in the manner of the hours: Roman capitals (V for U), Greek capitals (its Greek name, where the gazetteer has one), or as
 // written (the modern manner). Looked up once the map rests.
 const SOCK_H = 18, SOCK_T = ['settlement', 'polis', 'fortified-settlement', 'port', 'urban', 'town', 'village', 'settlement-modern'];
@@ -246,10 +246,12 @@ async function sockName() {
     let P = M.P?.full ? M.P : null;
     if (!P && !M.sockLoad) { M.sockLoad = true; try { if (await mapHas('places')) P = await loadPlaceIndex(true); } catch (_) {} M.sockLoad = false; }
     let best = null;
-    if (P?.P?.length) { const ts = new Set(SOCK_T.map(t => P.ti[t]).filter(v => v != null)), cl = Math.cos(r.lat * RAD); let bs = Infinity;
+    // (586b, v388: the most significant place within 25 km, unless the nearest is less than a third as far)
+    if (P?.P?.length) { const ts = new Set(SOCK_T.map(t => P.ti[t]).filter(v => v != null)), cl = Math.cos(r.lat * RAD); let near = null, top = null;
       for (const p of P.P) { if (!p || p.lat == null || !p.ty?.some(t => ts.has(t))) continue;
         const dy = (p.lat - r.lat) * 111.32; if (dy > 25 || dy < -25) continue; const dx = (((p.lon - r.lng + 540) % 360) - 180) * 111.32 * cl, d = Math.hypot(dx, dy); if (d > 25) continue;
-        const sc = d / (1 + 0.35 * (p.w || 0)); if (sc < bs) { bs = sc; best = p; } } }
+        if (!near || d < near.d) near = { p, d }; const w = p.w || 0; if (!top || w > top.w || (w === top.w && d < top.d)) top = { p, d, w }; }
+      best = !top ? null : near.p !== top.p && near.d < top.d / 3 ? near.p : top.p; }
     let sea = false;
     if (!best) { try { const q = M.map.project([r.lng, r.lat]); sea = M.map.getLayer('land') ? !M.map.queryRenderedFeatures([q.x, q.y], { layers: ['land'] }).length : false; } catch (_) {} }
     M.sockPl = { p: best, sea, r }; }
