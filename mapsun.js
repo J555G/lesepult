@@ -684,12 +684,15 @@ function skyGlow(y, m, P, W, H, t) {
     return cw > 1e-9 ? [(cx / cw + 1) / 2 * W, (1 - cy / cw) / 2 * H] : null; };
   // towards the sun: only low over the earth, gone from 300 km up
   const kT = 1 - smooth01((h - 3e4) / 2.7e5);
+  const fpx = H / 2 / Math.tan((tr.fovInRadians || 0.6435) / 2), maxL = Math.max(0.05 * H, 3 * fpx * dH / Math.max(1, globe ? dist : D));
   const s = sunPos(t), la = lat * RAD, N = 360, pts = [];
   for (let i = 0; i <= N; i++) {
     const a = i / N * 2 * Math.PI, e = D * Math.sin(a), n = D * Math.cos(a), v = [e, up, -n];
     // the edge, and the air above it (along the upright there: away from the earth's centre, on the flat map straight up)
     const nr = globe ? [e / ER0, (up + ER0) / ER0, -n / ER0] : [0, 1, 0], p = scr(v), o = scr([v[0] + nr[0] * dH, v[1] + nr[1] * dH, v[2] + nr[2] * dH]);
-    if (!p || !o) { pts.push(null); continue; }
+    // (a point of the edge nearly level with the camera's own plane – beside or behind it – thrown far across the screen: its piece of
+    // glow became a long band across the sky; such points are left out – longer than three times what the glow can be from here – v414)
+    if (!p || !o || Math.hypot(o[0] - p[0], o[1] - p[1]) > maxL) { pts.push(null); continue; }
     // the place on the earth's edge in that direction, and the sun's height there
     const pl = Math.asin(Math.sin(la) * Math.cos(th) + Math.cos(la) * Math.sin(th) * Math.cos(a)), pg = lng * RAD + Math.atan2(Math.sin(a) * Math.sin(th) * Math.cos(la), Math.cos(th) - Math.sin(la) * Math.sin(pl));
     const sa = sunAt(s, pg / RAD, pl / RAD), rising = sa.az < 180, wT = (1 - kT) + kT * (0.55 + 0.45 * Math.cos((sa.az - a / RAD) * RAD));
