@@ -583,7 +583,10 @@ function expLevel(c) {
   const sq = q * q * (3 - 2 * q), w = wh * wh * (3 - 2 * wh) * sq * sq;   // (fading steeply: near straight down the least levelling turns the picture much)
   if (w <= 0) return;
   const base = camCfg().roll ? -(camCfg().rollv || 0) : 0, d = ((base - (c.roll || 0) + 540) % 360) - 180;
-  c.roll = (c.roll || 0) + d * Math.min(1, 0.2 * w);
+  // (at most 11° a second – v419: the levelling turns the picture slowly, never in a spin)
+  const now = performance.now(), dt = Math.min(0.1, Math.max(0, (now - (EXP.lvT || 0)) / 1000)); EXP.lvT = now;
+  const step = d * Math.min(1, 0.2 * w), cap = 11 * dt;
+  c.roll = (c.roll || 0) + Math.max(-cap, Math.min(cap, step));
 }
 // Two fingers (v407): they grab what lies between them and pull it across the screen – up, down, sideways – the camera turning where
 // it stands so that it stays beneath them (649a; 651a in flight: the head and the craft's heading). Pinched, the camera flies towards
