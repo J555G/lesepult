@@ -39,6 +39,10 @@ const OB_PATCH = [
   ['const Vi=(e,i,o,a)=>{const r=e.style.light,s=r.properties.get("position"),n=[s.x,s.y,s.z],l=t.c4();"viewport"===r.properties.get("anchor")&&t.c5(l,e.transform.bearingInRadians),t.c6(n,n,l);',
    'const Vi=(e,i,o,a)=>{const r=e.style.light,pl=self.__pultObLight,s=r.properties.get("position"),n=pl?[pl[0],pl[1],pl[2]]:[s.x,s.y,s.z],l=t.c4();!pl&&"viewport"===r.properties.get("anchor")&&t.c5(l,e.transform.bearingInRadians),t.c6(n,n,l);'],
   ['u_lightintensity:r.properties.get("intensity")', 'u_lightintensity:pl?pl[3]:r.properties.get("intensity")']];
+// lines as fine as each tile's own distance from the camera asks (652a, v407): the engine reckoned every line's width in a tile by
+// the zoom of the point in the middle of the screen – looking at the horizon that is far off, and the lines near the camera came out
+// many times too wide; self.__pultLineZ gives each tile its own (mapcam.js)
+const LINE_PATCH = [['u_ratio:a/t.aK(i,1,r.zoom)', 'u_ratio:a/t.aK(i,1,self.__pultLineZ?self.__pultLineZ(i,r):r.zoom)']];
 // each group whole or not at all
 function enginePatch(s, list) { let t = s; for (const [a, b, n = 1] of list) { if (t.split(a).length - 1 !== n) throw new Error('not found: ' + a.slice(0, 40)); t = t.split(a).join(b); } return t; }
 async function shadePatchedLib(url) {
@@ -46,6 +50,7 @@ async function shadePatchedLib(url) {
     let s = await (await fetch(url)).text(), any = false;
     try { s = enginePatch(s, SHADE_PATCH); M.shadePatch = any = true; } catch (e) { console.warn('shading by the sun not available:', e.message); M.shadePatch = false; }
     try { s = enginePatch(s, OB_PATCH); any = true; } catch (e) { console.warn('the obelisk lit by its own sun not available:', e.message); }
+    try { s = enginePatch(s, LINE_PATCH); any = true; M.linePatch = true; } catch (e) { console.warn('lines by their own distance not available:', e.message); }
     return any ? URL.createObjectURL(new Blob([s], { type: 'text/javascript' })) : url;
   } catch (e) { M.shadePatch = false; return url; }
 }
