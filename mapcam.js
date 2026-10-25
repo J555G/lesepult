@@ -544,11 +544,15 @@ function expAim(c, x, y, dT) {
 // it stands so that it stays beneath them (649a; 651a in flight: the head and the craft's heading). Pinched, the camera flies towards
 // it or away (it stays beneath them); twisted – once past 12° – the camera circles about it (650b). The fingers are reported one at a
 // time: a step is taken only once both have moved (or after 60 ms), so that the half steps between no longer pan the view.
-function exp2Start(P, two) { const c = M.cam, t = two(); EXP.G = null; EXP.G2 = expGrab(c, t.x, t.y); EXP.prev = t; EXP.P = P; EXP.two = two; EXP.tw = 0; EXP.twOn = false; EXP.fresh = new Set(); EXP.t2 = performance.now(); }
-const EXP_TW = 12;
+function exp2Start(P, two) { const c = M.cam, t = two(); EXP.G = null; EXP.G2 = expGrab(c, t.x, t.y); EXP.prev = t; EXP.P = P; EXP.two = two; EXP.tw = 0; EXP.twOn = false; EXP.pz = 0; EXP.pzOn = false; EXP.fresh = new Set(); EXP.t2 = performance.now(); }
+// (thresholds: a twist only past 12°; a pinch only once the fingers' distance has changed by 8% – so that pulling to tilt does not
+// jitter with small pinches – v408)
+const EXP_TW = 12, EXP_PZ = Math.log(1.08);
 function exp2() {
   EXP.pend = false; const c = M.cam, P = EXP.P; if (!c || (c.mode !== 'exp' && c.mode !== 'fly') || !P || P.size !== 2 || !EXP.G2 || !EXP.prev) return;
-  const t = EXP.two(), p = EXP.prev; EXP.prev = t; const k = p.d / Math.max(10, t.d), da = ((t.a - p.a) / RAD + 540) % 360 - 180;
+  const t = EXP.two(), p = EXP.prev; EXP.prev = t; const k0 = p.d / Math.max(10, t.d), da = ((t.a - p.a) / RAD + 540) % 360 - 180;
+  let k = 1; EXP.pz += Math.log(k0);
+  if (EXP.pzOn) k = k0; else if (Math.abs(EXP.pz) > EXP_PZ) { EXP.pzOn = true; k = Math.exp(EXP.pz - Math.sign(EXP.pz) * EXP_PZ); }
   let tw = 0; EXP.tw += da;
   if (EXP.twOn) tw = da; else if (Math.abs(EXP.tw) > EXP_TW) { EXP.twOn = true; tw = EXP.tw - Math.sign(EXP.tw) * EXP_TW; }
   const G = EXP.G2, T = G.p ? { p: G.p } : { p: add3(camFrame(c).P, mul3(expRay(c, t.x, t.y), Math.max(50, 2 * expHgt(c)))) };
