@@ -306,10 +306,8 @@ function reliefStyle(st, C) {
   // contour lines (maplibre-contour – the way the engine's own documentation draws them; since v345 the only ones: the lines once
   // drawn by the graphics chip, through a change to the engine, are gone): every so many metres (or feet, in the units of the map
   // settings), the larger steps stronger and numbered; wider or closer by the reader's spacing
-  const ft = unit().small !== 1, f = contSpacing() / 9, NICE = [10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000];
-  const nice = v => NICE.find(n => n >= v * 0.9) || 10000, th = o => Object.fromEntries(Object.entries(o).map(([z, [a, b]]) => [z, [nice(a * f), Math.max(nice(b * f), nice(a * f) * 2)]]));
-  st.sources.contours = { type: 'vector', maxzoom: 15, tiles: [M.relDem.contourProtocolUrl({ multiplier: 1 / unit().small, overzoom: 1, contourLayer: 'contours', elevationKey: 'ele', levelKey: 'level',
-    thresholds: th(ft ? { 5: [2000, 5000], 7: [1000, 5000], 9: [500, 2500], 11: [250, 1000], 13: [100, 500] } : { 5: [500, 1000], 7: [500, 1000], 9: [200, 1000], 11: [100, 500], 13: [50, 250] }) })] };
+  contStepNow();
+  st.sources.contours = { type: 'vector', maxzoom: 15, tiles: [contUrl()] };
   // fine orange lines, the numbered ones a little stronger (v345), and their numbers written along them by the engine itself
   put(k, { id: 'rel-contour', type: 'line', source: 'contours', 'source-layer': 'contours', minzoom: 5, filter: ['>', ['get', 'ele'], 0],
     paint: { 'line-color': '#f0821e', 'line-opacity': ['case', ['==', ['get', 'level'], 1], 0.77, 0.55], 'line-width': ['case', ['==', ['get', 'level'], 1], 0.777, 0.333] } });   // (finer – 598, v392)
@@ -319,6 +317,30 @@ function reliefStyle(st, C) {
     layout: { 'symbol-placement': 'line', 'symbol-spacing': 333, 'text-field': ['number-format', ['get', 'ele'], { locale: 'en' }], 'text-font': ['Pult'], 'text-size': 14,
       'text-max-angle': 30, 'text-padding': 4, 'text-keep-upright': true },
     paint: { 'text-color': '#ffb066', 'text-halo-color': 'rgba(28,16,6,.85)', 'text-halo-width': 1.4 } });   // (larger – 599, 601, v392)
+}
+// How far apart the contour lines are: one spacing for the whole view, by the camera's height above the ground (630a, 631a – v404;
+// before, by each tile's detail, so nearer lines closer). In steps; a step changed only once the height is well past its bound, so
+// that it does not flicker to and fro; then the contour tiles are drawn anew. Wider or closer by the reader's spacing, as before.
+const CONT_B = [1000, 3000, 10000, 30000];                           // (the bounds of the steps, metres above the ground)
+const CONT_M = [[50, 250], [100, 500], [200, 1000], [500, 2500], [1000, 5000]], CONT_FT = [[200, 1000], [500, 2500], [1000, 5000], [2000, 10000], [5000, 10000]];
+function contStepFor(h, cur) {
+  if (h == null || !isFinite(h)) return cur ?? 1;
+  let i = cur ?? CONT_B.findIndex(b => h < b); if (i < 0) i = CONT_B.length;
+  while (i < CONT_B.length && h > CONT_B[i] * 1.15) i++;
+  while (i > 0 && h < CONT_B[i - 1] * 0.87) i--;
+  return i;
+}
+function contStepNow() { M.contStep = contStepFor(typeof camAboveGround === 'function' ? camAboveGround() : null, M.contStep); return M.contStep; }
+function contUrl() {
+  const ft = unit().small !== 1, f = contSpacing() / 9, NICE = [10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000];
+  const nice = v => NICE.find(n => n >= v * 0.9) || 10000, [a, b] = (ft ? CONT_FT : CONT_M)[M.contStep ?? 1];
+  return M.relDem.contourProtocolUrl({ multiplier: 1 / unit().small, overzoom: 1, contourLayer: 'contours', elevationKey: 'ele', levelKey: 'level',
+    thresholds: { 0: [nice(a * f), Math.max(nice(b * f), nice(a * f) * 2)] } });
+}
+// (as the camera moves: a new step, new lines)
+function contUpd() {
+  const m = M.map, src = m?.getSource?.('contours'); if (!src || !M.relDem || typeof src.setTiles !== 'function') return;
+  const was = M.contStep; if (contStepNow() !== was) { try { src.setTiles([contUrl()]); } catch (_) {} }
 }
 function reliefLayerProps() {
   const v = x => x ? 'visible' : 'none';

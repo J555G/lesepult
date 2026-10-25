@@ -765,7 +765,9 @@ function skyDraw(args) {
   let bg = $('#skyBg');                                              // (the sky behind the map)
   if (!bg || bg.parentNode !== box) { bg?.remove(); bg = document.createElement('canvas'); bg.id = 'skyBg'; bg.className = 'skybg'; box.prepend(bg); }
   if (bg.width !== Math.round(W * dpr) || bg.height !== Math.round(H * dpr)) { bg.width = Math.round(W * dpr); bg.height = Math.round(H * dpr); }
-  const ref0 = sunRef(), P0 = args.defaultProjectionData.mainMatrix;
+  // (the sky as seen from where the camera is – not from the place the middle of the screen looks at, which leaps when the line of
+  // sight passes the horizon: the stars leapt with it – 629a, v404)
+  const eye = typeof camLodC === 'function' ? camLodC() : null, ref0 = eye ? { lng: eye.lng, lat: Math.max(-89.9, Math.min(89.9, eye.lat)) } : sunRef(), P0 = args.defaultProjectionData.mainMatrix;
   // nothing to draw anew when the view, the time and the settings are as at the last frame (frames for other reasons: tiles
   // arriving, the obelisk …) – v347
   const key = [...P0, W, H, dpr, ref0.lng, ref0.lat, Math.round(sunTime() / 6e4), M.cfg.skySize, sunOn(), M.cfg.skySun, M.cfg.skyMoon, !!M.cfg.gnomon, !!SKY.stars, !!SKY.zod, !!SKY.img.sun?.complete, !!SKY.img.moonface?.complete].join();

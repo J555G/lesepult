@@ -37,7 +37,8 @@ function camInit() {
   // soon as the map is a globe (at start or once switched to it)
   const m = M.map; if (m && !globeElev(m)) { const f = () => { if (globeElev(m)) m.off('render', f); }; m.on('render', f); }
   if (M.camMap !== m) { M.cam = null; M.camPrevExp = null; }
-  camConstrain(m); if (m && !m._camCon) { m._camCon = true; m.on('style.load', () => camConstrain(m)); m.on('styledata', () => camLodAll(m)); m.on('sourcedata', () => camLodAll(m)); }
+  camConstrain(m); if (m && !m._camCon) { m._camCon = true; m.on('style.load', () => camConstrain(m)); m.on('styledata', () => camLodAll(m)); m.on('sourcedata', () => camLodAll(m));
+    let ct = 0; m.on('move', () => { const n = performance.now(); if (n - ct > 400) { ct = n; (typeof contUpd === 'function' && contUpd()); } }); m.on('moveend', () => (typeof contUpd === 'function' && contUpd())); }
   camLodAll(m);
   camExplore();
 }
@@ -65,6 +66,8 @@ function camLodC() {      // where the camera is, in the engine's units (mercato
   if (k !== LOD_C.k) { LOD_C = { k, v: null }; LOD_C.v = camLodC0(); }
   return LOD_C.v;
 }
+// the camera's height above the ground (metres), for the explorer and the map's own camera alike
+function camAboveGround() { const C = camLodC(); return C ? C.hm : null; }
 function camLodC0() {
   const c = M.cam, m = M.map; let ll, h;
   if (c && camExpOn()) { ll = [c.lng, c.lat]; h = c.alt - groundAt(c.lng, c.lat); }
@@ -73,7 +76,7 @@ function camLodC0() {
     ll = [q.lng, q.lat]; h = a - groundAt(q.lng, q.lat); } catch (_) { return null; } }
   if (!isFinite(h) || !isFinite(ll[1])) return null;
   const lat = Math.max(-85.05, Math.min(85.05, ll[1])), q = maplibregl.MercatorCoordinate.fromLngLat([ll[0], lat]);
-  return { x: q.x, y: q.y, h: Math.max(2, h) / (2 * Math.PI * ER * Math.max(0.01, Math.cos(lat * RAD))) };
+  return { x: q.x, y: q.y, hm: h, lng: ll[0], lat: ll[1], h: Math.max(2, h) / (2 * Math.PI * ER * Math.max(0.01, Math.cos(lat * RAD))) };
 }
 function camLod(o, a, r, s, n) {   // (centre zoom, distance to the tile along the ground, camera's height over the centre, camera to centre, field of view)
   const C = camLodC(), t = M.map?.transform, l = LOD_L(n), f = Math.log2(1 / Math.max(0.5, Math.cos(n / 2 * RAD)));
@@ -177,6 +180,7 @@ function camApply0() {
   const globe = m.getProjection?.()?.type === 'globe', roll = (((c.roll || 0) + 180) % 360 + 360) % 360 - 180;
   if (!globe) {   // (the flat map: worked out flat – the earth there has no curve)
     if (e < -0.01) L = Math.min(3e7, Math.max(5, h / Math.sin(-e)));   // (looking down: the centre where the line of sight meets the ground – v399)
+    else L = Math.min(3e7, Math.max(5, h * (100 - 99 * Math.sin(Math.max(0, e)))));   // (at the horizon on as from below, then nearer as the view rises – 629a)
     const D = L * Math.cos(e), tlat = c.lat + D * Math.cos(b) / mPerDeg, tlng = c.lng + D * Math.sin(b) / (mPerDeg * Math.max(0.05, Math.cos(c.lat * RAD)));
     const zoom = Math.log2(m.transform.cameraToCenterDistance * 2 * Math.PI * ER * Math.cos(tlat * RAD) / (512 * L));
     try { m.jumpTo({ center: [tlng, tlat], elevation: c.alt + L * Math.sin(e), zoom, pitch: c.pt, bearing: c.br, roll }); } catch (_) {}
@@ -187,6 +191,11 @@ function camApply0() {
   // (v399: the centre exactly where the line of sight meets the ground – not some way short of it, up in the air: there the engine
   // picked its tiles for a nearer ground than the one seen, loading far too many and too fine, and far out it lost the globe)
   if (pv < 0 && disc > 0) L = Math.max(5, -pv - Math.sqrt(disc));
+  // (missing the ground: just over the horizon as far off as the horizon itself – there the same as where the line of sight meets
+  // the ground, so the centre, the zoom and with them the curve of the earth no longer leap; nearer as the view rises, over ten
+  // degrees, to the height, as before – 629a, v404)
+  else { const el = Math.asin(Math.max(-1, Math.min(1, dot3(v, U)))), dip = Math.acos(Math.min(1, rg / r0)), a = Math.max(0, el + dip), A = 10 * RAD;
+    const Lt = Math.sqrt(Math.max(0, r0 * r0 - rg * rg)), w = (1 - Math.min(1, a / A)) ** 2; L = Math.max(L, L + (Lt - L) * w); }
   const T = [0, 1, 2].map(i => P[i] + L * v[i]), rT = Math.hypot(...T), tlat = Math.asin(T[1] / rT), tlng = Math.atan2(T[0], T[2]);
   const U2 = T.map(x => x / rT), N2 = [-Math.sin(tlat) * Math.sin(tlng), Math.cos(tlat), -Math.sin(tlat) * Math.cos(tlng)], E2 = [Math.cos(tlng), 0, -Math.sin(tlng)];
   const dot = (a, q) => a[0] * q[0] + a[1] * q[1] + a[2] * q[2], vu = dot(v, U2), ve = dot(v, E2), vn = dot(v, N2);
@@ -298,7 +307,10 @@ function flyLoop() {
     if (Math.abs(R.x) > 0.02) c.br += cv(R.x) * 60 * dt;
     if (Math.abs(R.y) > 0.02) c.pt = Math.max(0.5, Math.min(179.5, c.pt - cv(R.y) * 45 * dt));
     if (Math.abs(c.vF) + Math.abs(c.vR) > 1e-3) {
-      const F = camFrame(c), D = [0, 1, 2].map(i => F.v[i] * c.vF + F.r[i] * c.vR), U = norm3(F.P), up = dot3(D, U);
+      // ("forward" is the line through the point two thirds up the map, not its middle: flying, the view looks a little down – 633a, v404)
+      const F = camFrame(c), Hc = M.map.getCanvas().clientHeight || 600, fp = Hc / 2 / Math.tan((M.map.getVerticalFieldOfView() || 37) * RAD / 2);
+      const fw = norm3([0, 1, 2].map(i => F.v[i] * fp + F.u[i] * Hc / 6));
+      const D = [0, 1, 2].map(i => fw[i] * c.vF + F.r[i] * c.vR), U = norm3(F.P), up = dot3(D, U);
       expTravel(c, F, D.map((x, i) => x - up * U[i]), dt); c.alt += up * dt; }
     { const g = groundAt(c.lng, c.lat); if (c.alt < g + 7) c.alt = g + 7; }
     camApply(); flyPaint();
@@ -495,6 +507,8 @@ function exp2() {
     else if (a0 && a1) { A.set(ids[0], 0); A.set(ids[1], 0); }
     return com; };
   const com = share(acc), comX = share(accX);
+  // (pinch and twist about the point beneath the fingers as it is now – found again each time, after a tilt or a turn too: 632a, v404)
+  EXP.T = expTarget(c, t.x, t.y) || EXP.T;
   expZoom(c, EXP.T, k, -da);
   const kd = (M.map.getVerticalFieldOfView() || 37) / (M.map.getCanvas().clientHeight || 600);
   if (com) c.pt = Math.max(0.5, Math.min(179.5, c.pt - com * kd * 1.5));      // (fingers up: the camera looks up)
