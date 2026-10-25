@@ -43,6 +43,9 @@ const OB_PATCH = [
 // the zoom of the point in the middle of the screen – looking at the horizon that is far off, and the lines near the camera came out
 // many times too wide; self.__pultLineZ gives each tile its own (mapcam.js)
 const LINE_PATCH = [['u_ratio:a/t.aK(i,1,r.zoom)', 'u_ratio:a/t.aK(i,1,self.__pultLineZ?self.__pultLineZ(i,r):r.zoom)']];
+// names and numbers on 3D ground (v420): the engine hides a label as soon as the drawn ground lies the least bit in front of it – the
+// contour numbers sit exactly on the ground and were hidden (all the more with the heights exaggerated); a little more room given
+const LABEL_PATCH = [['+0.0001-frag.z', '+0.002-frag.z']];
 // each group whole or not at all
 function enginePatch(s, list) { let t = s; for (const [a, b, n = 1] of list) { if (t.split(a).length - 1 !== n) throw new Error('not found: ' + a.slice(0, 40)); t = t.split(a).join(b); } return t; }
 async function shadePatchedLib(url) {
@@ -51,6 +54,7 @@ async function shadePatchedLib(url) {
     try { s = enginePatch(s, SHADE_PATCH); M.shadePatch = any = true; } catch (e) { console.warn('shading by the sun not available:', e.message); M.shadePatch = false; }
     try { s = enginePatch(s, OB_PATCH); any = true; } catch (e) { console.warn('the obelisk lit by its own sun not available:', e.message); }
     try { s = enginePatch(s, LINE_PATCH); any = true; M.linePatch = true; } catch (e) { console.warn('lines by their own distance not available:', e.message); }
+    try { s = enginePatch(s, LABEL_PATCH); any = true; } catch (e) { console.warn('labels on 3D ground: as the engine has them –', e.message); }
     return any ? URL.createObjectURL(new Blob([s], { type: 'text/javascript' })) : url;
   } catch (e) { M.shadePatch = false; return url; }
 }

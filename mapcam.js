@@ -103,9 +103,8 @@ function camLineZ(tile, tr) {
     const C = camLodC(), id = tile?.tileID; if (!C || !id || !tr) return tr.zoom;
     const z = id.canonical.z, n = 2 ** z, x0 = id.canonical.x / n + (id.wrap || 0), y0 = id.canonical.y / n;
     const dx = Math.max(x0 - C.x, 0, C.x - (x0 + 1 / n)), dy = Math.max(y0 - C.y, 0, C.y - (y0 + 1 / n)), D = Math.hypot(Math.hypot(dx, dy), C.h);
-    // (seen at a slant, a line across the view is drawn narrower by the slant: in part made up for – by the square root of the slant,
-    // at most 2.5 times – so that lines in the distance stay to be seen without those along the view swelling)
-    let Z = Math.log2(tr.cameraToCenterDistance / (512 * D)) - Math.log2(Math.min(2.5, Math.sqrt(D / C.h))); const D0 = 10 * C.h; if (D > D0) Z += Math.log2(D / D0);
+    // (v420: no longer widened for the slant – up to 2.5 times since v407, which made the lines at some ten times the height too thick)
+    let Z = Math.log2(tr.cameraToCenterDistance / (512 * D)); const D0 = 10 * C.h; if (D > D0) Z += Math.log2(D / D0);
     return isFinite(Z) ? Z : tr.zoom;
   } catch (_) { return tr.zoom; }
 }
