@@ -212,7 +212,10 @@ function camApply0() {
   // the ground, so the centre, the zoom and with them the curve of the earth no longer leap; nearer as the view rises, over ten
   // degrees, to the height, as before – 629a, v404)
   else { const el = Math.asin(Math.max(-1, Math.min(1, dot3(v, U)))), dip = Math.acos(Math.min(1, rg / r0)), a = Math.max(0, el + dip), A = 10 * RAD;
-    const Lt = Math.sqrt(Math.max(0, r0 * r0 - rg * rg)), w = (1 - Math.min(1, a / A)) ** 2; L = Math.max(L, L + (Lt - L) * w); }
+    const Lt = Math.sqrt(Math.max(0, r0 * r0 - rg * rg)), w = (1 - Math.min(1, a / A)) ** 2; L = Math.max(L, L + (Lt - L) * w);
+    // (far out at the point of the line of sight nearest the earth, as low as it goes – v412: placed elsewhere, high above the earth, the
+    // engine drew no earth at all, only the glow of its air ("translucent"); from 50 km up gradually, wholly from 300 km)
+    if (pv < 0) { const s = Math.max(0, Math.min(1, (h - 5e4) / 2.5e5)), q = s * s * (3 - 2 * s); if (q > 0) L = Math.max(30, L + (-pv - L) * q); } }
   const T = [0, 1, 2].map(i => P[i] + L * v[i]), rT = Math.hypot(...T), tlat = Math.asin(T[1] / rT), tlng = Math.atan2(T[0], T[2]);
   const U2 = T.map(x => x / rT), N2 = [-Math.sin(tlat) * Math.sin(tlng), Math.cos(tlat), -Math.sin(tlat) * Math.cos(tlng)], E2 = [Math.cos(tlng), 0, -Math.sin(tlng)];
   const dot = (a, q) => a[0] * q[0] + a[1] * q[1] + a[2] * q[2], vu = dot(v, U2), ve = dot(v, E2), vn = dot(v, N2);
