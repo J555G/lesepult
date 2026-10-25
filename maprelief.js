@@ -314,8 +314,9 @@ function reliefStyle(st, C) {
   put(k, { id: 'rel-coast0', type: 'line', source: 'contours', 'source-layer': 'contours', filter: ['==', ['get', 'ele'], 0],     // the 0 m line: the coast from the heights
     paint: { 'line-color': '#f0821e', 'line-width': 0.8, 'line-opacity': 0.8 } });
   put(k, { id: 'rel-contour-num', type: 'symbol', source: 'contours', 'source-layer': 'contours', minzoom: 7, filter: ['all', ['==', ['get', 'level'], 1], ['>', ['get', 'ele'], 0]],
+    // (facing the camera, along their line, sitting on it rather than across it – 643a, v405)
     layout: { 'symbol-placement': 'line', 'symbol-spacing': 333, 'text-field': ['number-format', ['get', 'ele'], { locale: 'en' }], 'text-font': ['Pult'], 'text-size': 14,
-      'text-max-angle': 30, 'text-padding': 4, 'text-keep-upright': true },
+      'text-max-angle': 30, 'text-padding': 4, 'text-keep-upright': true, 'text-pitch-alignment': 'viewport', 'text-offset': [0, -0.62] },
     paint: { 'text-color': '#ffb066', 'text-halo-color': 'rgba(28,16,6,.85)', 'text-halo-width': 1.4 } });   // (larger – 599, 601, v392)
 }
 // How far apart the contour lines are: one spacing for the whole view, by the camera's height above the ground (630a, 631a – v404;

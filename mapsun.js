@@ -1676,6 +1676,15 @@ function scaLines(lat, m) {
 // sky's light)
 // (v381: several lights at once – the sun and the moon – each with its strength and colour, and the sky's light; nf how far into the
 // night (0 day … 1 night): through the twilight everything changes gradually, nothing at one step)
+// The moon's light on the bowl (642a, v405): from where the handle stands on the ring – the side and the height of the picture it is
+// seen at, as the sun's light by day (the moon's place below the horizon, as the dial's view shows it); where that is low in the
+// picture, the light comes low from in front, through the bowl's open face, so that it still reaches in and the rod's shadow falls
+// away from the handle, up the bowl
+function scaRingLight(v, C) {
+  const dt = (p, q) => p[0] * q[0] + p[1] * q[1] + p[2] * q[2], a = dt(v, C.r), b = dt(v, C.u), l = Math.hypot(a, b) || 1, A = a / l, B = b / l, bk = C.f.map(x => -x);   // (bk: back towards the eye)
+  const zmin = 0.12, c = Math.max(0.35, (zmin - B * C.u[2]) / Math.max(0.05, bk[2]));
+  return norm3([0, 1, 2].map(i => A * C.r[i] + B * C.u[i] + c * bk[i]));
+}
 function scaDraw(cv, lat, Ls, amb, ambCol, nf, m = lat >= 0 ? 1 : -1) {
   const w = cv.width, h = cv.height; if (!w || !h) return;
   const alat = Math.round(Math.abs(lat)), night = nf > 0.5;
@@ -1686,7 +1695,7 @@ function scaDraw(cv, lat, Ls, amb, ambCol, nf, m = lat >= 0 ? 1 : -1) {
   const x = cv.getContext('2d'), img = x.createImageData(w, h), D = img.data, { P, N, Mt, G: gr, yc } = G;
   const A = [0, 1, 0.012], Bc = [0, 0, 0], base = { 1: [0.86, 0.82, 0.72], 2: [0.9, 0.86, 0.76], 3: [0.76, 0.72, 0.63], 4: [0.8, 0.76, 0.66] };
   // the lights in the dial's frame; the moon's taken from several points of its disc and beyond: soft, faint shadows
-  const lights = Ls.map(L => { const s = scaLoc(L.s, m);
+  const lights = Ls.map(L => { const s = L.ring ? scaRingLight(scaLoc(L.s, m), G.C) : scaLoc(L.s, m);
     const jit = L.moon ? [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].map(([a, b]) => { const e1 = norm3([s[1], -s[0], 0]), e2 = [s[1] * e1[2] - s[2] * e1[1], s[2] * e1[0] - s[0] * e1[2], s[0] * e1[1] - s[1] * e1[0]], k = 0.035; return norm3([s[0] + k * (a * e1[0] + b * e2[0]), s[1] + k * (a * e1[1] + b * e2[1]), s[2] + k * (a * e1[2] + b * e2[2])]); }) : [s];
     return { s, jit, k: L.k, col: L.col, moon: !!L.moon }; }).filter(L => L.s[2] > 0 && L.k > 0.002);
   // (the shortest distance between the ray towards the light and the rod: in its shadow when closer than its thickness)
@@ -1767,7 +1776,8 @@ function scaLight() {
   // (587b, v391: the moon on the dial is the handle – its light falls from the handle's side as the sun's does by day: the sun's
   // place below the horizon turned over about the east–west line (north and south, above and below exchanged), so that the shadow
   // falls away from the handle; as strong as the moon really is full)
-  if (sa.alt < 0 && day < 1) { const v = dir(sa.az, sa.alt); Ls.push({ s: [v[0], -v[1], -v[2]], k: 0.35 * mo.lit * (1 - day), col: silver, moon: true }); }
+  // (642a, v405: no longer turned over to above – from the handle's place on the ring; scaDraw makes it reach into the bowl)
+  if (sa.alt < 0 && day < 1) Ls.push({ s: dir(sa.az, sa.alt), k: 0.35 * mo.lit * (1 - day), col: silver, moon: true, ring: true });
   const amb = 0.1 + 0.12 * sm(-12, -1, sa.alt) + 0.25 * sm(-6, 20, sa.alt), ambCol = silver.map((v, i) => +(v + (lc[i] - v) * day).toFixed(3));
   // the bowl opens towards the side where the noon sun stands (592a): south while the sun's declination is below the latitude, north
   // while above; within a degree either way the two pictures fade into each other (592c)
