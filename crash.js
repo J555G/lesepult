@@ -38,7 +38,7 @@ function crSnap(now) {
     const t = performance.now(); s.fps = Math.round(CR.fr / Math.max(0.5, (t - CR.frT) / 1000)); CR.fr = 0; CR.frT = t;
     if (performance.memory) s.mem = Math.round(performance.memory.usedJSHeapSize / 1e6);
   } catch (e) { s.snapErr = String(e?.message || e).slice(0, 100); }
-  CR.snaps.push(s); if (CR.snaps.length > 30) CR.snaps.shift();
+  CR.lastSnap = Date.now(); CR.snaps.push(s); if (CR.snaps.length > 40) CR.snaps.shift();
   crSet(CR_BOX, crBox()); const L = crGet(CR_LIVE); if (L && L.t0 === CR.t0) { L.last = Date.now(); crSet(CR_LIVE, L); }
   crPerf(s);
 }
@@ -82,9 +82,11 @@ function crSnap(now) {
 // ---- after everything has loaded: the camera's modes, the map's frames and graphics chip, the note about the last session
 function crHooks() {
   const wrap = (name, label) => { const f = window[name]; if (typeof f !== 'function' || f._cr) return; const g = function (...a) { crNote('do', label || name); return f.apply(this, a); }; g._cr = true; window[name] = g; };
-  for (const n of ['camTake', 'camLeave', 'camFly', 'camObelisk', 'camNadir', 'showMap', 'mapFailed', 'sdOpen', 'bigMount', 'bigClose']) wrap(n);
+  for (const n of ['camTake', 'camLeave', 'camFly', 'camObelisk', 'camLevelH', 'showMap', 'mapFailed', 'sdOpen', 'bigMount', 'bigClose']) wrap(n);
   const t = setInterval(() => { const m = crM()?.map; if (!m || m._crHook) return; m._crHook = true;
     m.on('render', () => { CR.fr++; });
+    // (while the map moves, a snapshot every half second – the last moments before a crash in finer steps – v416)
+    m.on('move', () => { if (Date.now() - (CR.lastSnap || 0) > 500) crSnap(); });
     try { const gl = m.painter?.context?.gl, x = gl?.getExtension('WEBGL_debug_renderer_info'); if (gl) CR.dev.gpu = x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); if (gl) CR.dev.maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE); } catch (_) { }
     crNote('map', 'made'); }, 1000);
   if (CR.pending) setTimeout(crOffer, 1500);

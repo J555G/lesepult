@@ -37,7 +37,7 @@ function camInit() {
   // soon as the map is a globe (at start or once switched to it)
   const m = M.map; if (m && !globeElev(m)) { const f = () => { if (globeElev(m)) m.off('render', f); }; m.on('render', f); }
   if (M.camMap !== m) { M.cam = null; M.camPrevExp = null; }
-  camConstrain(m); if (m && !m._camCon) { m._camCon = true; m.on('style.load', () => camConstrain(m)); m.on('styledata', () => camLodAll(m)); m.on('sourcedata', () => camLodAll(m));
+  camFarHook(m); camConstrain(m); if (m && !m._camCon) { m._camCon = true; m.on('style.load', () => camConstrain(m)); m.on('styledata', () => camLodAll(m)); m.on('sourcedata', () => camLodAll(m));
     let ct = 0; m.on('move', () => { const n = performance.now(); if (n - ct > 400) { ct = n; (typeof contUpd === 'function' && contUpd()); } }); m.on('moveend', () => (typeof contUpd === 'function' && contUpd())); }
   camLodAll(m);
   camExplore();
@@ -227,6 +227,21 @@ function camApply0() {
   const rollT = Math.atan2(-dot(uu, r0w), dot(uu, u0w)) / RAD;
   try { m.jumpTo({ center: [tlng / RAD, latT], elevation: rT - ER, zoom, pitch: Math.max(0, Math.min(180, pitch)), bearing, roll: -rollT }); } catch (_) {}
   camBar();
+}
+// How far the flat map is drawn (673a, v416): drawn flat (from about zoom 12 on), the engine ends the land where its own flat map would
+// meet a horizon – reckoned for a camera looking down on the map; looking along the ground, it ended long before the real horizon,
+// and the sky showed through where the far land and hills should be. There it is drawn as far as the real horizon from the camera's
+// height, and some 230 km beyond it for high mountains standing up behind it. On the globe the engine's own reach is kept.
+function camFarHook(m) {
+  for (const t of [m?.transform, m?.transform?._mercatorTransform]) {
+    const pr = t && Object.getPrototypeOf(t); if (!pr || pr._pultFar || typeof pr._calculateNearFarZIfNeeded !== 'function') continue;
+    const orig = pr._calculateNearFarZIfNeeded; pr._pultFar = true;
+    // (the engine's own reach worked out first, then lengthened if the camera is ours and sees further; before the matrices are made)
+    pr._calculateNearFarZIfNeeded = function (...a) { orig.apply(this, a);
+      try { const c = M.cam, H = this._helper; if (!c || !H || !H.autoCalculateNearFarZ) return;
+        const ppm = this.worldSize / (2 * Math.PI * ER * Math.cos(this.center.lat * RAD)), h = Math.max(1, c.alt);
+        const want = (Math.sqrt(2 * ER * h + h * h) + Math.sqrt(2 * ER * 4000)) * 1.05 * ppm; if (isFinite(want) && want > H._farZ) H._farZ = want; } catch (_) { } };
+  }
 }
 // The globe mode of the engine (vertical perspective, below zoom 12) keeps the point the camera looks at on the sea-level sphere,
 // whatever height it is given – so a camera looking up would sit beneath the ground, and over mountains the map's own camera looked
@@ -558,11 +573,12 @@ function expAim(c, x, y, dT, free) {
   }
   return c.pt - p0;
 }
-// the horizon levelled again little by little in the explorer – only close to the earth (fully below 20 km, not at all above 100 km)
+// the horizon levelled again little by little in the explorer – only close to the earth (from zoom 5.5, fully from zoom 7 – v416)
 // and only while the view is within 35° of the horizon, the more the more level (671a, v413): looking steeply down or from far out,
 // the picture keeps the turn it has, rather than spinning
 function expLevel(c) {
-  const h = expHgt(c), e = Math.abs(c.pt - 90), wh = Math.max(0, Math.min(1, (1e5 - h) / 8e4)), we = Math.max(0, 1 - e / 35) ** 2, w = wh * wh * (3 - 2 * wh) * we;
+  // (v416: from zoom 5.5 on, fully from zoom 7 – the map's zoom, as the scale line shows it)
+  const z = M.map?.getZoom?.() ?? 0, e = Math.abs(c.pt - 90), wh = Math.max(0, Math.min(1, (z - 5.5) / 1.5)), we = Math.max(0, 1 - e / 35) ** 2, w = wh * wh * (3 - 2 * wh) * we;
   if (w <= 0) return;
   const base = camCfg().roll ? -(camCfg().rollv || 0) : 0, d = ((base - (c.roll || 0) + 540) % 360) - 180;
   c.roll = (c.roll || 0) + d * Math.min(1, 0.2 * w);
@@ -643,16 +659,18 @@ function expKey(k) {
   else if (k === 'pageup') c.pt = Math.min(179.5, c.pt + 3); else if (k === 'pagedown') c.pt = Math.max(0.5, c.pt - 3); else return false;
   camApply(); expTick(); return true;
 }
-// the button under the compass: the camera turned to look straight down, at the earth's centre, where it is (v397)
-function camNadir() {
+// the button under the compass: the horizon levelled – the camera turned about its line of sight until the horizon lies level (or
+// as set in the Camera menu), where it is and looking where it looks; in flight the bank taken out too (v416; before, the camera
+// turned to look straight down – v397)
+function camLevelH() {
   const m = M.map; if (!m) return;
-  if (!M.cam) { m.easeTo({ pitch: 0, duration: 450 }); return; }
-  const c = M.cam, a0 = c.pt, a1 = 0.5, t0 = performance.now();
-  const step = now => { if (M.cam !== c) return; const u = Math.min(1, (now - t0) / 450), s = u * u * (3 - 2 * u), v = a0 + (a1 - a0) * s;
-    c.pt = v; camApply(); if (u < 1) requestAnimationFrame(step); };
+  if (!M.cam) { m.easeTo({ roll: camCfg().roll ? camCfg().rollv || 0 : 0, duration: 450 }); return; }
+  const c = M.cam, base = camCfg().roll ? -(camCfg().rollv || 0) : 0, r0 = c.roll || 0, d = ((base - r0 + 540) % 360) - 180, t0 = performance.now();
+  if (c.mode === 'fly') { c.bank = 0; c.prate = 0; }
+  const step = now => { if (M.cam !== c) return; const u = Math.min(1, (now - t0) / 450), w = u * u * (3 - 2 * u); c.roll = r0 + d * w; camApply(); if (u < 1) requestAnimationFrame(step); };
   requestAnimationFrame(step);
 }
-document.addEventListener('click', ev => { if (ev.target.closest?.('#mapNadir')) camNadir(); });
+document.addEventListener('click', ev => { if (ev.target.closest?.('#mapNadir')) camLevelH(); });
 // ---------------------------------------------------------------- the all-sky view (a fisheye straight up)
 // Drawn by Pult itself: the zenith in the middle, the horizon at nine tenths of the radius, a little below it to the rim (from
 // high up the horizon sinks); north at the top and east at the left, as one sees the sky lying on one's back – turned by a
