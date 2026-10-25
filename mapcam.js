@@ -573,12 +573,14 @@ function expAim(c, x, y, dT, free) {
   }
   return c.pt - p0;
 }
-// the horizon levelled again little by little in the explorer – only close to the earth (from zoom 5.5, fully from zoom 7 – v416)
-// and only while the view is within 35° of the horizon, the more the more level (671a, v413): looking steeply down or from far out,
-// the picture keeps the turn it has, rather than spinning
+// the horizon levelled again little by little in the explorer – only close to the earth: from zoom 5.5, fully from zoom 7 (v416; by
+// the zoom alone since v418, at any angle of view); farther out the picture keeps the turn it has, rather than spinning
 function expLevel(c) {
   // (v416: from zoom 5.5 on, fully from zoom 7 – the map's zoom, as the scale line shows it)
-  const z = M.map?.getZoom?.() ?? 0, e = Math.abs(c.pt - 90), wh = Math.max(0, Math.min(1, (z - 5.5) / 1.5)), we = Math.max(0, 1 - e / 35) ** 2, w = wh * wh * (3 - 2 * wh) * we;
+  // (v418: by the zoom – no longer only while the view is within 35° of the horizon; fading out over the last 33° before looking
+  // straight down (or up), wholly off there: no horizon to level, and the picture would spin – 679a)
+  const z = M.map?.getZoom?.() ?? 0, wh = Math.max(0, Math.min(1, (z - 5.5) / 1.5)), q = Math.max(0, Math.min(1, Math.min(c.pt, 180 - c.pt) / 33));
+  const sq = q * q * (3 - 2 * q), w = wh * wh * (3 - 2 * wh) * sq * sq;   // (fading steeply: near straight down the least levelling turns the picture much)
   if (w <= 0) return;
   const base = camCfg().roll ? -(camCfg().rollv || 0) : 0, d = ((base - (c.roll || 0) + 540) % 360) - 180;
   c.roll = (c.roll || 0) + d * Math.min(1, 0.2 * w);
