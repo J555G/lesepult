@@ -696,7 +696,7 @@ async function showMap1() {
       <div class="mctl"><button type="button" class="mico" id="mapSaveBtn" title="Saved maps and export" aria-label="Saved maps and export">${SAVE_ICON}</button><button type="button" class="mico" id="mapDrawBtn" title="Draw on the map" aria-label="Draw on the map">${PEN_ICON}</button><button type="button" class="mico" id="mapTimeBtn" title="Period filter" aria-label="Period filter">${CLOCK_ICON}</button><button type="button" class="mico" id="mapSunBtn" title="Sundial: day and night" aria-label="Sundial">${SUNDIAL_ICON}</button><button type="button" class="mico" id="mapLayersBtn" title="Layers" aria-label="Layers">${LAYERS_ICON}</button><button type="button" class="mico" id="mapCamBtn" title="Camera: free movement, other points of view" aria-label="Camera">${CAM_ICON}</button><button type="button" class="mico" id="mapOptsBtn" title="Globe: projection, 3D, map, elevation" aria-label="Globe">${GLOBE_EU_ICON}</button></div><button type="button" class="mico mnorth" id="mapNorth" title="North up" aria-label="North up">${COMPASS_ICON}</button><button type="button" class="mico mnadir" id="mapNadir" title="Look straight down, at the earth’s centre" aria-label="Look straight down">${NADIR_ICON}</button>
       <div class="mhandles" id="mapHandles"></div>
       <div class="mtime" id="mapTime" hidden>${timeBarHTML()}</div><div class="mdraw" id="mapDraw" hidden></div>
-      <div class="minfo" id="mapInfo" hidden><span class="mscale" id="mapScale"><i></i><b></b></span><span class="mzoom" id="mapZoom"></span></div>
+      <div class="mperf" id="mapPerf" hidden></div><div class="minfo" id="mapInfo" hidden><span class="mscale" id="mapScale"><i></i><b></b></span><span class="mzoom" id="mapZoom"></span></div>
       <div class="mcred" id="mapCred" hidden></div><div class="mcard" id="mapCard" hidden></div><div class="mpop" id="mapPop" hidden></div>`;
     M.step = 'map engine'; try { await loadMapLib(); } catch (e) { box.innerHTML = `<div class="mapmsg"><p>${esc(e.message)}</p></div>`; return; }
     M.step = 'imagery'; await imgInit();
@@ -712,7 +712,8 @@ async function showMap1() {
     } catch (e) { M.map = null; return mapFailed(e.message || String(e)); }
     // problems are shown instead of an empty map: errors while loading, the graphics memory lost (phones)
     M.map.on('error', e => { M.lastErr = e?.error?.message || String(e?.error || e); console.warn('map:', M.lastErr); });
-    M.map.getCanvas().addEventListener('webglcontextlost', () => { if (!M.failing) mapFailed('The graphics memory of the device was needed elsewhere.'); });
+    // (662a, v409: lost, the map is made anew where it was – up to three times in five minutes; then the message as before)
+    M.map.getCanvas().addEventListener('webglcontextlost', () => { if (M.failing) return; crErr?.('graphics', 'the map’s graphics were lost'); mapRebuild(); });
     M.map.on('rotate', compassUpd);
     M.map.on('style.load', () => setTimeout(sunApply, 0));         // (a new style: the sun's light again)                                // (turning: two fingers, or the right mouse button)
     // the credits of the map are in ☰ → Acknowledgements (and on exported maps)
@@ -743,6 +744,16 @@ async function showMap1() {
   M.step = 'places'; renderTime();
   await refreshMapData();
   M.step = 'done';
+}
+// the map's graphics lost (phones and iPads, when their graphics memory is needed elsewhere): the map made anew at the same view
+async function mapRebuild() {
+  const now = Date.now(); M.rebuilds = (M.rebuilds || []).filter(t => now - t < 300000);
+  if (M.rebuilds.length >= 3) return mapFailed('The graphics memory of the device was needed elsewhere.');
+  M.rebuilds.push(now); const keep = M.cam ? { ...M.cam } : null;
+  M.failing = true; try { M.map?.remove(); } catch (_) { } M.failing = false; M.map = null; M.showP = null; $('#mapBody').innerHTML = '';
+  await new Promise(r => setTimeout(r, 300)); await showMap();
+  if (keep && M.cam && M.map) { Object.assign(M.cam, { lng: keep.lng, lat: keep.lat, alt: keep.alt, pt: keep.pt, br: keep.br, roll: keep.roll || 0 }); camApply(); }
+  crNote?.('map', 'made anew after the graphics were lost');
 }
 // the map could not start: say why, and offer to try again
 function mapFailed(msg) {
@@ -1076,6 +1087,7 @@ document.addEventListener('change', async ev => {
   const k = ev.target.dataset?.mapset; if (!k) return;
   await mapCfg(); M.cfg[k] = ev.target.checked; await saveMapCfg();
   if (k === 'scale' || k === 'zoomShow') mapInfo();
+  if (k === 'perf') crSnap?.();
   if (k === 'mark') { markPlaces(); if (M.map) await refreshMapData(); }
   if (k === 'time') { timeFor(S.text); renderTime(); applyLayers(); }
 });

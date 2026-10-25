@@ -879,13 +879,15 @@ async function pultDialog() {
     ['Markers', n(Object.keys(data.markers).length)],
     ['Favourites', n(Object.keys(data.favourites).length)],
     ['Instruments (dictionaries, analysis, maps)', `${n(dicts.length)}${dsize ? ` · ≈ ${mb(dsize)}` : ''}`],
-    ['Storage', [use, prot].filter(Boolean).join(' · ') || '–']];
+    ['Storage', [use, prot].filter(Boolean).join(' · ') || '–'],
+    ['Crash reports', String((crGet?.(CR_REPS) || []).length), 'crash']];
   const r = await dialog(`${dlgHead('This Pult')}
     <p class="hint small">Everything is stored only on this device. ${info('A backup contains your imported texts, glosses, default glosses, chosen readings, lemma choices, highlights, markers, favourites, colours and display settings. Library texts and dictionaries are not included – they can be downloaded again.')}</p>
     <div class="list plain pultlist">${rows.map(([k, v, go]) => go ? `<button type="button" class="item pgo" data-v="${go}"><span class="t">${k}</span><span class="pv">${v}</span><i aria-hidden="true">›</i></button>` : `<div class="item"><span class="t">${k}</span><span class="pv">${v}</span></div>`).join('')}</div>`,
     [['link', 'Export backup', { href, name }], ['file', 'Import backup …', 'fileBackup']]);
   setTimeout(() => URL.revokeObjectURL(href), 60000);
   if (r.action === 'annot') return annotDialog();
+  if (r.action === 'crash') return crashDialog();
 }
 const backupDialog = pultDialog;
 // ☰ → This Pult → Annotations: every text with something of yours in it – glosses, the marker, chosen readings, map
