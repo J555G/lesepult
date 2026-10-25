@@ -338,10 +338,20 @@ function contUrl() {
   return M.relDem.contourProtocolUrl({ multiplier: 1 / unit().small, overzoom: 1, contourLayer: 'contours', elevationKey: 'ele', levelKey: 'level',
     thresholds: { 0: [nice(a * f), Math.max(nice(b * f), nice(a * f) * 2)] } });
 }
-// (as the camera moves: a new step, new lines)
+// (as the camera moves: a new step, new lines – the source and its three layers put in afresh with the new address: the engine,
+// given only a new address, keeps parsing the tiles it has – v406)
 function contUpd() {
-  const m = M.map, src = m?.getSource?.('contours'); if (!src || !M.relDem || typeof src.setTiles !== 'function') return;
-  const was = M.contStep; if (contStepNow() !== was) { try { src.setTiles([contUrl()]); } catch (_) {} }
+  const m = M.map, src = m?.getSource?.('contours'); if (!src || !M.relDem) return;
+  const was = M.contStep; if (contStepNow() === was) return;
+  try {
+    const all = m.getStyle().layers, ls = [];
+    all.forEach((l, i) => { if (l.source === 'contours') { const nx = all.slice(i + 1).find(x => x.source !== 'contours'); ls.push([l, nx?.id]); } });
+    const spec = { ...m.getStyle().sources.contours, tiles: [contUrl()] };
+    for (const [l] of ls) m.removeLayer(l.id);
+    m.removeSource('contours'); m.addSource('contours', spec);
+    for (const [l, before] of ls) m.addLayer(l, before && m.getLayer(before) ? before : undefined);
+    if (typeof camLodAll === 'function') camLodAll(m);
+  } catch (_) {}
 }
 function reliefLayerProps() {
   const v = x => x ? 'visible' : 'none';
