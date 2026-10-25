@@ -541,20 +541,31 @@ function expDown(e, P, two) {
 // What two fingers grab (649a, v407): the ground beneath the point between them, or, on the sky, a direction (as far as the stars)
 function expGrab(c, x, y) { const F = camFrame(c), d = expRay(c, x, y, F), g = expGround(c, d, F); return g ? { p: g.p } : { dir: d }; }
 const expGrabDir = (c, G) => G.p ? norm3(sub3(G.p, camFrame(c).P)) : G.dir;
-// the camera turned where it stands, by the smallest turn that sends the line of sight through a point of the screen in the direction
-// dT (v410 – no longer by bearing and tilt, which near straight down swung the bearing round and the picture with it); free: the roll
-// as the turn leaves it (the explorer), else kept as set (flight: the bank) – then a few steps; gives the change of the tilt (degrees)
+// the camera turned where it stands so that the line of sight through a point of the screen runs in the direction dT – only ever up or
+// down (about the camera's own right) and left or right (about its own up), never about the line of sight itself, so that the picture
+// does not twist (670a, v413); the spot follows exactly when it is level with the middle of the screen, otherwise closely. free: the
+// roll as the turn leaves it (the explorer), else kept as set (flight: the bank); gives the change of the tilt (degrees)
 function expAim(c, x, y, dT, free) {
   const p0 = c.pt;
-  for (let k = 0; k < (free ? 1 : 4); k++) { const F = camFrame(c), d = expRay(c, x, y, F), ax = cross3(d, dT), s = Math.hypot(...ax); if (s < 1e-9) break;
-    const n = mul3(ax, 1 / s), a = Math.atan2(s, dot3(d, dT)); camFromFrame(c, F.P, rotV(F.v, n, a), rotV(F.u, n, a), free); }
+  for (let k = 0; k < 4; k++) {
+    let F = camFrame(c), d = expRay(c, x, y, F);
+    const az = q => Math.atan2(dot3(q, F.r), dot3(q, F.v)), el = q => Math.asin(Math.max(-1, Math.min(1, dot3(q, F.u))));
+    const ya = az(d) - az(dT); if (Math.abs(ya) > 1e-7) camFromFrame(c, F.P, rotV(F.v, F.u, ya), F.u, free);
+    F = camFrame(c); d = expRay(c, x, y, F);
+    const pa = Math.asin(Math.max(-1, Math.min(1, dot3(dT, F.u)))) - Math.asin(Math.max(-1, Math.min(1, dot3(d, F.u))));
+    if (Math.abs(pa) > 1e-7) camFromFrame(c, F.P, rotV(F.v, F.r, pa), rotV(F.u, F.r, pa), free);
+    if (Math.abs(ya) < 1e-6 && Math.abs(pa) < 1e-6) break;
+  }
   return c.pt - p0;
 }
-// the horizon levelled again little by little in the explorer – the more, the more level the view (looking straight down, not at all:
-// there the picture keeps the turn it has, rather than spinning)
+// the horizon levelled again little by little in the explorer – only close to the earth (fully below 20 km, not at all above 100 km)
+// and only while the view is within 35° of the horizon, the more the more level (671a, v413): looking steeply down or from far out,
+// the picture keeps the turn it has, rather than spinning
 function expLevel(c) {
-  const base = camCfg().roll ? -(camCfg().rollv || 0) : 0, d = ((base - (c.roll || 0) + 540) % 360) - 180, e = (c.pt - 90) * RAD;
-  c.roll = (c.roll || 0) + d * Math.min(1, 0.2 * Math.cos(e) ** 2);
+  const h = expHgt(c), e = Math.abs(c.pt - 90), wh = Math.max(0, Math.min(1, (1e5 - h) / 8e4)), we = Math.max(0, 1 - e / 35) ** 2, w = wh * wh * (3 - 2 * wh) * we;
+  if (w <= 0) return;
+  const base = camCfg().roll ? -(camCfg().rollv || 0) : 0, d = ((base - (c.roll || 0) + 540) % 360) - 180;
+  c.roll = (c.roll || 0) + d * Math.min(1, 0.2 * w);
 }
 // Two fingers (v407): they grab what lies between them and pull it across the screen – up, down, sideways – the camera turning where
 // it stands so that it stays beneath them (649a; 651a in flight: the head and the craft's heading). Pinched, the camera flies towards
@@ -574,7 +585,8 @@ function exp2() {
   const G = EXP.G2, T = G.p ? { p: G.p } : { p: add3(camFrame(c).P, mul3(expRay(c, t.x, t.y), Math.max(50, 2 * expHgt(c)))) };
   const free = c.mode === 'exp';
   if (Math.abs(k - 1) > 1e-4 || tw) expZoom(c, T, k, -tw, free);
-  const dp = expAim(c, t.x, t.y, expGrabDir(c, G), free); if (c.mode === 'fly') c.hd = Math.max(-80, Math.min(80, flyHd(c) + dp)); else expLevel(c);
+  const dp = expAim(c, t.x, t.y, expGrabDir(c, G), free); if (c.mode === 'fly') c.hd = Math.max(-80, Math.min(80, flyHd(c) + dp));
+  else if (Math.abs(t.x - p.x) + Math.abs(t.y - p.y) > 0.5) expLevel(c);   // (a pinch alone never levels – 671a)
   camApply(); expTick();
 }
 function expMoveG(e, P, two, dx, dy) {
