@@ -15,6 +15,7 @@ Only freely licensed material is published here.
 | `whitaker.gdpkg.gz` | short English meanings of Whitaker's Words | Whitaker's Words (William Whitaker), https://github.com/mk270/whitakers-words | "Permission is hereby freely given for any and all use of program and data" |
 | `morph-la-ww.gdpkg.gz` | Latin morphology from Whitaker's Words (stems, endings, unique forms; analysed in the app as Words does) | same | same |
 | `morphhints.gdpkg.gz` | Preferred lemma for ambiguous forms; most frequent word class per lemma | Derived from the Universal Dependencies Ancient Greek treebanks (PROIEL, Perseus), https://universaldependencies.org | CC BY-NC-SA (as the treebanks) |
+| `suda.gdpkg.gz` | The *Suda* (Suidae Lexicon), ed. A. Adler (Teubner 1928–1938) – incomplete: Ζ, Η, Θ, Ι, Υ, Φ, Χ, Ψ and the end of ε (after 2878), σ (after 1815) and τ (after 598) are not yet in the source file | Open Greek and Latin, First1KGreek, https://github.com/OpenGreekAndLatin/First1KGreek (tlg9010.tlg001.1st1K-grc1) | CC BY-SA 4.0 |
 
 The packages are a reformatted conversion of the sources above (grouped by lookup key, gzip-compressed JSON),
 made with the `greekdict` toolkit (`python gd.py packages`). The full GPL v3 text: https://www.gnu.org/licenses/gpl-3.0.html
