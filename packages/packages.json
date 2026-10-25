@@ -132,6 +132,18 @@
    "license": "CC-BY-SA-4.0",
    "bytes": 2502134,
    "version": "17da2fe97c92"
+  },
+  {
+   "id": "people-smith",
+   "file": "people-smith.gdpkg.gz",
+   "name": "William Smith, A Dictionary of Greek and Roman Biography and Mythology",
+   "kind": "people",
+   "src": "grc",
+   "title": "London 1849 · Perseus Digital Library edition",
+   "source": "Perseus Digital Library (canonical-pdlrefwk), CC BY-SA 4.0; text of 1849 in the public domain",
+   "license": "CC-BY-SA-4.0",
+   "bytes": 11605502,
+   "version": "5dd74197454b"
   }
  ]
 }

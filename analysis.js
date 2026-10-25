@@ -85,6 +85,7 @@ async function resolveTokens() {      // lemma + word class for every word of th
   await resolveTokens1(run);
   if (run === resolveTokens.run && S.dgPending) { S.dgPending = false; renderText(); }
   if (run === resolveTokens.run && typeof placesForText === 'function') placesForText();
+  if (run === resolveTokens.run && typeof personsForText === 'function') personsForText().catch(e => console.warn('people', e));
   if (run === resolveTokens.run && typeof lemmaNamesFill === 'function') lemmaNamesFill().catch(() => { });
 }
 async function resolveTokens1(run) {
@@ -326,6 +327,7 @@ async function loadDicts() {
   S.lemmapos = hintsOff ? {} : (await setting('lemmapos')) || {};
   S.morphPref = hintsOff ? {} : (await setting('morphPref')) || {};
   S.installed = Object.fromEntries(all.map(d => [d.id, d]));
+  if (typeof PP !== 'undefined') PP.rec.clear();
 }
 // key -> bucket name; must match bucket_of() in greekdict/packages.py
 function bucketOf(k, split) {

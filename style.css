@@ -857,6 +857,56 @@ body.gram #textBody .w>.gm:empty{padding-right:0}
 .maplibregl-ctrl-attrib{font-size:10px}
 /* place names in the text and the map button next to a headword */
 #textBody .w.plc>.g{text-decoration:underline;text-decoration-color:color-mix(in srgb,#5d93bd 70%,transparent);text-decoration-thickness:1.5px;text-underline-offset:4px}
+/* names of persons in the text (v422): a terracotta line; dotted while it is not certain who is meant (a certain place wins over an unsure person) */
+#textBody .w.prs>.g{text-decoration:underline;text-decoration-color:color-mix(in srgb,#b8693a 75%,transparent);text-decoration-thickness:1.5px;text-underline-offset:4px}
+#textBody .w.prsq>.g{text-decoration-style:dotted;text-decoration-thickness:2px}
+#textBody .w.plc:not(.plcq).prsq>.g{text-decoration-color:color-mix(in srgb,#5d93bd 70%,transparent);text-decoration-style:solid;text-decoration-thickness:1.5px}
+/* the People tab */
+#tabPeople{display:inline-flex;align-items:center;justify-content:center;padding:0;position:relative;overflow:hidden;align-self:stretch;aspect-ratio:1.3;background:var(--card);-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+#tabPeople.on{border-color:var(--acc)}
+#tabPeople .ppico{height:86%;width:auto}
+#tabPeople .ppico .coin{fill:#b4b4b4}#tabPeople .ppico .rim{fill:none;stroke:#8f8f8f;stroke-width:.9}
+#tabPeople .ppico .bust{fill:#7d7d7d}#tabPeople .ppico .laurel{fill:none;stroke:#b4b4b4;stroke-width:1;stroke-linecap:round}
+#tabPeople.on .ppico .coin{fill:#c9964f}#tabPeople.on .ppico .rim{stroke:#8a5f22}#tabPeople.on .ppico .bust{fill:#7a4f19}#tabPeople.on .ppico .laurel{stroke:#e2bd78}
+body:not(.nofade) #tabPeople .ppico *{transition:fill .333s ease,stroke .333s ease}
+#peopleBody{padding:0 .2rem 2rem}
+#peopleBody .pptop{display:flex;gap:.4rem;align-items:center;position:sticky;top:0;z-index:2;background:var(--bg);padding:.45rem 0 .4rem}
+#peopleBody .pptop input{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:.4rem .6rem;background:var(--card);color:var(--fg);font:15px var(--greek)}
+#peopleBody .pptop button{flex:none;font:14px var(--ui);padding:.3rem .6rem}
+#peopleBody .ppback{font-size:20px!important;line-height:1;padding:.15rem .55rem!important}
+#peopleBody .navh3{font:600 13px var(--ui);color:var(--mut);margin:.8rem 0 .3rem;text-transform:uppercase;letter-spacing:.04em}
+#peopleBody .navh3 small{font-weight:400}
+#peopleBody .pprow{display:flex;flex-wrap:wrap;align-items:baseline;gap:.15rem .5rem;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);border-radius:0;background:none;padding:.45rem .2rem;color:var(--fg);font:15px var(--greek)}
+#peopleBody .pprow .ppd{flex:1 1 60%;color:var(--mut);font:14px var(--ui)}
+#peopleBody .pprow small,#peopleBody .ppname small{color:var(--mut);font:13px var(--ui)}
+#peopleBody .ppwhy{flex-basis:100%;font:12px var(--ui);color:var(--mut);font-style:italic}
+#peopleBody .ppkinds{display:inline-flex;flex-wrap:wrap;gap:.25rem;vertical-align:middle}
+#peopleBody .ppk{font:12px var(--ui);border:1px solid color-mix(in srgb,#b8693a 50%,var(--line));color:color-mix(in srgb,#b8693a 80%,var(--fg));border-radius:10px;padding:0 .45rem}
+#peopleBody .ppkedit{font:12px var(--ui);padding:0 .45rem;border-radius:10px}
+#peopleBody .ppchk{border-bottom:1px solid var(--line);padding-bottom:.3rem}
+#peopleBody .ppchk>.pprow{border-bottom:0}
+#peopleBody .ppocc{display:flex;flex-wrap:wrap;gap:.25rem;padding:0 .2rem .2rem}
+#peopleBody .ppocc button{font:12px var(--ui);padding:.05rem .4rem;border-radius:6px}
+#peopleBody .ppocc small{font:12px var(--ui);color:var(--mut);align-self:center}
+#peopleBody .ppchoose,#peopleBody .ppnot{display:flex;gap:.4rem;padding:.1rem .2rem .2rem;flex-wrap:wrap}
+#peopleBody .ppchoose button,#peopleBody .ppnot button{font:13px var(--ui);padding:.2rem .6rem}
+#peopleBody .ppnot{margin-top:.6rem}
+#peopleBody .pphead{padding:.3rem .2rem .6rem}
+#peopleBody .ppname{font:600 22px var(--greek)}
+#peopleBody .ppgreek{font:18px var(--greek);color:var(--mut)}
+#peopleBody .ppmeta{font:13px var(--ui);color:var(--mut);margin-top:.25rem;display:flex;flex-wrap:wrap;gap:.3rem;align-items:center}
+#peopleBody .ppat{font:13px var(--ui);color:var(--mut);margin-top:.35rem}
+#peopleBody .ppat button{font:13px var(--ui);padding:.05rem .5rem;margin-left:.3rem}
+#peopleBody .ppw{margin:.35rem 0 .5rem}
+#peopleBody .ppwt{font:14px var(--ui);margin-bottom:.2rem}
+#peopleBody .ent .eb p{margin:.45rem 0}
+#peopleBody a.pxr{color:var(--acc);cursor:pointer;text-decoration:none}
+dialog .ppkdlg{display:grid;grid-template-columns:repeat(auto-fill,minmax(9.5rem,1fr));gap:.2rem .6rem}
+/* the dictionary: the persons of the word */
+#dictBody .ppline{display:flex;flex-wrap:wrap;gap:.35rem;align-items:baseline;margin:.1rem 0 .4rem;font:14px var(--ui)}
+#dictBody .ppline .ppl1{color:color-mix(in srgb,#b8693a 85%,var(--fg));font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+#dictBody .ppline button{font:14px var(--ui);text-align:left;padding:.15rem .55rem;max-width:100%}
+#dictBody .ppline .ppmore{color:var(--mut)}
 .mapico{display:inline-flex;align-items:center;justify-content:center;padding:0;overflow:hidden;width:30px;height:23px;margin-left:.35rem;vertical-align:middle;color:var(--acc);border-color:var(--line)}
 @media (max-width:600px){.mcard{left:8px;right:8px;width:auto;bottom:22px;max-height:55%}}
 /* map button: the Mediterranean (grey/black; in colour while the map is open) */

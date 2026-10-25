@@ -116,6 +116,7 @@ function renderText() {
   }
   body.classList.toggle('lib', !!S.text.blocks);
   if (typeof markPlaces === 'function') markPlaces();
+  if (typeof markPersons === 'function') markPersons();
   S.renderedText = S.text.id;
   if (anchor) { applyTextAnchor(anchor); const g = S.tGuard = { a: anchor, until: Date.now() + 1000 };
     const fix = () => { if (S.tGuard === g && Date.now() <= g.until && !S.tTouch) applyTextAnchor(g.a); };
@@ -166,6 +167,7 @@ function chDecorate(c) {
   if (S.cur && !S.curHidden) { const [a, b] = S.cur; for (let i = Math.max(a, c.w0); i <= Math.min(b, c.w1); i++) S.wordEls[i]?.classList.add(b > a ? 'rng' : 'cur'); }
   if (S.exPick?.a != null) { const p = S.exPick, b = p.b ?? p.a; for (let i = Math.max(Math.min(p.a, b), c.w0); i <= Math.min(Math.max(p.a, b), c.w1); i++) S.wordEls[i]?.classList.add('xsel'); }
   if (typeof M !== 'undefined' && M.hits?.size && M.cfg?.mark !== false) for (let i = c.w0; i <= c.w1; i++) { const h = M.hits.get(i); if (h && (!isPeople(h.p) || M.cfg?.peoples)) { const e = S.wordEls[i]; e?.classList.add('plc'); if (h.unsure) e?.classList.add('plcq'); } }
+  if (typeof markPersonsIn === 'function') markPersonsIn(c);
 }
 // parts more than six screens away are emptied again
 function chSweep() {

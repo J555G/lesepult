@@ -16,6 +16,7 @@ Only freely licensed material is published here.
 | `morph-la-ww.gdpkg.gz` | Latin morphology from Whitaker's Words (stems, endings, unique forms; analysed in the app as Words does) | same | same |
 | `morphhints.gdpkg.gz` | Preferred lemma for ambiguous forms; most frequent word class per lemma | Derived from the Universal Dependencies Ancient Greek treebanks (PROIEL, Perseus), https://universaldependencies.org | CC BY-NC-SA (as the treebanks) |
 | `suda.gdpkg.gz` | The *Suda* (Suidae Lexicon), ed. A. Adler (Teubner 1928–1938) – incomplete: Ζ, Η, Θ, Ι, Υ, Φ, Χ, Ψ and the end of ε (after 2878), σ (after 1815) and τ (after 598) are not yet in the source file | Open Greek and Latin, First1KGreek, https://github.com/OpenGreekAndLatin/First1KGreek (tlg9010.tlg001.1st1K-grc1) | CC BY-SA 4.0 |
+| `people-smith.gdpkg.gz` | William Smith (ed.), *A Dictionary of Greek and Roman Biography and Mythology* (London 1849): 19,460 persons, with the passages of the library where they are cited | Perseus Digital Library, https://github.com/PerseusDL/canonical-pdlrefwk – text provided under a CC BY-SA license by the Perseus Digital Library, with funding from the National Endowment for the Humanities and Tufts University | CC BY-SA 4.0 |
 
 The packages are a reformatted conversion of the sources above (grouped by lookup key, gzip-compressed JSON),
 made with the `greekdict` toolkit (`python gd.py packages`). The full GPL v3 text: https://www.gnu.org/licenses/gpl-3.0.html

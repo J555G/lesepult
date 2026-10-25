@@ -309,6 +309,7 @@ async function showWord(word, opts = {}) {
   S.view = { form: word, lemma: opts.lemma || null, openDict: opts.openDict || null, ti: opts.ti ?? null, tid: opts.ti != null ? S.text?.id : null, ref: opts.ti != null ? refAt(opts.ti) : null };
   navButtons();
   if (S.tab === 'map') { if (opts.ti != null) mapWordTapped(opts.ti); }       // the map stays; the entry is prepared behind it
+  else if (S.tab === 'people' && opts.ti != null && typeof pplWordTapped === 'function' && pplWordTapped(opts.ti)) { }   // a person: shown in the People tab, the entry behind
   else showTab('entry');
   await renderView();
 }
@@ -318,7 +319,7 @@ const viewName = v => v ? (v.search != null ? '“' + v.search + '”' : v.lemma
 function refAt(i) { const R = S.refs || []; let r = null; for (const x of R) { if (x.i > i) break; r = x; } return r?.s || null; }
 function navButtons() {
   const bar = $('#dictNav'); if (!bar) return;
-  const back = S.hist.at(-1), fwd = S.fwd?.at(-1), show = S.tab !== 'list' && S.tab !== 'map' && (back || fwd);
+  const back = S.hist.at(-1), fwd = S.fwd?.at(-1), show = S.tab !== 'list' && S.tab !== 'map' && S.tab !== 'people' && (back || fwd);
   const was = bar.hidden; bar.hidden = !show; if (!show) { $('#dictHist').hidden = true; return; }
   if (was) requestAnimationFrame(alignNav);
   const [b, f] = bar.querySelectorAll('.dnb');
@@ -426,6 +427,7 @@ async function renderView() {
     }
   }
   h += '</div><div id="glossbox" hidden></div>';
+  if (typeof pplDictLine === 'function') h += await pplDictLine(lemma, v.ti).catch(() => '');
   const by = await entriesFor(k, lang);
   const ost = await setting('open|' + k);
   const isOpen = id => Array.isArray(ost) ? ost.includes(id) : S.dictPrefs.open.includes(id) !== !!ost?.x?.includes(id);
@@ -550,9 +552,10 @@ function showTab(which) {
   const cur = S.tab || ($('#listBody').hidden ? 'entry' : 'list');
   if (cur !== which) { S.tabSw = true; clearTimeout(S.tabSwT); S.tabSwT = setTimeout(() => { S.tabSw = false; }, 1500); }
   S.tab = which;
-  $('#tabEntry').classList.toggle('on', which === 'entry'); $('#tabList').classList.toggle('on', which === 'list'); $('#tabMap')?.classList.toggle('on', which === 'map');
+  $('#tabEntry').classList.toggle('on', which === 'entry'); $('#tabList').classList.toggle('on', which === 'list'); $('#tabMap')?.classList.toggle('on', which === 'map'); $('#tabPeople')?.classList.toggle('on', which === 'people');
   $('#dictBody').hidden = which !== 'entry'; $('#listBody').hidden = which !== 'list';
   const mb = $('#mapBody'); if (mb) mb.hidden = which !== 'map';
+  const pb = $('#peopleBody'); if (pb) pb.hidden = which !== 'people';
   $('#dictPane').classList.toggle('mapmode', which === 'map');
   navButtons();
 }
