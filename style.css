@@ -2215,3 +2215,6 @@ dialog .sortpair button{transition:border-color .15s}
 .crnow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;font-size:13px;opacity:.9}
 .mperf{position:absolute;left:8px;top:52px;z-index:3;pointer-events:none;font:11px/1.3 var(--ui);color:#fff;text-shadow:0 0 3px #000,0 0 2px #000;font-variant-numeric:tabular-nums}
 dialog .sver{-webkit-user-select:none;user-select:none;touch-action:manipulation;cursor:pointer}
+#peopleBody ul.dprr{margin:.2rem 0 .5rem;padding-left:1.2rem}
+#peopleBody ul.dprr li{margin:.15rem 0}
+#peopleBody ul.dprr small{color:var(--mut)}

@@ -124,7 +124,7 @@ async function personsForText() {
   // 753a: nobody who lived after the text was written (Smith: the earliest year his article mentions; PIR: the imperial period)
   const wy = typeof workYear === 'function' ? await workYear(t).catch(() => null) : null, ixs = new Map();
   for (const d of pk) ixs.set(d.id, await pplIx(d));
-  const early = c => { if (wy == null) return true; const { d, i } = pplParse(c); const y0 = d?.id === 'people-pir' ? -31 : ixs.get(d?.id)?.p?.[i]?.[4]; return y0 == null || y0 <= wy + 40; };
+  const early = c => { if (wy == null) return true; const { d, i } = pplParse(c); const y0 = d?.id === 'people-pir' ? -31 : ixs.get(d?.id)?.p?.[i]?.[4]; return y0 == null || y0 <= wy + 40; };   // (DPRR: the beginning of the person's era)
   const look = async k => { if (!k) return []; let c = memo.get(k); if (!c) memo.set(k, c = (await personsFor(k)).filter(early)); return c; };
   for (let n = 0; n < S.tokens.length; n++) {
     const tk = S.tokens[n];
@@ -260,7 +260,7 @@ function pplRowsInto(list, rows, n, from = 0) {                // all the result
   if (from + 300 < rows.length) requestAnimationFrame(() => pplRowsInto(list, rows, n, from + 300));
 }
 const kindChips = (r, edit) => `<span class="ppkinds">${r.kinds.map(k => `<span class="ppk">${esc(k)}</span>`).join('')}${edit ? `<button type="button" class="ppkedit" data-ppkinds="${esc(r.ref)}" title="Change the kinds">${r.kinds.length ? 'edit' : '+ kind'}</button>` : ''}</span>`;
-const srcTag = d => d.id === 'people-smith' ? '' : ` <small class="ppsrc">${esc({ 'people-pir': 'PIR', 'enc-smith-geo': 'Geography', 'enc-smith-ant': 'Antiquities' }[d.id] || d.name)}</small>`;
+const srcTag = d => d.id === 'people-smith' ? '' : ` <small class="ppsrc">${esc({ 'people-pir': 'PIR', 'people-dprr': 'DPRR', 'enc-smith-geo': 'Geography', 'enc-smith-ant': 'Antiquities' }[d.id] || d.name)}</small>`;
 const rowHTML = (r, extra = '') => `<button type="button" class="pprow" data-ppref="${esc(r.ref)}"><span class="ppn"><b>${esc(r.name)}</b>${srcTag(r.d)}${r.no ? ` <small>${r.no}</small>` : ''}${r.y0 != null && !r.kinds.some(k => MYTHK.has(k)) ? ` <small class="ppy">${yearsTxt(r.y0, r.y1)}</small>` : ''}</span><span class="ppd">${esc(r.desc || '')}</span>${r.kinds.length ? kindChips(r) : ''}${extra}</button>`;
 async function pplTextHTML() {
   const t = S.text; if (!t) return '<p class="hint">Open a text: the persons named in it are listed here.</p>';
@@ -431,6 +431,11 @@ document.addEventListener('click', ev => {
   const nm = t.closest('[data-ppname]'); if (nm) return pplGo({ t: 'name', k: nm.dataset.ppname, ti: nm.dataset.ti != null ? +nm.dataset.ti : null });
   const ps = t.closest('[data-pppass]'); if (ps) return pplPassage(ps.dataset.pppass, +ps.dataset.bi, ps.dataset.r, ps.dataset.ref);
   const j = t.closest('[data-ppjump]'); if (j) { const i = +j.dataset.ppjump; S.cur = [i, i]; S.curHidden = false; markTarget(); requestAnimationFrame(() => scrollToWord(i)); return; }
+  const dx = t.closest('a.pxr[data-dprr]'); if (dx) { (async () => {   // DPRR relatives: the person (with Smith's entry, where he has one)
+    const dp = S.installed?.['people-dprr'], i = +dx.dataset.dprr; if (!dp) return;
+    const at = await pplRec(dp, '#at'); const sm = at && Object.entries(at.m || {}).find(([, v]) => v.includes(i));
+    pplGo({ t: 'person', ref: sm && S.installed?.[at.to] ? at.to + '|' + sm[0] : 'people-dprr|' + i });
+  })(); return; }
   const xr = t.closest('a.pxr'); if (xr) { (async () => {             // Smith's cross-references: [PARIS.]
     const k = gkey(xr.dataset.x), own = t.closest('details.src')?.dataset.pd, cs0 = await personsFor(k, true), cs = own && cs0.some(c => c.startsWith(own + '|')) ? cs0.filter(c => c.startsWith(own + '|')) : cs0;
     if (xr.dataset.no) for (const c of cs) { const x = pplParse(c), r = await pplRow(x.d, x.i); if (r && String(r.no) === xr.dataset.no) return pplGo({ t: 'person', ref: c }); }
