@@ -157,7 +157,7 @@ document.addEventListener('input', ev => {
   const f = ev.target.closest?.('input[data-camfov]'), r = ev.target.closest?.('input[data-camroll]'); if (!f && !r) return;
   const c = camCfg();
   if (f) { c.fov = +f.value; $('#camFovOut') && ($('#camFovOut').textContent = c.fov + '°'); }
-  if (r) { c.rollv = +r.value; $('#camRollOut') && ($('#camRollOut').textContent = c.rollv + '°'); if (M.cam) M.cam.roll = c.rollv; }
+  if (r) { c.rollv = +r.value; $('#camRollOut') && ($('#camRollOut').textContent = c.rollv + '°'); if (M.cam) M.cam.roll = -c.rollv; }
   camLimits(); if (M.cam) camApply(); clearTimeout(M.camT); M.camT = setTimeout(saveMapCfg, 400);
 });
 
@@ -200,7 +200,7 @@ function camApply0() {
     else L = Math.min(3e7, Math.max(5, h * (100 - 99 * Math.sin(Math.max(0, e)))));   // (at the horizon on as from below, then nearer as the view rises – 629a)
     const D = L * Math.cos(e), tlat = c.lat + D * Math.cos(b) / mPerDeg, tlng = c.lng + D * Math.sin(b) / (mPerDeg * Math.max(0.05, Math.cos(c.lat * RAD)));
     const zoom = Math.log2(m.transform.cameraToCenterDistance * 2 * Math.PI * ER * Math.cos(tlat * RAD) / (512 * L));
-    try { m.jumpTo({ center: [tlng, tlat], elevation: c.alt + L * Math.sin(e), zoom, pitch: c.pt, bearing: c.br, roll }); } catch (_) {}
+    try { m.jumpTo({ center: [tlng, tlat], elevation: c.alt + L * Math.sin(e), zoom, pitch: c.pt, bearing: c.br, roll: -roll }); } catch (_) {}   // (the engine's roll the other way round – v410)
     camBar(); return;
   }
   // (looking down: not beyond the ground the line of sight meets)
@@ -218,7 +218,11 @@ function camApply0() {
   const dot = (a, q) => a[0] * q[0] + a[1] * q[1] + a[2] * q[2], vu = dot(v, U2), ve = dot(v, E2), vn = dot(v, N2);
   const pitch = 90 + Math.asin(Math.max(-1, Math.min(1, vu))) / RAD, bearing = Math.hypot(ve, vn) > 1e-4 ? Math.atan2(ve, vn) / RAD : c.br;
   const latT = tlat / RAD, zoom = Math.log2(m.transform.cameraToCenterDistance * 2 * Math.PI * ER * Math.cos(tlat) / (512 * L));
-  try { m.jumpTo({ center: [tlng / RAD, latT], elevation: rT - ER, zoom, pitch: Math.max(0, Math.min(180, pitch)), bearing, roll }); } catch (_) {}
+  // (the roll at the centre worked out from the camera's own up – v410: looking (nearly) straight down, the bearing there swings with
+  // the least lean and the roll has to make up for it, or the picture turns; the engine counts the roll the other way round)
+  const uu = camFrame(c).u, br0 = bearing * RAD, r0w = [0, 1, 2].map(i => Math.cos(br0) * E2[i] - Math.sin(br0) * N2[i]), u0w = cross3(r0w, v);
+  const rollT = Math.atan2(-dot(uu, r0w), dot(uu, u0w)) / RAD;
+  try { m.jumpTo({ center: [tlng / RAD, latT], elevation: rT - ER, zoom, pitch: Math.max(0, Math.min(180, pitch)), bearing, roll: -rollT }); } catch (_) {}
   camBar();
 }
 // The globe mode of the engine (vertical perspective, below zoom 12) keeps the point the camera looks at on the sea-level sphere,
@@ -267,7 +271,7 @@ function globeElev(m) {
 function camNow() {
   const m = M.map, t = m.transform, ll = t.getCameraLngLat(), lat = m.getCenter().lat * RAD;
   const mpp = 40075016.7 * Math.cos(lat) / (512 * 2 ** m.getZoom()), dist = t.cameraToCenterDistance * mpp;
-  return { lng: ll.lng, lat: ll.lat, alt: (t.elevation || 0) + dist * Math.cos(m.getPitch() * RAD), br: m.getBearing(), pt: m.getPitch(), roll: m.getRoll?.() || 0 };
+  return { lng: ll.lng, lat: ll.lat, alt: (t.elevation || 0) + dist * Math.cos(m.getPitch() * RAD), br: m.getBearing(), pt: m.getPitch(), roll: -(m.getRoll?.() || 0) };
 }
 function camTake(mode, c) {
   const m = M.map; if (!m) return;
@@ -377,7 +381,7 @@ function obelTip() { const g = M.cfg.gnomon; if (!g || !M.map) return null; cons
 function camObelisk() {
   const t = obelTip(); if (!t) { note('Set up the obelisk first: drag it from the sundial onto the map.'); return; }
   const s = sunOn() ? sunAt(sunPos(sunTime()), t.lng, t.lat) : null; if (M.cam?.mode === 'exp') M.camPrevExp = { ...M.cam };
-  camTake('obel', { ...t, br: s && s.alt > -10 ? s.az : M.map.getBearing(), pt: 92, roll: camCfg().roll ? camCfg().rollv || 0 : 0 });   // (facing the sun, if it is up)
+  camTake('obel', { ...t, br: s && s.alt > -10 ? s.az : M.map.getBearing(), pt: 92, roll: camCfg().roll ? -(camCfg().rollv || 0) : 0 });   // (facing the sun, if it is up)
 }
 // the bar over the map while the camera is our own: what it is, and the ways out
 function camBar() {
@@ -463,10 +467,14 @@ function camFrame(c) {
   return { P: mul3(U, ER + c.alt), v: L(f), r: L(r), u: L(u) };
 }
 // … and back: place, height and direction from vectors (across a pole the longitude and the bearing change by half a turn, the view not)
-function camFromFrame(c, P, v, u) {
+function camFromFrame(c, P, v, u, free) {
   const R = Math.hypot(P[0], P[1], P[2]), ll = ecLL(P); c.alt = R - ER; c.lat = ll.lat; c.lng = ll.lng;
   const U = mul3(P, 1 / R), { N, E } = ecNE(c.lat, c.lng), vl = [dot3(v, E), dot3(v, N), dot3(v, U)], ul = [dot3(u, E), dot3(u, N), dot3(u, U)];
   c.pt = 90 + Math.asin(Math.max(-1, Math.min(1, vl[2]))) / RAD;
+  // (free – v410: the turn taken as it is, the roll with it, so that the picture never turns by itself: looking (nearly) straight
+  // down, the bearing of the line of sight swings with the least lean, and with the roll kept as set the picture spun with it)
+  if (free) { if (Math.hypot(vl[0], vl[1]) > 1e-7) c.br = Math.atan2(vl[0], vl[1]) / RAD;
+    const b0 = expBasis({ br: c.br, pt: c.pt, roll: 0 }); c.roll = Math.atan2(-dot3(ul, b0.r), dot3(ul, b0.u)) / RAD; return; }
   // (the bearing from the line of sight; looking straight down or up, from which way the top of the picture points)
   if (Math.hypot(vl[0], vl[1]) > 1e-3) c.br = Math.atan2(vl[0], vl[1]) / RAD; else c.br = Math.atan2(vl[2] < 0 ? ul[0] : -ul[0], vl[2] < 0 ? ul[1] : -ul[1]) / RAD;
   // (the roll kept as it was set: turning about the earth's centre keeps the horizon level; moving straight towards a point should not tilt it)
@@ -491,11 +499,11 @@ function expTarget(c, cx, cy) {
   return { p: add3(F.P, mul3(d, Math.max(50, 2 * expHgt(c)))), ground: false };
 }
 // towards (k < 1) or away from (k > 1) a point, turned about its vertical by db degrees of bearing; not into the floor while coming closer
-function expZoom(c, T, k, db = 0) {
+function expZoom(c, T, k, db = 0, free = false) {
   const F = camFrame(c), dist = Math.hypot(...sub3(F.P, T.p)); if (k < 1 && dist * k < 5) k = 5 / Math.max(5, dist);
   let P = add3(T.p, mul3(sub3(F.P, T.p), k)), v = F.v, u = F.u;
   if (db) { const n = norm3(T.p), a = -db * RAD; P = rotV(P, n, a); v = rotV(v, n, a); u = rotV(u, n, a); }
-  camFromFrame(c, P, v, u);
+  camFromFrame(c, P, v, u, free);
   if (k < 1) c.alt = Math.max(c.alt, groundAt(c.lng, c.lat) + expFloor(c));
 }
 // a move along the earth by metres east and north (on a great circle – over the poles too); gives its turn [axis, angle]
@@ -530,24 +538,29 @@ function expDown(e, P, two) {
 // What two fingers grab (649a, v407): the ground beneath the point between them, or, on the sky, a direction (as far as the stars)
 function expGrab(c, x, y) { const F = camFrame(c), d = expRay(c, x, y, F), g = expGround(c, d, F); return g ? { p: g.p } : { dir: d }; }
 const expGrabDir = (c, G) => G.p ? norm3(sub3(G.p, camFrame(c).P)) : G.dir;
-// the camera turned where it stands – left or right about its own vertical, up or down – so that the line of sight through a point
-// of the screen runs in the direction dT; gives the change of the tilt (degrees)
-function expAim(c, x, y, dT) {
-  const U = ecU(c.lat, c.lng), { N, E } = ecNE(c.lat, c.lng), loc = d => ({ el: Math.asin(Math.max(-1, Math.min(1, dot3(d, U)))), az: Math.atan2(dot3(d, E), dot3(d, N)) });
-  const T = loc(dT), p0 = c.pt;
-  for (let k = 0; k < 4; k++) { const D = loc(expRay(c, x, y));
-    if (Math.abs(T.el) < 88 * RAD && Math.abs(D.el) < 88 * RAD) c.br += ((((T.az - D.az) / RAD) + 540) % 360) - 180;
-    c.pt = Math.max(0.5, Math.min(179.5, c.pt + (T.el - D.el) / RAD)); }
+// the camera turned where it stands, by the smallest turn that sends the line of sight through a point of the screen in the direction
+// dT (v410 – no longer by bearing and tilt, which near straight down swung the bearing round and the picture with it); free: the roll
+// as the turn leaves it (the explorer), else kept as set (flight: the bank) – then a few steps; gives the change of the tilt (degrees)
+function expAim(c, x, y, dT, free) {
+  const p0 = c.pt;
+  for (let k = 0; k < (free ? 1 : 4); k++) { const F = camFrame(c), d = expRay(c, x, y, F), ax = cross3(d, dT), s = Math.hypot(...ax); if (s < 1e-9) break;
+    const n = mul3(ax, 1 / s), a = Math.atan2(s, dot3(d, dT)); camFromFrame(c, F.P, rotV(F.v, n, a), rotV(F.u, n, a), free); }
   return c.pt - p0;
+}
+// the horizon levelled again little by little in the explorer – the more, the more level the view (looking straight down, not at all:
+// there the picture keeps the turn it has, rather than spinning)
+function expLevel(c) {
+  const base = camCfg().roll ? -(camCfg().rollv || 0) : 0, d = ((base - (c.roll || 0) + 540) % 360) - 180, e = (c.pt - 90) * RAD;
+  c.roll = (c.roll || 0) + d * Math.min(1, 0.2 * Math.cos(e) ** 2);
 }
 // Two fingers (v407): they grab what lies between them and pull it across the screen – up, down, sideways – the camera turning where
 // it stands so that it stays beneath them (649a; 651a in flight: the head and the craft's heading). Pinched, the camera flies towards
-// it or away (it stays beneath them); twisted – once past 12° – the camera circles about it (650b). The fingers are reported one at a
+// it or away (it stays beneath them); twisted – once past 21° (667b) – the camera circles about it (650b). The fingers are reported one at a
 // time: a step is taken only once both have moved (or after 60 ms), so that the half steps between no longer pan the view.
 function exp2Start(P, two) { const c = M.cam, t = two(); EXP.G = null; EXP.G2 = expGrab(c, t.x, t.y); EXP.prev = t; EXP.P = P; EXP.two = two; EXP.tw = 0; EXP.twOn = false; EXP.pz = 0; EXP.pzOn = false; EXP.fresh = new Set(); EXP.t2 = performance.now(); }
-// (thresholds: a twist only past 12°; a pinch only once the fingers' distance has changed by 8% – so that pulling to tilt does not
+// (thresholds: a twist only past 21°; a pinch only once the fingers' distance has changed by 8% – so that pulling to tilt does not
 // jitter with small pinches – v408)
-const EXP_TW = 12, EXP_PZ = Math.log(1.08);
+const EXP_TW = 21, EXP_PZ = Math.log(1.08);   // (twisting past 21° – 667b, v410)
 function exp2() {
   EXP.pend = false; const c = M.cam, P = EXP.P; if (!c || (c.mode !== 'exp' && c.mode !== 'fly') || !P || P.size !== 2 || !EXP.G2 || !EXP.prev) return;
   const t = EXP.two(), p = EXP.prev; EXP.prev = t; const k0 = p.d / Math.max(10, t.d), da = ((t.a - p.a) / RAD + 540) % 360 - 180;
@@ -556,8 +569,9 @@ function exp2() {
   let tw = 0; EXP.tw += da;
   if (EXP.twOn) tw = da; else if (Math.abs(EXP.tw) > EXP_TW) { EXP.twOn = true; tw = EXP.tw - Math.sign(EXP.tw) * EXP_TW; }
   const G = EXP.G2, T = G.p ? { p: G.p } : { p: add3(camFrame(c).P, mul3(expRay(c, t.x, t.y), Math.max(50, 2 * expHgt(c)))) };
-  if (Math.abs(k - 1) > 1e-4 || tw) expZoom(c, T, k, -tw);
-  const dp = expAim(c, t.x, t.y, expGrabDir(c, G)); if (c.mode === 'fly') c.hd = Math.max(-80, Math.min(80, flyHd(c) + dp));
+  const free = c.mode === 'exp';
+  if (Math.abs(k - 1) > 1e-4 || tw) expZoom(c, T, k, -tw, free);
+  const dp = expAim(c, t.x, t.y, expGrabDir(c, G), free); if (c.mode === 'fly') c.hd = Math.max(-80, Math.min(80, flyHd(c) + dp)); else expLevel(c);
   camApply(); expTick();
 }
 function expMoveG(e, P, two, dx, dy) {
@@ -566,7 +580,7 @@ function expMoveG(e, P, two, dx, dy) {
     // (the right button, and in flight one finger: the grabbed landscape or sky pulled across – the view turns where it stands; in
     // flight its tilt is the head's, kept as the craft moves, and left and right the craft turns – 638a, 651a, v407)
     if (EXP.LG) { if (c.mode === 'fly' && !EXP.look) { EXP.moved = (EXP.moved || 0) + Math.hypot(dx, dy); if (EXP.moved < 5) return; }
-      const dp = expAim(c, e.clientX, e.clientY, expGrabDir(c, EXP.LG)); if (c.mode === 'fly') c.hd = Math.max(-80, Math.min(80, flyHd(c) + dp)); camApply(); return; }
+      const dp = expAim(c, e.clientX, e.clientY, expGrabDir(c, EXP.LG), c.mode === 'exp'); if (c.mode === 'fly') c.hd = Math.max(-80, Math.min(80, flyHd(c) + dp)); else expLevel(c); camApply(); return; }
     // (a tap is no drag: nothing moves until the finger has gone 5 px – v397)
     EXP.moved = (EXP.moved || 0) + Math.hypot(dx, dy); if (EXP.moved < 5) return;
     const now = performance.now(), dt = (now - EXP.tm) / 1000; EXP.tm = now;
