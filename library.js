@@ -98,10 +98,30 @@ async function fetchCatalog() {
   if (S.catalog && S.catOnline) return S.catalog;
   try {
     const r = await fetchT('texts/catalog.json', { cache: 'no-cache' }); if (!r.ok) throw new Error();
-    S.catalog = await r.json(); S.catOnline = true; S.catAt = Date.now(); setting('catalog', S.catalog); setting('catalogAt', S.catAt);
+    S.catalog = await r.json(); S.catOnline = true; S.catAt = Date.now();
+    await mergePrivCatalog(S.catalog);
+    setting('catalog', S.catalog); setting('catalogAt', S.catAt);
   } catch (_) { S.catalog = S.catalog || (await setting('catalog')) || null; S.catOnline = false; S.catAt ??= await setting('catalogAt'); }
   indexCatalog();
   return S.catalog;
+}
+// works that may not be published (e.g. texts of The Latin Library, for personal use) live in the PRIVATE repository
+// (☰ → Instruments → Private dictionaries: repository + token, stored only on this device), in texts/catalog.json and
+// texts/works/ like the public ones; they join the catalogue on this device only (marked priv) – v421
+async function mergePrivCatalog(cat) {
+  S.privCatErr = null;
+  const cfg = typeof privCfg === 'function' ? await privCfg() : null;
+  if (!cfg?.token || !cfg?.repo) return;
+  try {
+    const pc = await (await privFetch(cfg, 'texts/catalog.json')).json();
+    const byId = Object.fromEntries(cat.authors.map(a => [a.id, a]));
+    for (const pa of pc.authors || []) {
+      const ws = (pa.works || []).map(w => Object.assign(w, { priv: true }));
+      if (byId[pa.id]) byId[pa.id].works.push(...ws.filter(w => !byId[pa.id].works.some(x => x.id === w.id)));
+      else { cat.authors.push(Object.assign(pa, { works: ws })); byId[pa.id] = pa; }
+    }
+    cat.authors.sort((a, b) => a.name.localeCompare(b.name));
+  } catch (e) { if (!/not found/.test(e.message)) S.privCatErr = e.message; }   // no texts/catalog.json there: nothing private
 }
 // the last known catalogue, at once (the Library opens without waiting for the network)
 async function cachedCatalog() {
@@ -228,7 +248,8 @@ async function downloadWork(key, signal) {
   const id = key.slice(5), w = S.catWork?.[id];
   if (!w) throw new Error('not in the catalogue');
   DL.set(key, 0); paintDL(key);
-  const r = await fetch('texts/works/' + id + '.json.gz', { cache: 'no-cache', signal });
+  const r = w.priv ? await privFetch(await privCfg(), 'texts/works/' + id + '.json.gz', signal)
+                   : await fetch('texts/works/' + id + '.json.gz', { cache: 'no-cache', signal });
   if (!r.ok) throw new Error('HTTP ' + r.status);
   const reader = r.body.getReader(); const parts = []; let got = 0;
   for (;;) { const { done: fin, value } = await reader.read(); if (fin) break; parts.push(value); got += value.length; DL.set(key, 0.9 * Math.min(1, got / w.bytes)); paintDL(key); }
