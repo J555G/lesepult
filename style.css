@@ -2145,7 +2145,10 @@ dialog .sortpair button{transition:border-color .15s}
 #mapBody:has(.mtime:not([hidden])) .mcred,#mapBody.sdopen .mcred{bottom:0}   /* (at the very bottom edge, the system bar not kept clear – 635, v404) */
 #mapBody:has(#mapCred:not([hidden])) .msdial{bottom:18px}
 #mapBody:has(#mapCred:not([hidden])) .sdmark{bottom:58px}
-.mnadir{position:absolute;top:100px;right:8px;z-index:3}
+.mnadir{position:absolute;top:54px;right:54px;z-index:3}   /* (the level-horizon button left of the compass, the scale and zoom left of it – v417) */
+#mapBody:has(.mnorth[hidden]) .mnadir{right:8px}
+.minfo{right:100px}
+#mapBody:has(.mnorth[hidden]) .minfo{right:54px}
 
 /* crash reports (v409): the note after an unexpected end, the list, the performance line */
 .crnote{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:5000;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;max-width:min(40rem,calc(100% - 20px));padding:10px 12px;border-radius:12px;background:var(--card);color:var(--fg);border:1px solid var(--line);box-shadow:0 6px 24px rgba(0,0,0,.35);font:14px/1.3 var(--ui)}
