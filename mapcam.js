@@ -486,7 +486,7 @@ function exp2() {
   // (each finger's up-and-down movement gathered until the other's has come too – the fingers are reported one at a time; what they
   // share tilts, the rest waits; moving apart, it is dropped)
   const acc = EXP.acc ||= new Map(), ids = [...P.keys()];
-  // (and the same sideways: what both fingers share turns the view left or right where the camera stands – 624a, v403; twisting them
+  // (and the same sideways: what both fingers share turns the view left or right where the camera stands – 626a, 627, v403; twisting them
   // the other way about each other still turns the view about the point between them)
   const accX = EXP.accX ||= new Map();
   for (const [id, q] of P) { const o = EXP.pp.get(id) || q; EXP.pp.set(id, { x: q.x, y: q.y }); acc.set(id, (acc.get(id) || 0) + q.y - o.y); accX.set(id, (accX.get(id) || 0) + q.x - o.x); }
