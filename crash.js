@@ -49,12 +49,17 @@ function crSnap(now) {
     const rep = { ...B, kind: 'closed unexpectedly', ended: L.last || null, found: Date.now() };
     const reps = crGet(CR_REPS) || []; reps.unshift(rep); crSet(CR_REPS, reps.slice(0, 5)); CR.pending = rep;
   }
-  crSet(CR_LIVE, { t0: CR.t0, last: Date.now(), bg: false });
+  // (a start out of sight – the app woken in the background, or reloaded while another was in front – is not "in use": when it ends
+  // there, it is no crash; it counts once it has been seen – v415)
+  crSet(CR_LIVE, { t0: CR.t0, last: Date.now(), bg: document.visibilityState !== 'visible' });
   addEventListener('pagehide', () => crSet(CR_LIVE, null));         // (closed or reloaded on purpose: no crash)
   document.addEventListener('visibilitychange', () => { const v = crGet(CR_LIVE) || { t0: CR.t0 }; v.bg = document.visibilityState !== 'visible'; v.last = Date.now(); crSet(CR_LIVE, v); crNote('app', v.bg ? 'to the background' : 'back'); });
   // errors
   addEventListener('error', e => { if (e.target && e.target !== window) return; crErr('error', e.message, `${(e.filename || '').split('/').pop()}:${e.lineno}:${e.colno}\n${e.error?.stack || ''}`); });
-  addEventListener('unhandledrejection', e => { const r = e.reason; crErr('promise', r?.message || String(r), r?.stack || ''); });
+  // (a promise refused without a reason – e.g. the device's database closing a request while the app is put away – says little: what
+  // was going on is kept with it: the page in sight or not, the app's last step, the last action)
+  addEventListener('unhandledrejection', e => { const r = e.reason, m = crM();
+    crErr('promise', r?.message || (r == null ? `refused without a reason (page ${document.visibilityState}, step ${m?.step || '–'}, last: ${(CR.log.at(-1) || []).slice(1).join(' ')})` : String(r)), r?.stack || ''); });
   for (const k of ['error', 'warn']) { const o = console[k].bind(console); console[k] = (...a) => { try { const msg = a.map(x => x?.message || (typeof x === 'string' ? x : JSON.stringify(x))).join(' ');
     if (k === 'error') crErr('console', msg, a.find(x => x?.stack)?.stack || ''); else crNote('warn', msg); } catch (_) { } o(...a); }; }
   // actions: taps on buttons, gestures on the map (how many fingers, how long)
@@ -67,7 +72,9 @@ function crSnap(now) {
   document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', up, true);
   document.addEventListener('keydown', e => { if (e.repeat || !crM()?.cam || e.target.closest?.('input, textarea')) return; crNote('key', e.key); }, true);
   // the app's version (from the offline cache's name), the device
-  caches?.keys?.().then(ks => { CR.ver = ks.find(k => /^lesepult-v/.test(k)) || ''; }).catch(() => { });
+  // (the version running, as the offline helper says – the store may still hold an older one's files for a while – v415)
+  setTimeout(() => { try { swVer?.().then(v => { if (v) CR.ver = 'v' + v; }).catch(() => { }); } catch (_) { } }, 1500);
+  caches?.keys?.().then(ks => { if (!CR.ver) { const n = ks.map(k => +((k.match(/^lesepult-v(\d+)/) || [])[1] || 0)).sort((a, b) => b - a)[0]; if (n) CR.ver = 'v' + n; } }).catch(() => { });
   CR.dev = { ua: navigator.userAgent, plat: navigator.platform, scr: `${screen.width}×${screen.height}`, dpr: devicePixelRatio, mem: navigator.deviceMemory || null, cpu: navigator.hardwareConcurrency || null, touch: navigator.maxTouchPoints || 0 };
   setInterval(crSnap, 2000);
   addEventListener('load', crHooks);
