@@ -2155,3 +2155,4 @@ dialog .sortpair button{transition:border-color .15s}
 .crb{display:flex;gap:6px;flex:none}
 .crnow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;font-size:13px;opacity:.9}
 .mperf{position:absolute;left:8px;top:52px;z-index:3;pointer-events:none;font:11px/1.3 var(--ui);color:#fff;text-shadow:0 0 3px #000,0 0 2px #000;font-variant-numeric:tabular-nums}
+dialog .sver{-webkit-user-select:none;user-select:none;touch-action:manipulation;cursor:pointer}

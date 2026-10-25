@@ -539,7 +539,7 @@ async function settingsDialog(focus) {
       `<div class="srow1 sapp"><b>Appearance</b>${seg('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']])}</div>`
       + `<label class="srow1 swr sapp2"><span>Fades<small class="hint">buttons light up briefly when tapped, switches fade in and out</small></span>${SW('data-fades="1"', !document.body.classList.contains('nofade'))}</label>`
       + `<label class="srow1 swr sapp2"><span>Notices<small class="hint">short hints and confirmations at the bottom of the screen (warnings always show)</small></span>${SW('data-notices="1"', document.body.classList.contains('notices'))}</label>`)
-    + `<p class="sver">Pult · version <span id="sverVer">${ver0}</span><span id="sverPub">${pub ? ' · published ' + pub : ''}</span></p>`, []);
+    + `<p class="sver" title="Double-tap to look for an update">Pult · version <span id="sverVer">${ver0}</span><span id="sverPub">${pub ? ' · published ' + pub : ''}</span><span id="sverUpd"></span></p>`, []);
   syncGramRows($('#dlgForm')); scIdxInfo();
   // (the version from the service worker – v371; its date, if not yet known, worked out now)
   (async () => {
@@ -554,6 +554,33 @@ async function settingsDialog(focus) {
   }
   await dlgP;
 }
+// ---- an update by hand (v411): double-tap the version line in Settings. The website's helper (sw.js) is asked which version it
+// has; newer, it is installed (it fetches the app's files anew), and once it has taken over the page is reloaded; not newer, the
+// line says so; offline, too
+async function appUpdate() {
+  const out = $('#sverUpd'), say = t => { if (out) out.textContent = t ? ' · ' + t : ''; };
+  if (S.updBusy) return; S.updBusy = true;
+  try {
+    if (!('serviceWorker' in navigator)) return say('updates need the installed app');
+    const reg = await navigator.serviceWorker.getRegistration(); if (!reg) return say('updates need the installed app');
+    say('looking for an update …');
+    let txt; try { const r = await fetch('sw.js?u=' + Date.now(), { cache: 'no-store' }); if (!r.ok) throw 0; txt = await r.text(); } catch (_) { return say('no connection – try again online'); }
+    const nv = +(txt.match(/lesepult-v(\d+)/) || [])[1], cur = S.ver || (await swVer());
+    if (!nv) return say('could not read the website’s version');
+    if (cur && nv <= cur) return say(`no update – ${cur} is the newest`);
+    say(`updating to ${nv} …`);
+    let reloaded = false; const go = () => { if (reloaded) return; reloaded = true; say(`${nv} installed – starting it`); setTimeout(() => location.reload(), 400); };
+    navigator.serviceWorker.addEventListener('controllerchange', go, { once: true });
+    await reg.update();
+    const w = reg.installing || reg.waiting;
+    if (w) w.addEventListener('statechange', () => { if (w.state === 'activated') go(); if (w.state === 'redundant') say('the update failed – try again'); });
+    else if (reg.active && !navigator.serviceWorker.controller) go();
+    setTimeout(() => { if (!reloaded) say('the update is taking long – it continues; try again in a minute'); }, 60000);
+  } finally { S.updBusy = false; }
+}
+{ let t0 = 0, x0 = 0, y0 = 0;    // (a double tap, by hand: Safari sends no double clicks for text)
+  document.addEventListener('pointerup', e => { if (!e.target.closest?.('#dlg .sver')) return; const now = performance.now();
+    if (now - t0 < 400 && Math.hypot(e.clientX - x0, e.clientY - y0) < 30) { t0 = 0; appUpdate(); } else { t0 = now; x0 = e.clientX; y0 = e.clientY; } }); }
 // hold a top-bar button: its list opens when the finger is lifted (so nothing beneath it gets selected)
 function holdButton(bp, held, open) {
   let t = null;
