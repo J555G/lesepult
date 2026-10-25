@@ -871,7 +871,9 @@ body.gram #textBody .w>.gm:empty{padding-right:0}
 body:not(.nofade) #tabPeople .ppico *{transition:fill .333s ease,stroke .333s ease}
 #peopleBody{padding:0 .2rem 2rem}
 #peopleBody .pptop{display:flex;gap:.4rem;align-items:center;position:sticky;top:0;z-index:2;background:var(--bg);padding:.45rem 0 .4rem}
-#peopleBody .pptop input{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:.4rem .6rem;background:var(--card);color:var(--fg);font:15px var(--greek)}
+#peopleBody .pptop input{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:.4rem .6rem;background:var(--card);color:var(--fg);font:16px var(--greek)}
+#peopleBody .pptop button:disabled{opacity:.35}
+#peopleBody .ppget{font:13px var(--ui);padding:.05rem .5rem;margin:0 .2rem}
 #peopleBody .pptop button{flex:none;font:14px var(--ui);padding:.3rem .6rem}
 #peopleBody .ppback{font-size:20px!important;line-height:1;padding:.15rem .55rem!important}
 #peopleBody .navh3{font:600 13px var(--ui);color:var(--mut);margin:.8rem 0 .3rem;text-transform:uppercase;letter-spacing:.04em}
