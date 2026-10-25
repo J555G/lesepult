@@ -37,7 +37,8 @@ function camInit() {
   // soon as the map is a globe (at start or once switched to it)
   const m = M.map; if (m && !globeElev(m)) { const f = () => { if (globeElev(m)) m.off('render', f); }; m.on('render', f); }
   if (M.camMap !== m) { M.cam = null; M.camPrevExp = null; }
-  camConstrain(m); if (m && !m._camCon) { m._camCon = true; m.on('style.load', () => camConstrain(m)); }
+  camConstrain(m); if (m && !m._camCon) { m._camCon = true; m.on('style.load', () => camConstrain(m)); m.on('styledata', () => camLodAll(m)); m.on('sourcedata', () => camLodAll(m)); }
+  camLodAll(m);
   camExplore();
 }
 
@@ -46,6 +47,50 @@ function camInit() {
 function camConstrain(m) {
   if (!m?.setTransformConstrain) return; const glb = m.getProjection?.()?.type === 'globe';
   try { m.setTransformConstrain(glb ? (ll, z) => { const L = z < 11 ? 89.99 : 85.051129; return { center: new maplibregl.LngLat(ll.lng, Math.max(-L, Math.min(L, ll.lat))), zoom: Math.max(z < 11 ? -24 : m.getMinZoom(), Math.min(m.getMaxZoom(), z)) }; } : null); } catch (_) {}   // (near a pole the engine's globe needs a zoom below its least: its scale grows as 1 / cos(latitude))
+}
+// How fine each tile is drawn (624a, 625a – v403). The engine measures each tile's distance from the ground point beneath the camera
+// as it finds it on the screen – looking up past the horizon that point is off the screen and lands somewhere wrong (on the globe far
+// away: every tile came out coarse, from 20 km up whole countries in one tile) – and takes as the camera's height its height above
+// the point the middle of the screen looks at (looking at the horizon or the sky: up in the air, about level with the camera).
+// Here each tile is measured from the camera itself: from the point truly beneath it, its height above the ground as it is. A tile
+// as fine as it would be looked at straight down from as far away; seen at a slant a little less fine (as the engine does); the
+// engine's general cut for pitched views dropped – looking straight down it is nothing, so every view gets what the view straight
+// down gets. (The engine's formula otherwise, its constants kept.)
+const LOD_L = fov => 2 * (8.314 / Math.log2(Math.cos((89.25 - fov) * RAD) / Math.cos(89.25 * RAD)) - 1);
+let LOD_C = { k: '', v: null };
+function camLodC() {      // where the camera is, in the engine's units (mercator: a world is 1 across): x, y and its height – worked out
+  // once for each place of the camera (the ground's height is slow to ask for, and this is asked for every tile)
+  const c = M.cam, t = M.map?.transform; if (!t) return null;
+  const k = c && camExpOn() ? c.lng + ',' + c.lat + ',' + c.alt : t.center.lng + ',' + t.center.lat + ',' + t.zoom + ',' + t.pitch + ',' + t.bearing + ',' + t.elevation;
+  if (k !== LOD_C.k) { LOD_C = { k, v: null }; LOD_C.v = camLodC0(); }
+  return LOD_C.v;
+}
+function camLodC0() {
+  const c = M.cam, m = M.map; let ll, h;
+  if (c && camExpOn()) { ll = [c.lng, c.lat]; h = c.alt - groundAt(c.lng, c.lat); }
+  else { try { const t = m.transform, q = t.getCameraLngLat?.(); let a = t.getCameraAltitude?.(); if (!q) return null;
+    if (!isFinite(a)) a = (t.elevation || 0) + Math.cos(t.pitch * RAD) * t.cameraToCenterDistance * 2 * Math.PI * ER * Math.cos(t.center.lat * RAD) / t.worldSize;   // (the globe's own gives none)
+    ll = [q.lng, q.lat]; h = a - groundAt(q.lng, q.lat); } catch (_) { return null; } }
+  if (!isFinite(h) || !isFinite(ll[1])) return null;
+  const lat = Math.max(-85.05, Math.min(85.05, ll[1])), q = maplibregl.MercatorCoordinate.fromLngLat([ll[0], lat]);
+  return { x: q.x, y: q.y, h: Math.max(2, h) / (2 * Math.PI * ER * Math.max(0.01, Math.cos(lat * RAD))) };
+}
+function camLod(o, a, r, s, n) {   // (centre zoom, distance to the tile along the ground, camera's height over the centre, camera to centre, field of view)
+  const C = camLodC(), t = M.map?.transform, l = LOD_L(n), f = Math.log2(1 / Math.max(0.5, Math.cos(n / 2 * RAD)));
+  const s0 = t ? t.cameraToCenterDistance / t.worldSize : s;   // (the camera's distance from the centre, as the centre's zoom means it)
+  if (!C || !(s0 > 0)) { const z = o + Math.log2(s / Math.hypot(a, r)) + f + l * Math.log2(Math.cos(Math.atan(a / r))) / 2; return isFinite(z) ? z : o; }
+  const D = Math.hypot(a, C.h), z = o + Math.log2(s0 / D) + f + l * Math.log2(Math.max(1e-6, C.h / D)) / 2;
+  return isFinite(z) ? z : o;
+}
+function camLodAll(m) {
+  const T = m?.style?.tileManagers; if (!T) return;
+  for (const k in T) { try { const src = T[k].getSource(); if (src && src.calculateTileZoom !== camLod) src.calculateTileZoom = camLod; } catch (_) {} }
+  // (the distance to each tile measured from the point truly beneath the camera – for the flat map and the globe alike)
+  for (const pv of [m.transform?.getCoveringTilesDetailsProvider?.(), m.transform?._mercatorTransform?.getCoveringTilesDetailsProvider?.(), m.transform?._verticalPerspectiveTransform?.getCoveringTilesDetailsProvider?.()]) {
+    const pr = pv && Object.getPrototypeOf(pv); if (!pr || pr._pultLod || typeof pr.distanceToTile2d !== 'function') continue;
+    const o = pr.distanceToTile2d; pr._pultLod = true;
+    pr.distanceToTile2d = function (x, y, T, P) { const C = camLodC(); return o.call(this, C ? C.x : x, C ? C.y : y, T, P); };
+  }
 }
 // ---------------------------------------------------------------- the menu
 function camHTML() {
@@ -434,19 +479,26 @@ function expDown(e, P, two) {
 }
 // two fingers: pinch to fly towards or away from the point between them, twist to turn the view about it, and moved up or down
 // together, tilt the head (only what both fingers share of the up-and-down movement counts – a pinch or a twist tilts nothing)
-function exp2Start(P, two) { const c = M.cam, t = two(); EXP.G = null; EXP.acc = new Map(); EXP.T = expTarget(c, t.x, t.y); EXP.prev = t; EXP.P = P; EXP.two = two; EXP.pp = new Map([...P].map(([id, q]) => [id, { x: q.x, y: q.y }])); }
+function exp2Start(P, two) { const c = M.cam, t = two(); EXP.G = null; EXP.acc = new Map(); EXP.accX = new Map(); EXP.T = expTarget(c, t.x, t.y); EXP.prev = t; EXP.P = P; EXP.two = two; EXP.pp = new Map([...P].map(([id, q]) => [id, { x: q.x, y: q.y }])); }
 function exp2() {
   EXP.pend = false; const c = M.cam, P = EXP.P; if (!c || (c.mode !== 'exp' && c.mode !== 'fly') || !P || P.size !== 2 || !EXP.T || !EXP.prev) return;
   const t = EXP.two(), p = EXP.prev; EXP.prev = t; const k = p.d / Math.max(10, t.d), da = ((t.a - p.a) / RAD + 540) % 360 - 180;
   // (each finger's up-and-down movement gathered until the other's has come too – the fingers are reported one at a time; what they
   // share tilts, the rest waits; moving apart, it is dropped)
   const acc = EXP.acc ||= new Map(), ids = [...P.keys()];
-  for (const [id, q] of P) { const o = EXP.pp.get(id) || q; EXP.pp.set(id, { x: q.x, y: q.y }); acc.set(id, (acc.get(id) || 0) + q.y - o.y); }
-  const a0 = acc.get(ids[0]) || 0, a1 = acc.get(ids[1]) || 0; let com = 0;
-  if (a0 && a1 && Math.sign(a0) === Math.sign(a1)) { com = Math.sign(a0) * Math.min(Math.abs(a0), Math.abs(a1)); acc.set(ids[0], a0 - com); acc.set(ids[1], a1 - com); }
-  else if (a0 && a1) { acc.set(ids[0], 0); acc.set(ids[1], 0); }
+  // (and the same sideways: what both fingers share turns the view left or right where the camera stands – 624a, v403; twisting them
+  // the other way about each other still turns the view about the point between them)
+  const accX = EXP.accX ||= new Map();
+  for (const [id, q] of P) { const o = EXP.pp.get(id) || q; EXP.pp.set(id, { x: q.x, y: q.y }); acc.set(id, (acc.get(id) || 0) + q.y - o.y); accX.set(id, (accX.get(id) || 0) + q.x - o.x); }
+  const share = A => { const a0 = A.get(ids[0]) || 0, a1 = A.get(ids[1]) || 0; let com = 0;
+    if (a0 && a1 && Math.sign(a0) === Math.sign(a1)) { com = Math.sign(a0) * Math.min(Math.abs(a0), Math.abs(a1)); A.set(ids[0], a0 - com); A.set(ids[1], a1 - com); }
+    else if (a0 && a1) { A.set(ids[0], 0); A.set(ids[1], 0); }
+    return com; };
+  const com = share(acc), comX = share(accX);
   expZoom(c, EXP.T, k, -da);
-  if (com) { const kd = (M.map.getVerticalFieldOfView() || 37) / (M.map.getCanvas().clientHeight || 600); c.pt = Math.max(0.5, Math.min(179.5, c.pt - com * kd * 1.5)); }
+  const kd = (M.map.getVerticalFieldOfView() || 37) / (M.map.getCanvas().clientHeight || 600);
+  if (com) c.pt = Math.max(0.5, Math.min(179.5, c.pt - com * kd * 1.5));      // (fingers up: the camera looks up)
+  if (comX) c.br += comX * kd * 1.5;                                          // (fingers to the left: the camera turns to the left)
   camApply(); expTick();
 }
 function expMoveG(e, P, two, dx, dy) {
