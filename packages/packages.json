@@ -142,8 +142,44 @@
    "title": "London 1849 · Perseus Digital Library edition",
    "source": "Perseus Digital Library (canonical-pdlrefwk), CC BY-SA 4.0; text of 1849 in the public domain",
    "license": "CC-BY-SA-4.0",
-   "bytes": 11605502,
-   "version": "5dd74197454b"
+   "bytes": 11611993,
+   "version": "5a5628e23cbb"
+  },
+  {
+   "id": "people-pir",
+   "file": "people-pir.gdpkg.gz",
+   "name": "Prosopographia Imperii Romani",
+   "kind": "people",
+   "src": "la",
+   "title": "PIR², Berlin-Brandenburg Academy of Sciences and Humanities – the online database (31 BC – AD 284)",
+   "source": "pir.bbaw.de, retrieved 2026-10-25",
+   "license": "CC-BY-4.0",
+   "bytes": 950275,
+   "version": "e8d35ef53cc2"
+  },
+  {
+   "id": "enc-smith-geo",
+   "file": "enc-smith-geo.gdpkg.gz",
+   "name": "William Smith, Dictionary of Greek and Roman Geography",
+   "kind": "encyclopedia",
+   "src": "grc",
+   "title": "London 1854 · Perseus Digital Library edition",
+   "source": "Perseus Digital Library (canonical-pdlrefwk), CC BY-SA 4.0; the printed text in the public domain",
+   "license": "CC-BY-SA-4.0",
+   "bytes": 7585370,
+   "version": "8ffff2d1d7b6"
+  },
+  {
+   "id": "enc-smith-ant",
+   "file": "enc-smith-ant.gdpkg.gz",
+   "name": "William Smith, A Dictionary of Greek and Roman Antiquities",
+   "kind": "encyclopedia",
+   "src": "grc",
+   "title": "3rd ed., London 1890 · Perseus Digital Library edition",
+   "source": "Perseus Digital Library (canonical-pdlrefwk), CC BY-SA 4.0; the printed text in the public domain",
+   "license": "CC-BY-SA-4.0",
+   "bytes": 5531020,
+   "version": "0bcbc1a91ffc"
   }
  ]
 }

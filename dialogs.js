@@ -379,18 +379,19 @@ async function dictsDialog() {
     if (d.kind === 'morph') return toolRow('grc', d);
     if (d.kind === 'latmorph') return toolRow('la', d);
     if (d.kind === 'morphhints') return hintsRow();
-    if (d.kind === 'people') return pplInstRow(d);
+    if (d.kind === 'people' || d.kind === 'encyclopedia') return pplInstRow(d);
     return ''; };
   // People: encyclopaedias and prosopographies (the People tab, the marks on names)
   const pplInstRow = d => pkRow({ id: d.id, sw: SW(`data-dict-on="${d.id}" aria-label="Use ${esc(d.name)}"`, !S.dictPrefs.off.includes(d.id)), name: esc(d.name),
-    desc: `${esc(d.title || '')}${d.count ? ' · ' + d.count.toLocaleString('en') + ' persons' : ''}${d.size ? ' · ' + mbs(d.size) : ''}`, right: getBtn(d.id), del: delD(d.id) });
-  const pplInst = Object.values(S.installed).filter(d => d.kind === 'people'), pplAv = Object.values(remote).filter(p => !S.installed[p.id] && p.kind === 'people')
+    desc: `${esc(d.title || '')}${d.count ? ' · ' + d.count.toLocaleString('en') + (d.kind === 'people' ? ' persons' : ' entries') : ''}${d.size ? ' · ' + mbs(d.size) : ''}`, right: getBtn(d.id), del: delD(d.id) });
+  const pplInst = Object.values(S.installed).filter(d => d.kind === 'people' || d.kind === 'encyclopedia').sort((a, b) => (a.order ?? 99) - (b.order ?? 99)),
+    pplAv = Object.values(remote).filter(p => !S.installed[p.id] && (p.kind === 'people' || p.kind === 'encyclopedia'))
     .map(p => pkRow({ grip: '<span class="trsp"></span>', name: esc(p.name), desc: `${esc(p.title || '')}${p.title ? ' · ' : ''}${mbs(p.bytes)} download${p.priv ? ' · private repository' : ''}`, right: getBtn(p.id), cls: 'avail' })).join('');
   const pplBody = `<div class="list plain">${pplInst.map(pplInstRow).join('')}${pplAv}${pplInst.length || pplAv ? '' : '<p class="hint small">None available.</p>'}</div>`
-    + '<p class="hint small">Persons of the texts: the People tab beside the dictionary, and a line beneath their names in the text (switch in Settings → Reading → Colourisation).</p>';
+    + '<p class="hint small">Persons, places and things of the texts, shown in the Suda tab beside the dictionary, with the Suda itself (a dictionary – under Dictionaries → Greek). Names of persons get a line beneath them in the text (switch: Settings → Reading → Colourisation).</p>';
   const addons = { grc: S.hintsInst ? pkRow({ id: S.hintsInst.id, sw: SW(`data-dict-on="${S.hintsInst.id}"`, !S.dictPrefs.off.includes(S.hintsInst.id)), name: esc(S.hintsInst.name), desc: 'preferred lemma for ambiguous forms; word classes for the colours', right: getBtn(S.hintsInst.id), del: delD(S.hintsInst.id) }) : '', la: '' };
   const usedName = lang => langTools(lang).find(x => !S.dictPrefs.off.includes(x.id))?.name || 'none';
-  const isTool = Object.assign(p => p.kind !== 'dictionary' && p.kind !== 'people', { spacer: '<span class="trsp"></span>' });
+  const isTool = Object.assign(p => !['dictionary', 'people', 'encyclopedia'].includes(p.kind), { spacer: '<span class="trsp"></span>' });
   const toolBody = Object.entries(LANGS).map(([lang, name]) => { const av = avail(lang, isTool);
       return `<div class="navh2">${name}</div><div class="list plain">${tLang[lang].join('')}${tLang[lang].length ? none(lang) : ''}${av}${tLang[lang].length || av ? '' : '<p class="hint small">None available.</p>'}</div>`
         + (addons[lang] ? `<div class="navh3">Add-ons</div><div class="list plain">${addons[lang]}</div>` : ''); }).join('')
@@ -404,7 +405,7 @@ async function dictsDialog() {
   const rows = [{ k: 'dict', title: 'Dictionaries', sub: Object.entries(LANGS).map(([l, n]) => `${n} ${nD(l)}`).join(' · ') },
     { k: 'tools', title: 'Analysis', sub: Object.entries(LANGS).map(([l, n]) => `${n}: ${esc(usedName(l))}`).join(' · ') },
     ...(mapBody ? [{ k: 'maps', title: 'Map', sub: await mapSummary() }] : []),
-    { k: 'ppl', title: 'People', sub: pplInst.length ? pplInst.map(d => esc(d.name.replace(/^William Smith, A /, 'Smith, '))).join(' · ') : 'none installed' },
+    { k: 'ppl', title: 'Suda – Encyclopaedias and Lexica', sub: pplInst.length ? pplInst.map(d => esc(d.name.replace(/^William Smith, (A )?/, 'Smith, '))).join(' · ') : 'none installed' },
     { k: 'src', title: 'Other sources', sub: srcSub }];
   // after a delete: the summaries on the overview and the choice of analysis follow the new state
   S.instAfterDel = () => {
@@ -535,7 +536,7 @@ async function settingsDialog(focus) {
   const reading = rsec('stz', 'Text size', `<div class="tzline"><small class="hint"><span class="nw">pinch the text ·</span> <span class="nw">ctrl + mouse wheel</span></small><div class="tzrow">${tzBtn(-7, 'tz1', 'Smaller by 7 %')}${tzBtn(-1, 'tz2', 'Smaller by 1 %')}<span id="tzVal">${Math.round((S.tz || 1) * 100)} %</span>${tzBtn(1, 'tz4', 'Larger by 1 %')}${tzBtn(7, 'tz5', 'Larger by 7 %')}${tzBtn(0, 'tz3', 'Back to 100 %', RST)}</div></div>`)
     + rsec('sglo', 'Glosses', line('Should a word’s particular gloss replace its lemma’s default gloss?', seg('glossMode', S.glossMode === 'both' ? 'both' : 'replace', [['replace', 'Replace'], ['both', 'Show both']])))
     + rsec('sgram', 'Grammar Line', gramRowsHTML(), `<button type="button" class="greset" data-gramreset="1" aria-label="Reset the grammar line" title="Reset the grammar line">Reset${RST}</button>`)
-    + rsec('scolours', 'Colourisation', chipGroupsHTML('pos') + '<small class="hint rhint">hold a word to choose its colour</small>' + swRow(SW('data-prsmark="1"', S.prsMark !== false), 'Mark names of persons', 'a line beneath names found in the People sources (☰ → Instruments → People) – dotted where it is not yet certain who is meant'), `<button type="button" class="creset" data-posreset="1" aria-label="Reset colours" title="Reset colours"><span class="rr">R</span><span class="rg">e</span><span class="ry">s</span><span class="rb">e</span><span class="rr">t</span>${RST}</button>`)
+    + rsec('scolours', 'Colourisation', chipGroupsHTML('pos') + '<small class="hint rhint">hold a word to choose its colour</small>' + swRow(SW('data-prsmark="1"', S.prsMark !== false), 'Mark names of persons', 'a line beneath names found in the encyclopaedias (☰ → Instruments → Suda) – dotted where it is not yet certain who is meant'), `<button type="button" class="creset" data-posreset="1" aria-label="Reset colours" title="Reset colours"><span class="rr">R</span><span class="rg">e</span><span class="ry">s</span><span class="rb">e</span><span class="rr">t</span>${RST}</button>`)
     + rsec('slat', 'Latin', swRow(SW('data-set="latQuant"', S.latQuant && coll, !coll), 'Mark vowel lengths (ā, ĕ …)', coll ? '' : 'needs Collatinus (Instruments → Analysis)', !coll))
     + (hasMap ? rsec('splaces', 'Places', swRow(SW('data-mapset="mark"', M.cfg.mark !== false), 'Mark place names in the text', 'a dotted line beneath names found on the map')) : '');
   await libSettingsPrep();
@@ -543,8 +544,9 @@ async function settingsDialog(focus) {
   const rows = [{ k: 'read', title: 'Reading', sub: `text ${Math.round((S.tz || 1) * 100)} % · glosses, grammar line, colourisation` },
     { k: 'search', title: 'Search', sub: 'suggestions · Greek in Latin letters · typo tolerance · index of all texts' },
     { k: 'lib', title: 'Library', sub: 'revision notices · rejected revisions' },
+    { k: 'suda', title: 'Suda', sub: 'encyclopaedias and lexica · sections of one article' },
     ...(hasMap ? [{ k: 'map', title: 'Map', sub: 'places in texts · period · significance · engine' }] : [])];
-  const dlgP = dialog(pagedHTML('set', 'Settings', rows, { read: reading, search: searchSettingsHTML(), lib: libSettingsHTML(), ...(hasMap ? { map: `<div class="mapset">${settingsHTML()}</div>` } : {}) },
+  const dlgP = dialog(pagedHTML('set', 'Settings', rows, { read: reading, search: searchSettingsHTML(), lib: libSettingsHTML(), suda: swRow(SW('data-sudamerge="1"', S.sudaMerge !== false), 'Sections of one article as one entry', 'Smith divides some articles into numbered parts that look like persons of the same name – Zeus 1–5, Artemis 1–5; on: one entry, the parts beneath it'), ...(hasMap ? { map: `<div class="mapset">${settingsHTML()}</div>` } : {}) },
       `<div class="srow1 sapp"><b>Appearance</b>${seg('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']])}</div>`
       + `<label class="srow1 swr sapp2"><span>Fades<small class="hint">buttons light up briefly when tapped, switches fade in and out</small></span>${SW('data-fades="1"', !document.body.classList.contains('nofade'))}</label>`
       + `<label class="srow1 swr sapp2"><span>Notices<small class="hint">short hints and confirmations at the bottom of the screen (warnings always show)</small></span>${SW('data-notices="1"', document.body.classList.contains('notices'))}</label>`)
@@ -891,7 +893,7 @@ async function backupData() {
     people: Object.fromEntries((await getAll('settings')).filter(r => /^(prs|pk)\|/.test(r.k)).map(r => [r.k, r.v])),
     favourites: (await setting('favs')) || {},
     prefs: { theme: document.documentElement.dataset.theme, textZoom: S.tz || 1, posCfg: S.posCfg, posOn: S.posOn, gramCfg: S.gramCfg, showGloss: !document.body.classList.contains('nogloss'),
-      glossMode: S.glossMode, latQuant: S.latQuant, gramBtn: S.gramBtn, showGram: S.gram, dictPrefs: S.dictPrefs } };
+      glossMode: S.glossMode, latQuant: S.latQuant, sudaMerge: S.sudaMerge, gramBtn: S.gramBtn, showGram: S.gram, dictPrefs: S.dictPrefs } };
 }
 // ☰ → This Pult: what the reader has stored on this device, and backups
 async function pultDialog() {
@@ -1010,6 +1012,7 @@ async function restoreBackup(file) {
     if (p.showGloss != null) setGlossVisible(!!p.showGloss, true);
     if (p.glossMode) { S.glossMode = p.glossMode; await setting('glossMode', p.glossMode); }
     if (p.latQuant != null) { S.latQuant = !!p.latQuant; await setting('latQuant', S.latQuant); }
+    if (p.sudaMerge != null) { S.sudaMerge = !!p.sudaMerge; await setting('sudaMerge', S.sudaMerge); }
     if (p.showGram != null) setGram(!!p.showGram, true);
   }
   note('Restored'); await openText(data.texts[0]?.id ?? null);
@@ -1031,8 +1034,10 @@ const ACKS = [
     ['Universal Dependencies – Ancient Greek PROIEL treebank', 'https://github.com/UniversalDependencies/UD_Ancient_Greek-PROIEL', 'preferred lemmata and word classes', 'CC BY-NC-SA 4.0'],
     ['Universal Dependencies – Ancient Greek Perseus treebank', 'https://github.com/UniversalDependencies/UD_Ancient_Greek-Perseus', 'preferred lemmata and word classes', 'CC BY-NC-SA 2.5'],
     ['Open Greek and Latin – First1KGreek: the Suda (Suidae Lexicon, ed. A. Adler, 1928–1938)', 'https://github.com/OpenGreekAndLatin/First1KGreek', 'the Suda as a dictionary – incomplete where the source file is', 'CC BY-SA 4.0']]],
-  ['People', [
-    ['William Smith (ed.), A Dictionary of Greek and Roman Biography and Mythology (London 1849) – Perseus Digital Library, canonical-pdlrefwk', 'https://github.com/PerseusDL/canonical-pdlrefwk', 'the persons of the People tab and the passages where they are cited; text provided under a CC BY-SA license by the Perseus Digital Library, with funding from the National Endowment for the Humanities and Tufts University', 'CC BY-SA 4.0 (text of 1849 in the public domain)']]],
+  ['Suda – encyclopaedias and lexica', [
+    ['William Smith (ed.), A Dictionary of Greek and Roman Biography and Mythology (London 1849) – Perseus Digital Library, canonical-pdlrefwk', 'https://github.com/PerseusDL/canonical-pdlrefwk', 'the persons of the People tab and the passages where they are cited; text provided under a CC BY-SA license by the Perseus Digital Library, with funding from the National Endowment for the Humanities and Tufts University', 'CC BY-SA 4.0 (text of 1849 in the public domain)'],
+    ['William Smith (ed.), Dictionary of Greek and Roman Geography (London 1854) and A Dictionary of Greek and Roman Antiquities (3rd ed., London 1890, with W. Wayte and G. E. Marindin) – Perseus Digital Library', 'https://github.com/PerseusDL/canonical-pdlrefwk', 'places and things in the Suda tab', 'CC BY-SA 4.0 (printed texts in the public domain)'],
+    ['Prosopographia Imperii Romani (PIR²) – Berlin-Brandenburg Academy of Sciences and Humanities', 'https://pir.bbaw.de', 'persons of the imperial period (31 BC – AD 284), with Smith’s where they are the same', 'CC BY 4.0']]],
   ['Latin dictionaries and analysis', [
     ['Perseus Digital Library – lexica', 'https://github.com/PerseusDL/lexica', 'C. T. Lewis & C. Short, A Latin Dictionary (1879); text provided by the Perseus Digital Library with funding from the National Endowment for the Humanities', 'CC BY-SA 4.0'],
     ['K. E. Georges, Ausführliches lateinisch-deutsches Handwörterbuch (8th ed. 1913) – TEI edition by Thibault Clérice', 'https://github.com/PonteIneptique/K-E-Georges-1913-TEI', 'Latin–German dictionary', 'public domain'],

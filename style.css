@@ -902,6 +902,10 @@ body:not(.nofade) #tabPeople .ppico *{transition:fill .333s ease,stroke .333s ea
 #peopleBody .ppw{margin:.35rem 0 .5rem}
 #peopleBody .ppwt{font:14px var(--ui);margin-bottom:.2rem}
 #peopleBody .ent .eb p{margin:.45rem 0}
+#peopleBody .ppsrc{font:11px var(--ui);color:var(--mut);border:1px solid var(--line);border-radius:6px;padding:0 .3rem;margin-left:.25rem}
+#peopleBody .ppsec{border-top:1px dashed var(--line);margin-top:.6rem;padding-top:.3rem}
+#peopleBody .psc{font-variant:small-caps}
+#peopleBody .psrc a{color:var(--acc)}
 #peopleBody a.pxr{color:var(--acc);cursor:pointer;text-decoration:none}
 dialog .ppkdlg{display:grid;grid-template-columns:repeat(auto-fill,minmax(9.5rem,1fr));gap:.2rem .6rem}
 /* the dictionary: the persons of the word */

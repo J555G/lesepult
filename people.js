@@ -8,7 +8,10 @@
 'use strict';
 const PP = { ix: new Map(), rec: new Map(), view: null, back: [], q: '' };
 const PKINDS = ['deity', 'hero', 'Homeric', 'ruler', 'magistrate', 'military', 'author', 'philosopher', 'artist', 'physician', 'Christian', 'woman', 'family'];
-const pplPkgs = () => Object.values(S.installed || {}).filter(d => d.kind === 'people' && !S.dictPrefs?.off?.includes(d.id)).sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
+// packages of persons (kind "people": also the marks in the text) and the other encyclopaedias (kind "encyclopedia": places, things)
+const ENCK = new Set(['people', 'encyclopedia']);
+const pplPkgs = (all = false) => Object.values(S.installed || {}).filter(d => (all ? ENCK.has(d.kind) : d.kind === 'people') && !S.dictPrefs?.off?.includes(d.id)).sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
+const sudaMerge = () => S.sudaMerge !== false;                   // Settings → Suda: the sections of one article as one entry (739)
 async function pplRec(d, name) {               // one record of a package (cached: the index is read once)
   const id = d.id + '|' + d.version + '|' + name;
   if (PP.rec.has(id)) return PP.rec.get(id);
@@ -23,13 +26,22 @@ function pplParse(ref) { const j = ref.lastIndexOf('|'); return { d: S.installed
 // the short line of a person (from the index): name, number among those of the name, description, kinds, years, "see"
 async function pplRow(d, i) { const ix = await pplIx(d), p = ix?.p?.[i]; if (!p) return null;
   const own = await setting('pk|' + pref(d, i));
-  return { d, i, ref: pref(d, i), name: p[0], no: p[1], desc: p[2], kinds: own || (p[3] ? p[3].split(',') : []), y0: p[4], y1: p[5], see: p[6], ownKinds: !!own }; }
-async function personsFor(k) {                  // all persons with the key, of all packages
+  return { d, i, ref: pref(d, i), name: p[0], no: p[1], desc: p[2], kinds: own || (p[3] ? p[3].split(',') : []), y0: p[4], y1: p[5], see: p[6], sec: p[7] ?? null, ownKinds: !!own }; }
+async function personsFor(k, all = false) {      // all persons (all: also places and things) with the key; sections of one article as one
   const out = [];
-  for (const d of pplPkgs()) { const ix = await pplIx(d); for (const i of ix?.n?.[k] || []) out.push(pref(d, i)); }
+  for (const d of pplPkgs(all)) { const ix = await pplIx(d);
+    for (const i of ix?.n?.[k] || []) { const sec = ix.p[i]?.[7]; const r = pref(d, sudaMerge() && sec != null ? sec : i); if (!out.includes(r)) out.push(r); } }
+  return out;
+}
+// entries of other packages attached to this one (PIR persons found in Smith): [[package, [numbers]]]
+async function attachedTo(d, i) {
+  const out = [];
+  for (const o of Object.values(S.installed || {})) { if (!ENCK.has(o.kind) || o.id === d.id || S.dictPrefs?.off?.includes(o.id)) continue;
+    const at = await pplRec(o, '#at'); const m = at?.to === d.id ? at.m?.[String(i)] : null; if (m?.length) out.push([o, m]); }
   return out;
 }
 const MYTHK = new Set(['deity', 'hero', 'Homeric']);      // (years an article mentions say nothing of a god's life)
+const ppPlain = s => isGreek(s) ? s : String(s || '').normalize('NFD').replace(/[\u0304\u0306]/g, '').normalize('NFC');   // (Latin lemmata carry ā, ĕ)
 const capital = s => { const c = String(s || '').normalize('NFD')[0] || ''; return c !== c.toLowerCase(); };
 const yearTxt = y => y == null ? '' : y < 0 ? `${-y} BC` : `AD ${y}`;
 const yearsTxt = (a, b) => a == null ? '' : a === b ? yearTxt(a) : (a < 0 && b < 0 ? `${-a}–${-b} BC` : a > 0 ? `AD ${a}–${b}` : `${yearTxt(a)} – ${yearTxt(b)}`);
@@ -46,7 +58,8 @@ function isAdjWord(tk, lem, n) {
   if (isGreek(lem)) return S.lemmapos?.[gkey(lem)] === 'ADJ';   // (treebank word classes)
   // Latin: the dictionaries know "Gallus" and "Romanus" both as noun and adjective – an adjective only beside a common noun
   // in the same case ("populus Romanus"), not beside a name ("Gallus Caesar")
-  if (S.latPos?.[gkey(lem)] !== 'ADJ' && !/\b(masc|fem|neut)\b/.test(tk.ana || '')) return false;
+  if (!S.latAdj && S.latEngine) { const E = S.latEngine; S.latAdj = new Set(E.L.filter(l => (E.type === 'whitaker' ? E.P[l[1]] : l[2]) === 'ADJ').map(l => gkey(l[0]))); }
+  if (!S.latAdj?.has(gkey(lem)) && S.latPos?.[gkey(lem)] !== 'ADJ' && !/\b(masc|fem|neut)\b/.test(tk.ana || '')) return false;
   for (const d of [-1, 1]) {
     let m = n + d; while (S.tokens[m]?.t === 'p' && !/\S/.test(S.tokens[m].s)) m += d;
     const o = S.tokens[m]; if (o?.t === 'w' && !capital(o.s) && o.pos === 'noun' && casesAgree(tk, o)) return true;
@@ -108,7 +121,11 @@ async function personsForText() {
     if (set.size) near.set(j, set); });
   // pass 1: every word that may be (part of) a name, with its candidates; null where a name cannot go on (punctuation, a block)
   const memo = new Map(), items = [], rjOf = new Map(); let rj = -1, start = true;
-  const look = async k => { if (!k) return []; let c = memo.get(k); if (!c) memo.set(k, c = await personsFor(k)); return c; };
+  // 753a: nobody who lived after the text was written (Smith: the earliest year his article mentions; PIR: the imperial period)
+  const wy = typeof workYear === 'function' ? await workYear(t).catch(() => null) : null, ixs = new Map();
+  for (const d of pk) ixs.set(d.id, await pplIx(d));
+  const early = c => { if (wy == null) return true; const { d, i } = pplParse(c); const y0 = d?.id === 'people-pir' ? -31 : ixs.get(d?.id)?.p?.[i]?.[4]; return y0 == null || y0 <= wy + 40; };
+  const look = async k => { if (!k) return []; let c = memo.get(k); if (!c) memo.set(k, c = (await personsFor(k)).filter(early)); return c; };
   for (let n = 0; n < S.tokens.length; n++) {
     const tk = S.tokens[n];
     if (tk.t === 'b') { if (tk.k !== 'l' && tk.k !== 'L') start = true; items.push(null); continue; }   // (a verse line is no new sentence)
@@ -190,6 +207,10 @@ function markPersonsIn(c) {                       // a part of a long text just 
   if (S.prsMark === false || !S.prs?.size) return;
   for (let i = c.w0; i <= c.w1; i++) { const h = S.prs.get(i); if (!h) continue; const e = S.wordEls[i]; e?.classList.add('prs'); if (!h.sure) e?.classList.add('prsq'); }
 }
+document.addEventListener('change', async ev => {      // Settings → Suda: the sections of one article as one entry
+  if (ev.target.dataset?.sudamerge == null) return;
+  S.sudaMerge = ev.target.checked; await setting('sudaMerge', S.sudaMerge); await personsForText(); if (S.tab === 'people') pplRender();
+});
 document.addEventListener('change', async ev => {      // Settings → Reading → Colourisation: the switch for the marks
   if (ev.target.dataset?.prsmark == null) return;
   S.prsMark = ev.target.checked; await setting('prsMark', S.prsMark); markPersons();
@@ -198,9 +219,10 @@ document.addEventListener('change', async ev => {      // Settings → Reading �
 // ---------------------------------------------------------------- the Suda tab (the element ids keep the old name "people")
 // views: {t:'text'} the names of the open text (to check first) · {t:'person', ref} · {t:'search', q} · {t:'name', k, ti} the persons of a name
 function pplGo(v, push = true) { if (push && PP.view) { PP.back.push(PP.view); if (PP.back.length > 60) PP.back.shift(); } PP.view = v; pplRender(); $('#dictPane').scrollTop = 0; }
-function pplWordTapped(ti) {                     // a word tapped while the People tab is open: its person here, the entry behind
-  const h = S.prs?.get(ti); if (!h) return false;
-  pplGo(h.pick ? { t: 'person', ref: h.pick, ti } : { t: 'name', k: h.k, ti });
+function pplWordTapped(ti) {                     // a word tapped while the Suda tab is open: its person, or all its entries; the dictionary behind
+  const h = S.prs?.get(ti);
+  if (h) pplGo(h.pick ? { t: 'person', ref: h.pick, ti } : { t: 'name', k: h.k, ti });
+  else { const tk = S.tokens.find(x => x.t === 'w' && x.i === ti); if (!tk) return false; pplGo({ t: 'word', form: tk.s, lemma: tk.lemma || null, ti }); }
   return true;
 }
 async function showPeople() { showTab('people'); if (!PP.view) PP.view = { t: 'text' }; await pplRender(); }
@@ -221,15 +243,16 @@ async function pplRender() {
   $('#peopleBody .ppback').disabled = !PP.back.length; $('#peopleBody .pptxt').disabled = v.t === 'text';
   const q = $('#pplQ'); if (v.t !== 'search' && document.activeElement !== q) q.value = '';
   let h;
-  if (!pplPkgs().length) h = `<p class="hint">No encyclopaedia installed yet. Open the menu ☰ → Instruments → People and download “William Smith, A Dictionary of Greek and Roman Biography and Mythology”.</p>`;
+  if (!pplPkgs(true).length && !S.installed?.suda) h = `<p class="hint">No encyclopaedia installed yet. Open the menu ☰ → Instruments → Suda – Encyclopaedias and Lexica and download one, e.g. “William Smith, A Dictionary of Greek and Roman Biography and Mythology”.</p>`;
   else if (v.t === 'person') h = await pplPersonHTML(v.ref, v.ti);
+  else if (v.t === 'word') h = await pplWordHTML(v.form, v.lemma, v.ti);
   else if (v.t === 'search') h = await pplSearchHTML(v.q, v.all);
   else if (v.t === 'name') h = await pplNameHTML(v.k, v.ti);
   else h = await pplTextHTML();
   if (n !== PP.rn) return;                                    // a newer drawing has started meanwhile
   if (v.t === 'search' && v.all && h.rows) { res.innerHTML = h.head; pplRowsInto(res.querySelector('.list'), h.rows, n); return; }
   res.innerHTML = typeof h === 'string' ? h : h.head.replace('<div class="list plain"></div>', `<div class="list plain">${h.rows.join('')}</div>`);
-  if (v.t === 'person') res.querySelectorAll('details.src').forEach(el => wrapGreek(el));
+  if (v.t === 'person' || v.t === 'word') res.querySelectorAll('details.src').forEach(el => wrapGreek(el));
 }
 function pplRowsInto(list, rows, n, from = 0) {                // all the results (Enter): drawn 300 at a time
   if (!list || n !== PP.rn) return;
@@ -237,7 +260,8 @@ function pplRowsInto(list, rows, n, from = 0) {                // all the result
   if (from + 300 < rows.length) requestAnimationFrame(() => pplRowsInto(list, rows, n, from + 300));
 }
 const kindChips = (r, edit) => `<span class="ppkinds">${r.kinds.map(k => `<span class="ppk">${esc(k)}</span>`).join('')}${edit ? `<button type="button" class="ppkedit" data-ppkinds="${esc(r.ref)}" title="Change the kinds">${r.kinds.length ? 'edit' : '+ kind'}</button>` : ''}</span>`;
-const rowHTML = (r, extra = '') => `<button type="button" class="pprow" data-ppref="${esc(r.ref)}"><span class="ppn"><b>${esc(r.name)}</b>${r.no ? ` <small>${r.no}</small>` : ''}${r.y0 != null && !r.kinds.some(k => MYTHK.has(k)) ? ` <small class="ppy">${yearsTxt(r.y0, r.y1)}</small>` : ''}</span><span class="ppd">${esc(r.desc || '')}</span>${r.kinds.length ? kindChips(r) : ''}${extra}</button>`;
+const srcTag = d => d.id === 'people-smith' ? '' : ` <small class="ppsrc">${esc({ 'people-pir': 'PIR', 'enc-smith-geo': 'Geography', 'enc-smith-ant': 'Antiquities' }[d.id] || d.name)}</small>`;
+const rowHTML = (r, extra = '') => `<button type="button" class="pprow" data-ppref="${esc(r.ref)}"><span class="ppn"><b>${esc(r.name)}</b>${srcTag(r.d)}${r.no ? ` <small>${r.no}</small>` : ''}${r.y0 != null && !r.kinds.some(k => MYTHK.has(k)) ? ` <small class="ppy">${yearsTxt(r.y0, r.y1)}</small>` : ''}</span><span class="ppd">${esc(r.desc || '')}</span>${r.kinds.length ? kindChips(r) : ''}${extra}</button>`;
 async function pplTextHTML() {
   const t = S.text; if (!t) return '<p class="hint">Open a text: the persons named in it are listed here.</p>';
   const by = new Map();
@@ -253,7 +277,7 @@ async function pplTextHTML() {
     for (const [, g] of unsure.sort((a, b) => a[1].is[0] - b[1].is[0])) {
       const tk = S.tokens.find(x => x.t === 'w' && x.i === g.is[0]);
       let prob = ''; if (g.x.pick) { const { d, i } = pplParse(g.x.pick), r = d && await pplRow(d, i); if (r) prob = ` – ${esc(r.name)}${r.no ? ' ' + r.no : ''}: ${esc(r.desc)}`; }
-      h += `<div class="ppchk"><button type="button" class="pprow" data-ppname="${esc(g.x.k)}" data-ti="${g.is[0]}"><span class="ppn"><b>${esc(g.x.name || tk?.lemma || tk?.s || g.x.k)}</b></span><span class="ppd">${esc(g.x.why)}${prob} – choose</span></button>${occ(g)}</div>`;
+      h += `<div class="ppchk"><button type="button" class="pprow" data-ppname="${esc(g.x.k)}" data-ti="${g.is[0]}"><span class="ppn"><b>${esc(g.x.name || ppPlain(tk?.lemma || tk?.s) || g.x.k)}</b></span><span class="ppd">${esc(g.x.why)}${prob} – choose</span></button>${occ(g)}</div>`;
     }
     h += '</div>';
   }
@@ -271,8 +295,8 @@ async function pplNameHTML(k, ti) {             // the persons of a name: choose
   const hh = ti != null ? S.prs?.get(ti) : null, cands = hh?.k === k ? hh.cands : await personsFor(k), rows = [];
   for (const c of cands) { const { d, i } = pplParse(c); const r = await pplRow(d, i); if (r) rows.push(r); }
   const tk = ti != null ? S.tokens.find(x => x.t === 'w' && x.i === ti) : null, h0 = ti != null ? S.prs?.get(ti) : null;
-  let h = `<div class="pphead"><div class="ppname">${esc(hh?.name || tk?.lemma || tk?.s || k)}</div><div class="ppmeta">${rows.length} person${rows.length === 1 ? '' : 's'} of this name${tk ? ` · at ${esc(refAt(ti) || '')}` : ''}</div></div>`;
-  if (tk) h += `<p class="hint small">Choose who is meant: “this one” for every <i>${esc(hh?.name || tk.lemma || tk.s)}</i> in this work, “here only” for this place. ${h0?.pick ? '' : ''}</p>`;
+  let h = `<div class="pphead"><div class="ppname">${esc(hh?.name || ppPlain(tk?.lemma || tk?.s) || k)}</div><div class="ppmeta">${rows.length} person${rows.length === 1 ? '' : 's'} of this name${tk ? ` · at ${esc(refAt(ti) || '')}` : ''}</div></div>`;
+  if (tk) h += `<p class="hint small">Choose who is meant: “this one” for every <i>${esc(hh?.name || ppPlain(tk.lemma || tk.s))}</i> in this work, “here only” for this place. ${h0?.pick ? '' : ''}</p>`;
   h += '<div class="list plain">';
   for (const r of rows) h += `<div class="ppchk">${rowHTML(r)}${tk ? `<span class="ppchoose"><button type="button" data-ppfix="${esc(r.ref)}" data-k="${esc(k)}">This one</button><button type="button" data-ppfix="${esc(r.ref)}" data-k="${esc(k)}" data-ti="${ti}">Here only</button></span>` : ''}</div>`;
   h += '</div>';
@@ -282,16 +306,16 @@ async function pplNameHTML(k, ti) {             // the persons of a name: choose
 async function pplSearchHTML(q, all = false) {
   const k = gkey(q); if (!k) return '<p class="hint">Type a name – Greek or Latin letters. Enter shows all results.</p>';
   const hits = [];
-  for (const d of pplPkgs()) { const ix = await pplIx(d); if (!ix) continue;
-    for (const key of Object.keys(ix.n)) if (key.startsWith(k)) for (const i of ix.n[key]) hits.push({ d, i, exact: key === k, key }); }
-  if (!hits.length) return `<p class="hint">No person found for “${esc(q)}”.</p>`;
+  for (const d of pplPkgs(true)) { const ix = await pplIx(d); if (!ix) continue;
+    for (const key of Object.keys(ix.n)) if (key.startsWith(k)) for (const i of ix.n[key]) { const sec = ix.p[i]?.[7]; hits.push({ d, i: sudaMerge() && sec != null ? sec : i, exact: key === k, key }); } }
+  if (!hits.length) return `<p class="hint">Nothing found for “${esc(q)}”.</p>`;
   hits.sort((a, b) => b.exact - a.exact || a.key.length - b.key.length || a.key.localeCompare(b.key) || a.i - b.i);
   const seen = new Set(), ids = [];
   for (const x of hits) { const id = pref(x.d, x.i); if (!seen.has(id)) { seen.add(id); ids.push(x); } }
   const shown = all ? ids : ids.slice(0, 40), rows = [];
   for (const x of shown) { const r = await pplRow(x.d, x.i); if (r) rows.push(rowHTML(r)); }
   const more = !all && ids.length > shown.length ? ` <small>– the first ${shown.length}; Enter shows all</small>` : '';
-  return { head: `<div class="navh3">${ids.length.toLocaleString('en')} person${ids.length === 1 ? '' : 's'}${more}</div><div class="list plain"></div>`, rows };
+  return { head: `<div class="navh3">${ids.length.toLocaleString('en')} entr${ids.length === 1 ? 'y' : 'ies'}${more}</div><div class="list plain"></div>`, rows };
 }
 async function pplPersonHTML(ref, ti) {
   const { d, i } = pplParse(ref); if (!d) return '<p class="hint">This person’s package is not installed.</p>';
@@ -302,7 +326,13 @@ async function pplPersonHTML(ref, ti) {
     + (h0 ? `<div class="ppat">${h0.sure ? `Marked in the text: ${esc(h0.why)}.` : 'Not yet certain in the text.'} <button type="button" data-ppname="${esc(h0.k)}" data-ti="${ti}">${h0.cands.length > 1 ? 'Someone else?' : 'Not this person?'}</button></div>` : '')
     + '</div>';
   // the sources, each by itself (as in the dictionary): the encyclopaedia, then the Suda under the person's Greek names
-  h += `<details class="src" open data-pd="${d.id}"><summary>${esc(d.name)} <small>${esc(d.title || '')}</small></summary><div class="ent"><div class="eb">${e.html}</div></div></details>`;
+  let secs = '';
+  if (sudaMerge()) { const ix = await pplIx(d); for (let j = i + 1; j < ix.p.length && j < i + 40; j++) if (ix.p[j]?.[7] === i) { const se = await pplEntry(d, j); if (se) secs += `<div class="ppsec">${se.html}</div>`; } }
+  h += `<details class="src" open data-pd="${d.id}"><summary>${esc(d.name)} <small>${esc(d.title || '')}</small></summary><div class="ent"><div class="eb">${e.html}${secs}</div></div></details>`;
+  for (const [o, m] of await attachedTo(d, i)) {                    // the same person in another source (PIR …), by itself
+    let inner = ''; for (const j of m) { const oe = await pplEntry(o, j); if (oe) inner += `<div class="ent"><div class="eb">${oe.html}</div></div>`; }
+    h += `<details class="src" open data-pd="${o.id}"><summary>${esc(o.name)} <small>${esc(o.title || '')}</small></summary>${inner}</details>`;
+  }
   const suda = S.installed?.suda, gks = (e.k || []).filter(isGreek);
   if (!suda) h += `<details class="src empty" data-pd="suda"><summary>Suda <small>not installed – <button type="button" class="ppget" data-ppget="suda">Download</button> (${mbs(S.manifest?.packages?.find(p => p.id === 'suda')?.bytes || 2.5e6)})</small></summary></details>`;
   if (suda) {
@@ -325,8 +355,29 @@ async function pplPersonHTML(ref, ti) {
     h += `<details class="src ppass" open><summary>Passages in the library <small>${ps.length} cited by ${esc(d.name.split(',')[0])}</small></summary>${inner}</details>`;
   }
   // others of the same name
-  const others = []; for (const k of (e.k || []).slice(0, 1)) for (const c of await personsFor(k)) if (c !== ref) { const x = pplParse(c), rr = await pplRow(x.d, x.i); if (rr) others.push(rowHTML(rr)); }
-  if (others.length) h += `<details class="src"><summary>Others named ${esc(e.h.split(/[ ,]/)[0])} <small>${others.length}</small></summary><div class="list plain">${others.join('')}</div></details>`;
+  const others = []; for (const k of (e.k || []).slice(0, 1)) for (const c of await personsFor(k, true)) if (c !== ref) { const x = pplParse(c), rr = await pplRow(x.d, x.i); if (rr) others.push(rowHTML(rr)); }
+  if (others.length) h += `<details class="src"><summary>Others of the name ${esc(e.h.split(/[ ,]/)[0])} <small>${others.length}</small></summary><div class="list plain">${others.join('')}</div></details>`;
+  return h;
+}
+// any word: its entries in the Suda and in every encyclopaedia, each source by itself (755)
+async function pplWordHTML(form, lemma, ti) {
+  const keys = [...new Set([lemma, form].filter(Boolean).map(gkey).filter(Boolean))];
+  let h = `<div class="pphead"><div class="ppname">${esc(ppPlain(lemma || form))}</div>${lemma && canon(lemma) !== canon(form) ? `<div class="ppmeta">${esc(form)}</div>` : ''}</div>`, any = false;
+  const suda = S.installed?.suda;
+  if (suda && isGreek(form)) {
+    let inner = '', n = 0;
+    for (const k of keys) { const b = await bucket(suda, k); for (const x of (b?.e || []).filter(x => x.k.includes(k)).sort((a, b) => a.i - b.i)) { inner += await renderEntryHTML(Object.assign({ d: 'suda' }, x)); n++; } }
+    if (n) { any = true; h += `<details class="src" data-pd="suda" open><summary>${esc(suda.name)} <small>${n} entr${n === 1 ? 'y' : 'ies'}</small></summary>${inner}</details>`; }
+  } else if (!suda && isGreek(form)) h += `<details class="src empty" data-pd="suda"><summary>Suda <small>not installed – <button type="button" class="ppget" data-ppget="suda">Download</button></small></summary></details>`;
+  for (const d of pplPkgs(true)) {
+    const ix = await pplIx(d), seen = new Set(), rows = [];
+    for (const k of keys) for (const i0 of ix?.n?.[k] || []) { const sec = ix.p[i0]?.[7], i = sudaMerge() && sec != null ? sec : i0; if (seen.has(i)) continue; seen.add(i); const r = await pplRow(d, i); if (r) rows.push(r); }
+    if (!rows.length) continue; any = true;
+    if (rows.length === 1 && d.kind === 'encyclopedia') { const e = await pplEntry(d, rows[0].i);     // one entry: the article itself
+      h += `<details class="src" data-pd="${d.id}" open><summary>${esc(d.name)} <small>${esc(d.title || '')}</small></summary><div class="ent"><div class="eb">${e?.html || ''}</div></div><div class="list plain">${rowHTML(rows[0], '<span class="ppwhy">the whole entry, with its passages</span>')}</div></details>`; }
+    else h += `<details class="src" data-pd="${d.id}" open><summary>${esc(d.name)} <small>${rows.length} entr${rows.length === 1 ? 'y' : 'ies'}</small></summary><div class="list plain">${rows.map(r => rowHTML(r)).join('')}</div></details>`;
+  }
+  if (!any) h += `<p class="hint">No entry for <i>${esc(lemma || form)}</i> in the Suda or the encyclopaedias installed.</p>`;
   return h;
 }
 // the kinds of a person (735A): the reader's own choice is kept (and goes into the backup)
@@ -381,7 +432,7 @@ document.addEventListener('click', ev => {
   const ps = t.closest('[data-pppass]'); if (ps) return pplPassage(ps.dataset.pppass, +ps.dataset.bi, ps.dataset.r, ps.dataset.ref);
   const j = t.closest('[data-ppjump]'); if (j) { const i = +j.dataset.ppjump; S.cur = [i, i]; S.curHidden = false; markTarget(); requestAnimationFrame(() => scrollToWord(i)); return; }
   const xr = t.closest('a.pxr'); if (xr) { (async () => {             // Smith's cross-references: [PARIS.]
-    const k = gkey(xr.dataset.x), cs = await personsFor(k);
+    const k = gkey(xr.dataset.x), own = t.closest('details.src')?.dataset.pd, cs0 = await personsFor(k, true), cs = own && cs0.some(c => c.startsWith(own + '|')) ? cs0.filter(c => c.startsWith(own + '|')) : cs0;
     if (xr.dataset.no) for (const c of cs) { const x = pplParse(c), r = await pplRow(x.d, x.i); if (r && String(r.no) === xr.dataset.no) return pplGo({ t: 'person', ref: c }); }
     if (cs.length === 1) return pplGo({ t: 'person', ref: cs[0] });
     pplGo({ t: 'search', q: xr.dataset.x });
@@ -407,17 +458,22 @@ document.addEventListener('submit', ev => {
 });
 // the dictionary: a line naming the persons of the word looked up (to the People tab)
 async function pplDictLine(lemma, ti) {
-  if (!pplPkgs().length || !capital(lemma)) return '';
+  if (!pplPkgs(true).length) return '';
+  if (!capital(lemma)) {                                              // a common word: its articles in the encyclopaedias of things (Agora, Consul …)
+    let n = 0; for (const d of pplPkgs(true)) if (d.kind === 'encyclopedia') n += (await pplIx(d))?.n?.[gkey(lemma)]?.length || 0;
+    return n ? `<div class="ppline"><span class="ppl1">Suda tab</span><button type="button" data-ppword="${esc(lemma)}" data-ti="${ti ?? ''}">${n} entr${n === 1 ? 'y' : 'ies'} in the encyclopaedias</button></div>` : '';
+  }
   const h0 = ti != null ? S.prs?.get(ti) : null;
   const k = h0?.k || gkey(lemma), cs = h0?.cands || await personsFor(k); if (!cs.length) return '';
   if (h0?.pick) { const x = pplParse(h0.pick), r = await pplRow(x.d, x.i);
     if (r) return `<div class="ppline"><span class="ppl1">${h0.sure ? 'Person' : 'Probably'}</span><button type="button" data-ppopen="${esc(h0.pick)}" data-ti="${ti}"><b>${esc(r.name)}</b>${r.no ? ' ' + r.no : ''} – ${esc(r.desc)}</button>${cs.length > 1 ? `<button type="button" data-ppopenk="${esc(k)}" data-ti="${ti ?? ''}" class="ppmore">${cs.length - 1} other${cs.length > 2 ? 's' : ''}</button>` : ''}</div>`; }
-  return `<div class="ppline"><span class="ppl1">People</span><button type="button" data-ppopenk="${esc(k)}" data-ti="${ti ?? ''}">${cs.length} person${cs.length === 1 ? '' : 's'} named <b>${esc(lemma)}</b></button></div>`;
+  return `<div class="ppline"><span class="ppl1">People</span><button type="button" data-ppopenk="${esc(k)}" data-ti="${ti ?? ''}">${cs.length} person${cs.length === 1 ? '' : 's'} named <b>${esc(lemma)}</b></button><button type="button" class="ppmore" data-ppword="${esc(lemma)}" data-ti="${ti ?? ''}">all entries</button></div>`;
 }
 document.addEventListener('click', ev => {
-  const o = ev.target.closest?.('#dictBody [data-ppopen],#dictBody [data-ppopenk]'); if (!o) return;
+  const o = ev.target.closest?.('#dictBody [data-ppopen],#dictBody [data-ppopenk],#dictBody [data-ppword]'); if (!o) return;
   const ti = o.dataset.ti === '' || o.dataset.ti == null ? null : +o.dataset.ti;
   if (PP.view) PP.back.push(PP.view);
-  PP.view = o.dataset.ppopen ? { t: 'person', ref: o.dataset.ppopen, ti } : { t: 'name', k: o.dataset.ppopenk, ti };
+  PP.view = o.dataset.ppword ? { t: 'word', form: S.view?.form || o.dataset.ppword, lemma: o.dataset.ppword, ti }
+    : o.dataset.ppopen ? { t: 'person', ref: o.dataset.ppopen, ti } : { t: 'name', k: o.dataset.ppopenk, ti };
   showPeople();
 });

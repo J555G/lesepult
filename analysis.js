@@ -444,7 +444,7 @@ async function latEngine() {
     const ddb = await dictDB(S.latMorph.id);
     const r = await req2p(ddb.transaction('b').objectStore('b').get('engine'));
     S.latEngine = r?.e || null; S.latEngineId = S.latMorph.id;
-    S.latPos = {};
+    S.latPos = {}; S.latAdj = null;
     const E = S.latEngine;                                                                          // word classes for the colours
     if (E) for (const l of E.L) { const pos = E.type === 'whitaker' ? E.P[l[1]] : l[2]; if (pos) S.latPos[latkey(l[0])] ??= pos; }
     S.latEngineP = null;

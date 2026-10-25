@@ -166,7 +166,7 @@ function wire() {
     S.dictPrefs.off = [...off]; if (!S.dictPrefs.order.length) S.dictPrefs.order = S.dicts.map(d => d.id);
     await setting('dictPrefs', S.dictPrefs); await loadDicts(); bucketCache.clear(); if (S.view) renderView(); srcColState();
     if (id === 'morph' || id === 'morphhints') { resetTokens(); renderText(); resolveTokens(); }
-    if (S.installed[id]?.kind === 'people') { await personsForText(); if (S.tab === 'people') pplRender(); }
+    if (['people', 'encyclopedia'].includes(S.installed[id]?.kind)) { await personsForText(); if (S.tab === 'people') pplRender(); }
   });
   document.addEventListener('change', async ev => {
     const t = ev.target, c = t.dataset?.posc; if (!c) return;
@@ -418,7 +418,8 @@ function splitIcon() {   // an open book: the fold sits where the split is, the 
   document.body.classList.toggle('notices', (await setting('notices')) === true);       // (hints and confirmations: off unless switched on)
   S.glossMode = (await setting('glossMode')) || 'replace';
   S.latQuant = !!(await setting('latQuant'));
-  S.prsMark = (await setting('prsMark')) ?? true;                 // names of persons marked in the text (Colours menu; per device)
+  S.prsMark = (await setting('prsMark')) ?? true;
+  S.sudaMerge = (await setting('sudaMerge')) ?? true;             // Settings → Suda: sections of one article as one entry                 // names of persons marked in the text (Colours menu; per device)
   for (const r of await getAll('settings', IDBKeyRange.bound('lg|', 'lg|\uffff'))) S.lemmaGloss[r.k.slice(3)] = r.v;
   await loadDicts();
   if (navigator.onLine) setTimeout(() => updCheck().catch(() => { }), 5000);
