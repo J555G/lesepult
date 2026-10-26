@@ -1,6 +1,6 @@
 /* Pult – Tempora (v432; decisions 785–793): the chronograph. Time runs from left to right; reference systems ("rulers": Julian
    years, Olympiads, years of the city by Varro and by Cato, the consuls, the emperors …) stand at the top; below them the lanes:
-   what each work narrates (or when it was written), Diodorus' own years, persons, and your own statements. Each item is what
+   what each work narrates (and, with "Written", when it was written – joined to it by a thin line), Diodorus' own years, persons, and your own statements. Each item is what
    one source says about a time – never one authoritative date. Scrolls and zooms in both directions; layers as on the map.
    Data: the Liebenam package (fasti-liebenam: consuls, emperors, the years each book narrates), "Tempora – dates read from the
    texts" (chrono-texts: Diodorus' year headers), the Suda tab's persons, the consular dates found in the text being read (782a),
@@ -20,7 +20,7 @@ const RULER_ON = { jul: true, ol: true, auc: true, cato: false, cos: true, emp: 
 async function tmpCfg() {
   if (TP.cfg) return TP.cfg;
   const c = (await setting('tmpCfg')) || {};
-  TP.cfg = Object.assign({ rulers: { ...RULER_ON }, hide: {}, persons: [], mode: 'narr' }, c);
+  TP.cfg = Object.assign({ rulers: { ...RULER_ON }, hide: {}, persons: [], written: false }, c);
   if (c.view) Object.assign(TP, { x0: c.view.x0, ppy: c.view.ppy, lh: c.view.lh || 30 });
   return TP.cfg;
 }
@@ -90,18 +90,32 @@ const ROMN = n => ['', 'I', 'II', 'III', 'IIII', 'V', 'VI', 'VII', 'VIII', 'VIII
 
 // ---------------------------------------------------------------- the data: lanes of items
 // item: {t0, t1 (axis), lab, fa, fb (fuzzy start / end), kind, src, go: {w, bi, r} (a passage), ref (a person), ev (event), col}
+// when the works that have lanes were written (a first table, by hand – the usual dates of the handbooks; work id prefix ->
+// [[from, to, note, vague, label]]). The Historia Augusta twice: the date it claims and the date now generally accepted.
+const WRITTEN = [
+  ['stoa0023.stoa001', [[389, 391, 'finished in Rome about AD 390/391 (the last events narrated: 378)', true, 'written c. AD 390']]],
+  ['phi1351.phi004', [[105, 110, 'about AD 105–110, under Trajan', true, 'Histories written c. AD 105–110']]],
+  ['phi1351.phi005', [[114, 120, 'about AD 114–120, under Trajan and Hadrian', true, 'Annals written c. AD 114–120']]],
+  ['phi1348.abo', [[119, 122, 'about AD 119–122: dedicated to Septicius Clarus, praetorian prefect in those years', true, 'Lives of the Caesars written c. AD 120']]],
+  ['stoa0121.stoa001', [[369, 370, 'AD 369/370, dedicated to the emperor Valens', false, 'written AD 369/370']]],
+  ['phi2331', [[293, 330, 'as the work claims: six authors writing under Diocletian and Constantine', true, 'written – as it claims (293–330)'],
+               [390, 400, 'as now generally held (since Dessau 1889): one author, late 4th century', true, 'written – the modern view (c. 395)']]],
+  ['tlg0060.tlg001', [[-60, -30, 'about 60–30 BC: thirty years’ work, he says (1.4.1); the last events he mentions are of the 40s–30s BC', true, 'written c. 60–30 BC']]],
+  ['tlg0081.tlg001', [[-30, -7, 'begun after his arrival in Rome about 30 BC; published 7 BC, twenty-two years later (1.3.4, 1.7.2)', false, 'written 30–7 BC']]],
+  ['tlg0004.tlg001', [[200, 250, 'probably the first half of the 3rd century AD – uncertain', true, 'written c. AD 200–250 (?)']]],
+];
 async function tmpData() {
   const cfg = await tmpCfg(), F = await fastiTab(), lanes = [];
   if (!S.catWork) await cachedCatalog().catch(() => null);
   const works = new Map((await libWorks()).map(w => [w.id, w]));
   const wTitle = id => { const w = works.get(id) || S.catWork?.[id]; return w ? `${w.author ? w.author + ', ' : ''}${w.title}` : id; };
   const bookIx = (id, lab) => { const b = (works.get(id) || S.catWork?.[id])?.books || []; const i = b.indexOf(lab); return i < 0 ? 0 : i; };
-  if (cfg.mode === 'narr') {
+  {
     // what the books narrate (781a: Ammianus, Tacitus, Suetonius, Historia Augusta, Eutropius)
     for (const [wid, m] of Object.entries(F?.nd || {})) { if (wid === 'b') continue;
       const its = Object.entries(m).map(([lab, [y0, y1]]) => ({ t0: ax(y0), t1: ax(y1) + 1, lab: lab === '*' ? 'the life' : lab.replace(/^Book /, 'Book '), kind: 'book', k2: 'narr', sid: 'narr',
         src: wTitle(wid), go: { w: wid, bi: lab === '*' ? 0 : bookIx(wid, lab), r: null }, note: 'the years this part narrates' }));
-      lanes.push({ id: 'nd:' + wid, g: 'Texts – the years they narrate', t: wTitle(wid), its, have: works.has(wid) });
+      lanes.push({ id: 'nd:' + wid, g: 'Texts – the years they narrate', t: wTitle(wid), its, have: works.has(wid), wid });
     }
     // Diodorus' own years (chrono-texts)
     const ch = Object.values(S.installed || {}).find(d => d.kind === 'chrono');
@@ -112,7 +126,7 @@ async function tmpData() {
           src: title, go: { w: x[6]?.w, bi: x[4], r: x[5] }, text: x[6]?.text || null, fa: !!x[6]?.text && !x[6]?.ol?.[1], fb: !!x[6]?.text && !x[6]?.ol?.[1],
           note: x[6]?.text ? (x[6].ol?.[1] ? '' : 'the Olympiad only – any of its four years') : (x[6]?.fixed ? 'an Olympiad named here fixes the year' : 'counted from the Olympiad named before')
             + (x[6]?.uneven ? ' – in a stretch where his headers and his Olympiads disagree' : '') }));
-        lanes.push({ id: 'ch:' + lid, g: 'Texts – the years they narrate', t: title, its, note, have: true });
+        lanes.push({ id: 'ch:' + lid, g: 'Texts – the years they narrate', t: title, its, note, have: true, wid: wpre });
       }
     }
     // consular dates in the text being read (782a)
@@ -121,12 +135,19 @@ async function tmpData() {
         src: wTitle(wid), go: { w: wid, bi: S.text.bi, r: cd.ref }, note: `a consular date at ${cd.ref || '?'} – the consuls of ${yTxt(cd.y)} in Liebenam’s list` }));
       lanes.push({ id: 'cd:' + wid, g: 'Texts – the years they narrate', t: `${wTitle(wid)} – consular dates in ${S.text.work.books?.[S.text.bi] || 'this book'}`, its, have: true });
     }
-  } else {
-    // when the works were written: the author's date in the catalogue (approximate: ± a generation)
-    const its = [];
-    for (const w of works.values()) { const y = S.catAuthor?.[w.id]?.year; if (y == null) continue;
-      its.push({ t0: ax(y) - 12, t1: ax(y) + 13, fa: true, fb: true, lab: wTitle(w.id), kind: 'work', k2: 'written', sid: 'catalogue', src: 'the catalogue (the author’s date, approximate)', go: { w: w.id, bi: 0, r: null } }); }
-    lanes.push({ id: 'wr:lib', g: 'Texts – when they were written', t: 'Your library', its, have: true });
+  }
+  // "Written": when each work was written, in its own lane, joined to what it narrates by thin lines (drawn in tmpDraw)
+  if (cfg.written) {
+    const wl = wid => WRITTEN.find(([p]) => wid.startsWith(p))?.[1];
+    for (const L of lanes) { const ws = L.wid && wl(L.wid); if (!ws) continue;
+      for (const [y0, y1, note, fz, lab] of ws) L.its.push({ t0: ax(y0), t1: ax(y1) + 1, fa: !!fz, fb: !!fz, lab: lab || 'written ' + (y0 === y1 ? yTxt(y0) : rangeTxt(ax(y0), ax(y1) + 1)), kind: 'work', k2: 'written', sid: 'written', wr: true,
+        src: 'Pult’s table of dates of writing', note, go: L.its[0]?.go ? { w: L.its[0].go.w, bi: 0, r: null } : null }); }
+    // the other works of your library: only the author's century in the catalogue
+    const done = new Set(lanes.filter(L => L.wid).map(L => L.wid)), its = [];
+    for (const w of works.values()) { if (wl(w.id) || [...done].some(p => w.id.startsWith(p))) continue;
+      const a = S.catAuthor?.[w.id], y = a?.year; if (y == null) continue;
+      its.push({ t0: ax(y) - 50, t1: ax(y) + 50, fa: true, fb: true, lab: wTitle(w.id) + (a.date ? ' · ' + a.date : ''), kind: 'work', k2: 'written', sid: 'catalogue', src: 'the catalogue (the author’s century only)', go: { w: w.id, bi: 0, r: null } }); }
+    if (its.length) lanes.push({ id: 'wr:lib', g: 'Texts – when they were written', t: 'Your library', its, have: true });
   }
   // persons added from the Suda tab
   if (!TP.chrono) { const ch = Object.values(S.installed || {}).find(d => d.kind === 'chrono'); TP.chrono = ch ? (await pplRec(ch, '#s'))?.e || [] : []; }
@@ -189,15 +210,22 @@ function tmpColors() {
 }
 const evHue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
 function laneShown(L) { return L.have || TP.cfg.all; }
-function tmpLayout(A0, A1) {                             // 810a: every lane keeps its place; one with nothing in view shrinks to a thin strip
-  const rows = [], wid = S.text?.work?.id, hide = TP.cfg.fmode === 'hide';
+function tmpLayout(A0, A1) {
+  // 810a/812a: lanes keep their place; the space before and after a lane is free for others – lanes whose spans do not meet share
+  // a slot (packed once over the whole spans, so nothing moves while you pan); a lane with nothing in view thins to a strip
+  const wid = S.text?.work?.id, hide = TP.cfg.fmode === 'hide', GAP = 2;
   const lanes = TP.data.lanes.filter(laneShown).sort((a, b) => (b.id.endsWith(':' + wid) || b.id.endsWith(wid)) - (a.id.endsWith(':' + wid) || a.id.endsWith(wid)));
+  const slots = [];
   for (const L of lanes) {
-    const its = L.its.filter(i => i.t1 > A0 && i.t0 < A1 && !(hide && !i.pass));
     if (hide && TP.fOn && !L.its.some(i => i.pass)) continue;           // (hidden: a lane with nothing that passes goes)
-    rows.push({ L, n: its.length ? 1 + Math.max(...its.map(i => i.row)) : 0, its });
+    const its = L.its.filter(i => i.t1 > A0 && i.t0 < A1 && !(hide && !i.pass));
+    const a = isFinite(L.a) ? L.a : -1e9, b = isFinite(L.b) ? L.b : 1e9;
+    let s = slots.findIndex(S => S.every(M => b + GAP <= M.a || M.b + GAP <= a));
+    if (s < 0) { s = slots.length; slots.push([]); }
+    slots[s].push({ L, a, b, n: its.length ? 1 + Math.max(...its.map(i => i.row)) : 0, its });
   }
-  return { rows };
+  for (const S of slots) S.sort((p, q) => p.a - q.a);
+  return { slots };
 }
 function rulerHeight(id) { return id === 'emp' ? 14 * (TP.empRows || 1) + 6 : id === 'cos' ? 20 : 18; }
 function tmpDraw() {
@@ -223,33 +251,54 @@ function tmpDraw() {
   const RH = rulers.reduce((s, [id]) => s + rulerHeight(id), 0) + 4;
   TP.RH = RH;
   tmpFilterApply();
-  const { rows } = tmpLayout(A0, A1), lh = TP.lh;
-  let y = RH + 6 - TP.sy, lastG = null; const centers = [];
+  const { slots } = tmpLayout(A0, A1), lh = TP.lh;
+  let y = RH + 6 - TP.sy; const centers = [], wlines = [];
+  TP.laneTop = {};
   g.save(); g.beginPath(); g.rect(0, RH, W, H - RH); g.clip();
   // year grid
   const step = gridStep(TP.ppy);
   g.strokeStyle = C.line; g.lineWidth = 1; g.globalAlpha = 0.5;
   for (let a = Math.ceil(A0 / step) * step; a < A1; a += step) { const x = Math.round(X(a)) + 0.5; g.beginPath(); g.moveTo(x, RH); g.lineTo(x, H); g.stroke(); }
   g.globalAlpha = 1;
-  let li = 0;
-  for (const { L, n, its: vis } of rows) {
-    const h = n ? n * lh + 6 : 8, top = y;
-    if (top < H && top + h > RH) {
-      // 811a: alternate lanes faintly tinted – only over the span the lane covers (from its first item to its last)
-      if (li % 2 === 0 && isFinite(L.a)) { const a = Math.max(0, X(L.a) - 4), b = Math.min(W, X(L.b) + 4); if (b > a) { g.fillStyle = C.fg; g.globalAlpha = 0.045; g.fillRect(a, top - 2, b - a, h + 4); g.globalAlpha = 1; } }
-      else if (isFinite(L.a)) { const a = Math.max(0, X(L.a) - 4), b = Math.min(W, X(L.b) + 4); if (b > a) { g.strokeStyle = C.line; g.globalAlpha = 0.6; g.strokeRect(a + 0.5, top - 1.5, b - a - 1, h + 2); g.globalAlpha = 1; } }
-      // the next item in the same row: how far a label may run on (807a)
-      const byRow = new Map(); for (const it of vis) { if (!byRow.has(it.row)) byRow.set(it.row, []); byRow.get(it.row).push(it); }
-      const nextX = new Map(); for (const r of byRow.values()) { r.sort((p, q) => p.t0 - q.t0); r.forEach((it, k) => nextX.set(it, k + 1 < r.length ? X(r[k + 1].t0) - 6 : W + 4000)); }
-      for (const it of vis) {
-        const x0 = X(it.t0), x1 = Math.max(X(it.t1) - 1, x0 + 3), yy = top + 3 + it.row * lh, bh = lh - 8;
-        if (x1 < 0 && nextX.get(it) < 0) continue; if (x0 > W) continue;
-        drawItem(g, C, it, x0, x1, yy, bh, font, nextX.get(it), W);
-        if (it.pass !== false || TP.cfg.fmode === 'hide') TP.hit.push({ x0, x1, y0: yy, y1: yy + bh, it, L });
-        if ((it.ev || it.link) && it.pass !== false) centers.push({ it, x: (Math.max(x0, 0) + Math.min(x1, W)) / 2, y: yy + bh / 2 });
+  slots.forEach((SL, si) => {
+    const top = y, hs = Math.max(8, ...SL.map(r => r.n ? r.n * lh + 6 : 8));   // the slot as high as its fullest lane in view
+    SL.forEach(({ L, a, b, n, its: vis }, k) => {
+      TP.laneTop[L.id] = top + TP.sy;
+      const h = n ? n * lh + 6 : 8;                                           // each lane swells or thins by itself
+      if (top < H && top + hs > RH) {
+        // 811a: alternate lanes faintly tinted or outlined – only over the span the lane covers
+        if (isFinite(L.a)) { const xa = Math.max(-10, X(a) - 3), xb = Math.min(W + 10, X(b) + 3);
+          if (xb > xa) { if ((si + k) % 2 === 0) { g.fillStyle = C.fg; g.globalAlpha = 0.045; g.fillRect(xa, top - 2, xb - xa, h + 4); }
+            else { g.strokeStyle = C.line; g.globalAlpha = 0.6; g.strokeRect(xa + 0.5, top - 1.5, xb - xa - 1, h + 2); } g.globalAlpha = 1; } }
+        // how far a label may run on (807a): to the next item in its row, and never into the next lane of the slot
+        const stop = k + 1 < SL.length ? X(SL[k + 1].a) - 6 : W + 4000;
+        const byRow = new Map(); for (const it of vis) { if (!byRow.has(it.row)) byRow.set(it.row, []); byRow.get(it.row).push(it); }
+        const nextX = new Map(); for (const r of byRow.values()) { r.sort((p, q) => p.t0 - q.t0); r.forEach((it, j) => nextX.set(it, Math.min(stop, j + 1 < r.length ? X(r[j + 1].t0) - 6 : W + 4000))); }
+        for (const it of vis) {
+          const x0 = X(it.t0), x1 = Math.max(X(it.t1) - 1, x0 + 3), yy = top + 3 + it.row * lh, bh = lh - 8;
+          if (x1 < 0 && nextX.get(it) < 0) continue; if (x0 > W) continue;
+          drawItem(g, C, it, x0, x1, yy, bh, font, nextX.get(it), W);
+          if (it.pass !== false || TP.cfg.fmode === 'hide') TP.hit.push({ x0, x1, y0: yy, y1: yy + bh, it, L });
+          if ((it.ev || it.link) && it.pass !== false) centers.push({ it, x: (Math.max(x0, 0) + Math.min(x1, W)) / 2, y: yy + bh / 2 });
+        }
       }
-    }
-    y += h + 4; li++;
+      // "Written": each book (or part) joined to the date of writing by a thin line – also when one end is out of view
+      if (TP.cfg.written && L.its.some(i => i.wr)) {
+        const marks = L.its.filter(i => i.wr), last = new Map();
+        for (const it of L.its) if (!it.wr && !(TP.cfg.fmode === 'hide' && it.pass === false)) { const kb = it.go?.bi ?? 0, o = last.get(kb); if (!o || it.t1 > o.t1) last.set(kb, it); }
+        const ry = it => n ? top + 3 + Math.min(it.row, n - 1) * lh + (lh - 8) / 2 : top + 3;   // (kept within the lane as it is drawn)
+        for (const it of last.values()) for (const m of marks) wlines.push({ x0: X(it.t1) - 1, y0: ry(it), x1: X(m.t0), y1: ry(m), dim: it.pass === false || m.pass === false });
+      }
+    });
+    y += hs + 4;
+  });
+  if (wlines.length) {
+    g.lineWidth = 1; g.strokeStyle = C.mut;
+    for (const l of wlines) { if (Math.max(l.x0, l.x1) < 0 || Math.min(l.x0, l.x1) > W || Math.max(l.y0, l.y1) < RH - 60 || Math.min(l.y0, l.y1) > H + 60) continue;
+      g.globalAlpha = l.dim ? 0.12 : 0.55; const hgt = Math.min(22, 5 + Math.abs(l.x1 - l.x0) / 10);
+      g.beginPath(); g.moveTo(l.x0, l.y0); g.bezierCurveTo(l.x0 + Math.min(30, (l.x1 - l.x0) / 3), l.y0 - hgt, l.x1 - Math.min(30, (l.x1 - l.x0) / 3), l.y1 - hgt, l.x1, l.y1); g.stroke();
+      g.beginPath(); g.arc(l.x1, l.y1, 1.8, 0, 7); g.fillStyle = C.mut; g.fill(); }
+    g.globalAlpha = 1;
   }
   TP.contentH = y + TP.sy - RH;
   // the same event in several places: one colour, joined by lines (786)
@@ -353,6 +402,7 @@ async function showTempora() {
     body.innerHTML = `<div class="tmpbar"><button type="button" class="tmpib" data-tmp="ref" title="Reference systems – which rows stand at the top, in what order" aria-label="Reference systems">${ROD_ICON}</button>`
       + `<button type="button" class="tmpib" id="tmpFiltBtn" data-tmp="filter" title="Filter" aria-label="Filter">${sieveIcon(0, 'tf')}</button>`
       + `<span class="tmpq"><input id="tmpQ" type="search" enterkeyhint="search" placeholder="Find an event …" autocomplete="off" autocapitalize="off" spellcheck="false"><div id="tmpRes" class="tmpres" hidden></div></span>`
+      + `<button type="button" data-tmp="writ" id="tmpWritBtn" class="${TP.cfg.written ? 'on' : ''}" title="Also show when each work was written – joined by a thin line to what it narrates">Written</button>`
       + `<button type="button" data-tmp="add" title="Add your own statement">＋ Statement</button>`
       + `<button type="button" data-tmp="here" title="The years of the text being read">This text</button></div>`
       + `<div id="tmpChips" class="tmpchips" hidden></div>`
@@ -458,7 +508,7 @@ function tmpRefPanel() {
 const KINDS = [['narr', 'Years a book narrates'], ['dyear', 'Diodorus’ years'], ['ol', 'Dates by Olympiad'], ['cdate', 'Consular dates in the text'],
   ['life', 'Lifetimes'], ['office', 'Offices'], ['cite', 'Passages citing a person'], ['word', 'Words'], ['own', 'Your statements'], ['written', 'When works were written']];
 const SOURCES = [['narr', 'The years the books narrate (Pult’s table)'], ['diodorus', 'Diodorus'], ['dionysius', 'Dionysius of Halicarnassus'], ['diogenes', 'Diogenes Laertius'],
-  ['liebenam', 'Liebenam (offices)'], ['people-smith', 'Smith'], ['people-pir', 'PIR'], ['cdate', 'Consular dates'], ['index', 'The index of all texts'], ['own', 'Your chronology']];
+  ['liebenam', 'Liebenam (offices)'], ['people-smith', 'Smith'], ['people-pir', 'PIR'], ['cdate', 'Consular dates'], ['index', 'The index of all texts'], ['own', 'Your chronology'], ['written', 'Dates of writing (Pult’s table)'], ['catalogue', 'The catalogue (authors’ centuries)']];
 const tfold = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f\u0342\u0343\u0345]/g, '').toLowerCase().replace(/ς/g, 'σ').replace(/j/g, 'i').replace(/[^a-zα-ω0-9]+/g, ' ');   // (accents, case, ς/σ, j/i ignored)
 function fMatch(it, f) {
   const txt = () => it._t ??= tfold([it.full, it.lab, it.text, it.note, it.own?.note].filter(Boolean).join(' '));
@@ -507,8 +557,7 @@ function tmpFilterPanel(keep) {
   for (const L of TP.data?.lanes || []) for (const it of L.its) if (it.go?.w) { const w = works.get(it.go.w) || { id: it.go.w, t: it.src || it.go.w, books: new Map() }; if (it.kind === 'book' || it.kind === 'year') w.books.set(it.go.bi, it.lab.replace(/ ·.*$/, '')); works.set(it.go.w, w); }
   const on = (t, v) => fl.some(f => f.t === t && JSON.stringify(f.v) === JSON.stringify(v));
   p.innerHTML = `<div class="tch"><b>Filter</b><small class="hint">${TP.fOn ? `${m} of ${n} items` : `${n} items`}</small><button type="button" data-tmpclose="panel" aria-label="Close">✕</button></div>`
-    + `<div class="tpsec"><div class="tph">Place the texts by</div><span class="tmpseg"><button type="button" data-tmpmode="narr" class="${TP.cfg.mode === 'narr' ? 'on' : ''}">the years they narrate</button><button type="button" data-tmpmode="writ" class="${TP.cfg.mode === 'writ' ? 'on' : ''}">when they were written</button></span>`
-    + `<label class="tpall"><input type="checkbox" data-tmpall2="1"${TP.cfg.all ? ' checked' : ''}> also works not on this device</label></div>`
+    + `<div class="tpsec"><label class="tpall"><input type="checkbox" data-tmpall2="1"${TP.cfg.all ? ' checked' : ''}> also works not on this device</label></div>`
     + (fl.length ? `<div class="tpsec"><div class="tph">Your filter <button type="button" class="tclr" data-tfclear="1">Clear</button></div><div class="tchips">${fl.map((f, i) => chipHTML(f, i)).join('')}</div><p class="hint small">An item shows when it meets every “and” and – if there are any – at least one “either”. Tap “either” / “and” to change it.</p></div>` : '')
     + `<details class="tpsec"${keep && p.dataset.open?.includes('t') ? ' open' : ''} data-o="t"><summary class="tph">Texts</summary>${[...works.values()].sort((a, b) => a.t.localeCompare(b.t)).map(w => `<div class="tpw"><button type="button" class="tpadd${on('work', w.id) ? ' on' : ''}" data-tfw="${esc(w.id)}" data-l="${esc(w.t)}">${esc(w.t)}</button>${w.books.size > 1 ? `<div class="tpbk">${[...w.books].sort((a, b) => a[0] - b[0]).map(([bi, l]) => `<button type="button" class="tpadd sm${on('book', { w: w.id, bi }) ? ' on' : ''}" data-tfb="${esc(w.id)}" data-bi="${bi}" data-l="${esc(w.t + ' · ' + l)}">${esc(l)}</button>`).join('')}</div>` : ''}</div>`).join('') || '<p class="hint small">Nothing dated yet.</p>'}</details>`
     + `<div class="tpsec"><div class="tph">Persons</div><input type="search" data-tfs="person" placeholder="A name – Greek or Latin letters" autocomplete="off"><div class="tpres" data-tfr="person"></div></div>`
@@ -653,7 +702,7 @@ document.addEventListener('click', async ev => {
     return tmpRedraw(); }
   if (D.tmp === 'add') return tmpEdit(null);
   if (D.tmp === 'here') return tmpHere();
-  if (D.tmpmode) { TP.cfg.mode = D.tmpmode; tmpSave(); await showTempora(); return tmpFilterPanel(true); }
+  if (D.tmp === 'writ') { TP.cfg.written = !TP.cfg.written; b.classList.toggle('on', TP.cfg.written); tmpSave(); await tmpData(); return tmpRedraw(); }
   if (D.tmpz) { const W = $('#tmpCanvas').clientWidth; if (D.tmpz === 'x+') tmpZoomX(1.6, W / 2); if (D.tmpz === 'x-') tmpZoomX(1 / 1.6, W / 2); if (D.tmpz === 'y+') tmpZoomY(1.25); if (D.tmpz === 'y-') tmpZoomY(0.8); return; }
   if (D.tmpgo) return tmpGo(TP.sel?.it?.go);
   if (D.tmpperson) { await showPeople(); return pplGo({ t: 'person', ref: D.tmpperson }); }
@@ -677,7 +726,8 @@ document.addEventListener('click', async ev => {          // the Suda tab's pers
   await tmpAddFilter({ t: 'person', v: b.dataset.tmpshow, keys: [...new Set((e?.k || []).map(k => k.length > 5 ? k.slice(0, -2) : k))], lab: rw?.name || 'person' });
   const L = TP.data.lanes.find(l => l.id === 'p:' + b.dataset.tmpshow), its = L?.its || [];
   if (its.length) { const a = Math.min(...its.map(i => i.t0)), z = Math.max(...its.map(i => i.t1)), W = $('#tmpCanvas').clientWidth;
-    TP.ppy = Math.min(200, Math.max(0.05, W * 0.7 / Math.max(1, z - a))); TP.x0 = a - W * 0.15 / TP.ppy; TP.sy = 1e6; tmpClampY(); tmpSave(); tmpRedraw(); }
+    TP.ppy = Math.min(200, Math.max(0.05, W * 0.7 / Math.max(1, z - a))); TP.x0 = a - W * 0.15 / TP.ppy; TP.sy = 0; tmpDraw();
+    TP.sy = Math.max(0, (TP.laneTop?.['p:' + b.dataset.tmpshow] ?? 0) - TP.RH - 40); tmpClampY(); tmpSave(); tmpRedraw(); }
 });
 document.addEventListener('DOMContentLoaded', () => {
   const b = $('#tabTempora'); if (!b) return;

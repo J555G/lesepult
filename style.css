@@ -2280,6 +2280,7 @@ body:not(.nofade) #tabPeople{transition:border-color .333s ease}body:not(.nofade
 .tmpset button{font:inherit;font-size:.86rem;padding:3px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bar);color:var(--fg);margin-top:6px}
 /* Tempora's bar (v437): reference systems, filter, search */
 .tmpbar .tmpib{display:inline-flex;align-items:center;justify-content:center;padding:3px 7px;color:var(--fg)}
+.tmpbar button.on{color:var(--acc);border-color:var(--acc)}
 .tmpbar .tmpib.active{color:var(--acc);border-color:var(--acc)}
 .tmpq{position:relative;flex:1 1 140px;min-width:110px}
 .tmpq input{width:100%;box-sizing:border-box;font:inherit;font-size:.9rem;padding:5px 9px;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--fg)}
