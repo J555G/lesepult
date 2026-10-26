@@ -392,7 +392,7 @@ const ROMN = n => ['', 'I', 'II', 'III', 'IIII', 'V', 'VI', 'VII', 'VIII', 'VIII
 // give, found by a search of the articles for writing, composing, publishing, dedicating with a year, and read by hand.
 const SM = 'Smith’s Dictionary: ', DIOCL = [284, 305], CONST = [306, 337];
 const haSmith = (ids, [y0, y1], who, how) => ids.map(n => [`phi2331.phi${String(n).padStart(3, '0')}`, y0, y1, `Smith: ${how} ${who}`, SM + `this life is ${how} ${who} (reigned ${y0}–${y1}) – the articles Spartianus, Capitolinus, Lampridius`, true, 'smith', `Smith: to ${who}`]);
-const COLL = [['phi2331', 'Historia Augusta (Scriptores Historiae Augustae)', 'Hist. Aug.'], ['phi1348.abo', 'Suetonius, Lives of the Caesars', 'Suetonius']];
+const COLL = [['phi2331', 'Scriptores Historiae Augustae', 'Hist. Aug.', 'Historia Augusta'], ['phi1348.abo', 'Suetonius', 'Suetonius', 'De vita Caesarum']];   // (856a: lane = author, bar = the work)
 const WSRC = [['hb', 'Today’s handbooks'], ['claim', 'What the work claims'], ['smith', 'Smith’s Dictionary (1849)']];
 const WRITTEN = [
   ['stoa0023.stoa001', 389, 391, 'written c. AD 390', 'finished in Rome about AD 390/391 (the last events narrated: 378)', true, 'hb'],
@@ -439,6 +439,8 @@ async function tmpData() {
   if (!S.catWork) await cachedCatalog().catch(() => null);
   const works = new Map((await libWorks()).map(w => [w.id, w]));
   const wTitle = id => { const w = works.get(id) || S.catWork?.[id]; return w ? `${w.author ? w.author + ', ' : ''}${w.title}` : id; };
+  const auShort = id => { const a = (works.get(id) || S.catWork?.[id])?.author || S.catAuthor?.[id]?.name || ''; return a.split(',')[0].trim(); };   // (“Tacitus, Cornelius” → “Tacitus”)
+  const wOnly = id => (works.get(id) || S.catWork?.[id])?.title || id;
   const bookIx = (id, lab) => { const b = (works.get(id) || S.catWork?.[id])?.books || []; const i = b.indexOf(lab); return i < 0 ? 0 : i; };
   {
     // what the books narrate (781a: Ammianus, Tacitus, Suetonius, Historia Augusta, Eutropius)
@@ -446,7 +448,7 @@ async function tmpData() {
       const col = COLL.find(c => wid.startsWith(c[0]));
       if (col) {                                           // (829a: a collection of lives is one lane; the lives are its parts, shown as you zoom in)
         let L = lanes.find(l => l.id === 'col:' + col[0]);
-        if (!L) { L = { id: 'col:' + col[0], g: 'Texts – the years they narrate', t: col[1], sh: col[2], its: [], have: false, wid: col[0], col: true, seen: new Set() }; lanes.push(L); }
+        if (!L) { L = { id: 'col:' + col[0], g: 'Texts – the years they narrate', t: col[1], sh: col[2], wt: col[3], its: [], have: false, wid: col[0], col: true, seen: new Set() }; lanes.push(L); }
         const core = wid.split('.').slice(0, 2).join('.'); if (L.seen.has(core)) continue; L.seen.add(core);    // (one edition of each life)
         for (const [, [y0, y1]] of Object.entries(m)) L.its.push({ t0: ax(y0), t1: ax(y1) + 1, lab: (works.get(wid) || S.catWork?.[wid])?.title || wid, kind: 'book', k2: 'narr', sid: 'narr', lv: 1, cw: col[0],
           src: wTitle(wid), go: { w: wid, bi: 0, r: null }, note: 'the years this life narrates' });
@@ -454,7 +456,7 @@ async function tmpData() {
       }
       const its = Object.entries(m).map(([lab, [y0, y1]]) => ({ t0: ax(y0), t1: ax(y1) + 1, lab: lab === '*' ? 'the life' : lab.replace(/^Book /, 'Book '), kind: 'book', k2: 'narr', sid: 'narr', lv: 1,
         src: wTitle(wid), go: { w: wid, bi: lab === '*' ? 0 : bookIx(wid, lab), r: null }, note: 'the years this part narrates' }));
-      lanes.push({ id: 'nd:' + wid, g: 'Texts – the years they narrate', t: wTitle(wid), its, have: works.has(wid), wid });
+      lanes.push({ id: 'nd:' + wid, g: 'Texts – the years they narrate', t: auShort(wid), wt: wOnly(wid), its, have: works.has(wid), wid });
     }
     // Diodorus' own years (chrono-texts)
     const ch = Object.values(S.installed || {}).find(d => d.kind === 'chrono');
@@ -470,7 +472,8 @@ async function tmpData() {
         for (const ps of byB.values()) { const w0 = ps[0].go.w, bi = ps[0].go.bi ?? 0, bl = (works.get(w0) || S.catWork?.[w0])?.books?.[bi];
           its.push({ t0: Math.min(...ps.map(i => i.t0)), t1: Math.max(...ps.map(i => i.t1)), lab: (bl ? (/^\d/.test(bl) ? 'Book ' + bl : bl) : 'Book') + ` · ${ps.length} dates`, kind: 'book', k2: ps[0].k2, sid: lid, lv: 1, kids: ps,
             src: title, go: { w: w0, bi, r: null }, note: 'the dates of this book – zoom in (also vertically) for each' }); for (const q of ps) q.par = its[its.length - 1]; }
-        lanes.push({ id: 'ch:' + lid, g: 'Texts – the years they narrate', t: title, its, note, have: true, wid: wpre });
+        const w1 = Object.keys(S.catWork || {}).find(k => k.startsWith(wpre + '.')) || wpre;
+        lanes.push({ id: 'ch:' + lid, g: 'Texts – the years they narrate', t: auShort(w1) || title.replace(/ – .*$/, ''), wt: wOnly(w1), its, note, have: true, wid: wpre });
       }
     }
     // 822a: levels – the work as one bar, its books (or lives), their passages – shown as there is room, across and up and down
@@ -480,15 +483,15 @@ async function tmpData() {
       L.levels = l2.length ? [0, 1, 2] : [0, 1];
       L.avg = [0, 1, 2].map(k => { const s = L.its.filter(i => i.lv === k); return s.reduce((z, i) => z + i.t1 - i.t0, 0) / Math.max(1, s.length); });
       const s1 = l1.slice().sort((p, q) => p.t0 - q.t0);
-      L.its.push({ t0: Math.min(...l1.map(i => i.t0)), t1: Math.max(...l1.map(i => i.t1)), kind: 'book', k2: l1[0].k2, sid: l1[0].sid, lv: 0, lw: L.wid, src: L.t, kids: l2.length ? l2 : l1,
-        lab: L.col ? `${l1.length} lives` : bn.every(Boolean) && !l2.length ? `Books ${bn[0]}–${bn[bn.length - 1]}` : `${l1.length} books`, note: 'zoom in – across and up and down – for the parts: ' + s1.map(i => i.lab.replace(/ ·.*$/, '')).join(' · ') });
+      L.its.push({ t0: Math.min(...l1.map(i => i.t0)), t1: Math.max(...l1.map(i => i.t1)), kind: 'book', k2: l1[0].k2, sid: l1[0].sid, lv: 0, lw: L.wid, src: L.t, kids: l2.length ? l2 : l1,   // (856a: labelled with the work's title)
+        lab: L.wt || (L.col ? `${l1.length} lives` : `${l1.length} books`), note: 'zoom in – across and up and down – for the parts: ' + s1.map(i => i.lab.replace(/ ·.*$/, '')).join(' · ') });
       for (const i of l1) i.par = L.its[L.its.length - 1];
     }
     // consular dates in the text being read (782a)
     if (S.text?.work && S.consDates?.length) {
       const wid = S.text.work.id, its = S.consDates.map(cd => ({ t0: ax(cd.y), t1: ax(cd.y) + 1, lab: `${(cd.names || []).join(' & ')} consuls`, kind: 'date', k2: 'cdate', sid: 'cdate', link: 'cos:' + cd.y,
         src: wTitle(wid), go: { w: wid, bi: S.text.bi, r: cd.ref }, note: `a consular date at ${cd.ref || '?'} – the consuls of ${yTxt(cd.y)} in Liebenam’s list` }));
-      lanes.push({ id: 'cd:' + wid, g: 'Texts – the years they narrate', t: `${wTitle(wid)} – consular dates in ${S.text.work.books?.[S.text.bi] || 'this book'}`, its, have: true });
+      lanes.push({ id: 'cd:' + wid, g: 'Texts – the years they narrate', t: auShort(wid) + ' · ' + wOnly(wid) + ' – consular dates', its, have: true });
     }
   }
   // "Written": when each work was written, in its own lane, joined to what it narrates by thin lines (drawn in tmpDraw)
@@ -700,10 +703,10 @@ function tmpDraw() {
           // its name, once – at the box's left edge, or held at the screen's edge while the box runs on
           // a work not on this device: a dashed box and a small download arrow before its name (no words)
           if (!L.have) { g.strokeStyle = C.mut; g.globalAlpha = 0.7; g.setLineDash([4, 3]); g.strokeRect(xa + 0.5, top - 1.5, xb - xa - 1, h + 2); g.setLineDash([]); g.globalAlpha = 1; }
-          const ic = L.have ? 0 : 13, nm = L.t + (TP.fOn ? ` · ${L.nPass || 0} found` : ''); g.font = font(10.5); const tw = g.measureText(nm).width + ic, tx = Math.max(xa + 4, Math.min(Math.max(xa + 4, 4), xb - tw - 4));
-          if (xb - xa > 30) { g.save(); g.beginPath(); g.rect(xa + 2, top - 2, xb - xa - 4, TT + 2); g.clip(); g.fillStyle = C.mut;
-            if (ic) { const ax = tx + 4, ay = top + 2; g.strokeStyle = C.mut; g.lineWidth = 1.3; g.beginPath(); g.moveTo(ax, ay); g.lineTo(ax, ay + 6); g.moveTo(ax - 3, ay + 3.5); g.lineTo(ax, ay + 6.5); g.lineTo(ax + 3, ay + 3.5); g.moveTo(ax - 4, ay + 9); g.lineTo(ax + 4, ay + 9); g.stroke(); g.lineWidth = 1; }
-            g.fillText(nm, tx + ic, top + 9.5); g.restore(); } } }
+          const nm = L.t + (TP.fOn ? ` · ${L.nPass || 0} found` : ''); g.font = font(10.5); const tw = g.measureText(nm).width;
+          const room = Math.min(W, k + 1 < ls.length ? X(ls[k + 1].L.na ?? ls[k + 1].a) - 6 : W), end = Math.max(xb, Math.min(room, Math.max(xa + 4, 4) + tw + 6));   // (855a: past a narrow box, up to the next one)
+          const tx = Math.max(xa + 4, Math.min(Math.max(xa + 4, 4), end - tw - 4));
+          if (end - xa > 20) { g.save(); g.beginPath(); g.rect(xa + 2, top - 2, end - xa - 2, TT + 2); g.clip(); g.fillStyle = C.mut; g.fillText(nm, tx, top + 9.5); g.restore(); } } }
       // how far a label may run on (807a): to the next item in its row, and never into the next lane of the slot
       const stop = k + 1 < ls.length ? X(ls[k + 1].a) - 6 : W + 4000;
       const cutX = new Map(), byLv = new Map();             // (854a: bars sharing a row – overlapping books – cut where the next one begins)
