@@ -449,7 +449,7 @@ async function tmpData() {
         const byB = new Map(); for (const it of its) { const k = it.go.bi ?? 0; if (!byB.has(k)) byB.set(k, []); byB.get(k).push(it); }   // (the books: the passages grouped)
         for (const [bi, ps] of byB) { const w0 = ps[0].go.w, bl = (works.get(w0) || S.catWork?.[w0])?.books?.[bi];
           its.push({ t0: Math.min(...ps.map(i => i.t0)), t1: Math.max(...ps.map(i => i.t1)), lab: (bl ? (/^\d/.test(bl) ? 'Book ' + bl : bl) : 'Book') + ` · ${ps.length} dates`, kind: 'book', k2: ps[0].k2, sid: lid, lv: 1, kids: ps,
-            src: title, go: { w: w0, bi, r: null }, note: 'the dates of this book – zoom in (also vertically) for each' }); }
+            src: title, go: { w: w0, bi, r: null }, note: 'the dates of this book – zoom in (also vertically) for each' }); for (const q of ps) q.par = its[its.length - 1]; }
         lanes.push({ id: 'ch:' + lid, g: 'Texts – the years they narrate', t: title, its, note, have: true, wid: wpre });
       }
     }
@@ -462,6 +462,7 @@ async function tmpData() {
       const s1 = l1.slice().sort((p, q) => p.t0 - q.t0);
       L.its.push({ t0: Math.min(...l1.map(i => i.t0)), t1: Math.max(...l1.map(i => i.t1)), kind: 'book', k2: l1[0].k2, sid: l1[0].sid, lv: 0, lw: L.wid, src: L.t, kids: l2.length ? l2 : l1,
         lab: L.col ? `${l1.length} lives` : bn.every(Boolean) && !l2.length ? `Books ${bn[0]}–${bn[bn.length - 1]}` : `${l1.length} books`, note: 'zoom in – across and up and down – for the parts: ' + s1.map(i => i.lab.replace(/ ·.*$/, '')).join(' · ') });
+      for (const i of l1) i.par = L.its[L.its.length - 1];
     }
     // consular dates in the text being read (782a)
     if (S.text?.work && S.consDates?.length) {
@@ -498,6 +499,7 @@ async function tmpData() {
       const by = new Map(); for (const i of its) { if (!by.has(i.au)) by.set(i.au, []); by.get(i.au).push(i); }
       for (const [au, ws] of by) its.push({ t0: Math.min(...ws.map(i => i.t0)), t1: Math.max(...ws.map(i => i.t1)), fa: true, fb: true, lab: au + (ws.length > 1 ? ` · ${ws.length} works` : ''), kind: 'work', k2: 'written', sid: 'catalogue',
         wr: true, wk: ws[0].wk, wks: ws.map(i => i.wk), lv: 0, kids: ws, src: 'the catalogue (the author’s century only)', note: ws.map(i => i.lab.replace(/^[^,]*, /, '').replace(/ · .*$/, '')).join(' · ') });
+      for (const [au, ws] of by) { const P = its.find(i => i.lv === 0 && i.kids === ws); for (const w of ws) w.par = P; }
       const L = { id: 'wr:lib', g: 'Texts – when they were written', t: 'Your library – when written', its, have: true, levels: [0, 1] };
       L.avg = [0, 100, 0]; lanes.push(L);
     }
@@ -565,11 +567,14 @@ function tmpColors() {
   return { fg: v('--fg'), mut: v('--mut'), line: v('--line'), acc: v('--acc'), acc2: v('--acc2'), card: v('--card'), bar: v('--bar'), bg: v('--bg'), ui: v('--ui') };
 }
 const evHue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
-function tmpLevel(L) {
-  if (!L.levels) return null; const w1 = L.avg[1] * TP.ppy; let v = 0;
-  if (w1 >= 60 && TP.lh >= 22) v = 1;
-  if (v === 1 && L.levels.includes(2) && w1 >= 150 && TP.lh >= 26) v = 2;
-  return v;
+// 843a: a level opens with the zoom, not at one point – the parts grow out of their bar as you widen or pinch apart, and fold back
+const sm = (x, a, b) => Math.min(1, Math.max(0, (x - a) / (b - a)));
+function tmpLevels(L) {                                     // → { la, lb, f }: between level la and lb, f of the way
+  if (!L.levels) return null; const w1 = L.avg[1] * TP.ppy, lh = TP.lh;
+  const f1 = Math.min(sm(w1, 45, 80), sm(lh, 17, 24));
+  if (f1 < 1 || !L.levels.includes(2)) return f1 <= 0 ? { la: 0, lb: 0, f: 0 } : f1 >= 1 ? { la: 1, lb: 1, f: 0 } : { la: 0, lb: 1, f: f1 };
+  const f2 = Math.min(sm(w1, 120, 180), sm(lh, 24, 29));
+  return f2 <= 0 ? { la: 1, lb: 1, f: 0 } : f2 >= 1 ? { la: 2, lb: 2, f: 0 } : { la: 1, lb: 2, f: f2 };
 }
 function laneShown(L) { return (L.have || TP.cfg.all) && !TP.cfg.lhide?.[L.id]; }
 // 828: the order of the lanes – pinned ones first in your order; then the text being read, what passes the filter, the rest by time
@@ -586,15 +591,23 @@ function tmpLayout(A0, A1) {
   const slots = [];
   for (const L of lanes) {
     if (hide && TP.fOn && !L.its.some(i => i.pass)) continue;           // (hidden: a lane with nothing that passes goes)
-    const lvl = tmpLevel(L);                                              // (822a: the finer level once there is room for it, across and up and down)
-    if (lvl != null) for (const i of L.its) if (i.lv == null || i.lv === lvl) i.row = i['row' + lvl] ?? i.row;
-    const atLv = i => lvl == null || i.lv == null || i.lv === lvl;
-    const its = L.its.filter(i => atLv(i) && i.t1 > A0 && i.t0 < A1 && !(hide && !i.pass));
+    const Lv = tmpLevels(L), on = i => !(hide && !i.pass);
+    let atLv = () => true, n;
+    if (!Lv) { for (const i of L.its) { i._y = i.row; i._al = 1; i._lab = true; } const all = L.its.filter(on); n = all.length ? 1 + Math.max(...all.map(i => i.row)) : 0; }
+    else { const { la, lb, f } = Lv, rw = (i, k) => i['row' + k] ?? i.row, inA = i => i.lv == null || i.lv === la, inB = i => i.lv == null || i.lv === lb;
+      for (const i of L.its) { i._al = 0; i._lab = i.lv == null || (i.lv === la ? f <= 0.5 : f > 0.5);
+        if (i.lv == null) { i._y = rw(i, la) + f * (rw(i, lb) - rw(i, la)); i._al = 1; }
+        else if (i.lv === la && la !== lb) { i._y = rw(i, la); i._al = 1 - f; }
+        else if (i.lv === lb && la !== lb) { const p = i.par?.lv === la ? rw(i.par, la) : rw(i, lb); i._y = p + f * (rw(i, lb) - p); i._al = f; }
+        else if (i.lv === la) { i._y = rw(i, la); i._al = 1; } }
+      const nOf = k => { const s = L.its.filter(i => (i.lv == null || i.lv === k) && on(i)); return s.length ? 1 + Math.max(...s.map(i => rw(i, k))) : 0; };
+      n = nOf(la) + f * (nOf(lb) - nOf(la));
+      atLv = i => i.lv == null || i.lv === (f < 0.5 ? la : lb); }
+    const its = L.its.filter(i => i._al > 0.01 && i.t1 > A0 && i.t0 < A1 && on(i));
     const a = isFinite(L.a) ? L.a : -1e9, b = isFinite(L.b) ? L.b : 1e9;
     let s = slots.findIndex(S => S.every(M => b + GAP <= M.a || M.b + GAP <= a));
     if (s < 0) { s = slots.length; slots.push([]); }
-    const all = L.its.filter(i => atLv(i) && !(hide && !i.pass));            // (its height: the rows of all its items at this level, wherever they are – it changes only as you zoom)
-    slots[s].push({ L, a, b, n: all.length ? 1 + Math.max(...all.map(i => i.row)) : 0, its, atLv });
+    slots[s].push({ L, a, b, n, its, atLv });                            // (its height: the rows of all its items at this level, wherever they are – it changes only as you zoom)
   }
   for (const S of slots) S.sort((p, q) => p.a - q.a);
   return { slots };
@@ -631,7 +644,7 @@ function tmpDraw() {
   const { slots } = tmpLayout(A0, A1), lh = TP.lh, TT = 14;                 // (TT: the strip with the lane's name, once, at the top of its box)
   const laneH = n => TT + Math.max(0, n) * lh + (n > 0.02 ? 6 : 4);
   const lay = []; let off = 0;
-  for (const SL of slots) { const ls = SL.map(r => Object.assign(r, { box: r.L.na < A1 && r.L.nb > A0, h: 0 })).map(r => Object.assign(r, { h: laneH(tmpEase('L:' + r.L.id, r.n)) })), hs = Math.max(8, ...ls.map(r => r.h));
+  for (const SL of slots) { const ls = SL.map(r => Object.assign(r, { box: r.L.na < A1 && r.L.nb > A0, h: 0 })).map(r => Object.assign(r, { h: laneH(r.n) })), hs = Math.max(8, ...ls.map(r => r.h));
     lay.push({ ls, off, hs, key: ls.map(r => r.L.id).join('|') }); off += hs + 4; }
   TP.contentH = off;
   // anchoring: the point under the fingers or the cursor (or the top of the lanes) keeps its place on screen while heights change
@@ -658,7 +671,7 @@ function tmpDraw() {
     const top = y0 + off;
     ls.forEach(({ L, a, b, n, h, its: vis, atLv }, k) => {
       TP.laneTop[L.id] = top + TP.sy;
-      const ry = it => n ? top + TT + 3 + Math.min(it.row, n - 1) * lh + (lh - 8) / 2 : top + 3;   // (an item's middle, kept within the lane as drawn)
+      const ry = it => n ? top + TT + 3 + Math.min(it._y ?? it.row, Math.max(0, n - 1)) * lh + (lh - 8) / 2 : top + 3;   // (an item's middle, kept within the lane as drawn)
       if (TP.cfg.written) for (const it of L.its) if (it.wr && atLv(it)) { const m = { x: X(it.t0), y: ry(it), dim: it.pass === false }; for (const wk of it.wks || [it.wk]) { if (!marks.has(wk)) marks.set(wk, []); marks.get(wk).push(m); } }
       if (TP.cfg.written) {                                                   // the items joined to their work's date of writing
         const by = new Map();
@@ -677,14 +690,14 @@ function tmpDraw() {
           if (xb - xa > 30) { g.save(); g.beginPath(); g.rect(xa + 2, top - 2, xb - xa - 4, TT + 2); g.clip(); g.fillStyle = C.mut; g.fillText(nm, tx, top + 9.5); g.restore(); } } }
       // how far a label may run on (807a): to the next item in its row, and never into the next lane of the slot
       const stop = k + 1 < ls.length ? X(ls[k + 1].a) - 6 : W + 4000;
-      const byRow = new Map(); for (const it of vis) { if (!byRow.has(it.row)) byRow.set(it.row, []); byRow.get(it.row).push(it); }
+      const byRow = new Map(); for (const it of vis) { if (it._al < 0.5) continue; const r = Math.round(it._y ?? it.row); if (!byRow.has(r)) byRow.set(r, []); byRow.get(r).push(it); }
       const nextX = new Map(); for (const r of byRow.values()) { r.sort((p, q) => p.t0 - q.t0); r.forEach((it, j) => nextX.set(it, Math.min(stop, j + 1 < r.length ? X(r[j + 1].t0) - 6 : W + 4000))); }
       g.save(); g.beginPath(); g.rect(0, top - 2, W, h + 4); g.clip();                     // (a lane still growing shows only what fits)
       for (const it of vis) {
-        const x0 = X(it.t0), x1 = Math.max(X(it.t1) - 1, x0 + 3), yy = top + TT + 3 + it.row * lh, bh = Math.max(3, lh - 8);
+        const x0 = X(it.t0), x1 = Math.max(X(it.t1) - 1, x0 + 3), yy = top + TT + 3 + (it._y ?? it.row) * lh, bh = Math.max(3, lh - 8);
         if (x1 < 0 && nextX.get(it) < 0) continue; if (x0 > W) continue;
         drawItem(g, C, it, x0, x1, yy, bh, font, nextX.get(it), W);
-        if ((it.pass !== false || TP.cfg.fmode === 'hide') && yy < top + h) TP.hit.push({ x0, x1, y0: yy, y1: yy + bh, it, L });
+        if ((it.pass !== false || TP.cfg.fmode === 'hide') && yy < top + h && (it._al ?? 1) >= 0.5) TP.hit.push({ x0, x1, y0: yy, y1: yy + bh, it, L });
         if ((it.ev || it.link) && it.pass !== false) centers.push({ it, x: (Math.max(x0, 0) + Math.min(x1, W)) / 2, y: yy + bh / 2 });
       }
       g.restore();
@@ -733,8 +746,9 @@ function drawItem(g, C, it, x0, x1, y, h, font, lim = Infinity, W = 1e9) {
   // fuzzy ends: a gradient fading out
   const grd = g.createLinearGradient(x0, 0, x1, 0), w = Math.max(1, x1 - x0), fw = Math.min(0.45, 24 / w);
   grd.addColorStop(0, it.fa ? 'transparent' : base); grd.addColorStop(it.fa ? fw : 0, base); grd.addColorStop(it.fb ? 1 - fw : 1, base); grd.addColorStop(1, it.fb ? 'transparent' : base);
-  g.globalAlpha = sel ? 0.75 : alpha; g.fillStyle = grd; roundRect(g, x0, y, x1 - x0, h, 4); g.fill(); g.globalAlpha = 1;
-  if (dim) return;
+  const fa = it._al ?? 1;                                     // (843a: a part growing out of its bar, or folding back into it)
+  g.globalAlpha = (sel ? 0.75 : alpha) * fa; g.fillStyle = grd; roundRect(g, x0, y, x1 - x0, h, 4); g.fill(); g.globalAlpha = fa;
+  if (dim || it._lab === false) { g.globalAlpha = 1; return; }  // (while folding: only the level more than half there keeps its names)
   if (it.kind === 'date' || it.kind === 'own' || sel) { g.strokeStyle = sel ? C.fg : base; g.lineWidth = sel ? 1.6 : 1; roundRect(g, x0, y, x1 - x0, h, 4); g.stroke(); }
   if (it.uneven) { g.strokeStyle = C.acc; g.setLineDash([3, 2]); roundRect(g, x0, y, x1 - x0, h, 4); g.stroke(); g.setLineDash([]); }
   // the label, once: at the bar's start – or, while the bar runs on past the screen's left edge, held at that edge, and pushed
@@ -743,6 +757,7 @@ function drawItem(g, C, it, x0, x1, y, h, font, lim = Infinity, W = 1e9) {
   const p = Math.max(x0 + 4, Math.min(Math.max(x0 + 4, 4), x1 - tw - 6));
   const end = Math.min(Math.max(x1 - 3, lim), W + 2000), room = end - p;
   if (room >= 14) { g.fillStyle = C.fg; g.save(); g.beginPath(); g.rect(p, y - 1, room, h + 2); g.clip(); g.fillText(txt, p, y + h / 2 + fs * 0.36); g.restore(); }
+  g.globalAlpha = 1;
 }
 function roundRect(g, x, y, w, h, r) { r = Math.min(r, w / 2, h / 2); g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
 function gridStep(ppy) { for (const s of [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000]) if (s * ppy >= 70) return s; return 10000; }
