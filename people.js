@@ -134,17 +134,17 @@ function identHit(T, j) {                         // one entry of the index: its
 async function fastiTab() {
   const d = Object.values(S.installed || {}).find(x => x.kind === 'fasti' && !S.dictPrefs?.off?.includes(x.id)); if (!d) return null;
   const key = d.id + '|' + d.version; if (PP.fasti?.key === key) return PP.fasti;
-  const k = await pplRec(d, '#k'), by = await pplRec(d, '#by'), nd = await pplRec(d, '#nd'), off = new Map();
+  const k = await pplRec(d, '#k'), by = await pplRec(d, '#by'), nd = await pplRec(d, '#nd'), c = await pplRec(d, '#c'), off = new Map();
   for (const [ref, os] of Object.entries(by || {})) { if (ref === 'b') continue;
     off.set(ref, [...(off.get(ref) || []), ...os]);
     const { d: dd, i } = pplParse(ref), sec = dd ? (await pplIx(dd))?.p?.[i]?.[7] : null;   // (739: the sections of one article as one)
     if (sec != null) { const r2 = pref(dd, sec); off.set(r2, [...(off.get(r2) || []), ...os]); } }
-  return PP.fasti = { key, d, k: k?.e || [], off, nd: nd || {} };
+  return PP.fasti = { key, d, k: k?.e || [], off, nd: nd || {}, c: c || {} };
 }
 async function narrYears(t) {                    // the years the book being read narrates (so far: Ammianus) – [from, to] or null
   const F = await fastiTab(), m = t?.work ? F?.nd?.[t.work.id] : null; if (!m) return null;
-  const book = +((await libGet('works', t.work.id))?.books?.[t.bi] || '').replace(/\D/g, '');
-  return m[book] || null;
+  const lab = (await libGet('works', t.work.id))?.books?.[t.bi] || '';
+  return m[lab] || m[+lab.replace(/\D/g, '')] || m['*'] || null;    // (781a: by the book's label; "*" a whole work, e.g. a life)
 }
 const caesarFrom = e => Math.min(e[4], e[6] ?? e[4]);
 function inOffice(F, ny, cands) {                // the candidates who were emperor (or Caesar) in the years the book narrates
@@ -158,6 +158,47 @@ function titleAt(F, ny, k) {                     // "Augustus" / "Caesar" alone:
   const es = F.k.filter(e => e[10]?.length && (aug || early ? e[7] === 'A' && e[4] <= ny[1] && e[5] >= ny[0]
     : (e[7] === 'A' || e[7] === 'C') && e[6] != null && e[6] <= ny[1] && Math.min(e[4], e[5] + 1) > ny[0]));
   return es.length === 1 ? es[0] : null;
+}
+// 782a: consular dates in the text ("consulatu Constantii deciens, terque Iuliani", "Datiano et Cereali consulibus")
+function consulIndex(F) {                         // the consuls' names by stem -> [{y, sl, j, it, refs}]
+  if (F.ci) return F.ci; const ci = new Map();
+  for (const [y, v] of Object.entries(F.c)) { if (y === 'b' || !v) continue;
+    for (const sl of ['o', 's']) (v[sl] || []).forEach((p, j) => {
+      for (const w of new Set(String(p[0]).split(/[\s.,;:()[\]]+/))) {
+        if (w.length < 3 || !/^[A-Z]/.test(w) || /^(Imp|Flavius|Caesar|Augustus|Aug|Nob)$/.test(w)) continue;
+        const k = latStem(latkey(w)); if (!ci.has(k)) ci.set(k, []); ci.get(k).push({ y: +y, sl, j, it: p[1], refs: p[4] || [] }); } }); }
+  return F.ci = ci;
+}
+const ITER = { iterum: 2, bis: 2, ter: 3, tertium: 3, quater: 4, quartum: 4, quinquies: 5, quinquiens: 5, sexies: 6, sexiens: 6, septies: 7, septiens: 7,
+  octies: 8, octiens: 8, novies: 9, noviens: 9, nouies: 9, nouiens: 9, decies: 10, deciens: 10, undecies: 11, undeciens: 11, duodecies: 12, duodeciens: 12 };
+const ROMV = { ii: 2, iii: 3, iiii: 4, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, viiii: 9, ix: 9, x: 10, xi: 11, xii: 12, xiii: 13 };
+function iterAt(w) { if (!w) return null; const g = gkey(w.s).replace(/que$/, ''); return ITER[g] || (/^[IVX]+$/.test(w.s) ? ROMV[g] : null) || null; }
+function consularDates(F, ny) {                   // -> [{y, at: word index, names: [{w, refs}]}]
+  if (!F?.c || !S.tokens) return [];
+  const ci = consulIndex(F), W = S.tokens.filter(t => t.t === 'w' && !isGreek(t.s)), out = [];
+  for (let a = 0; a < W.length; a++) {
+    const g = gkey(W[a].lemma || W[a].s), f = gkey(W[a].s);
+    if (!/^(consul|consulatus|cos|coss)$/.test(g) && !/^(consul(is|i|em|e|es|um|ibus|atu|atus|atum|atui)?|coss?)$/.test(f)) continue;   // (not "senatus consulto")
+    const names = [];
+    for (let b = Math.max(0, a - 10); b <= Math.min(W.length - 1, a + 10); b++) {
+      const w = W[b]; if (b === a || !capital(w.s) || TITLES.has(gkey(w.lemma || w.s))) continue;
+      const k = latStem(gkey(w.lemma && capital(w.lemma) ? w.lemma : w.s)), hs = ci.get(k); if (!hs) continue;
+      const it = iterAt(W[b + 1]) || iterAt(W[b - 1]);
+      names.push({ w, hs: it ? hs.filter(h => h.it === it) : hs });
+    }
+    const slots = new Map();                       // year -> {consul: the words of the text naming him}
+    for (const n of names) for (const h of n.hs) {
+      if (ny && (h.y < ny[0] - 5 || h.y > ny[1] + 5)) continue;   // (a book of known years: a consular date of those years)
+      if (!slots.has(h.y)) slots.set(h.y, new Map()); const m = slots.get(h.y); if (!m.has(h.sl + h.j)) m.set(h.sl + h.j, new Set()); m.get(h.sl + h.j).add(n.w.i); }
+    const two = m => { const c = [...m.values()]; return c.some((a, i) => c.some((b, j) => j > i && [...a].some(x => [...b].some(y => y !== x)))); };
+    const ys = [...slots].filter(([, m]) => two(m)).map(([y]) => y);   // two consuls of one year, named by two different words
+    if (ys.length !== 1) continue;
+    if (!ny && !names.some(n => n.hs.some(h => h.y === ys[0]) && new Set(n.hs.map(h => h.y)).size <= 8)) continue;   // (no known years: one name rare enough)
+    const y = ys[0], ns = names.map(n => ({ w: n.w, h: n.hs.find(h => h.y === y) })).filter(n => n.h);
+    if (out.some(o => o.y === y && Math.abs(o.at - W[a].i) < 30)) continue;
+    out.push({ y, at: W[a].i, trig: W[a].s, names: ns.map(n => ({ w: n.w, refs: n.h.refs })) });
+  }
+  return out;
 }
 function officesHTML(F, ref) {                   // a person's offices from the table (person page)
   const os = F?.off.get(ref); if (!os?.length) return '';
@@ -289,6 +330,16 @@ async function personsForText() {
     if (d) put(Object.assign({ k: g.k, cands: g.cands, name: g.name }, d), seq);
   }
   if (run !== personsForText.run) return;
+  S.consDates = [];                                            // 782a: consular dates – both consuls certain, the passage dated
+  for (const cd of consularDates(F, ny)) {
+    S.consDates.push({ y: cd.y, i: cd.at, ref: refAt(cd.at), trig: cd.trig, names: cd.names.map(n => n.w.s) });
+    for (const n of cd.names) {
+      const old = S.prs.get(n.w.i); if (old && (old.why === 'chosen by you' || /^(probably – )?identified by/.test(old.why))) continue;
+      const ft = fix.t?.[t.bi + ':' + n.w.i] ?? fix.t?.[n.w.i]; if (ft != null) continue;
+      if (!n.refs.length) { if (old) S.prs.delete(n.w.i); continue; }
+      put({ k: gkey(n.w.lemma || n.w.s), cands: [...n.refs], pick: n.refs[0], sure: true, why: `consul of ${cd.y < 0 ? -cd.y + ' BC' : 'AD ' + cd.y}, named in a consular date (Liebenam’s list of consuls)` }, [{ tk: n.w }]);
+    }
+  }
   markPersons();
   if (S.tab === 'people' && (!PP.view || PP.view.t === 'text')) pplRender();
 }
