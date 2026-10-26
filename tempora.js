@@ -582,12 +582,15 @@ const evHue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charC
 // the view stays anchored when lanes are rearranged (switching “Written”, a filter that hides, …): the lane at the middle of the
 // screen stays where it was on the screen; what changes, changes around it
 function tmpAnchorGet() {
-  const cv = $('#tmpCanvas'); if (!cv || !TP.laneTop) return null; const mid = (TP.RH + cv.clientHeight) / 2;
+  const cv = $('#tmpCanvas'); if (!cv || !TP.laneTop) return null;
+  const itY = it => TP.laneTop?.[it._lid] != null ? TP.laneTop[it._lid] - TP.sy + 14 + 3 + (it._y ?? it.row) * TP.lh : null;   // (where an item is, on screen or not)
+  TP.itY = itY; const s = TP.sel?.it; if (s && itY(s) != null) return { it: s, y: itY(s) };   // (an item selected: it stays fixed) const mid = (TP.RH + cv.clientHeight) / 2;
   let best = null; for (const [id, top] of Object.entries(TP.laneTop)) { const y = top - TP.sy, d = y <= mid && mid <= y + (TP.laneH?.[id] || 0) ? 0 : Math.abs(y - mid); if (!best || d < best.d) best = { id, y, d }; }
   return best;
 }
 function tmpAnchorKeep(an) {
   TP.prevLay = null; tmpDraw();
+  if (an?.it) { const y = TP.itY?.(an.it); if (y != null) { TP.sy += y - an.y; TP.over = Math.max(TP.over || 0, TP.sy); TP.under = Math.max(0, -TP.sy); tmpClampY(); TP.prevLay = null; } return tmpRedraw(); }
   if (an && TP.laneTop?.[an.id] != null) { TP.sy = TP.laneTop[an.id] - an.y; TP.over = Math.max(TP.over || 0, TP.sy); TP.under = Math.max(0, -TP.sy); tmpClampY(); TP.prevLay = null; }
   tmpRedraw();
 }
@@ -1011,7 +1014,7 @@ function tmpFilterApply() {
   const fl = (TP.cfg.flt || []).filter(f => FCAT[f.t]); TP.fOn = fl.length > 0; let n = 0, m = 0; const ms = [];
   for (const L of TP.data?.lanes || []) { L.nPass = 0;
     for (const it of L.its) { if (it.kids) continue; it._lid = L.id; it.pass = !fl.length || fPass(it, fl); n++; if (it.pass) { m++; L.nPass++; if (fl.length) ms.push(it); } }
-    for (const it of L.its) if (it.kids) it.pass = it.kids.some(k => k.pass); }   // (a book or a work passes when one of its parts does)
+    for (const it of L.its) if (it.kids) { it._lid = L.id; it.pass = it.kids.some(k => k.pass); } }   // (a book or a work passes when one of its parts does)
   TP.fCount = [m, n]; TP.matches = ms.sort((p, q) => p.t0 - q.t0);
 }
 function sieveN() { const [m, n] = TP.fCount || [0, 0]; if (!TP.fOn) return 0; return !m ? 7 : Math.min(7, 1 + Math.floor(Math.log2(n / m) + 1e-9)); }
