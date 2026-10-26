@@ -150,6 +150,13 @@ async function tmpData() {
   // your statements (791a)
   const own = (await getAll('settings', IDBKeyRange.bound('tmp|', 'tmp|￿'))).map(x => x.v).filter(Boolean);
   if (own.length) lanes.push({ id: 'own', g: 'Your chronology', t: 'Your statements', its: own.map(s => ownItem(s)), have: true });
+  for (const L of lanes) {                              // rows packed once over all the lane's items: an item keeps its row whatever is in view
+    const sh = L.sh || L.t.replace(/ – .*$/, ''), ends = [];
+    for (const it of L.its.slice().sort((a, b) => a.t0 - b.t0)) {
+      let r = ends.findIndex(e => e <= it.t0 + 1e-6); if (r < 0) { r = ends.length; ends.push(0); } ends[r] = it.t1; it.row = r;
+      it.full = (L.id === 'own' || L.id === 'wr:lib' ? '' : sh + ' · ') + it.lab + (L.have ? '' : ' (not on this device)');
+    }
+  }
   TP.data = { F, lanes };
   return TP.data;
 }
@@ -170,14 +177,13 @@ function tmpColors() {
 }
 const evHue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
 function laneShown(L) { return !TP.cfg.hide[L.id] && (L.have || TP.cfg.all); }
-function tmpLayout(A0, A1) {                             // lanes -> rows (overlapping items in rows of their own); lanes with nothing in view left out
+function tmpLayout(A0, A1) {                             // the lanes with something in view; each as tall as the highest row in view
   const rows = [], away = [], wid = S.text?.work?.id;
   const lanes = TP.data.lanes.filter(laneShown).sort((a, b) => (b.id.endsWith(':' + wid) || b.id.endsWith(wid)) - (a.id.endsWith(':' + wid) || a.id.endsWith(wid)));
   for (const L of lanes) {
-    const its = L.its.filter(i => i.t1 > A0 && i.t0 < A1).sort((a, b) => a.t0 - b.t0), ends = [];
+    const its = L.its.filter(i => i.t1 > A0 && i.t0 < A1);
     if (!its.length) { away.push(L); continue; }
-    for (const it of its) { let r = ends.findIndex(e => e <= it.t0 + 1e-6); if (r < 0) { r = ends.length; ends.push(0); } ends[r] = it.t1; it.row = r; }
-    rows.push({ L, n: Math.max(1, ends.length), its });
+    rows.push({ L, n: 1 + Math.max(...its.map(i => i.row)), its });
   }
   return { rows, away };
 }
@@ -195,7 +201,10 @@ function tmpDraw() {
   TP.hit = [];
   // emperor rows (packed once)
   const F = TP.data.F, emps = (F?.k || []).map((e, j) => ({ e, j, a0: ax(Math.min(e[4], e[6] ?? e[4])), a1: ax(e[5]) + 1 })).sort((p, q) => p.a0 - q.a0);
-  { const ends = []; for (const x of emps) { if (x.a1 < A0 || x.a0 > A1) { x.row = 99; continue; } let r = ends.findIndex(v => v <= x.a0); if (r < 0) { r = ends.length; ends.push(0); } ends[r] = x.a1; x.row = r; } TP.empRows = Math.max(1, Math.min(ends.length, 4)); }
+  if (TP.empKey !== F) { TP.empKey = F; TP.empRow = new Map(); const ends = [];   // (packed once: an emperor keeps his row whatever is in view)
+    for (const x of emps) { let r = ends.findIndex(v => v <= x.a0); if (r < 0) { r = ends.length; ends.push(0); } ends[r] = x.a1; TP.empRow.set(x.j, r); } }
+  for (const x of emps) x.row = TP.empRow.get(x.j);
+  TP.empRows = Math.max(1, ...emps.filter(x => x.a1 > A0 && x.a0 < A1).map(x => x.row + 1));
   // ---- lanes (below the rulers, scrolled)
   const SPAN = { auc: [-752, 1e9], cato: [-751, 1e9], ol: [-775, 394], cos: [-29, 566], emp: [-62, 566], sel: [-311, 1e9], dio: [284, 1e9], ind: [312, 1e9] };
   const rulers = RULERS.filter(([id]) => TP.cfg.rulers[id] && (!SPAN[id] || (A1 > SPAN[id][0] && A0 < SPAN[id][1])));
@@ -210,19 +219,18 @@ function tmpDraw() {
   for (let a = Math.ceil(A0 / step) * step; a < A1; a += step) { const x = Math.round(X(a)) + 0.5; g.beginPath(); g.moveTo(x, RH); g.lineTo(x, H); g.stroke(); }
   g.globalAlpha = 1;
   for (const { L, n, its: vis } of rows) {
-    if (L.g !== lastG) { lastG = L.g; g.fillStyle = C.mut; g.font = `600 ${font(11)}`; g.fillText(L.g.toUpperCase(), 8, y + 12); y += 18; }
-    const h = n * lh + 18, top = y;
+    const h = n * lh + 6, top = y;
     if (top < H && top + h > RH) {
-      g.fillStyle = C.fg; g.font = font(12); g.fillText(L.t + (L.have ? '' : '  (not on this device)'), 8, top + 12);
+      if (lastG) { g.strokeStyle = C.line; g.lineWidth = 1; g.beginPath(); g.moveTo(0, top - 2.5); g.lineTo(W, top - 2.5); g.stroke(); }
       for (const it of vis) {
-        const x0 = X(it.t0), x1 = Math.max(X(it.t1) - 1, x0 + 3), yy = top + 16 + it.row * lh, bh = lh - 8;
+        const x0 = X(it.t0), x1 = Math.max(X(it.t1) - 1, x0 + 3), yy = top + 3 + it.row * lh, bh = lh - 8;
         if (x1 < 0 || x0 > W) continue;
         drawItem(g, C, it, x0, x1, yy, bh, font);
         TP.hit.push({ x0, x1, y0: yy, y1: yy + bh, it, L });
         if (it.ev || it.link) centers.push({ it, x: (Math.max(x0, 0) + Math.min(x1, W)) / 2, y: yy + bh / 2 });
       }
     }
-    y += h + 4;
+    y += h + 4; lastG = L.id;
   }
   if (away.length) { g.fillStyle = C.mut; g.font = font(11); const s = `Nothing in this span: ${away.map(l => l.t).join(' · ')}`;
     g.save(); g.beginPath(); g.rect(8, y, W - 16, 30); g.clip(); g.fillText(s.length > 400 ? s.slice(0, 400) + ' …' : s, 8, y + 14); g.restore(); y += 30; }
@@ -261,8 +269,8 @@ function drawItem(g, C, it, x0, x1, y, h, font) {
   g.globalAlpha = sel ? 0.75 : alpha; g.fillStyle = grd; roundRect(g, x0, y, x1 - x0, h, 4); g.fill(); g.globalAlpha = 1;
   if (it.kind === 'date' || it.kind === 'own' || sel) { g.strokeStyle = sel ? C.fg : base; g.lineWidth = sel ? 1.6 : 1; roundRect(g, x0, y, x1 - x0, h, 4); g.stroke(); }
   if (it.uneven) { g.strokeStyle = C.acc; g.setLineDash([3, 2]); roundRect(g, x0, y, x1 - x0, h, 4); g.stroke(); g.setLineDash([]); }
-  const tx = Math.max(x0 + 4, 4), room = x1 - tx - 3;
-  if (room > 18) { g.fillStyle = C.fg; g.font = font(11); g.save(); g.beginPath(); g.rect(tx, y, room, h); g.clip(); g.fillText(it.lab, tx, y + h / 2 + 4); g.restore(); }
+  const tx = x0 + 4, room = x1 - tx - 3;                    // (the label goes with the bar as it is dragged)
+  if (room > 18) { g.fillStyle = C.fg; g.font = font(11); g.save(); g.beginPath(); g.rect(tx, y, room, h); g.clip(); g.fillText(it.full || it.lab, tx, y + h / 2 + 4); g.restore(); }
   col();
 }
 function roundRect(g, x, y, w, h, r) { r = Math.min(r, w / 2, h / 2); g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
@@ -291,7 +299,7 @@ function drawRuler(g, C, id, y, h, W, X, A0, A1, emps, font) {
     for (let yh = Math.max(-30, hy(Math.floor(A0))); yh <= Math.min(565, hy(Math.ceil(A1))); yh++) { const v = c[String(yh)]; if (!v) continue;
       const short = p => { const w = String(p[0]).replace(/\[[^\]]*\]|\([^)]*\)/g, '').split(/\s+/).filter(x => /^[A-Z][a-z]/.test(x) && !/^(Imp|Flavius|Caesar|Aug)$/.test(x.replace('.', ''))); return (w[w.length - 1] || p[0]) + (p[1] > 1 ? ' ' + ROMN(p[1]) : ''); };
       cell(ax(yh), ax(yh) + 1, ppy >= 60 ? (v.o || []).map(short).join(' · ') : ppy >= 22 ? short(v.o?.[0] || ['']) : '', false); } }
-  if (id === 'emp') { for (const x of emps) { if (x.row >= 4) continue; const x0 = X(x.a0), x1 = Math.max(X(x.a1), x0 + 2); if (x1 < 0 || x0 > W) continue;
+  if (id === 'emp') { for (const x of emps) { if (x.row >= TP.empRows) continue; const x0 = X(x.a0), x1 = Math.max(X(x.a1), x0 + 2); if (x1 < 0 || x0 > W) continue;
       const e = x.e, yy = y + 3 + x.row * 14, cz = e[6] != null && e[6] < e[4] ? X(ax(e[6])) : null;
       g.fillStyle = e[7] === 'U' ? C.mut : C.acc2; g.globalAlpha = e[7] === 'C' ? 0.3 : 0.55;
       if (cz != null && e[7] !== 'C') { g.globalAlpha = 0.25; g.fillRect(cz, yy, X(ax(e[4])) - cz, 11); g.globalAlpha = 0.55; g.fillRect(X(ax(e[4])), yy, x1 - X(ax(e[4])), 11); }
@@ -320,8 +328,7 @@ async function showTempora() {
       + `<span class="tmpseg"><button type="button" data-tmpmode="narr" title="Place texts at the years they narrate">Narrated</button><button type="button" data-tmpmode="writ" title="Place texts at the time they were written">Written</button></span>`
       + `<button type="button" data-tmp="add" title="Add your own statement">＋ Statement</button><span class="sp"></span>`
       + `<button type="button" data-tmp="here" title="The years of the text being read">This text</button>`
-      + `<button type="button" data-tmpz="x-" title="Zoom out (time)" aria-label="Zoom out">−</button><button type="button" data-tmpz="x+" title="Zoom in (time)" aria-label="Zoom in">+</button>`
-      + `<button type="button" data-tmpz="y-" title="Lower lanes" aria-label="Lower lanes">↕−</button><button type="button" data-tmpz="y+" title="Taller lanes" aria-label="Taller lanes">↕+</button></div>`
+      + `</div>`
       + `<div class="tmpwrap"><canvas id="tmpCanvas"></canvas></div><div id="tmpCard" class="tmpcard" hidden></div><div id="tmpPanel" class="tmppanel" hidden></div>`;
     tmpWire($('#tmpCanvas'));
   }
