@@ -611,7 +611,7 @@ function tmpDraw() {
   if (TP.empKey !== F) { TP.empKey = F; TP.empRow = new Map(); const ends = [];   // (packed once: an emperor keeps his row whatever is in view)
     for (const x of emps) { let r = ends.findIndex(v => v <= x.a0); if (r < 0) { r = ends.length; ends.push(0); } ends[r] = x.a1; TP.empRow.set(x.j, r); } }
   for (const x of emps) x.row = TP.empRow.get(x.j);
-  TP.empRows = Math.max(1, ...emps.map(x => x.row + 1));                  // (the band as high as it ever needs: it does not grow as you pan)
+  TP.empRows = Math.max(1, ...emps.filter(x => x.a1 > A0 && x.a0 < A1).map(x => x.row + 1));   // (the emperors' band follows what is in view – it glides)
   TP.empRowsE = tmpEase('emp', TP.empRows);
   // ---- the reference rows: each fades in or out over its span
   const SPAN = { att: [-700, 400], auc: [-752, 1e9], cato: [-751, 1e9], ol: [-775, 394], cos: [-29, 566], emp: [-62, 566], sel: [-311, 1e9], dio: [284, 1e9], ind: [312, 1e9] };
@@ -729,18 +729,12 @@ function drawItem(g, C, it, x0, x1, y, h, font, lim = Infinity, W = 1e9) {
   if (dim) return;
   if (it.kind === 'date' || it.kind === 'own' || sel) { g.strokeStyle = sel ? C.fg : base; g.lineWidth = sel ? 1.6 : 1; roundRect(g, x0, y, x1 - x0, h, 4); g.stroke(); }
   if (it.uneven) { g.strokeStyle = C.acc; g.setLineDash([3, 2]); roundRect(g, x0, y, x1 - x0, h, 4); g.stroke(); g.setLineDash([]); }
-  // the label: at the bar's start, moving with it; it may run on past a short bar up to the next item in its row (807a);
-  // along a bar longer than the screen it is repeated about every screen-width (808a)
+  // the label, once: at the bar's start – or, while the bar runs on past the screen's left edge, held at that edge, and pushed
+  // off with the bar's end; past a short bar it may run on up to the next item in its row (807a)
   const txt = it.lab; g.font = font(11); const tw = g.measureText(txt).width;
-  const step = Math.max(W * 0.8, tw + 80), pos = [];
-  if (x1 - x0 > W * 1.2) { for (let p = x0 + 4 + Math.max(0, Math.floor((-x0 - tw) / step)) * step; p < Math.min(x1 - 20, W); p += step) pos.push(p); }
-  else pos.push(x0 + 4);
-  g.fillStyle = C.fg;
-  for (const p of pos) {
-    const end = Math.min(x1 - x0 > W * 1.2 ? Math.min(p + step - 16, x1 - 3) : Math.max(x1 - 3, lim), W + 2000), room = end - p;
-    if (room < 14) continue;
-    g.save(); g.beginPath(); g.rect(p, y - 1, room, h + 2); g.clip(); g.fillText(txt, p, y + h / 2 + 4); g.restore();
-  }
+  const p = Math.max(x0 + 4, Math.min(Math.max(x0 + 4, 4), x1 - tw - 6));
+  const end = Math.min(Math.max(x1 - 3, lim), W + 2000), room = end - p;
+  if (room >= 14) { g.fillStyle = C.fg; g.save(); g.beginPath(); g.rect(p, y - 1, room, h + 2); g.clip(); g.fillText(txt, p, y + h / 2 + 4); g.restore(); }
 }
 function roundRect(g, x, y, w, h, r) { r = Math.min(r, w / 2, h / 2); g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
 function gridStep(ppy) { for (const s of [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000]) if (s * ppy >= 70) return s; return 10000; }
