@@ -22,7 +22,7 @@ async function tmpCfg() {
   if (TP.cfg) return TP.cfg;
   const c = (await setting('tmpCfg')) || {};
   TP.cfg = Object.assign({ rulers: { ...RULER_ON }, hide: {}, persons: [], written: false }, c);
-  if (c.view) Object.assign(TP, { x0: c.view.x0, ppy: c.view.ppy, lh: c.view.lh || 30 });
+  if (c.view) Object.assign(TP, { x0: c.view.x0, ppy: c.view.ppy, lh: Math.max(16, c.view.lh || 30) });
   return TP.cfg;
 }
 let tmpSaveT = 0;
@@ -554,7 +554,7 @@ async function tmpData() {
         const occ = []; for (const i of L.its.filter(i => i.lv === k)) (occ[i['row' + k]] ??= []).push([i.t0, i.t1]);
         for (const it of L.its.filter(i => i.lv == null).sort((a, b) => a.t0 - b.t0)) { let r = 0; while ((occ[r] || []).some(([a, b]) => it.t0 < b - 1e-6 && it.t1 > a + 1e-6)) r++; (occ[r] ??= []).push([it.t0, it.t1]); it['row' + k] = r; it.row = r; } }
     }
-    for (const it of L.its) it.full = (L.id === 'own' || L.id === 'wr:lib' || it.wr ? '' : sh + ' · ') + it.lab + (L.have ? '' : ' (not on this device)');
+    for (const it of L.its) it.full = (L.id === 'own' || L.id === 'wr:lib' || it.wr ? '' : sh + ' · ') + it.lab;
   }
   TP.data = { F, lanes };
   return TP.data;
@@ -683,7 +683,7 @@ function tmpDraw() {
     const top = y0 + off;
     ls.forEach(({ L, a, b, n, h, its: vis, atLv }, k) => {
       TP.laneTop[L.id] = top + TP.sy;
-      const ry = it => n ? top + TT + 3 + Math.min(it._y ?? it.row, Math.max(0, n - 1)) * lh + (lh - 8) / 2 : top + 3;   // (an item's middle, kept within the lane as drawn)
+      const ry = it => n ? top + TT + 3 + Math.min(it._y ?? it.row, Math.max(0, n - 1)) * lh + BH(lh) / 2 : top + 3;   // (an item's middle, kept within the lane as drawn)
       if (TP.cfg.written) for (const it of L.its) if (it.wr && atLv(it)) { const m = { x: X(it.t0), y: ry(it), dim: it.pass === false }; for (const wk of it.wks || [it.wk]) { if (!marks.has(wk)) marks.set(wk, []); marks.get(wk).push(m); } }
       if (TP.cfg.written) {                                                   // the items joined to their work's date of writing
         const by = new Map();
@@ -698,8 +698,12 @@ function tmpDraw() {
         if (xb > xa) { if ((si + k) % 2 === 0) { g.fillStyle = C.fg; g.globalAlpha = 0.045; g.fillRect(xa, top - 2, xb - xa, h + 4); }
           else { g.strokeStyle = C.line; g.globalAlpha = 0.6; g.strokeRect(xa + 0.5, top - 1.5, xb - xa - 1, h + 2); } g.globalAlpha = 1;
           // its name, once – at the box's left edge, or held at the screen's edge while the box runs on
-          const nm = L.t + (L.have ? '' : ' (not on this device)') + (TP.fOn ? ` · ${L.nPass || 0} found` : ''); g.font = font(10.5); const tw = g.measureText(nm).width, tx = Math.max(xa + 4, Math.min(Math.max(xa + 4, 4), xb - tw - 4));
-          if (xb - xa > 30) { g.save(); g.beginPath(); g.rect(xa + 2, top - 2, xb - xa - 4, TT + 2); g.clip(); g.fillStyle = C.mut; g.fillText(nm, tx, top + 9.5); g.restore(); } } }
+          // a work not on this device: a dashed box and a small download arrow before its name (no words)
+          if (!L.have) { g.strokeStyle = C.mut; g.globalAlpha = 0.7; g.setLineDash([4, 3]); g.strokeRect(xa + 0.5, top - 1.5, xb - xa - 1, h + 2); g.setLineDash([]); g.globalAlpha = 1; }
+          const ic = L.have ? 0 : 13, nm = L.t + (TP.fOn ? ` · ${L.nPass || 0} found` : ''); g.font = font(10.5); const tw = g.measureText(nm).width + ic, tx = Math.max(xa + 4, Math.min(Math.max(xa + 4, 4), xb - tw - 4));
+          if (xb - xa > 30) { g.save(); g.beginPath(); g.rect(xa + 2, top - 2, xb - xa - 4, TT + 2); g.clip(); g.fillStyle = C.mut;
+            if (ic) { const ax = tx + 4, ay = top + 2; g.strokeStyle = C.mut; g.lineWidth = 1.3; g.beginPath(); g.moveTo(ax, ay); g.lineTo(ax, ay + 6); g.moveTo(ax - 3, ay + 3.5); g.lineTo(ax, ay + 6.5); g.lineTo(ax + 3, ay + 3.5); g.moveTo(ax - 4, ay + 9); g.lineTo(ax + 4, ay + 9); g.stroke(); g.lineWidth = 1; }
+            g.fillText(nm, tx + ic, top + 9.5); g.restore(); } } }
       // how far a label may run on (807a): to the next item in its row, and never into the next lane of the slot
       const stop = k + 1 < ls.length ? X(ls[k + 1].a) - 6 : W + 4000;
       const cutX = new Map(), byLv = new Map();             // (854a: bars sharing a row – overlapping books – cut where the next one begins)
@@ -709,7 +713,7 @@ function tmpDraw() {
       const nextX = new Map(); for (const r of byRow.values()) { r.sort((p, q) => p.t0 - q.t0); r.forEach((it, j) => nextX.set(it, Math.min(stop, j + 1 < r.length ? X(r[j + 1].t0) - 6 : W + 4000))); }
       g.save(); g.beginPath(); g.rect(0, top - 2, W, h + 4); g.clip();                     // (a lane still growing shows only what fits)
       for (const it of vis) {
-        const x0 = X(it.t0), x1 = Math.max(Math.min(X(it.t1), cutX.get(it) ?? Infinity) - 1, x0 + 3), yy = top + TT + 3 + (it._y ?? it.row) * lh, bh = Math.max(3, lh - 8);
+        const x0 = X(it.t0), x1 = Math.max(Math.min(X(it.t1), cutX.get(it) ?? Infinity) - 1, x0 + 3), yy = top + TT + 3 + (it._y ?? it.row) * lh, bh = BH(lh);
         if (x1 < 0 && nextX.get(it) < 0) continue; if (x0 > W) continue;
         drawItem(g, C, it, x0, x1, yy, bh, font, nextX.get(it), W);
         if ((it.pass !== false || TP.cfg.fmode === 'hide') && yy < top + h && (it._al ?? 1) >= 0.5) TP.hit.push({ x0, x1, y0: yy, y1: yy + bh, it, L });
@@ -771,7 +775,7 @@ function drawItem(g, C, it, x0, x1, y, h, font, lim = Infinity, W = 1e9) {
   if (it.uneven) { g.strokeStyle = C.acc; g.setLineDash([3, 2]); roundRect(g, x0, y, x1 - x0, h, 4); g.stroke(); g.setLineDash([]); }
   // the label, once: at the bar's start – or, while the bar runs on past the screen's left edge, held at that edge, and pushed
   // off with the bar's end; past a short bar it may run on up to the next item in its row (807a)
-  const fs = Math.max(7.5, Math.min(11, h + 1)), txt = it.lab; g.font = font(fs); const tw = g.measureText(txt).width;   // (rows pinched small: smaller type)
+  const fs = Math.max(9.5, Math.min(11, h - 2)), txt = it.lab; g.font = font(fs); const tw = g.measureText(txt).width;   // (rows pinched small: smaller type)
   const p = Math.max(x0 + 4, Math.min(Math.max(x0 + 4, 4), x1 - tw - 6));
   const end = Math.min(Math.max(x1 - 3, lim), W + 2000), room = end - p;
   if (room >= 14) { g.fillStyle = C.fg; g.save(); g.beginPath(); g.rect(p, y - 1, room, h + 2); g.clip(); g.fillText(txt, p, y + h / 2 + fs * 0.36); g.restore(); }
@@ -853,7 +857,8 @@ async function showTempora() {
 }
 function tmpAt(px, py) { return TP.hit.slice().reverse().find(h => (py < TP.RH) === (h.emp != null || h.sky != null) && px >= h.x0 - 3 && px <= h.x1 + 3 && py >= h.y0 - 2 && py <= h.y1 + 2) || null; }
 function tmpZoomX(f, px) { const a = TP.x0 + px / TP.ppy; TP.ppy = Math.min(400000, Math.max(0.005, TP.ppy * f)); TP.x0 = a - px / TP.ppy; tmpSave(); tmpRedraw(); }
-function tmpZoomY(f) { TP.lh = Math.min(90, Math.max(10, TP.lh * f)); tmpSave(); tmpRedraw(); }
+const BH = lh => Math.max(13, lh - 8);                   // (a bar is never lower than the height of its name; rows are never closer than that)
+function tmpZoomY(f) { TP.lh = Math.min(90, Math.max(16, TP.lh * f)); tmpSave(); tmpRedraw(); }
 function tmpClampY() { const cv = $('#tmpCanvas'); const max = Math.max(0, (TP.contentH || 0) - 40, TP.over || 0);   // (the lowest lane can be pulled up to the top)
   TP.sy = Math.min(max, Math.max(0, TP.sy)); TP.over = Math.min(TP.over || 0, TP.sy); }   // (TP.over: how far the header has grown over the lanes)
 function tmpWire(cv) {
@@ -868,7 +873,7 @@ function tmpWire(cv) {
       // one direction per pinch: across (time) or up and down (rows) – whichever the fingers are set apart in more
       pinch.ax ??= pinch.dx >= pinch.dy ? 'x' : 'y';
       if (pinch.ax === 'x' && pinch.dx > 20) TP.ppy = Math.min(400000, Math.max(0.005, pinch.ppy * dx / pinch.dx));
-      if (pinch.ax === 'y' && pinch.dy > 20) TP.lh = Math.min(90, Math.max(10, pinch.lh * dy / pinch.dy));
+      if (pinch.ax === 'y' && pinch.dy > 20) TP.lh = Math.min(90, Math.max(16, pinch.lh * dy / pinch.dy));
       TP.x0 = a - mx / TP.ppy; TP.focusY = (p.y + q.y) / 2; moved = true; tmpSave(); tmpRedraw(); return; }
     if (!down) return; const dx = e.offsetX - down.x, dy = e.offsetY - down.y;
     if (Math.abs(dx) + Math.abs(dy) > 6) moved = true;
