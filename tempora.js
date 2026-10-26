@@ -68,7 +68,7 @@ document.addEventListener('change', async ev => {      // Settings → Tempora: 
 document.addEventListener('click', async ev => {
   const ws = ev.target.closest?.('[data-tmpws]'); if (ws) { await tmpCfg(); TP.cfg.wsrc = TP.cfg.wsrc || {}; const v = ws.dataset.tmpws; TP.cfg.wsrc[v] = TP.cfg.wsrc[v] === false; ws.classList.toggle('on', TP.cfg.wsrc[v]); tmpSave(); if (TP.data) await tmpData(); return tmpRedraw(); }
   const wl = ev.target.closest?.('[data-tmpwl]'); if (wl) { await tmpCfg(); TP.cfg.wlines = wl.dataset.tmpwl; tmpSave(); wl.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === wl)); return tmpRedraw(); }
-  const fm = ev.target.closest?.('[data-tmpfm]'); if (fm) { await tmpCfg(); TP.cfg.fmode = fm.dataset.tmpfm; tmpSave(); fm.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === fm)); return tmpRedraw(); }
+  const fm = ev.target.closest?.('[data-tmpfm]'); if (fm) { await tmpCfg(); const an = tmpAnchorGet(); TP.cfg.fmode = fm.dataset.tmpfm; tmpSave(); fm.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === fm)); return tmpAnchorKeep(an); }
   const b = ev.target.closest?.('[data-tmplimreset]'); if (!b) return;
   await tmpCfg(); TP.cfg.lim = {}; tmpSave(); await tmpLimits(); tmpRedraw();
   b.closest('.tmpset')?.querySelectorAll('[data-tmplim]').forEach(i => { i.value = ''; });
@@ -579,6 +579,18 @@ function tmpColors() {
   return { fg: v('--fg'), mut: v('--mut'), line: v('--line'), acc: v('--acc'), acc2: v('--acc2'), card: v('--card'), bar: v('--bar'), bg: v('--bg'), ui: v('--ui') };
 }
 const evHue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+// the view stays anchored when lanes are rearranged (switching “Written”, a filter that hides, …): the lane at the middle of the
+// screen stays where it was on the screen; what changes, changes around it
+function tmpAnchorGet() {
+  const cv = $('#tmpCanvas'); if (!cv || !TP.laneTop) return null; const mid = (TP.RH + cv.clientHeight) / 2;
+  let best = null; for (const [id, top] of Object.entries(TP.laneTop)) { const y = top - TP.sy, d = y <= mid && mid <= y + (TP.laneH?.[id] || 0) ? 0 : Math.abs(y - mid); if (!best || d < best.d) best = { id, y, d }; }
+  return best;
+}
+function tmpAnchorKeep(an) {
+  TP.prevLay = null; tmpDraw();
+  if (an && TP.laneTop?.[an.id] != null) { TP.sy = TP.laneTop[an.id] - an.y; TP.over = Math.max(TP.over || 0, TP.sy); TP.under = Math.max(0, -TP.sy); tmpClampY(); TP.prevLay = null; }
+  tmpRedraw();
+}
 // 843a: a level opens with the zoom, not at one point – the parts grow out of their bar as you widen or pinch apart, and fold back
 const sm = (x, a, b) => Math.min(1, Math.max(0, (x - a) / (b - a)));
 function tmpLevels(L) {                                     // → { la, lb, f }: between level la and lb, f of the way
@@ -603,7 +615,7 @@ function tmpLayout(A0, A1) {
   const slots = [];
   for (const L of lanes) {
     if (hide && TP.fOn && !L.its.some(i => i.pass)) continue;           // (hidden: a lane with nothing that passes goes)
-    const Lv = tmpLevels(L), on = i => !(hide && !i.pass);
+    const Lv = tmpLevels(L), on = i => !(hide && !i.pass) && (TP.cfg.written || !i.wr);   // (816a: room for the dates of writing only while they are shown)
     let atLv = () => true, n;
     if (!Lv) { for (const i of L.its) { i._y = i.row; i._al = 1; i._lab = true; } const all = L.its.filter(on); n = all.length ? 1 + Math.max(...all.map(i => i.row)) : 0; }
     else { const { la, lb, f } = Lv, rw = (i, k) => i['row' + k] ?? i.row, inA = i => i.lv == null || i.lv === la, inB = i => i.lv == null || i.lv === lb;
@@ -616,7 +628,7 @@ function tmpLayout(A0, A1) {
       n = nOf(la) + f * (nOf(lb) - nOf(la));
       atLv = i => i.lv == null || i.lv === (f < 0.5 ? la : lb); }
     const its = L.its.filter(i => i._al > 0.01 && i.t1 > A0 && i.t0 < A1 && on(i) && (TP.cfg.written || !i.wr));   // (the dates of writing keep their room, drawn only with “Written”)
-    const a = isFinite(L.a) ? L.a : -1e9, b = isFinite(L.b) ? L.b : 1e9;
+    const a0 = TP.cfg.written ? L.a : L.na, b0 = TP.cfg.written ? L.b : L.nb, a = isFinite(a0) ? a0 : -1e9, b = isFinite(b0) ? b0 : 1e9;
     let s = L.wronly ? -1 : slots.findIndex(S => S.every(M => b + GAP <= M.a || M.b + GAP <= a));   // (your library's dates of writing: below all, sharing no level)
     if (s < 0) { s = slots.length; slots.push([]); }
     slots[s].push({ L, a, b, n, its, atLv });                            // (its height: the rows of all its items at this level, wherever they are – it changes only as you zoom)
@@ -686,7 +698,7 @@ function tmpDraw() {
   lay.forEach(({ ls, off, hs }, si) => {
     const top = y0 + off;
     ls.forEach(({ L, a, b, n, h, its: vis, atLv }, k) => {
-      TP.laneTop[L.id] = top + TP.sy;
+      TP.laneTop[L.id] = top + TP.sy; (TP.laneH ??= {})[L.id] = h;
       const ry = it => n ? top + TT + 3 + Math.min(it._y ?? it.row, Math.max(0, n - 1)) * lh + BH(lh) / 2 : top + 3;   // (an item's middle, kept within the lane as drawn)
       if (TP.cfg.written) for (const it of L.its) if (it.wr && atLv(it)) { const m = { x: X(it.t0), y: ry(it), dim: it.pass === false }; for (const wk of it.wks || [it.wk]) { if (!marks.has(wk)) marks.set(wk, []); marks.get(wk).push(m); } }
       if (TP.cfg.written) {                                                   // the items joined to their work's date of writing
@@ -864,7 +876,7 @@ function tmpZoomX(f, px) { const a = TP.x0 + px / TP.ppy; TP.ppy = Math.min(4000
 const BH = lh => Math.max(13, lh - 8);                   // (a bar is never lower than the height of its name; rows are never closer than that)
 function tmpZoomY(f) { TP.lh = Math.min(90, Math.max(16, TP.lh * f)); tmpSave(); tmpRedraw(); }
 function tmpClampY() { const cv = $('#tmpCanvas'); const max = Math.max(0, (TP.contentH || 0) - 40, TP.over || 0);   // (the lowest lane can be pulled up to the top)
-  TP.sy = Math.min(max, Math.max(0, TP.sy)); TP.over = Math.min(TP.over || 0, TP.sy); }   // (TP.over: how far the header has grown over the lanes)
+  TP.sy = Math.min(max, Math.max(-(TP.under || 0), TP.sy)); TP.over = Math.min(TP.over || 0, TP.sy); TP.under = Math.max(0, Math.min(TP.under || 0, -TP.sy)); }   // (TP.under: room left above the first lane by an anchoring – it closes as you scroll)   // (TP.over: how far the header has grown over the lanes)
 function tmpWire(cv) {
   new ResizeObserver(() => tmpRedraw()).observe(cv);
   let down = null, pinch = null, moved = false, lastTap = 0;
@@ -1213,12 +1225,12 @@ document.addEventListener('click', async ev => {
     return tmpRedraw(); }
   if (D.tmp === 'add') return tmpEdit(null);
   if (D.tmp === 'here') return tmpHere();
-  if (D.tmppin) { const pin = TP.cfg.lpin = TP.cfg.lpin || [], i = pin.indexOf(D.tmppin); if (i >= 0) pin.splice(i, 1); else pin.push(D.tmppin); tmpSave(); tmpRedraw(); return tmpRefPanel(true); }
+  if (D.tmppin) { const an = tmpAnchorGet(), pin = TP.cfg.lpin = TP.cfg.lpin || [], i = pin.indexOf(D.tmppin); if (i >= 0) pin.splice(i, 1); else pin.push(D.tmppin); tmpSave(); tmpAnchorKeep(an); return tmpRefPanel(true); }
   if (D.tmpunpin) { TP.cfg.lpin = []; tmpSave(); tmpRedraw(); return tmpRefPanel(true); }
   if (D.tmpeclmap && TP.skySel) return tmpEclMap(TP.skySel);
   if (D.tmpwpick != null) { TP.cfg.wpick = TP.cfg.wpick || {}; if (D.tmpwpick) TP.cfg.wpick[D.wid] = D.tmpwpick; else delete TP.cfg.wpick[D.wid];
     tmpSave(); $('#tmpCard').hidden = true; TP.sel = null; await tmpData(); return tmpRedraw(); }
-  if (D.tmp === 'writ') { TP.cfg.written = !TP.cfg.written; b.classList.toggle('on', TP.cfg.written); tmpSave(); return tmpRedraw(); }   // (nothing is rebuilt or moved)
+  if (D.tmp === 'writ') { const an = tmpAnchorGet(); TP.cfg.written = !TP.cfg.written; b.classList.toggle('on', TP.cfg.written); tmpSave(); return tmpAnchorKeep(an); }
   if (D.tmpz) { const W = $('#tmpCanvas').clientWidth; if (D.tmpz === 'x+') tmpZoomX(1.6, W / 2); if (D.tmpz === 'x-') tmpZoomX(1 / 1.6, W / 2); if (D.tmpz === 'y+') tmpZoomY(1.25); if (D.tmpz === 'y-') tmpZoomY(0.8); return; }
   if (D.tmpgo) return tmpGo(TP.sel?.it?.go);
   if (D.tmpwork) return libMenu(D.tmpwork);
@@ -1233,7 +1245,7 @@ document.addEventListener('click', async ev => {
 document.addEventListener('change', async ev => {
   const t = ev.target; if (!t.closest?.('#tmpPanel,#tmpSide,.tmpfilt')) return;
   if (t.dataset.tmpr) { TP.cfg.rulers[t.dataset.tmpr] = t.checked; tmpSave(); tmpRedraw(); }
-  if (t.dataset.tmplh) { TP.cfg.lhide = TP.cfg.lhide || {}; if (t.checked) delete TP.cfg.lhide[t.dataset.tmplh]; else TP.cfg.lhide[t.dataset.tmplh] = 1; tmpSave(); tmpRedraw(); return tmpRefPanel(true); }
+  if (t.dataset.tmplh) { const an = tmpAnchorGet(); TP.cfg.lhide = TP.cfg.lhide || {}; if (t.checked) delete TP.cfg.lhide[t.dataset.tmplh]; else TP.cfg.lhide[t.dataset.tmplh] = 1; tmpSave(); tmpAnchorKeep(an); return tmpRefPanel(true); }
   if (t.dataset.tmpall2) { TP.cfg.all = t.checked; tmpSave(); tmpRedraw(); }
 });
 document.addEventListener('pointerdown', ev => { if (!ev.target.closest?.('.tmpq')) { const r = $('#tmpRes'); if (r) r.hidden = true; } });
