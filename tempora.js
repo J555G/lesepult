@@ -52,6 +52,7 @@ function tmpSettingsHTML() {
     + `<label class="srow1"><span>Latest year<small class="hint">empty: the date the app was last published (now AD ${pubY})</small></span><input data-tmplim="max" value="${esc(L.max != null ? yTxt(L.max) : '')}" placeholder="AD ${pubY}" autocomplete="off"></label>`
     + `<small class="hint">Years as 7777 BC, AD 2026, Ol. 1, AUC 1. Tempora cannot be scrolled or zoomed beyond them.</small> <button type="button" data-tmplimreset="1">Back to the defaults</button>`
     + `<label class="srow1"><span>What the filter leaves out<small class="hint">dimmed: still there, faint · hidden: gone</small></span><span class="tmpseg"><button type="button" data-tmpfm="dim" class="${TP.cfg?.fmode !== 'hide' ? 'on' : ''}">Dimmed</button><button type="button" data-tmpfm="hide" class="${TP.cfg?.fmode === 'hide' ? 'on' : ''}">Hidden</button></span></label>`
+    + `<label class="srow1"><span>“Written”: whose dates<small class="hint">for a single work: tap its date and “Show only this date”</small></span><span class="tmpseg">${WSRC.map(([v, l]) => `<button type="button" data-tmpws="${v}" class="${TP.cfg?.wsrc?.[v] !== false ? 'on' : ''}">${l.replace(/ \(1849\)/, '')}</button>`).join('')}</span></label>`
     + `<label class="srow1"><span>“Written”: lines to the date of writing<small class="hint">one from each work, book or passage – with a filter on, one from each passage it shows</small></span><span class="tmpseg">${[['work', 'Work'], ['book', 'Book'], ['passage', 'Passage']].map(([v, l]) => `<button type="button" data-tmpwl="${v}" class="${(TP.cfg?.wlines || 'work') === v ? 'on' : ''}">${l}</button>`).join('')}</span></label></div>`;
 }
 document.addEventListener('change', async ev => {      // Settings → Tempora: the limits
@@ -64,6 +65,7 @@ document.addEventListener('change', async ev => {      // Settings → Tempora: 
   tmpSave(); await tmpLimits(); tmpRedraw();
 });
 document.addEventListener('click', async ev => {
+  const ws = ev.target.closest?.('[data-tmpws]'); if (ws) { await tmpCfg(); TP.cfg.wsrc = TP.cfg.wsrc || {}; const v = ws.dataset.tmpws; TP.cfg.wsrc[v] = TP.cfg.wsrc[v] === false; ws.classList.toggle('on', TP.cfg.wsrc[v]); tmpSave(); if (TP.data) await tmpData(); return tmpRedraw(); }
   const wl = ev.target.closest?.('[data-tmpwl]'); if (wl) { await tmpCfg(); TP.cfg.wlines = wl.dataset.tmpwl; tmpSave(); wl.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === wl)); return tmpRedraw(); }
   const fm = ev.target.closest?.('[data-tmpfm]'); if (fm) { await tmpCfg(); TP.cfg.fmode = fm.dataset.tmpfm; tmpSave(); fm.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === fm)); return tmpRedraw(); }
   const b = ev.target.closest?.('[data-tmplimreset]'); if (!b) return;
@@ -97,6 +99,7 @@ const ROMN = n => ['', 'I', 'II', 'III', 'IIII', 'V', 'VI', 'VII', 'VIII', 'VIII
 // give, found by a search of the articles for writing, composing, publishing, dedicating with a year, and read by hand.
 const SM = 'Smith’s Dictionary: ', DIOCL = [284, 305], CONST = [306, 337];
 const haSmith = (ids, [y0, y1], who, how) => ids.map(n => [`phi2331.phi${String(n).padStart(3, '0')}`, y0, y1, `Smith: ${how} ${who}`, SM + `this life is ${how} ${who} (reigned ${y0}–${y1}) – the articles Spartianus, Capitolinus, Lampridius`, true, 'smith']);
+const WSRC = [['hb', 'Today’s handbooks'], ['claim', 'What the work claims'], ['smith', 'Smith’s Dictionary (1849)']];
 const WRITTEN = [
   ['stoa0023.stoa001', 389, 391, 'written c. AD 390', 'finished in Rome about AD 390/391 (the last events narrated: 378)', true, 'hb'],
   ['stoa0023.stoa001', 390, 395, 'Smith: after AD 390', SM + '“composed his history” in Rome; his death “must have happened later than 390, since a reference occurs to the consulship of Neoterius”', true, 'smith'],
@@ -106,7 +109,7 @@ const WRITTEN = [
   ['phi1348.abo', 119, 122, 'Lives of the Caesars written c. AD 120', 'about AD 119–122: dedicated to Septicius Clarus, praetorian prefect in those years (Smith gives no year)', true, 'hb'],
   ['stoa0121.stoa001', 369, 370, 'written AD 369/370', 'AD 369/370, dedicated to the emperor Valens', false, 'hb'],
   ['stoa0121.stoa001', 364, 378, 'Smith: under Valens', SM + 'composed “by command” of Valens, “to whom it is inscribed” (Valens reigned 364–378)', true, 'smith'],
-  ['phi2331', 293, 330, 'written – as it claims (293–330)', 'as the work claims: six authors writing under Diocletian and Constantine', true, 'hb'],
+  ['phi2331', 293, 330, 'written – as it claims (293–330)', 'as the work claims: six authors writing under Diocletian and Constantine', true, 'claim'],
   ['phi2331', 390, 400, 'written – the modern view (c. 395)', 'as now generally held (since Dessau 1889): one author, late 4th century', true, 'hb'],
   ...haSmith([1, 2, 3, 4, 5, 7, 9, 10, 11], DIOCL, 'Diocletian', 'inscribed to'),
   ...haSmith([12, 14, 15, 18, 19, 20], CONST, 'Constantine', 'inscribed to'),
@@ -152,9 +155,11 @@ async function tmpData() {
   // "Written": when each work was written, in its own lane, joined to what it narrates by thin lines (drawn in tmpDraw)
   if (cfg.written) {
     const wl = wid => WRITTEN.filter(([p]) => wid.startsWith(p));
-    for (const L of lanes) { const ws = L.wid ? wl(L.wid) : []; const ww = L.its.find(i => i.go?.w)?.go.w;
-      for (const [p, y0, y1, lab, note, fz, src] of ws) L.its.push({ t0: ax(y0), t1: ax(y1) + 1, fa: !!fz, fb: !!fz, lab, kind: 'work', k2: 'written', wr: true, wk: L.wid,
-        sid: src === 'smith' ? 'people-smith' : 'written', src: src === 'smith' ? 'Smith’s Dictionary (1849)' : 'today’s handbooks (Pult’s table)', note, go: ww ? { w: ww, bi: 0, r: null } : null }); }
+    const src = cfg.wsrc || {}, pick = cfg.wpick || {};                   // (which dates: by source – Settings – and, for a work, the one you chose)
+    for (const L of lanes) { let ws = L.wid ? wl(L.wid).filter(r => src[r[6]] !== false) : []; const ww = L.its.find(i => i.go?.w)?.go.w;
+      if (pick[L.wid] && ws.some(r => r[3] === pick[L.wid])) ws = ws.filter(r => r[3] === pick[L.wid]);
+      for (const [p, y0, y1, lab, note, fz, so] of ws) L.its.push({ t0: ax(y0), t1: ax(y1) + 1, fa: !!fz, fb: !!fz, lab, kind: 'work', k2: 'written', wr: true, wk: L.wid, wlab: lab, wn: wl(L.wid).length,
+        sid: so === 'smith' ? 'people-smith' : 'written', src: WSRC.find(s => s[0] === so)[1] + (so === 'smith' ? '' : ' (Pult’s table)'), note, go: ww ? { w: ww, bi: 0, r: null } : null }); }
     // the other works of your library: only the author's century in the catalogue
     const done = new Set(lanes.filter(L => L.wid).map(L => L.wid)), its = [];
     for (const w of works.values()) { if (wl(w.id).length || [...done].some(p => w.id.startsWith(p))) continue;
@@ -278,7 +283,8 @@ function tmpDraw() {
   const P = TP.prevLay;
   if (P && P.slots.length) { const fy = TP.focusY ?? (P.RH + 6), cy = fy - (P.RH + 6) + P.sy;
     const p = P.slots.find(s => cy < s.off + s.hs + 4) || P.slots[P.slots.length - 1], q = p && lay.find(s => s.key === p.key);
-    if (q) { const f = Math.min(1, Math.max(0, (cy - p.off) / (p.hs + 4))); TP.sy += (q.off + f * (q.hs + 4)) - (p.off + f * (p.hs + 4)); } }
+    if (q) { const f = Math.min(1, Math.max(0, (cy - p.off) / (p.hs + 4))); TP.sy += (q.off + f * (q.hs + 4)) - (p.off + f * (p.hs + 4)); }
+    if (P.sy > 0 && Date.now() - (TP.userMove || 0) < 500) { TP.sy += RH - P.RH; TP.over = Math.max(0, (TP.over || 0) + RH - P.RH); } }   // (only while you move it yourself, and not at the very top)                                                    // (820a: the header grows over the lanes – they stay where they are)
   tmpClampY();
   TP.prevLay = { RH, sy: TP.sy, slots: lay.map(s => ({ key: s.key, off: s.off, hs: s.hs })) };
   const y0 = RH + 6 - TP.sy, centers = [], marks = new Map(), from = [];
@@ -289,7 +295,9 @@ function tmpDraw() {
   g.strokeStyle = C.line; g.lineWidth = 1; g.globalAlpha = 0.5;
   for (let a = Math.ceil(A0 / step) * step; a < A1; a += step) { const x = Math.round(X(a)) + 0.5; g.beginPath(); g.moveTo(x, RH); g.lineTo(x, H); g.stroke(); }
   g.globalAlpha = 1;
-  const wmode = TP.fOn ? 'passage' : (TP.cfg.wlines || 'work');            // (815: one line per work, book or passage; with a filter, one per passage shown)
+  const nPass = TP.fOn ? lay.reduce((s, l) => s + l.ls.reduce((z, r) => z + r.its.filter(i => i.pass !== false && !i.wr).length, 0), 0) : 0;
+  const wmode = TP.fOn && nPass <= 30 ? 'passage' : (TP.cfg.wlines || 'work');   // (815, 821a: per work, book or passage; per passage when a filter leaves few in view)
+  const selIt = TP.sel?.it && !TP.sel.it.wr ? TP.sel.it : null;
   lay.forEach(({ ls, off, hs }, si) => {
     const top = y0 + off;
     ls.forEach(({ L, a, b, n, h, its: vis }, k) => {
@@ -301,6 +309,7 @@ function tmpDraw() {
         for (const it of L.its) { if (it.wr || !it.go?.w || (TP.fOn && it.pass === false)) continue;
           const kk = wmode === 'passage' ? it : wmode === 'book' ? it.go.w + '#' + (it.go.bi ?? 0) : it.go.w, o = by.get(kk); if (!o || it.t1 > o.t1) by.set(kk, it); }
         for (const it of by.values()) from.push({ w: it.go.w, x: X(it.t1) - 1, y: ry(it), dim: it.pass === false });
+        if (selIt && L.its.includes(selIt) && selIt.go?.w) from.push({ w: selIt.go.w, x: X(selIt.t1) - 1, y: ry(selIt), sel: true });   // (821: the tapped one's own line)
       }
       if (top >= H || top + hs <= RH) return;
       // 811a: alternate lanes faintly tinted or outlined – only over the span the lane covers
@@ -329,7 +338,7 @@ function tmpDraw() {
     for (const f of from) for (const wk of keys) { if (!f.w.startsWith(wk)) continue;
       for (const m of marks.get(wk)) {
         if (Math.max(f.x, m.x) < 0 || Math.min(f.x, m.x) > W || Math.max(f.y, m.y) < RH - 60 || Math.min(f.y, m.y) > H + 60) continue;
-        g.globalAlpha = f.dim || m.dim ? 0.12 : 0.5; const hgt = Math.min(22, 5 + Math.abs(m.x - f.x) / 10), c = Math.min(30, Math.abs(m.x - f.x) / 3) * Math.sign(m.x - f.x || 1);
+        g.globalAlpha = f.sel ? 0.95 : f.dim || m.dim ? 0.12 : 0.5; g.strokeStyle = g.fillStyle = f.sel ? C.acc : C.mut; g.lineWidth = f.sel ? 1.8 : 1; const hgt = Math.min(22, 5 + Math.abs(m.x - f.x) / 10), c = Math.min(30, Math.abs(m.x - f.x) / 3) * Math.sign(m.x - f.x || 1);
         g.beginPath(); g.moveTo(f.x, f.y); g.bezierCurveTo(f.x + c, f.y - hgt, m.x - c, m.y - hgt, m.x, m.y); g.stroke();
         g.beginPath(); g.arc(m.x, m.y, 1.8, 0, 7); g.fill(); } }
     g.globalAlpha = 1;
@@ -451,14 +460,15 @@ async function showTempora() {
 function tmpAt(px, py) { return TP.hit.slice().reverse().find(h => (py < TP.RH) === (h.emp != null) && px >= h.x0 - 3 && px <= h.x1 + 3 && py >= h.y0 - 2 && py <= h.y1 + 2) || null; }
 function tmpZoomX(f, px) { const a = TP.x0 + px / TP.ppy; TP.ppy = Math.min(4000, Math.max(0.005, TP.ppy * f)); TP.x0 = a - px / TP.ppy; tmpSave(); tmpRedraw(); }
 function tmpZoomY(f) { TP.lh = Math.min(90, Math.max(16, TP.lh * f)); tmpSave(); tmpRedraw(); }
-function tmpClampY() { const cv = $('#tmpCanvas'); const max = Math.max(0, (TP.contentH || 0) - (cv.clientHeight - (TP.RH || 0)) + 40); TP.sy = Math.min(max, Math.max(0, TP.sy)); }
+function tmpClampY() { const cv = $('#tmpCanvas'); const max = Math.max(0, (TP.contentH || 0) - (cv.clientHeight - (TP.RH || 0)) + 40, TP.over || 0);
+  TP.sy = Math.min(max, Math.max(0, TP.sy)); TP.over = Math.min(TP.over || 0, TP.sy); }   // (TP.over: how far the header has grown over the lanes)
 function tmpWire(cv) {
   new ResizeObserver(() => tmpRedraw()).observe(cv);
   let down = null, pinch = null, moved = false, lastTap = 0;
   cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); TP.ptr.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
     if (TP.ptr.size === 1) { down = { x: e.offsetX, y: e.offsetY, x0: TP.x0, ly: e.offsetY }; moved = false; }
     if (TP.ptr.size === 2) { const [p, q] = [...TP.ptr.values()]; TP.focusY = (p.y + q.y) / 2; pinch = { dx: Math.abs(p.x - q.x), dy: Math.abs(p.y - q.y), ppy: TP.ppy, lh: TP.lh, mx: (p.x + q.x) / 2, x0: TP.x0 }; down = null; } });
-  cv.addEventListener('pointermove', e => { if (!TP.ptr.has(e.pointerId)) return; TP.ptr.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+  cv.addEventListener('pointermove', e => { if (!TP.ptr.has(e.pointerId)) return; TP.userMove = Date.now(); TP.ptr.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
     if (pinch && TP.ptr.size === 2) { const [p, q] = [...TP.ptr.values()], dx = Math.abs(p.x - q.x), dy = Math.abs(p.y - q.y), mx = (p.x + q.x) / 2;
       const a = pinch.x0 + pinch.mx / pinch.ppy;                 // two fingers: across = time, up and down = lane height
       if (pinch.dx > 40) TP.ppy = Math.min(4000, Math.max(0.005, pinch.ppy * dx / pinch.dx));
@@ -473,7 +483,7 @@ function tmpWire(cv) {
     if (TP.ptr.size === 0) down = null; };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
   let wt = 0;
-  cv.addEventListener('wheel', e => { e.preventDefault();
+  cv.addEventListener('wheel', e => { e.preventDefault(); TP.userMove = Date.now();
     if (e.ctrlKey || e.metaKey || e.shiftKey) { TP.focusY = e.offsetY; clearTimeout(wt); wt = setTimeout(() => { TP.focusY = null; }, 400); }   // (the spot under the cursor stays put)
     if (e.ctrlKey || e.metaKey) tmpZoomX(Math.exp(-e.deltaY / 200), e.offsetX);
     else if (e.shiftKey) tmpZoomY(Math.exp(-e.deltaY / 300));
@@ -503,6 +513,8 @@ function tmpCardItem(h) {
   c.innerHTML = `<div class="tch"><b>${esc(it.lab)}</b><button type="button" data-tmpclose="1" aria-label="Close">✕</button></div>`
     + `<p>${esc(rangeTxt(it.t0, it.t1))}${it.fa || it.fb ? ' <small>(vague)</small>' : ''} · <span class="hint">${esc(it.src || '')}</span></p>`
     + (it.text ? `<p class="gk tmptext">${esc(it.text)}</p>` : '') + (it.note ? `<p class="hint">${esc(it.note)}</p>` : '')
+    + (!it.wr && it.go?.w && WRITTEN.some(r => it.go.w.startsWith(r[0])) ? `<p class="hint small">Written: ${WRITTEN.filter(r => it.go.w.startsWith(r[0])).map(r => esc(r[3].replace(/^(.*· )?/, ''))).join(' · ')}</p>` : '')
+    + (it.wr && it.wn > 1 ? `<p class="tact">${TP.cfg.wpick?.[it.wk] ? `<button type="button" data-tmpwpick="" data-wid="${esc(it.wk)}">Show all its dates of writing</button>` : `<button type="button" data-tmpwpick="${esc(it.wlab)}" data-wid="${esc(it.wk)}">Show only this date for this work</button>`}</p>` : '')
     + `<p class="tact">${it.go?.w ? `<button type="button" data-tmpgo="1">Open the passage</button>` : ''}${it.ref ? `<button type="button" data-tmpperson="${esc(it.ref)}">Person page</button>` : ''}`
     + `${it.place ? `<button type="button" data-tmpmap="1">Show on the map</button>` : ''}${it.own ? `<button type="button" data-tmpedit="${esc(it.own.id)}">Edit</button>` : ''}`
     + `<button type="button" data-tmpyear="${hy(Math.floor(it.t0 + 0.001))}">The year in all systems</button></p>`;
@@ -739,6 +751,8 @@ document.addEventListener('click', async ev => {
     return tmpRedraw(); }
   if (D.tmp === 'add') return tmpEdit(null);
   if (D.tmp === 'here') return tmpHere();
+  if (D.tmpwpick != null) { TP.cfg.wpick = TP.cfg.wpick || {}; if (D.tmpwpick) TP.cfg.wpick[D.wid] = D.tmpwpick; else delete TP.cfg.wpick[D.wid];
+    tmpSave(); $('#tmpCard').hidden = true; TP.sel = null; await tmpData(); return tmpRedraw(); }
   if (D.tmp === 'writ') { TP.cfg.written = !TP.cfg.written; b.classList.toggle('on', TP.cfg.written); tmpSave(); await tmpData(); return tmpRedraw(); }
   if (D.tmpz) { const W = $('#tmpCanvas').clientWidth; if (D.tmpz === 'x+') tmpZoomX(1.6, W / 2); if (D.tmpz === 'x-') tmpZoomX(1 / 1.6, W / 2); if (D.tmpz === 'y+') tmpZoomY(1.25); if (D.tmpz === 'y-') tmpZoomY(0.8); return; }
   if (D.tmpgo) return tmpGo(TP.sel?.it?.go);
