@@ -496,7 +496,7 @@ async function tmpData() {
     }
   }
   // "Written": when each work was written, in its own lane, joined to what it narrates by thin lines (drawn in tmpDraw)
-  if (cfg.written) {
+  {                                                       // (always built – shown only with “Written”, so that switching it moves nothing)
     const wl = wid => WRITTEN.filter(([p]) => wid.startsWith(p));
     const src = cfg.wsrc || {}, pick = cfg.wpick || {};                   // (which dates: by source – Settings – and, for a work, the one you chose)
     const short = r => r[6] === 'hb' ? 'written' : r[6] === 'claim' ? 'written (as it claims)' : r[7] || 'Smith';   // (829b: the full text in the card)
@@ -524,7 +524,7 @@ async function tmpData() {
       for (const [au, ws] of by) its.push({ t0: Math.min(...ws.map(i => i.t0)), t1: Math.max(...ws.map(i => i.t1)), fa: true, fb: true, lab: au + (ws.length > 1 ? ` · ${ws.length} works` : ''), kind: 'work', k2: 'written', sid: 'catalogue',
         wr: true, wk: ws[0].wk, wks: ws.map(i => i.wk), lv: 0, kids: ws, src: 'the catalogue (the author’s century only)', note: ws.map(i => i.lab.replace(/^[^,]*, /, '').replace(/ · .*$/, '')).join(' · ') });
       for (const [au, ws] of by) { const P = its.find(i => i.lv === 0 && i.kids === ws); for (const w of ws) w.par = P; }
-      const L = { id: 'wr:lib', g: 'Texts – when they were written', t: 'Your library – when written', its, have: true, levels: [0, 1] };
+      const L = { id: 'wr:lib', g: 'Texts – when they were written', t: 'Your library – when written', its, have: true, levels: [0, 1], wronly: true };
       L.avg = [0, 100, 0]; lanes.push(L);
     }
   }
@@ -588,11 +588,11 @@ function tmpLevels(L) {                                     // → { la, lb, f }
   const f2 = sm(lh, 24, 29);
   return f2 <= 0 ? { la: 1, lb: 1, f: 0 } : f2 >= 1 ? { la: 2, lb: 2, f: 0 } : { la: 1, lb: 2, f: f2 };
 }
-function laneShown(L) { return (L.have || TP.cfg.all) && !TP.cfg.lhide?.[L.id]; }
+function laneShown(L) { return (L.have || TP.cfg.all) && !TP.cfg.lhide?.[L.id] && (!L.wronly || TP.cfg.written); }
 // 828: the order of the lanes – pinned ones first in your order; then the text being read, what passes the filter, the rest by time
 function laneOrder(lanes) {
   const pin = TP.cfg.lpin || [], wid = S.text?.work?.id, cur = L => !!wid && (L.id.endsWith(':' + wid) || L.id.endsWith(wid) || (L.col && wid.startsWith(L.wid)));
-  const rank = L => { const p = pin.indexOf(L.id); return p >= 0 ? [0, p] : cur(L) ? [1, 0] : TP.fOn && L.its.some(i => i.pass) ? [2, L.a] : [3, isFinite(L.a) ? L.a : 1e9]; };
+  const rank = L => { const p = pin.indexOf(L.id); return L.wronly ? [9, 0] : p >= 0 ? [0, p] : cur(L) ? [1, 0] : TP.fOn && L.its.some(i => i.pass) ? [2, L.a] : [3, isFinite(L.a) ? L.a : 1e9]; };
   return lanes.map(L => [rank(L), L]).sort((p, q) => p[0][0] - q[0][0] || p[0][1] - q[0][1]).map(x => x[1]);
 }
 function tmpLayout(A0, A1) {
@@ -615,9 +615,9 @@ function tmpLayout(A0, A1) {
       const nOf = k => { const s = L.its.filter(i => (i.lv == null || i.lv === k) && on(i)); return s.length ? 1 + Math.max(...s.map(i => rw(i, k))) : 0; };
       n = nOf(la) + f * (nOf(lb) - nOf(la));
       atLv = i => i.lv == null || i.lv === (f < 0.5 ? la : lb); }
-    const its = L.its.filter(i => i._al > 0.01 && i.t1 > A0 && i.t0 < A1 && on(i));
+    const its = L.its.filter(i => i._al > 0.01 && i.t1 > A0 && i.t0 < A1 && on(i) && (TP.cfg.written || !i.wr));   // (the dates of writing keep their room, drawn only with “Written”)
     const a = isFinite(L.a) ? L.a : -1e9, b = isFinite(L.b) ? L.b : 1e9;
-    let s = slots.findIndex(S => S.every(M => b + GAP <= M.a || M.b + GAP <= a));
+    let s = L.wronly ? -1 : slots.findIndex(S => S.every(M => b + GAP <= M.a || M.b + GAP <= a));   // (your library's dates of writing: below all, sharing no level)
     if (s < 0) { s = slots.length; slots.push([]); }
     slots[s].push({ L, a, b, n, its, atLv });                            // (its height: the rows of all its items at this level, wherever they are – it changes only as you zoom)
   }
@@ -1108,7 +1108,7 @@ function tmpSearch(q, all) {
   const box = $('#tmpRes'); const k = tfold(q).trim(); if (!box) return;
   if (k.length < 2) { box.hidden = true; box.innerHTML = ''; return; }
   const hits = [], F = TP.data?.F;
-  for (const L of TP.data?.lanes || []) for (const it of L.its) { it._t ??= tfold([it.full, it.lab, it.text, it.note, it.own?.note].filter(Boolean).join(' ')); if (it._t.includes(k)) hits.push({ it, lab: it.full || it.lab, when: rangeTxt(it.t0, it.t1) }); }
+  for (const L of TP.data?.lanes || []) for (const it of L.its) { if (it.wr && !TP.cfg.written) continue; it._t ??= tfold([it.full, it.lab, it.text, it.note, it.own?.note].filter(Boolean).join(' ')); if (it._t.includes(k)) hits.push({ it, lab: it.full || it.lab, when: rangeTxt(it.t0, it.t1) }); }
   (F?.k || []).forEach((e, j) => { if (tfold(e[0] + ' ' + e[1].join(' ')).includes(k)) hits.push({ emp: j, lab: (e[7] === 'C' ? 'Caesar ' : e[7] === 'U' ? 'Usurper ' : 'Emperor ') + e[0], when: `${e[2]} – ${e[3]}` }); });
   for (const [y, v] of Object.entries(F?.c || {})) { if (y === 'b' || !v) continue; for (const p of [...(v.o || []), ...(v.s || [])]) if (tfold(p[0]).includes(k)) { hits.push({ year: +y, lab: 'Consul ' + p[0] + (p[1] > 1 ? ' ' + ROMN(p[1]) : ''), when: yTxt(+y) }); break; } }
   const shown = all ? hits : hits.slice(0, 12);
@@ -1218,7 +1218,7 @@ document.addEventListener('click', async ev => {
   if (D.tmpeclmap && TP.skySel) return tmpEclMap(TP.skySel);
   if (D.tmpwpick != null) { TP.cfg.wpick = TP.cfg.wpick || {}; if (D.tmpwpick) TP.cfg.wpick[D.wid] = D.tmpwpick; else delete TP.cfg.wpick[D.wid];
     tmpSave(); $('#tmpCard').hidden = true; TP.sel = null; await tmpData(); return tmpRedraw(); }
-  if (D.tmp === 'writ') { TP.cfg.written = !TP.cfg.written; b.classList.toggle('on', TP.cfg.written); tmpSave(); await tmpData(); return tmpRedraw(); }
+  if (D.tmp === 'writ') { TP.cfg.written = !TP.cfg.written; b.classList.toggle('on', TP.cfg.written); tmpSave(); return tmpRedraw(); }   // (nothing is rebuilt or moved)
   if (D.tmpz) { const W = $('#tmpCanvas').clientWidth; if (D.tmpz === 'x+') tmpZoomX(1.6, W / 2); if (D.tmpz === 'x-') tmpZoomX(1 / 1.6, W / 2); if (D.tmpz === 'y+') tmpZoomY(1.25); if (D.tmpz === 'y-') tmpZoomY(0.8); return; }
   if (D.tmpgo) return tmpGo(TP.sel?.it?.go);
   if (D.tmpwork) return libMenu(D.tmpwork);
