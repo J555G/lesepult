@@ -180,6 +180,18 @@
    "license": "CC-BY-SA-4.0",
    "bytes": 5531020,
    "version": "0bcbc1a91ffc"
+  },
+  {
+   "id": "fasti-liebenam",
+   "file": "fasti-liebenam.gdpkg.gz",
+   "name": "W. Liebenam, Fasti consulares imperii Romani von 30 v. Chr. bis 565 n. Chr. mit Kaiserliste und Anhang",
+   "kind": "fasti",
+   "src": "la",
+   "title": "Kleine Texte 41/43, Bonn 1909 · the consuls by year and the table of emperors, read from the scan (archive.org) – used to tell which emperor or consul a name means",
+   "source": "archive.org/details/fasticonsularesi0000lieb (the printed text in the public domain)",
+   "license": "public domain",
+   "bytes": 31882,
+   "version": "5e1aa9746bb3"
   }
  ]
 }

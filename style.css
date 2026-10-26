@@ -2224,3 +2224,7 @@ dialog .sver{-webkit-user-select:none;user-select:none;touch-action:manipulation
 #peopleBody .ppidbox{border-bottom:1px solid var(--line);padding:.5rem .2rem}
 #peopleBody .ppidbox>.ppn{font:15px var(--greek)}
 #peopleBody .ppidbox>.ppd{font:14px var(--ui);color:var(--mut);margin-bottom:.2rem}
+/* 776: offices from the table of reigns and consuls (person page) */
+.ppoff { margin: .35em 0 .1em; font-size: .92em; line-height: 1.45; }
+.ppoff b { font-weight: 600; }
+.ppoff small.hint { display: block; font-size: .8em; }

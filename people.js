@@ -114,7 +114,8 @@ async function identTables(wid, bi) {
     const at = new Map(), dflt = new Map(), book = +((await libGet('works', wid))?.books?.[bi] || '').replace(/\D/g, '');
     for (const [b, ref, j] of r.r) if (b === bi) { if (!at.has(ref)) at.set(ref, []); at.get(ref).push(j); }
     r.e.forEach((e, j) => { if (e[6]?.includes(book)) for (const k of e[5]) { if (!dflt.has(k)) dflt.set(k, []); dflt.get(k).push(j); } });
-    const own = new Map((await getAll('settings', IDBKeyRange.bound(`idm|${d.id}|`, `idm|${d.id}|￿`))).map(x => [+x.k.split('|')[2], x.v]));   // 775: your matches
+    // 775/777: your matches, kept under the index's name and number, so they hold for the same person in every volume of the index (and survive rebuilds)
+    const own = new Map(); for (const x of await getAll('settings', IDBKeyRange.bound(`idm|${d.id}|`, `idm|${d.id}|￿`))) { const k = x.k.split('|').slice(2).join('|'); own.set(/^\d+$/.test(k) ? idKey(r.e[+k] || []) : k, x.v); }
     out.push({ d, e: r.e, r: r.r, at, dflt, own, src: 'identified by ' + (r.src || d.name) });
   }
   return out.length ? out : null;
@@ -123,9 +124,52 @@ async function identTables(wid, bi) {
 const LATEND = /(ibus|orum|arum|ius|ium|iis|ii|io|ia|ae|am|em|im|is|es|os|um|us|ui|a|e|i|o|u)$/;
 const latStem = k => { const s = k.replace(LATEND, ''); return s.length >= 3 ? s : k; };
 const stemFit = (a, b) => a === b || (!/[α-ω]/.test(a + b) && latStem(a) === latStem(b));
+const idKey = e => gkey(e[0] || '') + '#' + (e[1] ?? '');   // 777: an index person = its name and number
+function idOwn(T, j) { const c = T.e[j][7] ?? j, a = T.own.get(idKey(T.e[c])); return a !== undefined ? a : T.own.get(idKey(T.e[j])); }
 function identHit(T, j) {                         // one entry of the index: its person (your match first), shown under its main entry
-  const c = T.e[j][7] ?? j, o = T.own.get(c);
+  const c = T.e[j][7] ?? j, o = idOwn(T, j);
   return { target: o === undefined ? T.e[c][4] || T.e[j][4] : o || null, ref: T.d.id + '|' + c, src: T.src };
+}
+// ---- 776: the table of reigns and consuls (Liebenam, Fasti consulares imperii Romani, 1909) – which emperor a name or a title means
+async function fastiTab() {
+  const d = Object.values(S.installed || {}).find(x => x.kind === 'fasti' && !S.dictPrefs?.off?.includes(x.id)); if (!d) return null;
+  const key = d.id + '|' + d.version; if (PP.fasti?.key === key) return PP.fasti;
+  const k = await pplRec(d, '#k'), by = await pplRec(d, '#by'), nd = await pplRec(d, '#nd'), off = new Map();
+  for (const [ref, os] of Object.entries(by || {})) { if (ref === 'b') continue;
+    off.set(ref, [...(off.get(ref) || []), ...os]);
+    const { d: dd, i } = pplParse(ref), sec = dd ? (await pplIx(dd))?.p?.[i]?.[7] : null;   // (739: the sections of one article as one)
+    if (sec != null) { const r2 = pref(dd, sec); off.set(r2, [...(off.get(r2) || []), ...os]); } }
+  return PP.fasti = { key, d, k: k?.e || [], off, nd: nd || {} };
+}
+async function narrYears(t) {                    // the years the book being read narrates (so far: Ammianus) – [from, to] or null
+  const F = await fastiTab(), m = t?.work ? F?.nd?.[t.work.id] : null; if (!m) return null;
+  const book = +((await libGet('works', t.work.id))?.books?.[t.bi] || '').replace(/\D/g, '');
+  return m[book] || null;
+}
+const caesarFrom = e => Math.min(e[4], e[6] ?? e[4]);
+function inOffice(F, ny, cands) {                // the candidates who were emperor (or Caesar) in the years the book narrates
+  if (!F || !ny) return [];
+  return cands.filter(c => (F.off.get(c) || []).some(o => o[0] === 'emp' && F.k[o[1]] && caesarFrom(F.k[o[1]]) <= ny[1] && F.k[o[1]][5] >= ny[0]));
+}
+function titleAt(F, ny, k) {                     // "Augustus" / "Caesar" alone: the one emperor who held it all through those years
+  if (!F || !ny) return null;
+  const aug = k === 'augustus' || k === 'imperator';
+  const early = ny[1] < 138;                     // (before Hadrian "Caesar" alone is the emperor himself)
+  const es = F.k.filter(e => e[10]?.length && (aug || early ? e[7] === 'A' && e[4] <= ny[1] && e[5] >= ny[0]
+    : (e[7] === 'A' || e[7] === 'C') && e[6] != null && e[6] <= ny[1] && Math.min(e[4], e[5] + 1) > ny[0]));
+  return es.length === 1 ? es[0] : null;
+}
+function officesHTML(F, ref) {                   // a person's offices from the table (person page)
+  const os = F?.off.get(ref); if (!os?.length) return '';
+  const em = [...new Set(os.filter(o => o[0] === 'emp').map(o => o[1]))].map(j => F.k[j]).filter(Boolean);
+  const co = os.filter(o => o[0] === 'cos').sort((a, b) => a[1] - b[1]), seen = new Set(), cs = [];
+  for (const o of co) { const t = (o[1] < 0 ? -o[1] + ' BC' : o[1]) + (o[2] > 1 ? ` (${['', '', 'II', 'III', 'IIII', 'V', 'VI', 'VII', 'VIII', 'VIIII', 'X'][o[2]] || o[2] + '×'})` : '') + (o[3] === 's' ? ' suff.' : '');
+    if (!seen.has(t)) { seen.add(t); cs.push(t); } }
+  let h = '';
+  for (const e of em) h += e[7] === 'C' ? `<div><b>Caesar</b> ${esc(e[2])} – ${esc(e[3])} <small>(${esc(e[0])}; Clinton, Fasti Romani)</small></div>`
+    : `<div><b>${e[7] === 'U' ? 'Usurper' : 'Emperor'}</b> ${esc(e[0])}: ${e[6] != null && e[6] < e[4] ? `Caesar ${e[6] < 0 ? -e[6] + ' BC' : e[6]}, ` : ''}${esc(e[2])} – ${esc(e[3])}${e[8] ? ` <small>(${e[8] === 'W' ? 'West' : 'East'})</small>` : ''}</div>`;
+  if (cs.length) h += `<div><b>Consul</b> ${cs.map(esc).join(' · ')}</div>`;
+  return h ? `<div class="ppoff">${h}<small class="hint">from Liebenam, Fasti consulares (1909)</small></div>` : '';
 }
 function identAt(tabs, tk, ref) {
   if (!ref) return null;
@@ -160,6 +204,7 @@ async function personsForText() {
   const memo = new Map(), items = [], rjOf = new Map(); let rj = -1, start = true;
   // 753a: nobody who lived after the text was written (Smith: the earliest year his article mentions; PIR: the imperial period)
   const wy = typeof workYear === 'function' ? await workYear(t).catch(() => null) : null, ixs = new Map();
+  const F = await fastiTab(), ny = await narrYears(t);            // 776: the table of reigns, the years this book narrates
   for (const d of pk) ixs.set(d.id, await pplIx(d));
   const early = c => { if (wy == null) return true; const { d, i } = pplParse(c); const y0 = d?.id === 'people-pir' ? -31 : ixs.get(d?.id)?.p?.[i]?.[4]; return y0 == null || y0 <= wy + 40; };   // (DPRR: the beginning of the person's era)
   const look = async k => { if (!k) return []; let c = memo.get(k); if (!c) memo.set(k, c = (await personsFor(k)).filter(early)); return c; };
@@ -210,6 +255,8 @@ async function personsForText() {
     if (c1.length === 1) return { pick: c1[0], sure: true, why: 'cited by the source at this place' };
     if (!lem && st) return null;                                // no lemma, at the start of a sentence: "Mene …" is no name
     if (cands.length === 1) return { pick: cands[0], sure: true, why: why0 || 'the only person of this name' };
+    const em = inOffice(F, ny, cands);                         // 776: the emperor (or Caesar) of the years the book narrates
+    if (em.length === 1) return { pick: em[0], sure: false, why: `probably – the emperor or Caesar in ${ny[0] === ny[1] ? 'AD ' + ny[0] : 'AD ' + ny[0] + '–' + ny[1]}, the years this book narrates (Liebenam’s table of emperors)` };
     if (cw.length === 1) return { pick: cw[0], sure: false, why: 'probably – the only one of this name cited in this work' };   // 749: a preference, to check
     return { pick: null, sure: false, why: `${cands.length} persons of this name` };
   };
@@ -223,7 +270,15 @@ async function personsForText() {
     let seq = items.slice(j, e); j = e;
     while (seq.length > 1 && seq[seq.length - 1].abbr) seq = seq.slice(0, -1);   // "Constantio A.": no name follows
     if (seq.length === 1) {
-      const x = seq[0]; if (x.abbr || (x.title && !x.idh) || (!x.cands?.length && !x.idh)) continue;   // 744: "Augustus", "Caesar" alone – left for the table of reigns
+      const x = seq[0];
+      if (x.title && !x.idh && !x.abbr) {                       // 744/776: "Augustus", "Caesar" alone – the one who held the title in those years
+        const e = titleAt(F, ny, x.k), ft = fix.t?.[t.bi + ':' + x.tk.i] ?? fix.t?.[x.tk.i];
+        if (ft === 0) continue;
+        if (ft) { put({ k: x.k, cands: [ft], pick: ft, sure: true, why: 'chosen by you' }, seq); continue; }
+        if (e) put({ k: x.k, cands: [...e[10]], pick: e[10][0], sure: false, why: `probably – ${e[0]}, ${x.k === 'caesar' ? 'the Caesar' : 'the Augustus'} in the years this book narrates (Liebenam’s table of emperors)` }, seq);
+        continue;
+      }
+      if (x.abbr || (!x.cands?.length && !x.idh)) continue;
       const d = decide(x.cands, x.tk.i, x.k, x.st, x.lem, null, x.idh); if (d) put(Object.assign({ k: x.k, cands: x.cands }, d), seq);
       continue;
     }
@@ -378,6 +433,7 @@ async function pplPersonHTML(ref, ti) {
   r.kinds.sort((a, b) => PKINDS.indexOf(a) - PKINDS.indexOf(b));
   let h = `<div class="pphead"><div class="ppname">${esc(e.h)}${r.no ? ` <small>${r.no}</small>` : ''}</div>${e.g ? `<div class="ppgreek gk">${esc(e.g)}</div>` : ''}`
     + `<div class="ppmeta">${r.y0 != null ? `<span title="the years the article mentions">years mentioned: ${yearsTxt(r.y0, r.y1)}</span> · ` : ''}${kindChips(r, true)}${r.ownKinds ? ' <small class="hint">(your kinds)</small>' : ''}</div>`
+    + officesHTML(await fastiTab(), ref)
     + (h0 ? `<div class="ppat">${h0.sure ? `Marked in the text: ${esc(h0.why)}.` : 'Not yet certain in the text.'} <button type="button" data-ppname="${esc(h0.k)}" data-ti="${ti}">${h0.cands.length > 1 ? 'Someone else?' : 'Not this person?'}</button></div>` : '')
     + '</div>';
   // the sources, each by itself (as in the dictionary): the encyclopaedia, then the Suda under the person's Greek names
@@ -422,7 +478,7 @@ async function idMatchList(tabs) {
   for (const T of tabs) {
     const cnt = new Map(); for (const [, , j] of T.r) { const c = T.e[j][7] ?? j; cnt.set(c, (cnt.get(c) || 0) + 1); }
     for (let j = 0; j < T.e.length; j++) {
-      const e = T.e[j]; if (e[7] != null || e[3] === 'l' || e[4] || T.own.has(j) || !cnt.get(j)) continue;
+      const e = T.e[j]; if (e[7] != null || e[3] === 'l' || e[4] || idOwn(T, j) !== undefined || !cnt.get(j)) continue;
       if (e[3] === '?' && !T.e.some(x => x[7] === j)) continue;
       const cs = (await personsFor(e[5][0])).filter(c => { const { d, i } = pplParse(c); const y0 = d?.id === 'people-pir' ? -31 : null; return y0 == null || y0 <= 420; });
       if (cs.length) out.push({ T, j, e, cs, n: cnt.get(j) });
@@ -436,9 +492,9 @@ async function pplIdMatchHTML() {
   if (!L.length) return '<p class="hint">Every person of the index is matched (or has no namesake in the encyclopaedias).</p>';
   let h = `<div class="pphead"><div class="ppname">Persons of the index to match</div><div class="ppmeta">${L.length} · most passages first · your matches go into the backup</div></div><div class="list plain">`;
   for (const x of L.slice(0, 80)) {
-    const rows = []; for (const c of x.cs.slice(0, 8)) { const { d, i } = pplParse(c), r = await pplRow(d, i); if (r) rows.push(`<div class="ppchk">${rowHTML(r)}<span class="ppchoose"><button type="button" data-ppidset="${esc(c)}" data-d="${esc(x.T.d.id)}" data-j="${x.j}">This one</button></span></div>`); }
+    const rows = []; for (const c of x.cs.slice(0, 8)) { const { d, i } = pplParse(c), r = await pplRow(d, i); if (r) rows.push(`<div class="ppchk">${rowHTML(r)}<span class="ppchoose"><button type="button" data-ppidset="${esc(c)}" data-d="${esc(x.T.d.id)}" data-j="${esc(idKey(x.e))}">This one</button></span></div>`); }
     h += `<div class="ppidbox"><div class="ppn"><b>${esc(x.e[0])}</b>${x.e[1] ? ` <small>${x.e[1]}</small>` : ''} <small>${x.n} passage${x.n === 1 ? '' : 's'}</small></div><div class="ppd">${esc(x.e[2] || '(no description in the index)')}</div>${rows.join('')}`
-      + `<div class="ppnot"><button type="button" data-ppidset="0" data-d="${esc(x.T.d.id)}" data-j="${x.j}">None of these</button></div></div>`;
+      + `<div class="ppnot"><button type="button" data-ppidset="0" data-d="${esc(x.T.d.id)}" data-j="${esc(idKey(x.e))}">None of these</button></div></div>`;
   }
   return h + '</div>';
 }
