@@ -2228,3 +2228,34 @@ dialog .sver{-webkit-user-select:none;user-select:none;touch-action:manipulation
 .ppoff { margin: .35em 0 .1em; font-size: .92em; line-height: 1.45; }
 .ppoff b { font-weight: 600; }
 .ppoff small.hint { display: block; font-size: .8em; }
+/* Tempora (v432): the chronograph */
+#temporaBody{position:absolute;inset:0;overflow:hidden;font-family:var(--ui);display:flex;flex-direction:column}
+#temporaBody[hidden]{display:none}
+.tmpbar{display:flex;gap:6px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--line);background:var(--bar);flex:0 0 auto;flex-wrap:wrap}
+.tmpbar button{font:inherit;font-size:.86rem;padding:4px 9px;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--fg)}
+.tmpbar .sp{flex:1}
+.tmpseg{display:inline-flex}.tmpseg button{border-radius:0}.tmpseg button:first-child{border-radius:7px 0 0 7px}.tmpseg button:last-child{border-radius:0 7px 7px 0;border-left:0}
+.tmpseg button.on{background:var(--acc2);color:var(--bg);border-color:var(--acc2)}
+.tmpwrap{position:relative;flex:1 1 auto;min-height:0}
+#tmpCanvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab}
+#tmpHint{position:absolute;left:12px;right:12px;bottom:12px;z-index:2;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:0}
+.tmpcard,.tmppanel{position:absolute;z-index:3;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.18);font-size:.9rem}
+.tmpcard{left:10px;right:10px;bottom:10px;max-height:46%;overflow:auto;padding:8px 12px}
+.tmppanel{top:46px;left:8px;width:min(340px,calc(100% - 16px));bottom:10px;overflow:auto;padding:8px 12px}
+.tmpcard p{margin:.3em 0}.tmpcard .tact{display:flex;flex-wrap:wrap;gap:6px}
+.tmpcard button,.tmppanel button{font:inherit;font-size:.85rem;padding:3px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bar);color:var(--fg)}
+.tch{display:flex;justify-content:space-between;align-items:center;gap:8px}.tch button{border:0!important;background:none!important;font-size:1rem}
+table.tsys{border-collapse:collapse;width:100%}table.tsys th{text-align:left;font-weight:600;color:var(--mut);padding:2px 10px 2px 0;white-space:nowrap;vertical-align:top}table.tsys td{padding:2px 0}
+.tpsec{margin:.5em 0 1em}.tph{font-weight:600;margin:.3em 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tph input{flex:1;min-width:140px;font:inherit;padding:3px 7px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
+.tmppanel label{display:flex;gap:6px;align-items:baseline;padding:2px 0}.tmppanel label[hidden]{display:none}
+.tpg{margin:.6em 0 .2em;font-size:.75rem;letter-spacing:.04em;text-transform:uppercase;color:var(--mut)}
+.tprm{margin-left:auto;border:0!important;background:none!important;color:var(--mut)!important}
+dialog.tmpdlg form{display:flex;flex-direction:column;gap:8px;min-width:min(420px,86vw)}
+dialog.tmpdlg label{display:flex;flex-direction:column;gap:3px;font-size:.9rem}
+dialog.tmpdlg input,dialog.tmpdlg select{font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
+dialog.tmpdlg .dlgbtns{display:flex;gap:8px;margin:.4em 0 0}dialog.tmpdlg .dlgbtns .sp{flex:1}
+.pptmp{margin:.35em 0}.pptmp button{font:inherit;font-size:.85rem;padding:3px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bar);color:var(--fg)}
+#tabTempora svg.tpico{width:22px;height:22px;color:var(--fg)}#tabTempora.on svg.tpico{color:var(--acc)}
+.tmpmk{--h:20;background:hsl(var(--h),55%,45%);color:#fff;border-radius:6px;padding:2px 6px;font:12px/1.2 var(--ui);box-shadow:0 1px 4px rgba(0,0,0,.35);cursor:pointer;display:flex;flex-direction:column;max-width:160px}
+.tmpmk small{opacity:.85;font-size:10px}

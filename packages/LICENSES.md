@@ -21,6 +21,7 @@ Only freely licensed material is published here.
 | `enc-smith-geo.gdpkg.gz` | William Smith (ed.), *Dictionary of Greek and Roman Geography* (London 1854): 11,594 entries | Perseus Digital Library, https://github.com/PerseusDL/canonical-pdlrefwk – text provided under a CC BY-SA license by the Perseus Digital Library, with funding from the National Endowment for the Humanities and Tufts University | CC BY-SA 4.0 |
 | `enc-smith-ant.gdpkg.gz` | William Smith, William Wayte, G. E. Marindin (eds.), *A Dictionary of Greek and Roman Antiquities* (3rd ed., London 1890): 3,767 entries | the same | CC BY-SA 4.0 |
 | `fasti-liebenam.gdpkg.gz` | W. Liebenam, *Fasti consulares imperii Romani von 30 v. Chr. bis 565 n. Chr. mit Kaiserliste und Anhang* (Bonn 1909): 108 emperors and the consuls of each year, read from the scan; 5 Caesars who never became Augustus from H. F. Clinton, *Fasti Romani* I (Oxford 1845) | Internet Archive, https://archive.org/details/fasticonsularesi0000lieb | public domain |
+| `chrono-texts.gdpkg.gz` | Tempora – dates read from the library's texts: Diodorus' year headers (Books 11–20: archons, consuls, Olympiads), 170 years | the texts of the library (Perseus Digital Library) | CC BY-SA 4.0 |
 
 The packages are a reformatted conversion of the sources above (grouped by lookup key, gzip-compressed JSON),
 made with the `greekdict` toolkit (`python gd.py packages`). The full GPL v3 text: https://www.gnu.org/licenses/gpl-3.0.html

@@ -743,6 +743,7 @@ async function showMap1() {
   } else M.map.resize();
   M.step = 'places'; renderTime();
   await refreshMapData();
+  if (typeof tmpMapMarkers === 'function') tmpMapMarkers();       // (Tempora: your statements with a place)
   M.step = 'done';
 }
 // the map's graphics lost (phones and iPads, when their graphics memory is needed elsewhere): the map made anew at the same view

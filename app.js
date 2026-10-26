@@ -166,7 +166,7 @@ function wire() {
     S.dictPrefs.off = [...off]; if (!S.dictPrefs.order.length) S.dictPrefs.order = S.dicts.map(d => d.id);
     await setting('dictPrefs', S.dictPrefs); await loadDicts(); bucketCache.clear(); if (S.view) renderView(); srcColState();
     if (id === 'morph' || id === 'morphhints') { resetTokens(); renderText(); resolveTokens(); }
-    if (['people', 'encyclopedia', 'ident', 'fasti'].includes(S.installed[id]?.kind)) { await personsForText(); if (S.tab === 'people') pplRender(); }
+    if (['people', 'encyclopedia', 'ident', 'fasti', 'chrono'].includes(S.installed[id]?.kind)) { await personsForText(); if (S.tab === 'people') pplRender(); if (S.tab === 'tempora') showTempora(); }
   });
   document.addEventListener('change', async ev => {
     const t = ev.target, c = t.dataset?.posc; if (!c) return;

@@ -192,6 +192,18 @@
    "license": "public domain",
    "bytes": 32458,
    "version": "1f0d441e163b"
+  },
+  {
+   "id": "chrono-texts",
+   "file": "chrono-texts.gdpkg.gz",
+   "name": "Tempora – dates read from the library's texts",
+   "kind": "chrono",
+   "src": "grc",
+   "title": "Diodorus' year headers (Books 11–20); more to come",
+   "source": "the texts of the library (Perseus Digital Library)",
+   "license": "CC BY-SA 4.0",
+   "bytes": 8882,
+   "version": "46ec643cf168"
   }
  ]
 }

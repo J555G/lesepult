@@ -342,6 +342,7 @@ async function personsForText() {
   }
   markPersons();
   if (S.tab === 'people' && (!PP.view || PP.view.t === 'text')) pplRender();
+  if (S.tab === 'tempora' && typeof showTempora === 'function') showTempora();   // (the consular dates of this text)
 }
 const workKeyOfText = t => t?.work ? t.work.id : 'imp:' + t?.id;
 async function prsMarkOn() { return (S.prsMark ??= (await setting('prsMark')) ?? true); }
@@ -484,7 +485,7 @@ async function pplPersonHTML(ref, ti) {
   r.kinds.sort((a, b) => PKINDS.indexOf(a) - PKINDS.indexOf(b));
   let h = `<div class="pphead"><div class="ppname">${esc(e.h)}${r.no ? ` <small>${r.no}</small>` : ''}</div>${e.g ? `<div class="ppgreek gk">${esc(e.g)}</div>` : ''}`
     + `<div class="ppmeta">${r.y0 != null ? `<span title="the years the article mentions">years mentioned: ${yearsTxt(r.y0, r.y1)}</span> · ` : ''}${kindChips(r, true)}${r.ownKinds ? ' <small class="hint">(your kinds)</small>' : ''}</div>`
-    + officesHTML(await fastiTab(), ref)
+    + officesHTML(await fastiTab(), ref) + `<div class="pptmp"><button type="button" data-tmpshow="${esc(ref)}">Show in Tempora</button></div>`
     + (h0 ? `<div class="ppat">${h0.sure ? `Marked in the text: ${esc(h0.why)}.` : 'Not yet certain in the text.'} <button type="button" data-ppname="${esc(h0.k)}" data-ti="${ti}">${h0.cands.length > 1 ? 'Someone else?' : 'Not this person?'}</button></div>` : '')
     + '</div>';
   // the sources, each by itself (as in the dictionary): the encyclopaedia, then the Suda under the person's Greek names

@@ -552,10 +552,11 @@ function showTab(which) {
   const cur = S.tab || ($('#listBody').hidden ? 'entry' : 'list');
   if (cur !== which) { S.tabSw = true; clearTimeout(S.tabSwT); S.tabSwT = setTimeout(() => { S.tabSw = false; }, 1500); }
   S.tab = which;
-  $('#tabEntry').classList.toggle('on', which === 'entry'); $('#tabList').classList.toggle('on', which === 'list'); $('#tabMap')?.classList.toggle('on', which === 'map'); $('#tabPeople')?.classList.toggle('on', which === 'people');
+  $('#tabEntry').classList.toggle('on', which === 'entry'); $('#tabList').classList.toggle('on', which === 'list'); $('#tabMap')?.classList.toggle('on', which === 'map'); $('#tabPeople')?.classList.toggle('on', which === 'people'); $('#tabTempora')?.classList.toggle('on', which === 'tempora');
   $('#dictBody').hidden = which !== 'entry'; $('#listBody').hidden = which !== 'list';
   const mb = $('#mapBody'); if (mb) mb.hidden = which !== 'map';
   const pb = $('#peopleBody'); if (pb) pb.hidden = which !== 'people';
-  $('#dictPane').classList.toggle('mapmode', which === 'map');
+  const tb = $('#temporaBody'); if (tb) tb.hidden = which !== 'tempora';
+  $('#dictPane').classList.toggle('mapmode', which === 'map' || which === 'tempora');
   navButtons();
 }

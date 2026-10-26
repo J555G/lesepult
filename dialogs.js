@@ -379,12 +379,12 @@ async function dictsDialog() {
     if (d.kind === 'morph') return toolRow('grc', d);
     if (d.kind === 'latmorph') return toolRow('la', d);
     if (d.kind === 'morphhints') return hintsRow();
-    if (['people', 'encyclopedia', 'ident', 'fasti'].includes(d.kind)) return pplInstRow(d);
+    if (['people', 'encyclopedia', 'ident', 'fasti', 'chrono'].includes(d.kind)) return pplInstRow(d);
     return ''; };
   // People: encyclopaedias and prosopographies (the People tab, the marks on names)
   const pplInstRow = d => pkRow({ id: d.id, sw: SW(`data-dict-on="${d.id}" aria-label="Use ${esc(d.name)}"`, !S.dictPrefs.off.includes(d.id)), name: esc(d.name),
-    desc: `${esc(d.title || '')}${d.count ? ' · ' + d.count.toLocaleString('en') + (d.kind === 'people' ? ' persons' : d.kind === 'ident' ? ' names identified' : d.kind === 'fasti' ? ' emperors, the consuls of 30 BC – AD 565' : ' entries') : ''}${d.size ? ' · ' + mbs(d.size) : ''}`, right: getBtn(d.id), del: delD(d.id) });
-  const PPLK = ['people', 'encyclopedia', 'ident', 'fasti'];
+    desc: `${esc(d.title || '')}${d.count ? ' · ' + d.count.toLocaleString('en') + (d.kind === 'people' ? ' persons' : d.kind === 'ident' ? ' names identified' : d.kind === 'fasti' ? ' emperors, the consuls of 30 BC – AD 565' : d.kind === 'chrono' ? ' dated items' : ' entries') : ''}${d.size ? ' · ' + mbs(d.size) : ''}`, right: getBtn(d.id), del: delD(d.id) });
+  const PPLK = ['people', 'encyclopedia', 'ident', 'fasti', 'chrono'];
   const pplInst = Object.values(S.installed).filter(d => PPLK.includes(d.kind)).sort((a, b) => (a.order ?? 99) - (b.order ?? 99)),
     pplAv = Object.values(remote).filter(p => !S.installed[p.id] && PPLK.includes(p.kind))
     .map(p => pkRow({ grip: '<span class="trsp"></span>', name: esc(p.name), desc: `${esc(p.title || '')}${p.title ? ' · ' : ''}${mbs(p.bytes)} download${p.priv ? ' · private repository' : ''}`, right: getBtn(p.id), cls: 'avail' })).join('');
@@ -392,7 +392,7 @@ async function dictsDialog() {
     + '<p class="hint small">Persons, places and things of the texts, shown in the Suda tab beside the dictionary, with the Suda itself (a dictionary – under Dictionaries → Greek). Names of persons get a line beneath them in the text (switch: Settings → Reading → Colourisation).</p>';
   const addons = { grc: S.hintsInst ? pkRow({ id: S.hintsInst.id, sw: SW(`data-dict-on="${S.hintsInst.id}"`, !S.dictPrefs.off.includes(S.hintsInst.id)), name: esc(S.hintsInst.name), desc: 'preferred lemma for ambiguous forms; word classes for the colours', right: getBtn(S.hintsInst.id), del: delD(S.hintsInst.id) }) : '', la: '' };
   const usedName = lang => langTools(lang).find(x => !S.dictPrefs.off.includes(x.id))?.name || 'none';
-  const isTool = Object.assign(p => !['dictionary', 'people', 'encyclopedia', 'ident', 'fasti'].includes(p.kind), { spacer: '<span class="trsp"></span>' });
+  const isTool = Object.assign(p => !['dictionary', 'people', 'encyclopedia', 'ident', 'fasti', 'chrono'].includes(p.kind), { spacer: '<span class="trsp"></span>' });
   const toolBody = Object.entries(LANGS).map(([lang, name]) => { const av = avail(lang, isTool);
       return `<div class="navh2">${name}</div><div class="list plain">${tLang[lang].join('')}${tLang[lang].length ? none(lang) : ''}${av}${tLang[lang].length || av ? '' : '<p class="hint small">None available.</p>'}</div>`
         + (addons[lang] ? `<div class="navh3">Add-ons</div><div class="list plain">${addons[lang]}</div>` : ''); }).join('')
@@ -891,7 +891,7 @@ async function backupData() {
     places: Object.fromEntries((await getAll('settings')).filter(r => /^(pl|plw|plg|pown|draw|dset|mmap|wyear)\|/.test(r.k)).map(r => [r.k, r.v])),
     mapCfg: (await setting('mapCfg')) || null,
     // People: who is meant by a name (per work), the kinds of persons changed by the reader
-    people: Object.fromEntries((await getAll('settings')).filter(r => /^(prs|pk|idm)\|/.test(r.k)).map(r => [r.k, r.v])),
+    people: Object.fromEntries((await getAll('settings')).filter(r => /^(prs|pk|idm|tmp)\|/.test(r.k) || r.k === 'tmpCfg').map(r => [r.k, r.v])),
     favourites: (await setting('favs')) || {},
     prefs: { theme: document.documentElement.dataset.theme, textZoom: S.tz || 1, posCfg: S.posCfg, posOn: S.posOn, gramCfg: S.gramCfg, showGloss: !document.body.classList.contains('nogloss'),
       glossMode: S.glossMode, latQuant: S.latQuant, sudaMerge: S.sudaMerge, gramBtn: S.gramBtn, showGram: S.gram, dictPrefs: S.dictPrefs } };
@@ -997,7 +997,7 @@ async function restoreBackup(file) {
   for (const [k, r] of Object.entries(data.markers || {})) await setting('mk|' + k, r);
   for (const [k, r] of Object.entries(data.readings || {})) await setting('an|' + k, r);
   for (const [k, r] of Object.entries(data.places || {})) if (/^(pl|plw|plg|pown|draw|dset|mmap|wyear)\|/.test(k)) await setting(k, r);
-  for (const [k, r] of Object.entries(data.people || {})) if (/^(prs|pk|idm)\|/.test(k)) await setting(k, r);
+  for (const [k, r] of Object.entries(data.people || {})) if (/^(prs|pk|idm|tmp)\|/.test(k) || k === 'tmpCfg') await setting(k, r);
   if (typeof M !== 'undefined') M.draw = null;                    // drawings are read again
   if (data.mapCfg) { await setting('mapCfg', data.mapCfg); if (typeof M !== 'undefined') { M.cfg = null; M.P = null; M.own = new Map(); } }
   if (data.favourites) { S.favs = Object.assign((await setting('favs')) || {}, data.favourites); await setting('favs', S.favs); }
@@ -1039,7 +1039,8 @@ const ACKS = [
     ['William Smith (ed.), A Dictionary of Greek and Roman Biography and Mythology (London 1849) – Perseus Digital Library, canonical-pdlrefwk', 'https://github.com/PerseusDL/canonical-pdlrefwk', 'the persons of the People tab and the passages where they are cited; text provided under a CC BY-SA license by the Perseus Digital Library, with funding from the National Endowment for the Humanities and Tufts University', 'CC BY-SA 4.0 (text of 1849 in the public domain)'],
     ['William Smith (ed.), Dictionary of Greek and Roman Geography (London 1854) and A Dictionary of Greek and Roman Antiquities (3rd ed., London 1890, with W. Wayte and G. E. Marindin) – Perseus Digital Library', 'https://github.com/PerseusDL/canonical-pdlrefwk', 'places and things in the Suda tab', 'CC BY-SA 4.0 (printed texts in the public domain)'],
     ['Prosopographia Imperii Romani (PIR²) – Berlin-Brandenburg Academy of Sciences and Humanities', 'https://pir.bbaw.de', 'persons of the imperial period (31 BC – AD 284), with Smith’s where they are the same', 'CC BY 4.0'],
-    ['W. Liebenam, Fasti consulares imperii Romani von 30 v. Chr. bis 565 n. Chr. mit Kaiserliste und Anhang (Bonn 1909) – scan at the Internet Archive', 'https://archive.org/details/fasticonsularesi0000lieb', 'the table of emperors and the consuls by year: which emperor or consul a name means; Caesars who never became Augustus from H. F. Clinton, Fasti Romani I (Oxford 1845)', 'public domain']]],
+    ['W. Liebenam, Fasti consulares imperii Romani von 30 v. Chr. bis 565 n. Chr. mit Kaiserliste und Anhang (Bonn 1909) – scan at the Internet Archive', 'https://archive.org/details/fasticonsularesi0000lieb', 'the table of emperors and the consuls by year: which emperor or consul a name means; Caesars who never became Augustus from H. F. Clinton, Fasti Romani I (Oxford 1845)', 'public domain'],
+    ['Tempora – dates read from the library’s texts (Diodorus’ year headers, Books 11–20)', 'https://github.com/PerseusDL/canonical-greekLit', 'the years of Diodorus’ narrative in the Tempora tab', 'CC BY-SA 4.0']]],
   ['Latin dictionaries and analysis', [
     ['Perseus Digital Library – lexica', 'https://github.com/PerseusDL/lexica', 'C. T. Lewis & C. Short, A Latin Dictionary (1879); text provided by the Perseus Digital Library with funding from the National Endowment for the Humanities', 'CC BY-SA 4.0'],
     ['K. E. Georges, Ausführliches lateinisch-deutsches Handwörterbuch (8th ed. 1913) – TEI edition by Thibault Clérice', 'https://github.com/PonteIneptique/K-E-Georges-1913-TEI', 'Latin–German dictionary', 'public domain'],
