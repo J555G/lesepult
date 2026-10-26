@@ -2316,3 +2316,15 @@ body:not(.nofade) #tabPeople{transition:border-color .333s ease}body:not(.nofade
 .tgrip{cursor:grab;color:var(--mut);touch-action:none;padding:2px 6px;font-size:1.05rem}
 
 .tmplocl{margin:.2em 0 .4em 1.1em;padding:0;font-size:.82rem}.tmplocl li{margin:.1em 0}
+/* Tempora: the filter at the side of the timeline (not dropped over it) */
+.tmprow{flex:1 1 auto;display:flex;min-height:0}
+.tmprow .tmpwrap{flex:1 1 auto;min-width:0}
+.tmppanel.tmpside{position:static;flex:0 0 min(330px,42%);width:auto;border:0;border-left:1px solid var(--line);border-radius:0;box-shadow:none;overflow:auto;padding:8px 12px}
+.tmppanel.tmpside[hidden]{display:none}
+@media (max-width:700px){.tmprow{flex-direction:column}.tmppanel.tmpside{flex:0 0 45%;border-left:0;border-top:1px solid var(--line)}}
+.tmpside .tpres .tpadd{display:block;width:100%;text-align:left;margin:2px 0}
+.tmpside .tpadd.on{opacity:.75}.tmpside .tpadd.none{opacity:.55}
+.tfn{color:var(--mut);float:right;margin-left:6px}
+.tchip.not .tcl{text-decoration:line-through;opacity:.8}.tchip.not .top{color:var(--acc)!important}
+.tnav{display:inline-flex;align-items:center;gap:4px;margin-left:auto;font-size:.82rem;color:var(--mut)}
+.tnav button{font:inherit;padding:2px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg)}

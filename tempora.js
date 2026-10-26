@@ -414,6 +414,26 @@ const WRITTEN = [
   ['tlg0081.tlg001', -29, -7, 'Smith: 29–7 BC', SM + 'came to Rome “about the middle of Ol. 187, that is, B. C. 29”; “B. C. 7, the year in which he completed and published his great work”', false, 'smith'],
   ['tlg0004.tlg001', 200, 250, 'written c. AD 200–250 (?)', 'probably the first half of the 3rd century AD – uncertain (Smith: “nothing can be said with certainty”)', true, 'hb'],
 ];
+async function tmpPersonIts(ref, F, works = new Map(), wTitle = id => id) {    // a person's items: life, offices, Diogenes' dates, passages citing him
+  const { d, i } = pplParse(ref); if (!d) return null; const r = await pplRow(d, i); if (!r) return null;
+  const its = [];
+  if (r.y0 != null) its.push({ t0: ax(r.y0), t1: ax(r.y1 ?? r.y0) + 1, fa: true, fb: true, lab: 'years the article mentions', kind: 'life', k2: 'life', sid: d.id, src: d.name, ref });
+  for (const o of F?.off.get(ref) || []) {
+    if (o[0] === 'emp') { const e = F.k[o[1]]; if (!e) continue;
+      if (e[6] != null && e[6] < e[4]) its.push({ t0: ax(e[6]), t1: ax(Math.min(e[4], e[5] + 1)), lab: 'Caesar', kind: 'office', k2: 'office', sid: 'liebenam', src: 'Liebenam', ref });
+      if (e[7] !== 'C') its.push({ t0: ax(e[4]), t1: ax(e[5]) + 1, lab: (e[7] === 'U' ? 'usurper ' : 'emperor ') + e[2] + ' – ' + e[3], kind: 'office', k2: 'office', sid: 'liebenam', src: 'Liebenam', ref }); }
+    if (o[0] === 'cos') its.push({ t0: ax(o[1]), t1: ax(o[1]) + 1, lab: 'consul' + (o[2] > 1 ? ' ' + ROMN(o[2]) : '') + (o[3] === 's' ? ' suff.' : ''), kind: 'office', k2: 'office', sid: 'liebenam', src: 'Liebenam', ref, link: 'cos:' + o[1] });
+  }
+  if (!TP.chrono) { const ch = Object.values(S.installed || {}).find(d => d.kind === 'chrono'); TP.chrono = ch ? (await pplRec(ch, '#s'))?.e || [] : []; }
+  for (const x of TP.chrono || []) if (x[6]?.ref === ref) {     // 799a: what Diogenes Laertius dates in his life
+    its.push({ t0: x[1], t1: x[2], fa: !x[6].ol?.[1], fb: !x[6].ol?.[1], lab: `${x[6].kind || 'dated'} · Ol. ${x[6].ol[0]}${x[6].ol[1] ? '.' + x[6].ol[1] : ''}`, kind: 'cite', k2: 'ol', sid: 'diogenes', src: 'Diogenes Laertius' + (x[6].sure ? '' : ' (the life probably his)'),
+      go: { w: x[6].w, bi: x[4], r: x[5] }, text: x[6].text, ref, ev: x[6].ev || null }); }
+  const e = await pplEntry(d, i);                         // the passages citing him, placed where their book's years are known
+  for (const p of e?.ps || []) { const m = F?.nd?.[p[0]]; if (!m) continue; const lab = (works.get(p[0]) || S.catWork?.[p[0]])?.books?.[p[1]];
+    const yy = m[lab] || m['*']; if (!yy) continue;
+    its.push({ t0: ax(yy[0]), t1: ax(yy[1]) + 1, fa: true, fb: true, lab: p[3], kind: 'cite', k2: 'cite', sid: d.id, src: wTitle(p[0]), go: { w: p[0], bi: p[1], r: p[2] }, ref, note: 'cited by ' + d.name + ' – placed at the years its book narrates' }); }
+  return { r, its };
+}
 async function tmpData() {
   const cfg = await tmpCfg(), F = await fastiTab(), lanes = [];
   if (!S.catWork) await cachedCatalog().catch(() => null);
@@ -506,25 +526,7 @@ async function tmpData() {
   }
   // persons added from the Suda tab
   if (!TP.chrono) { const ch = Object.values(S.installed || {}).find(d => d.kind === 'chrono'); TP.chrono = ch ? (await pplRec(ch, '#s'))?.e || [] : []; }
-  for (const ref of cfg.persons || []) {
-    const { d, i } = pplParse(ref); if (!d) continue; const r = await pplRow(d, i); if (!r) continue;
-    const its = [];
-    if (r.y0 != null) its.push({ t0: ax(r.y0), t1: ax(r.y1 ?? r.y0) + 1, fa: true, fb: true, lab: 'years the article mentions', kind: 'life', k2: 'life', sid: d.id, src: d.name, ref });
-    for (const o of F?.off.get(ref) || []) {
-      if (o[0] === 'emp') { const e = F.k[o[1]]; if (!e) continue;
-        if (e[6] != null && e[6] < e[4]) its.push({ t0: ax(e[6]), t1: ax(Math.min(e[4], e[5] + 1)), lab: 'Caesar', kind: 'office', k2: 'office', sid: 'liebenam', src: 'Liebenam', ref });
-        if (e[7] !== 'C') its.push({ t0: ax(e[4]), t1: ax(e[5]) + 1, lab: (e[7] === 'U' ? 'usurper ' : 'emperor ') + e[2] + ' – ' + e[3], kind: 'office', k2: 'office', sid: 'liebenam', src: 'Liebenam', ref }); }
-      if (o[0] === 'cos') its.push({ t0: ax(o[1]), t1: ax(o[1]) + 1, lab: 'consul' + (o[2] > 1 ? ' ' + ROMN(o[2]) : '') + (o[3] === 's' ? ' suff.' : ''), kind: 'office', k2: 'office', sid: 'liebenam', src: 'Liebenam', ref, link: 'cos:' + o[1] });
-    }
-    for (const x of TP.chrono || []) if (x[6]?.ref === ref) {     // 799a: what Diogenes Laertius dates in his life
-      its.push({ t0: x[1], t1: x[2], fa: !x[6].ol?.[1], fb: !x[6].ol?.[1], lab: `${x[6].kind || 'dated'} · Ol. ${x[6].ol[0]}${x[6].ol[1] ? '.' + x[6].ol[1] : ''}`, kind: 'cite', k2: 'ol', sid: 'diogenes', src: 'Diogenes Laertius' + (x[6].sure ? '' : ' (the life probably his)'),
-        go: { w: x[6].w, bi: x[4], r: x[5] }, text: x[6].text, ref, ev: x[6].ev || null }); }
-    const e = await pplEntry(d, i);                       // the passages citing him, placed where their book's years are known
-    for (const p of e?.ps || []) { const m = F?.nd?.[p[0]]; if (!m) continue; const lab = (works.get(p[0]) || S.catWork?.[p[0]])?.books?.[p[1]];
-      const yy = m[lab] || m['*']; if (!yy) continue;
-      its.push({ t0: ax(yy[0]), t1: ax(yy[1]) + 1, fa: true, fb: true, lab: p[3], kind: 'cite', k2: 'cite', sid: d.id, src: wTitle(p[0]), go: { w: p[0], bi: p[1], r: p[2] }, ref, note: 'cited by ' + d.name + ' – placed at the years its book narrates' }); }
-    lanes.push({ id: 'p:' + ref, g: 'Persons', t: r.name, sh: r.name, its, ref, have: true });
-  }
+  for (const ref of cfg.persons || []) { const P = await tmpPersonIts(ref, F, works, wTitle); if (P) lanes.push({ id: 'p:' + ref, g: 'Persons', t: P.r.name, sh: P.r.name, its: P.its, ref, have: true }); }
   // words of the filter: the books they occur in (the index of all texts), at the years the books narrate
   for (const f of (cfg.flt || []).filter(f => f.t === 'word')) {
     const its = [], by = typeof idxLookup === 'function' ? await idxLookup(f.keys || [f.v]).catch(() => new Map()) : new Map();
@@ -686,7 +688,7 @@ function tmpDraw() {
         if (xb > xa) { if ((si + k) % 2 === 0) { g.fillStyle = C.fg; g.globalAlpha = 0.045; g.fillRect(xa, top - 2, xb - xa, h + 4); }
           else { g.strokeStyle = C.line; g.globalAlpha = 0.6; g.strokeRect(xa + 0.5, top - 1.5, xb - xa - 1, h + 2); } g.globalAlpha = 1;
           // its name, once – at the box's left edge, or held at the screen's edge while the box runs on
-          const nm = L.t + (L.have ? '' : ' (not on this device)'); g.font = font(10.5); const tw = g.measureText(nm).width, tx = Math.max(xa + 4, Math.min(Math.max(xa + 4, 4), xb - tw - 4));
+          const nm = L.t + (L.have ? '' : ' (not on this device)') + (TP.fOn ? ` · ${L.nPass || 0} found` : ''); g.font = font(10.5); const tw = g.measureText(nm).width, tx = Math.max(xa + 4, Math.min(Math.max(xa + 4, 4), xb - tw - 4));
           if (xb - xa > 30) { g.save(); g.beginPath(); g.rect(xa + 2, top - 2, xb - xa - 4, TT + 2); g.clip(); g.fillStyle = C.mut; g.fillText(nm, tx, top + 9.5); g.restore(); } } }
       // how far a label may run on (807a): to the next item in its row, and never into the next lane of the slot
       const stop = k + 1 < ls.length ? X(ls[k + 1].a) - 6 : W + 4000;
@@ -750,6 +752,7 @@ function drawItem(g, C, it, x0, x1, y, h, font, lim = Infinity, W = 1e9) {
   g.globalAlpha = (sel ? 0.75 : alpha) * fa; g.fillStyle = grd; roundRect(g, x0, y, x1 - x0, h, 4); g.fill(); g.globalAlpha = fa;
   if (dim || it._lab === false) { g.globalAlpha = 1; return; }  // (while folding: only the level more than half there keeps its names)
   if (it.kind === 'date' || it.kind === 'own' || sel) { g.strokeStyle = sel ? C.fg : base; g.lineWidth = sel ? 1.6 : 1; roundRect(g, x0, y, x1 - x0, h, 4); g.stroke(); }
+  if (TP.fOn && it.pass && !sel) { g.strokeStyle = C.acc; g.lineWidth = 1.6; roundRect(g, x0 - 0.5, y - 0.5, x1 - x0 + 1, h + 1, 4); g.stroke(); }   // (848a: what passes the filter, outlined)
   if (it.uneven) { g.strokeStyle = C.acc; g.setLineDash([3, 2]); roundRect(g, x0, y, x1 - x0, h, 4); g.stroke(); g.setLineDash([]); }
   // the label, once: at the bar's start – or, while the bar runs on past the screen's left edge, held at that edge, and pushed
   // off with the bar's end; past a short bar it may run on up to the next item in its row (807a)
@@ -826,7 +829,7 @@ async function showTempora() {
       + `<button type="button" data-tmp="add" title="Add your own statement">＋ Statement</button>`
       + `<button type="button" data-tmp="here" title="The years of the text being read">This text</button></div>`
       + `<div id="tmpChips" class="tmpchips" hidden></div>`
-      + `<div class="tmpwrap"><canvas id="tmpCanvas"></canvas></div><div id="tmpCard" class="tmpcard" hidden></div><div id="tmpPanel" class="tmppanel" hidden></div>`;
+      + `<div class="tmprow"><div class="tmpwrap"><canvas id="tmpCanvas"></canvas></div><aside id="tmpSide" class="tmppanel tmpside" hidden></aside></div><div id="tmpCard" class="tmpcard" hidden></div><div id="tmpPanel" class="tmppanel" hidden></div>`;
     tmpWire($('#tmpCanvas'));
   }
   const has = Object.values(S.installed || {}).some(d => d.kind === 'fasti');
@@ -941,46 +944,50 @@ function tmpRefPanel(keep) {
     tmpSave(); tmpRedraw(); tmpRefPanel(true); });
 }
 
-// ---------------------------------------------------------------- the filter (803a–805): texts, persons, places, words, kinds, sources
-// Each criterion added is a chip with "either" or "and" (the reader's choice for each): an item passes when it meets every "and"
-// and, if there are any "either", at least one of those. What does not pass is dimmed (or hidden: Settings → Tempora)
-const KINDS = [['narr', 'Years a book narrates'], ['dyear', 'Diodorus’ years'], ['ol', 'Dates by Olympiad'], ['cdate', 'Consular dates in the text'],
-  ['life', 'Lifetimes'], ['office', 'Offices'], ['cite', 'Passages citing a person'], ['word', 'Words'], ['own', 'Your statements'], ['written', 'When works were written']];
-const SOURCES = [['narr', 'The years the books narrate (Pult’s table)'], ['diodorus', 'Diodorus'], ['dionysius', 'Dionysius of Halicarnassus'], ['diogenes', 'Diogenes Laertius'],
-  ['liebenam', 'Liebenam (offices)'], ['people-smith', 'Smith'], ['people-pir', 'PIR'], ['cdate', 'Consular dates'], ['index', 'The index of all texts'], ['own', 'Your chronology'], ['written', 'Dates of writing (Pult’s table)'], ['catalogue', 'The catalogue (authors’ centuries)']];
+// ---------------------------------------------------------------- the filter (803a, 844a–852a): texts, persons, places, words
+// Like a shop's filter: choices of one kind combine with "or" (Socrates or Plato), different kinds with "and" (Socrates … in
+// Diogenes Laertius); a chip set to "not" leaves its items out. What does not pass is dimmed or hidden; what passes is outlined.
+// The filter stands at the side of the timeline (not over it); its chips stand in the bar under the top bar.
 const tfold = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f\u0342\u0343\u0345]/g, '').toLowerCase().replace(/ς/g, 'σ').replace(/j/g, 'i').replace(/[^a-zα-ω0-9]+/g, ' ');   // (accents, case, ς/σ, j/i ignored)
+const FCAT = { work: 'text', book: 'text', person: 'person', place: 'place', word: 'word' };
+const FCATN = { text: 'Texts', person: 'Persons', place: 'Places', word: 'Words' };
 function fMatch(it, f) {
   const txt = () => it._t ??= tfold([it.full, it.lab, it.text, it.note, it.own?.note].filter(Boolean).join(' '));
   switch (f.t) {
-    case 'work': return it.go?.w === f.v || (it.go?.w || '').startsWith(f.v + '.') || it.own?.src?.w === f.v;
+    case 'work': return it.go?.w === f.v || (it.go?.w || '').startsWith(f.v + '.') || it.own?.src?.w === f.v || (it.lw && f.v.startsWith(it.lw));
     case 'book': return it.go?.w === f.v.w && it.go?.bi === f.v.bi;
-    case 'person': return it.ref === f.v || (f.keys || []).some(k => k.length > 2 && txt().includes(k));
+    case 'person': return it.ref === f.v;                                         // (852a: only what is tied to him)
     case 'place': return it.place?.id === f.v || (f.keys || []).some(k => k.length > 2 && txt().includes(k));
     case 'word': return it.word === f.v || (f.keys || []).some(k => k.length > 2 && txt().includes(k));
-    case 'kind': return it.k2 === f.v;
-    case 'src': return it.sid === f.v || (f.v === 'liebenam' && it.k2 === 'office');
   }
   return true;
 }
+function fPass(it, fl) {
+  const by = {}; for (const f of fl) (by[FCAT[f.t]] ??= []).push(f);
+  for (const fs of Object.values(by)) { const pos = fs.filter(f => !f.not), neg = fs.filter(f => f.not);
+    if (neg.some(f => fMatch(it, f))) return false; if (pos.length && !pos.some(f => fMatch(it, f))) return false; }
+  return true;
+}
 function tmpFilterApply() {
-  const fl = TP.cfg.flt || [], ands = fl.filter(f => f.op === 'and'), ors = fl.filter(f => f.op !== 'and');
-  TP.fOn = fl.length > 0; let n = 0, m = 0;
-  for (const L of TP.data?.lanes || []) { for (const it of L.its) { if (it.kids) continue;
-      it.pass = !fl.length || (ands.every(f => fMatch(it, f)) && (!ors.length || ors.some(f => fMatch(it, f))));
-      n++; if (it.pass) m++; }
+  const fl = (TP.cfg.flt || []).filter(f => FCAT[f.t]); TP.fOn = fl.length > 0; let n = 0, m = 0; const ms = [];
+  for (const L of TP.data?.lanes || []) { L.nPass = 0;
+    for (const it of L.its) { if (it.kids) continue; it._lid = L.id; it.pass = !fl.length || fPass(it, fl); n++; if (it.pass) { m++; L.nPass++; if (fl.length) ms.push(it); } }
     for (const it of L.its) if (it.kids) it.pass = it.kids.some(k => k.pass); }   // (a book or a work passes when one of its parts does)
-  TP.fCount = [m, n];
+  TP.fCount = [m, n]; TP.matches = ms.sort((p, q) => p.t0 - q.t0);
 }
 function sieveN() { const [m, n] = TP.fCount || [0, 0]; if (!TP.fOn) return 0; return !m ? 7 : Math.min(7, 1 + Math.floor(Math.log2(n / m) + 1e-9)); }
-function tmpChipsUpd() {
+const sideOpen = () => !!$('#tmpSide') && !$('#tmpSide').hidden;
+function tmpChipsUpd() {                                    // 851a: the chips stand only here, in the bar under the top bar
+  TP.cfg.flt = (TP.cfg.flt || []).filter(f => FCAT[f.t]);       // (kinds and sources are gone from the filter – 847)
   tmpFilterApply();
   const b = $('#tmpFiltBtn'); if (b) { b.innerHTML = sieveIcon(sieveN(), 'tf'); b.classList.toggle('active', !!TP.fOn); }
   const c = $('#tmpChips'); if (!c) return;
-  const fl = TP.cfg.flt || [], open = $('#tmpPanel') && !$('#tmpPanel').hidden && $('#tmpPanel').dataset.k === 'filter';
-  c.hidden = !fl.length || open;
-  c.innerHTML = fl.map((f, i) => chipHTML(f, i)).join('') + (fl.length ? `<button type="button" class="tclr" data-tfclear="1">Clear</button>` : '');
+  const fl = TP.cfg.flt, [m] = TP.fCount || [0];
+  c.hidden = !fl.length;
+  c.innerHTML = fl.map((f, i) => chipHTML(f, i)).join('')
+    + (fl.length ? `<span class="tnav"><button type="button" data-tfnav="-1" aria-label="Previous match">‹</button><span>${TP.mi != null && m ? `${TP.mi + 1} / ` : ''}${m} found</span><button type="button" data-tfnav="1" aria-label="Next match">›</button><button type="button" data-tfnav="all">Show all</button></span><button type="button" class="tclr" data-tfclear="1">Clear</button>` : '');
 }
-const chipHTML = (f, i) => `<span class="tchip"><button type="button" class="top" data-tfop="${i}" title="Tap: either / and">${f.op === 'and' ? 'and' : 'either'}</button><span class="tcl">${esc(f.lab)}</span><button type="button" class="tx" data-tfrm="${i}" aria-label="Remove">✕</button></span>`;
+const chipHTML = (f, i) => `<span class="tchip${f.not ? ' not' : ''}" title="${FCATN[FCAT[f.t]]}"><button type="button" class="top" data-tfnot="${i}" title="Tap: leave these out / keep them">${f.not ? 'not' : esc(FCATN[FCAT[f.t]].slice(0, -1).toLowerCase())}</button><span class="tcl">${esc(f.lab)}</span><button type="button" class="tx" data-tfrm="${i}" aria-label="Remove">✕</button></span>`;
 async function tmpAddWord(w) {                             // a word: the books it occurs in (its lemmas too)
   let keys = [gkey(w)]; try { const A = await analyses(w); keys = [...new Set([gkey(w), ...A.lemmas.map(x => gkey(x.lemma))])]; } catch (_) { }
   return tmpAddFilter({ t: 'word', v: keys[keys.length > 1 ? 1 : 0], keys, lab: w });
@@ -988,29 +995,24 @@ async function tmpAddWord(w) {                             // a word: the books 
 async function tmpAddFilter(f) {
   const fl = TP.cfg.flt = TP.cfg.flt || [];
   if (fl.some(x => x.t === f.t && JSON.stringify(x.v) === JSON.stringify(f.v))) return;
-  f.op = f.op || 'or'; fl.push(f);
+  fl.push(f); TP.mi = null;
   if (f.t === 'person' && !TP.cfg.persons.includes(f.v)) TP.cfg.persons.push(f.v);   // (a person: also his lane)
   tmpSave(); if (f.t === 'person' || f.t === 'word') await tmpData(); tmpChipsUpd(); tmpRedraw();
-  if (!$('#tmpPanel').hidden && $('#tmpPanel').dataset.k === 'filter') tmpFilterPanel(true);
+  const q = $('#tmpSide [data-tfs="all"]'); if (q) { q.value = ''; $('#tmpSide [data-tfr="all"]').innerHTML = ''; }   // (845a: added – the search is cleared)
+  if (sideOpen()) tmpFilterHead();
 }
-function tmpFilterPanel(keep) {
-  const p = $('#tmpPanel'), q0 = keep && p.dataset.k === 'filter' ? p.querySelector('[data-tfs="all"]')?.value || '' : '';
-  if (keep && p.dataset.k === 'filter') p.dataset.open = [...p.querySelectorAll('details[open]')].map(d => d.dataset.o).join('');
-  p.hidden = false; p.dataset.k = 'filter';
-  const scroll = keep ? p.scrollTop : 0, fl = TP.cfg.flt || [], [m, n] = TP.fCount || [0, 0];
-  const works = new Map();                                   // the works Tempora knows something about
+function tmpFilterHead() { const h = $('#tmpSide .tfhead'); if (!h) return; const [m, n] = TP.fCount || [0, 0]; h.textContent = TP.fOn ? `${m} of ${n} items` : `${n} items`; }
+function tmpFilterPanel() {                                // the filter at the side of the timeline (not dropped over it)
+  const p = $('#tmpSide'); if (!p) return; p.hidden = false;
+  const works = new Map();                                   // the works Tempora knows something about (for the search)
   for (const L of TP.data?.lanes || []) for (const it of L.its) if (it.go?.w) { const w = works.get(it.go.w) || { id: it.go.w, t: it.src || it.go.w, books: new Map() }; if (it.kind === 'book' || it.kind === 'year') w.books.set(it.go.bi, it.lab.replace(/ ·.*$/, '')); works.set(it.go.w, w); }
-  const on = (t, v) => fl.some(f => f.t === t && JSON.stringify(f.v) === JSON.stringify(v));
-  p.innerHTML = `<div class="tch"><b>Filter</b><small class="hint">${TP.fOn ? `${m} of ${n} items` : `${n} items`}</small><button type="button" data-tmpclose="panel" aria-label="Close">✕</button></div>`
-    + (fl.length ? `<div class="tpsec"><div class="tph">Your filter <button type="button" class="tclr" data-tfclear="1">Clear</button></div><div class="tchips">${fl.map((f, i) => chipHTML(f, i)).join('')}</div><p class="hint small">An item shows when it meets every “and” and – if there are any – at least one “either”. Tap “either” / “and” to change it.</p></div>` : '')
-    + `<div class="tpsec"><input type="search" data-tfs="all" class="tfq" placeholder="A text, person, place or word …" enterkeyhint="done" autocomplete="off" autocapitalize="off" spellcheck="false"><div class="tpres" data-tfr="all"></div></div>`
-    + `<details class="tpsec"${keep && p.dataset.open?.includes('k') ? ' open' : ''} data-o="k"><summary class="tph">Kinds of date</summary><div class="tchips">${KINDS.map(([v, l]) => `<button type="button" class="tpadd sm${on('kind', v) ? ' on' : ''}" data-tfk="${v}" data-l="${esc(l)}">${esc(l)}</button>`).join('')}</div></details>`
-    + `<details class="tpsec"${keep && p.dataset.open?.includes('s') ? ' open' : ''} data-o="s"><summary class="tph">Sources</summary><div class="tchips">${SOURCES.map(([v, l]) => `<button type="button" class="tpadd sm${on('src', v) ? ' on' : ''}" data-tfsrc="${v}" data-l="${esc(l)}">${esc(l)}</button>`).join('')}</div></details>`
-    + `<details class="tpsec"${keep && p.dataset.open?.includes('t') ? ' open' : ''} data-o="t"><summary class="tph">All texts</summary>${[...works.values()].sort((a, b) => a.t.localeCompare(b.t)).map(w => `<div class="tpw"><button type="button" class="tpadd${on('work', w.id) ? ' on' : ''}" data-tfw="${esc(w.id)}" data-l="${esc(w.t)}">${esc(w.t)}</button>${w.books.size > 1 ? `<div class="tpbk">${[...w.books].sort((a, b) => a[0] - b[0]).map(([bi, l]) => `<button type="button" class="tpadd sm${on('book', { w: w.id, bi }) ? ' on' : ''}" data-tfb="${esc(w.id)}" data-bi="${bi}" data-l="${esc(w.t + ' · ' + l)}">${esc(l)}</button>`).join('')}</div>` : ''}</div>`).join('') || '<p class="hint small">Nothing dated yet.</p>'}</details>`
-    + `<label class="tpall"><input type="checkbox" data-tmpall2="1"${TP.cfg.all ? ' checked' : ''}> also works not on this device</label>`;
   TP.fWorks = works;
-  if (q0) { const i = p.querySelector('[data-tfs="all"]'); i.value = q0; i.dispatchEvent(new Event('input', { bubbles: true })); }
-  p.scrollTop = scroll; tmpChipsUpd();
+  p.innerHTML = `<div class="tch"><b>Filter</b><small class="hint tfhead"></small><button type="button" data-tmpclose="side" aria-label="Close">✕</button></div>`
+    + `<input type="search" data-tfs="all" class="tfq" placeholder="A text, person, place or word …" enterkeyhint="done" autocomplete="off" autocapitalize="off" spellcheck="false"><div class="tpres" data-tfr="all"></div>`
+    + `<p class="hint small">Of one kind, any of them (Socrates <i>or</i> Plato); of different kinds, all together (Socrates <i>in</i> Diogenes Laertius). Tap a chip’s kind to make it “not”.</p>`
+    + `<div class="tpsec"><div class="tph">What the filter leaves out</div><span class="tmpseg"><button type="button" data-tmpfm="dim" class="${TP.cfg?.fmode !== 'hide' ? 'on' : ''}">Dimmed</button><button type="button" data-tmpfm="hide" class="${TP.cfg?.fmode === 'hide' ? 'on' : ''}">Hidden</button></span></div>`
+    + `<label class="tpall"><input type="checkbox" data-tmpall2="1"${TP.cfg.all ? ' checked' : ''}> also works not on this device</label>`;
+  tmpFilterHead(); setTimeout(() => p.querySelector('.tfq')?.focus(), 50);
 }
 async function tmpPersonHits(q) {                         // as the Suda tab's search: names beginning so
   const k = gkey(q), out = []; if (k.length < 2) return out;
@@ -1021,21 +1023,28 @@ async function tmpPersonHits(q) {                         // as the Suda tab's s
   for (const x of await pplProminent(out, k)) { const ref = pref(x.d, x.i); if (seen.has(ref)) continue; seen.add(ref); const r = await pplRow(x.d, x.i); if (r) rows.push(r); if (rows.length >= 12) break; }
   return rows;
 }
+const fCount = f => { let n = 0; for (const L of TP.data?.lanes || []) for (const it of L.its) if (!it.kids && fMatch(it, f)) n++; return n; };
+const srcName = d => d.id === 'people-smith' ? 'Smith' : d.id === 'people-pir' ? 'PIR' : d.id === 'people-suda' || /suda/i.test(d.id) ? 'Suda' : (d.name || '').replace(/^.*?, /, '').slice(0, 24);
 let tfT = 0;
 document.addEventListener('input', ev => {
   const t = ev.target;
   if (t.dataset?.tfs === 'all') { clearTimeout(tfT); tfT = setTimeout(async () => {
     const box = t.parentElement.querySelector('.tpres'), q = t.value.trim(), k = tfold(q).trim(); if (k.length < 2) { box.innerHTML = ''; return; }
+    const fl = TP.cfg.flt || [], has = (ty, v) => fl.some(f => f.t === ty && JSON.stringify(f.v) === JSON.stringify(v));
+    const btn = (attrs, inner, n, on) => `<button type="button" class="tpadd${on ? ' on' : ''}${n === 0 ? ' none' : ''}" ${attrs}${on ? ' disabled' : ''}>${inner} <small class="tfn">${on ? '✓ in the filter' : n == null ? '' : n === 0 ? 'nothing dated yet' : n + (n === 1 ? ' item' : ' items')}</small></button>`;
     const sec = (h, rows) => rows.length ? `<div class="tfgrp"><span class="tftag">${h}</span>${rows.join('')}</div>` : '';
     const tx = [];                                          // texts and their books
-    for (const w of (TP.fWorks || new Map()).values()) { if (tfold(w.t).includes(k)) tx.push(`<button type="button" class="tpadd" data-tfw="${esc(w.id)}" data-l="${esc(w.t)}">${esc(w.t)}</button>`);
-      for (const [bi, l] of w.books) if (tx.length < 14 && tfold(w.t + ' ' + l).includes(k) && !tfold(w.t).includes(k)) tx.push(`<button type="button" class="tpadd" data-tfb="${esc(w.id)}" data-bi="${bi}" data-l="${esc(w.t + ' · ' + l)}">${esc(w.t)} · ${esc(l)}</button>`); }
-    const ps = (await tmpPersonHits(q).catch(() => [])).map(r => `<button type="button" class="tpadd" data-tfp="${esc(r.ref)}" data-l="${esc(r.name)}"><b>${esc(r.name)}</b>${r.no ? ` <small>${r.no}</small>` : ''} <small class="hint">${esc((r.desc || '').slice(0, 60))}</small></button>`);
+    for (const w of (TP.fWorks || new Map()).values()) { if (tfold(w.t).includes(k)) tx.push(btn(`data-tfw="${esc(w.id)}" data-l="${esc(w.t)}"`, esc(w.t), fCount({ t: 'work', v: w.id }), has('work', w.id)));
+      for (const [bi, l] of w.books) if (tx.length < 14 && tfold(w.t + ' ' + l).includes(k) && !tfold(w.t).includes(k)) tx.push(btn(`data-tfb="${esc(w.id)}" data-bi="${bi}" data-l="${esc(w.t + ' · ' + l)}"`, `${esc(w.t)} · ${esc(l)}`, fCount({ t: 'book', v: { w: w.id, bi } }), has('book', { w: w.id, bi }))); }
+    const prs = (await tmpPersonHits(q).catch(() => [])).slice(0, 8), ps = [];
+    for (const r of prs) { const n = (await tmpPersonIts(r.ref, TP.data?.F).catch(() => null))?.its.length ?? 0;      // (845a: whose, when, and how much Tempora has of him)
+      ps.push(btn(`data-tfp="${esc(r.ref)}" data-l="${esc(r.name)}"`, `<b>${esc(r.name)}</b>${r.no ? ` <small>${r.no}</small>` : ''} <small class="ppsrc">${esc(srcName(r.d))}</small>${r.y0 != null ? ` <small class="hint">${esc(yearsTxt(r.y0, r.y1))}</small>` : ''}<br><small class="hint">${esc((r.desc || '').slice(0, 70))}</small>`, n, has('person', r.ref))); }
     let pl = []; if (typeof searchPlaces === 'function') { if (!M.P?.full) await loadPlaceIndex(true).catch(() => null);
-      TP.plHits = searchPlaces(q).slice(0, 8); pl = TP.plHits.map((p, i) => `<button type="button" class="tpadd" data-tfpl="${i}"><b>${esc(p.t)}</b> <small class="hint">${esc(typeLabel?.(p) || '')}</small></button>`); }
+      TP.plHits = searchPlaces(q).slice(0, 6); pl = TP.plHits.map((p, i) => { const keys = [...new Set([p.t, ...(p.names || []).map(n => n[0])].map(n => tfold(n).trim()).filter(Boolean).map(k => k.length > 5 ? k.slice(0, -2) : k))];
+        return btn(`data-tfpl="${i}"`, `<b>${esc(p.t)}</b> <small class="hint">${esc(typeLabel?.(p) || '')}</small>`, fCount({ t: 'place', v: p.id, keys }), has('place', p.id)); }); }
     if (t.value.trim() !== q) return;
-    box.innerHTML = sec('Texts', tx.slice(0, 14)) + sec('Persons', ps.slice(0, 8)) + sec('Places', pl)
-      + sec('Word', [`<button type="button" class="tpadd" data-tfword="${esc(q)}">“${esc(q)}” <small class="hint">– the books it occurs in (Enter)</small></button>`]);
+    box.innerHTML = sec('Texts', tx.slice(0, 14)) + sec('Persons', ps) + sec('Places', pl)
+      + sec('Word', [btn(`data-tfword="${esc(q)}"`, `“${esc(q)}” <small class="hint">– the books it occurs in (Enter)</small>`, null, false)]);
   }, 220); }
   if (t.id === 'tmpQ') { clearTimeout(tfT); tfT = setTimeout(() => tmpSearch(t.value, false), 160); }
 });
@@ -1044,6 +1053,11 @@ document.addEventListener('keydown', async ev => {
   if (t.dataset?.tfs === 'all') { ev.preventDefault(); const w = t.value.trim(); if (!w) return; t.value = ''; return tmpAddWord(w); }
   if (t.id === 'tmpQ') { ev.preventDefault(); tmpSearch(t.value, true); }
 });
+// 848a: to the matches – all of them, or one after another
+function tmpToMatch(it) {
+  tmpGoTo(it.t0, it.t1); TP.sel = { it }; TP.cur = null; tmpCardItem({ it }); tmpDraw();
+  const y = TP.laneTop?.[it._lid]; if (y != null) { TP.prevLay = null; TP.sy = Math.max(0, y - TP.RH - 40); tmpClampY(); } tmpRedraw();
+}
 
 // ---------------------------------------------------------------- the search (806a): events, emperors, consuls
 function tmpSearch(q, all) {
@@ -1129,17 +1143,20 @@ document.addEventListener('click', async ev => {
   const t = ev.target; if (!t.closest?.('#temporaBody')) return;
   const b = t.closest('button,[data-tmpr],[data-tmpl]'); if (!b) return;
   const D = b.dataset;
-  if (D.tmpclose) { if (D.tmpclose === 'panel') { $('#tmpPanel').hidden = true; tmpChipsUpd(); } else { $('#tmpCard').hidden = true; TP.sel = null; TP.cur = null; tmpRedraw(); } return; }
-  if (D.tmp === 'ref' || D.tmp === 'filter') { const p = $('#tmpPanel'); if (!p.hidden && p.dataset.k === D.tmp) { p.hidden = true; tmpChipsUpd(); return; } return D.tmp === 'ref' ? tmpRefPanel() : tmpFilterPanel(); }
-  if (D.tfop != null) { const f = TP.cfg.flt[+D.tfop]; f.op = f.op === 'and' ? 'or' : 'and'; tmpSave(); tmpChipsUpd(); tmpRedraw(); if (!$('#tmpPanel').hidden && $('#tmpPanel').dataset.k === 'filter') tmpFilterPanel(true); return; }
+  if (D.tmpclose) { if (D.tmpclose === 'side') { $('#tmpSide').hidden = true; } else if (D.tmpclose === 'panel') { $('#tmpPanel').hidden = true; tmpChipsUpd(); } else { $('#tmpCard').hidden = true; TP.sel = null; TP.cur = null; tmpRedraw(); } return; }
+  if (D.tmp === 'filter') { if (sideOpen()) { $('#tmpSide').hidden = true; return; } return tmpFilterPanel(); }
+  if (D.tmp === 'ref') { const p = $('#tmpPanel'); if (!p.hidden && p.dataset.k === 'ref') { p.hidden = true; return; } return tmpRefPanel(); }
+  if (D.tfnot != null) { const f = TP.cfg.flt[+D.tfnot]; f.not = !f.not; TP.mi = null; tmpSave(); tmpChipsUpd(); tmpFilterHead(); return tmpRedraw(); }
+  if (D.tfnav) { tmpFilterApply(); const ms = TP.matches || []; if (!ms.length) return toast('Nothing passes the filter.');
+    if (D.tfnav === 'all') { const a = Math.min(...ms.map(i => i.t0)), z = Math.max(...ms.map(i => i.t1)); TP.mi = null; tmpGoTo(a, z); tmpDraw();
+      const tops = ms.map(i => TP.laneTop?.[i._lid]).filter(v => v != null); if (tops.length) { TP.prevLay = null; TP.sy = Math.max(0, Math.min(...tops) - TP.RH - 40); tmpClampY(); } tmpChipsUpd(); return tmpRedraw(); }
+    TP.mi = TP.mi == null ? (+D.tfnav > 0 ? 0 : ms.length - 1) : (TP.mi + +D.tfnav + ms.length) % ms.length; tmpChipsUpd(); return tmpToMatch(ms[TP.mi]); }
   if (D.tfrm != null) { const f = TP.cfg.flt.splice(+D.tfrm, 1)[0]; if (f?.t === 'person') TP.cfg.persons = TP.cfg.persons.filter(r => r !== f.v);   // (his lane goes with it)
-    tmpSave(); if (f?.t === 'word' || f?.t === 'person') await tmpData(); tmpChipsUpd(); tmpRedraw(); if (!$('#tmpPanel').hidden && $('#tmpPanel').dataset.k === 'filter') tmpFilterPanel(true); return; }
-  if (D.tfclear) { TP.cfg.flt = []; TP.cfg.persons = []; tmpSave(); await tmpData(); tmpChipsUpd(); tmpRedraw(); if (!$('#tmpPanel').hidden && $('#tmpPanel').dataset.k === 'filter') tmpFilterPanel(true); return; }
+    TP.mi = null; tmpSave(); if (f?.t === 'word' || f?.t === 'person') await tmpData(); tmpChipsUpd(); tmpFilterHead(); tmpRedraw(); return; }
+  if (D.tfclear) { TP.cfg.flt = []; TP.cfg.persons = []; TP.mi = null; tmpSave(); await tmpData(); tmpChipsUpd(); tmpFilterHead(); tmpRedraw(); return; }
   if (D.tfword) return tmpAddWord(D.tfword);
   if (D.tfw) return tmpAddFilter({ t: 'work', v: D.tfw, lab: D.l });
   if (D.tfb) return tmpAddFilter({ t: 'book', v: { w: D.tfb, bi: +D.bi }, lab: D.l });
-  if (D.tfk) return tmpAddFilter({ t: 'kind', v: D.tfk, lab: D.l });
-  if (D.tfsrc) return tmpAddFilter({ t: 'src', v: D.tfsrc, lab: D.l });
   if (D.tfp) { const { d, i } = pplParse(D.tfp), e = d && await pplEntry(d, i); const keys = [...new Set((e?.k || []).map(k => k.length > 5 ? k.slice(0, -2) : k))];
     return tmpAddFilter({ t: 'person', v: D.tfp, keys, lab: D.l }); }
   if (D.tfpl != null) { const p = TP.plHits?.[+D.tfpl]; if (!p) return; const keys = [...new Set([p.t, ...(p.names || []).map(n => n[0])].map(n => tfold(n).trim()).filter(Boolean).map(k => k.length > 5 ? k.slice(0, -2) : k))];
@@ -1168,7 +1185,7 @@ document.addEventListener('click', async ev => {
     b.disabled = true; b.textContent = 'Downloading …'; const w = setInterval(() => { if (S.installed?.['fasti-liebenam'] && S.installed?.['chrono-texts']) { clearInterval(w); PP.fasti = null; showTempora(); } }, 800); return; }
 });
 document.addEventListener('change', async ev => {
-  const t = ev.target; if (!t.closest?.('#tmpPanel')) return;
+  const t = ev.target; if (!t.closest?.('#tmpPanel,#tmpSide')) return;
   if (t.dataset.tmpr) { TP.cfg.rulers[t.dataset.tmpr] = t.checked; tmpSave(); tmpRedraw(); }
   if (t.dataset.tmplh) { TP.cfg.lhide = TP.cfg.lhide || {}; if (t.checked) delete TP.cfg.lhide[t.dataset.tmplh]; else TP.cfg.lhide[t.dataset.tmplh] = 1; tmpSave(); tmpRedraw(); return tmpRefPanel(true); }
   if (t.dataset.tmpall2) { TP.cfg.all = t.checked; tmpSave(); tmpRedraw(); }
