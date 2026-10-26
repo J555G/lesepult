@@ -524,7 +524,7 @@ async function tmpData() {
       for (const [au, ws] of by) its.push({ t0: Math.min(...ws.map(i => i.t0)), t1: Math.max(...ws.map(i => i.t1)), fa: true, fb: true, lab: au + (ws.length > 1 ? ` · ${ws.length} works` : ''), kind: 'work', k2: 'written', sid: 'catalogue',
         wr: true, wk: ws[0].wk, wks: ws.map(i => i.wk), lv: 0, kids: ws, src: 'the catalogue (the author’s century only)', note: ws.map(i => i.lab.replace(/^[^,]*, /, '').replace(/ · .*$/, '')).join(' · ') });
       for (const [au, ws] of by) { const P = its.find(i => i.lv === 0 && i.kids === ws); for (const w of ws) w.par = P; }
-      const L = { id: 'wr:lib', g: 'Texts – when they were written', t: 'Your library – when written', its, have: true, levels: [0, 1], wronly: true };
+      const L = { id: 'wr:lib', g: 'Texts – when they were written', t: 'Your library – when written', its, have: true, levels: [0, 1], wronly: true, bare: true };   // (860: no box, no name – switched on in the filter)
       L.avg = [0, 100, 0]; lanes.push(L);
     }
   }
@@ -584,7 +584,8 @@ const evHue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charC
 function tmpAnchorGet() {
   const cv = $('#tmpCanvas'); if (!cv || !TP.laneTop) return null;
   const itY = it => TP.laneTop?.[it._lid] != null ? TP.laneTop[it._lid] - TP.sy + 14 + 3 + (it._y ?? it.row) * TP.lh : null;   // (where an item is, on screen or not)
-  TP.itY = itY; const s = TP.sel?.it; if (s && itY(s) != null) return { it: s, y: itY(s) };   // (an item selected: it stays fixed) const mid = (TP.RH + cv.clientHeight) / 2;
+  TP.itY = itY; const s = TP.sel?.it; if (s && itY(s) != null) return { it: s, y: itY(s) };   // (an item selected: it stays fixed)
+  const mid = (TP.RH + cv.clientHeight) / 2;
   let best = null; for (const [id, top] of Object.entries(TP.laneTop)) { const y = top - TP.sy, d = y <= mid && mid <= y + (TP.laneH?.[id] || 0) ? 0 : Math.abs(y - mid); if (!best || d < best.d) best = { id, y, d }; }
   return best;
 }
@@ -603,7 +604,7 @@ function tmpLevels(L) {                                     // → { la, lb, f }
   const f2 = sm(lh, 24, 29);
   return f2 <= 0 ? { la: 1, lb: 1, f: 0 } : f2 >= 1 ? { la: 2, lb: 2, f: 0 } : { la: 1, lb: 2, f: f2 };
 }
-function laneShown(L) { return (L.have || TP.cfg.all) && !TP.cfg.lhide?.[L.id] && (!L.wronly || TP.cfg.written); }
+function laneShown(L) { return (L.have || TP.cfg.all) && !TP.cfg.lhide?.[L.id] && (!L.wronly || TP.cfg.libw); }
 // 828: the order of the lanes – pinned ones first in your order; then the text being read, what passes the filter, the rest by time
 function laneOrder(lanes) {
   const pin = TP.cfg.lpin || [], wid = S.text?.work?.id, cur = L => !!wid && (L.id.endsWith(':' + wid) || L.id.endsWith(wid) || (L.col && wid.startsWith(L.wid)));
@@ -713,7 +714,7 @@ function tmpDraw() {
       }
       if (top >= H || top + hs <= RH) return;
       // 811a: alternate lanes faintly tinted or outlined – only over the span the lane covers
-      if (isFinite(L.na)) { const xa = Math.max(-10, X(L.na) - 3), xb = Math.min(W + 10, X(L.nb) + 3);       // (the box: what the work narrates, not when it was written)
+      if (isFinite(L.na) && !L.bare) { const xa = Math.max(-10, X(L.na) - 3), xb = Math.min(W + 10, X(L.nb) + 3);       // (the box: what the work narrates, not when it was written)
         if (xb > xa) { if ((si + k) % 2 === 0) { g.fillStyle = C.fg; g.globalAlpha = 0.045; g.fillRect(xa, top - 2, xb - xa, h + 4); }
           else { g.strokeStyle = C.line; g.globalAlpha = 0.6; g.strokeRect(xa + 0.5, top - 1.5, xb - xa - 1, h + 2); } g.globalAlpha = 1;
           // its name, once – at the box's left edge, or held at the screen's edge while the box runs on
@@ -1054,7 +1055,8 @@ async function tmpFilterPanel() {                          // the filter on the 
     + `<div class="tfs"><div class="tph">Your filter</div><div class="tfchips"></div><p class="hint small">Of one kind, any of them (Socrates <i>or</i> Plato); of different kinds, all together (Socrates <i>in</i> Diogenes Laertius). Tap a chip’s kind to turn it into “not”.</p></div>`
     + `<div class="tfs"><div class="tph">Add</div><input type="search" data-tfs="all" class="tfq" placeholder="A text, person, place or word …" enterkeyhint="done" autocomplete="off" autocapitalize="off" spellcheck="false"><div class="tpres" data-tfr="all"></div><div class="tfsug"></div></div>`
     + `<div class="tfs"><div class="tph">What does not pass</div><span class="tmpseg"><button type="button" data-tmpfm="dim" class="${TP.cfg?.fmode !== 'hide' ? 'on' : ''}">Dimmed</button><button type="button" data-tmpfm="hide" class="${TP.cfg?.fmode === 'hide' ? 'on' : ''}">Hidden</button></span>`
-    + `<label class="tpall"><input type="checkbox" data-tmpall2="1"${TP.cfg.all ? ' checked' : ''}> also works not on this device</label></div></div>`, [['ok', 'Done']]);
+    + `<label class="tpall"><input type="checkbox" data-tmpall2="1"${TP.cfg.all ? ' checked' : ''}> also works not on this device</label>`
+    + `<label class="tpall"><input type="checkbox" data-tmplibw="1"${TP.cfg.libw ? ' checked' : ''}> your library’s other works, when written <small class="hint">(only the author’s century, from the catalogue)</small></label></div></div>`, [['ok', 'Done']]);
   const dl = $('#dlg'); dl.classList.add('lmdlg'); pr.then(() => dl.classList.remove('lmdlg'));   // (on the whole screen, as the library)
   tmpFilterHead(); tmpChipsUpd(); tmpFilterSug(); setTimeout(() => document.querySelector('.tmpfilt .tfq')?.focus(), 80);
   await pr; tmpChipsUpd(); tmpRedraw();
@@ -1249,6 +1251,7 @@ document.addEventListener('change', async ev => {
   const t = ev.target; if (!t.closest?.('#tmpPanel,#tmpSide,.tmpfilt')) return;
   if (t.dataset.tmpr) { TP.cfg.rulers[t.dataset.tmpr] = t.checked; tmpSave(); tmpRedraw(); }
   if (t.dataset.tmplh) { const an = tmpAnchorGet(); TP.cfg.lhide = TP.cfg.lhide || {}; if (t.checked) delete TP.cfg.lhide[t.dataset.tmplh]; else TP.cfg.lhide[t.dataset.tmplh] = 1; tmpSave(); tmpAnchorKeep(an); return tmpRefPanel(true); }
+  if (t.dataset.tmplibw) { const an = tmpAnchorGet(); TP.cfg.libw = t.checked; tmpSave(); return tmpAnchorKeep(an); }
   if (t.dataset.tmpall2) { TP.cfg.all = t.checked; tmpSave(); tmpRedraw(); }
 });
 document.addEventListener('pointerdown', ev => { if (!ev.target.closest?.('.tmpq')) { const r = $('#tmpRes'); if (r) r.hidden = true; } });
