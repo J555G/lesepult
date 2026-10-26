@@ -466,8 +466,8 @@ async function tmpData() {
           note: x[6]?.text ? (x[6].ol?.[1] ? '' : 'the Olympiad only – any of its four years') : (x[6]?.fixed ? 'an Olympiad named here fixes the year' : 'counted from the Olympiad named before')
             + (x[6]?.uneven ? ' – in a stretch where his headers and his Olympiads disagree' : '') }));
         for (const it of its) it.lv = 2;
-        const byB = new Map(); for (const it of its) { const k = it.go.bi ?? 0; if (!byB.has(k)) byB.set(k, []); byB.get(k).push(it); }   // (the books: the passages grouped)
-        for (const [bi, ps] of byB) { const w0 = ps[0].go.w, bl = (works.get(w0) || S.catWork?.[w0])?.books?.[bi];
+        const byB = new Map(); for (const it of its) { const k = it.go.w + '#' + (it.go.bi ?? 0); if (!byB.has(k)) byB.set(k, []); byB.get(k).push(it); }   // (the books: the passages grouped – by edition and book, since Diodorus is in three editions)
+        for (const ps of byB.values()) { const w0 = ps[0].go.w, bi = ps[0].go.bi ?? 0, bl = (works.get(w0) || S.catWork?.[w0])?.books?.[bi];
           its.push({ t0: Math.min(...ps.map(i => i.t0)), t1: Math.max(...ps.map(i => i.t1)), lab: (bl ? (/^\d/.test(bl) ? 'Book ' + bl : bl) : 'Book') + ` · ${ps.length} dates`, kind: 'book', k2: ps[0].k2, sid: lid, lv: 1, kids: ps,
             src: title, go: { w: w0, bi, r: null }, note: 'the dates of this book – zoom in (also vertically) for each' }); for (const q of ps) q.par = its[its.length - 1]; }
         lanes.push({ id: 'ch:' + lid, g: 'Texts – the years they narrate', t: title, its, note, have: true, wid: wpre });
