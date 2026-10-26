@@ -491,8 +491,16 @@ async function tmpData() {
     const done = new Set(lanes.filter(L => L.wid).map(L => L.wid)), its = [];
     for (const w of works.values()) { if (wl(w.id).length || [...done].some(p => w.id.startsWith(p))) continue;
       const a = S.catAuthor?.[w.id], y = a?.year; if (y == null) continue;
-      its.push({ t0: ax(y) - 50, t1: ax(y) + 50, fa: true, fb: true, lab: wTitle(w.id) + (a.date ? ' · ' + a.date : ''), kind: 'work', k2: 'written', sid: 'catalogue', wr: true, wk: w.id, wks: [w.id], src: 'the catalogue (the author’s century only)', go: { w: w.id, bi: 0, r: null } }); }
-    if (its.length) lanes.push({ id: 'wr:lib', g: 'Texts – when they were written', t: 'Your library', its, have: true });
+      const core = w.id.split('.').slice(0, 2).join('.'); if (its.some(i => i.core === core)) continue;     // (one edition of each work)
+      its.push({ t0: ax(y) - 50, t1: ax(y) + 50, fa: true, fb: true, lab: wTitle(w.id) + (a.date ? ' · ' + a.date : ''), kind: 'work', k2: 'written', sid: 'catalogue', wr: true, wk: w.id, wks: [w.id], core, lv: 1, au: a.name,
+        src: 'the catalogue (the author’s century only)', go: { w: w.id, bi: 0, r: null } }); }
+    if (its.length) {                                        // (zoomed out – also up and down – each author as one bar)
+      const by = new Map(); for (const i of its) { if (!by.has(i.au)) by.set(i.au, []); by.get(i.au).push(i); }
+      for (const [au, ws] of by) its.push({ t0: Math.min(...ws.map(i => i.t0)), t1: Math.max(...ws.map(i => i.t1)), fa: true, fb: true, lab: au + (ws.length > 1 ? ` · ${ws.length} works` : ''), kind: 'work', k2: 'written', sid: 'catalogue',
+        wr: true, wk: ws[0].wk, wks: ws.map(i => i.wk), lv: 0, kids: ws, src: 'the catalogue (the author’s century only)', note: ws.map(i => i.lab.replace(/^[^,]*, /, '').replace(/ · .*$/, '')).join(' · ') });
+      const L = { id: 'wr:lib', g: 'Texts – when they were written', t: 'Your library – when written', its, have: true, levels: [0, 1] };
+      L.avg = [0, 100, 0]; lanes.push(L);
+    }
   }
   // persons added from the Suda tab
   if (!TP.chrono) { const ch = Object.values(S.installed || {}).find(d => d.kind === 'chrono'); TP.chrono = ch ? (await pplRec(ch, '#s'))?.e || [] : []; }
@@ -673,7 +681,7 @@ function tmpDraw() {
       const nextX = new Map(); for (const r of byRow.values()) { r.sort((p, q) => p.t0 - q.t0); r.forEach((it, j) => nextX.set(it, Math.min(stop, j + 1 < r.length ? X(r[j + 1].t0) - 6 : W + 4000))); }
       g.save(); g.beginPath(); g.rect(0, top - 2, W, h + 4); g.clip();                     // (a lane still growing shows only what fits)
       for (const it of vis) {
-        const x0 = X(it.t0), x1 = Math.max(X(it.t1) - 1, x0 + 3), yy = top + TT + 3 + it.row * lh, bh = lh - 8;
+        const x0 = X(it.t0), x1 = Math.max(X(it.t1) - 1, x0 + 3), yy = top + TT + 3 + it.row * lh, bh = Math.max(3, lh - 8);
         if (x1 < 0 && nextX.get(it) < 0) continue; if (x0 > W) continue;
         drawItem(g, C, it, x0, x1, yy, bh, font, nextX.get(it), W);
         if ((it.pass !== false || TP.cfg.fmode === 'hide') && yy < top + h) TP.hit.push({ x0, x1, y0: yy, y1: yy + bh, it, L });
@@ -731,10 +739,10 @@ function drawItem(g, C, it, x0, x1, y, h, font, lim = Infinity, W = 1e9) {
   if (it.uneven) { g.strokeStyle = C.acc; g.setLineDash([3, 2]); roundRect(g, x0, y, x1 - x0, h, 4); g.stroke(); g.setLineDash([]); }
   // the label, once: at the bar's start – or, while the bar runs on past the screen's left edge, held at that edge, and pushed
   // off with the bar's end; past a short bar it may run on up to the next item in its row (807a)
-  const txt = it.lab; g.font = font(11); const tw = g.measureText(txt).width;
+  const fs = Math.max(7.5, Math.min(11, h + 1)), txt = it.lab; g.font = font(fs); const tw = g.measureText(txt).width;   // (rows pinched small: smaller type)
   const p = Math.max(x0 + 4, Math.min(Math.max(x0 + 4, 4), x1 - tw - 6));
   const end = Math.min(Math.max(x1 - 3, lim), W + 2000), room = end - p;
-  if (room >= 14) { g.fillStyle = C.fg; g.save(); g.beginPath(); g.rect(p, y - 1, room, h + 2); g.clip(); g.fillText(txt, p, y + h / 2 + 4); g.restore(); }
+  if (room >= 14) { g.fillStyle = C.fg; g.save(); g.beginPath(); g.rect(p, y - 1, room, h + 2); g.clip(); g.fillText(txt, p, y + h / 2 + fs * 0.36); g.restore(); }
 }
 function roundRect(g, x, y, w, h, r) { r = Math.min(r, w / 2, h / 2); g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
 function gridStep(ppy) { for (const s of [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000]) if (s * ppy >= 70) return s; return 10000; }
@@ -813,7 +821,7 @@ async function showTempora() {
 }
 function tmpAt(px, py) { return TP.hit.slice().reverse().find(h => (py < TP.RH) === (h.emp != null || h.sky != null) && px >= h.x0 - 3 && px <= h.x1 + 3 && py >= h.y0 - 2 && py <= h.y1 + 2) || null; }
 function tmpZoomX(f, px) { const a = TP.x0 + px / TP.ppy; TP.ppy = Math.min(400000, Math.max(0.005, TP.ppy * f)); TP.x0 = a - px / TP.ppy; tmpSave(); tmpRedraw(); }
-function tmpZoomY(f) { TP.lh = Math.min(90, Math.max(16, TP.lh * f)); tmpSave(); tmpRedraw(); }
+function tmpZoomY(f) { TP.lh = Math.min(90, Math.max(10, TP.lh * f)); tmpSave(); tmpRedraw(); }
 function tmpClampY() { const cv = $('#tmpCanvas'); const max = Math.max(0, (TP.contentH || 0) - (cv.clientHeight - (TP.RH || 0)) + 40, TP.over || 0);
   TP.sy = Math.min(max, Math.max(0, TP.sy)); TP.over = Math.min(TP.over || 0, TP.sy); }   // (TP.over: how far the header has grown over the lanes)
 function tmpWire(cv) {
@@ -826,7 +834,7 @@ function tmpWire(cv) {
     if (pinch && TP.ptr.size === 2) { const [p, q] = [...TP.ptr.values()], dx = Math.abs(p.x - q.x), dy = Math.abs(p.y - q.y), mx = (p.x + q.x) / 2;
       const a = pinch.x0 + pinch.mx / pinch.ppy;                 // two fingers: across = time, up and down = lane height
       if (pinch.dx > 40) TP.ppy = Math.min(400000, Math.max(0.005, pinch.ppy * dx / pinch.dx));
-      if (pinch.dy > 40) TP.lh = Math.min(90, Math.max(16, pinch.lh * dy / pinch.dy));
+      if (pinch.dy > 40) TP.lh = Math.min(90, Math.max(10, pinch.lh * dy / pinch.dy));
       TP.x0 = a - mx / TP.ppy; TP.focusY = (p.y + q.y) / 2; moved = true; tmpSave(); tmpRedraw(); return; }
     if (!down) return; const dx = e.offsetX - down.x, dy = e.offsetY - down.y;
     if (Math.abs(dx) + Math.abs(dy) > 6) moved = true;
