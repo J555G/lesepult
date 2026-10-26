@@ -929,10 +929,10 @@ function tmpDragList(box, onEnd) {                         // rows dragged by th
   box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
 }
 function tmpRefPanel(keep) {
-  const p = $('#tmpPanel'); p.hidden = false; p.dataset.k = 'ref'; const scroll = keep ? p.scrollTop : 0;
+  const p = $('#tmpSide'); p.hidden = false; const scroll = keep && p.dataset.k === 'ref' ? p.scrollTop : 0; p.dataset.k = 'ref';   // (853a: at the side, like the filter)
   const all = (TP.data?.lanes || []).filter(L => L.have || TP.cfg.all), pin = TP.cfg.lpin || [];
   const order = [...laneOrder(all.filter(L => !TP.cfg.lhide?.[L.id])), ...all.filter(L => TP.cfg.lhide?.[L.id])];
-  p.innerHTML = `<div class="tch"><b>Reference systems and lanes</b><button type="button" data-tmpclose="panel" aria-label="Close">✕</button></div><p class="hint small">The rows at the top of the timeline. Drag ⠿ to change their order.</p>`
+  p.innerHTML = `<div class="tch"><b>Reference systems and lanes</b><button type="button" data-tmpclose="side" aria-label="Close">✕</button></div><p class="hint small">The rows at the top of the timeline. Drag ⠿ to change their order.</p>`
     + `<div class="tref">${rulerOrder().map(id => `<div class="trow" data-rid="${id}"><span class="tgrip" aria-label="Drag">⠿</span><label><input type="checkbox" data-tmpr="${id}"${TP.cfg.rulers[id] ? ' checked' : ''}> ${esc(RULERS.find(r => r[0] === id)[1])}</label></div>`).join('')}</div>`
     + `<div class="tph tplanes">Lanes</div><p class="hint small">Pinned lanes stay at the top, in your order – drag ⠿ to place a lane (it and those above it are pinned), or pin it. The others follow the text being read, then what passes the filter, then time. Lanes that do not meet in time share a level.</p>`
     + `<div class="tlanes">${order.map(L => { const pi = pin.includes(L.id), hid = !!TP.cfg.lhide?.[L.id];
@@ -996,23 +996,36 @@ async function tmpAddFilter(f) {
   const fl = TP.cfg.flt = TP.cfg.flt || [];
   if (fl.some(x => x.t === f.t && JSON.stringify(x.v) === JSON.stringify(f.v))) return;
   fl.push(f); TP.mi = null;
+  TP.cfg.recent = [f, ...(TP.cfg.recent || []).filter(x => !(x.t === f.t && JSON.stringify(x.v) === JSON.stringify(f.v)))].slice(0, 12);
   if (f.t === 'person' && !TP.cfg.persons.includes(f.v)) TP.cfg.persons.push(f.v);   // (a person: also his lane)
   tmpSave(); if (f.t === 'person' || f.t === 'word') await tmpData(); tmpChipsUpd(); tmpRedraw();
   const q = $('#tmpSide [data-tfs="all"]'); if (q) { q.value = ''; $('#tmpSide [data-tfr="all"]').innerHTML = ''; }   // (845a: added – the search is cleared)
-  if (sideOpen()) tmpFilterHead();
+  if (sideOpen()) { tmpFilterHead(); tmpFilterSug(); }
 }
 function tmpFilterHead() { const h = $('#tmpSide .tfhead'); if (!h) return; const [m, n] = TP.fCount || [0, 0]; h.textContent = TP.fOn ? `${m} of ${n} items` : `${n} items`; }
 function tmpFilterPanel() {                                // the filter at the side of the timeline (not dropped over it)
-  const p = $('#tmpSide'); if (!p) return; p.hidden = false;
+  const p = $('#tmpSide'); if (!p) return; p.hidden = false; p.dataset.k = 'filter';
   const works = new Map();                                   // the works Tempora knows something about (for the search)
   for (const L of TP.data?.lanes || []) for (const it of L.its) if (it.go?.w) { const w = works.get(it.go.w) || { id: it.go.w, t: it.src || it.go.w, books: new Map() }; if (it.kind === 'book' || it.kind === 'year') w.books.set(it.go.bi, it.lab.replace(/ ·.*$/, '')); works.set(it.go.w, w); }
   TP.fWorks = works;
   p.innerHTML = `<div class="tch"><b>Filter</b><small class="hint tfhead"></small><button type="button" data-tmpclose="side" aria-label="Close">✕</button></div>`
-    + `<input type="search" data-tfs="all" class="tfq" placeholder="A text, person, place or word …" enterkeyhint="done" autocomplete="off" autocapitalize="off" spellcheck="false"><div class="tpres" data-tfr="all"></div>`
+    + `<input type="search" data-tfs="all" class="tfq" placeholder="A text, person, place or word …" enterkeyhint="done" autocomplete="off" autocapitalize="off" spellcheck="false"><div class="tpres" data-tfr="all"></div><div class="tfsug"></div>`
     + `<p class="hint small">Of one kind, any of them (Socrates <i>or</i> Plato); of different kinds, all together (Socrates <i>in</i> Diogenes Laertius). Tap a chip’s kind to make it “not”.</p>`
     + `<div class="tpsec"><div class="tph">What the filter leaves out</div><span class="tmpseg"><button type="button" data-tmpfm="dim" class="${TP.cfg?.fmode !== 'hide' ? 'on' : ''}">Dimmed</button><button type="button" data-tmpfm="hide" class="${TP.cfg?.fmode === 'hide' ? 'on' : ''}">Hidden</button></span></div>`
     + `<label class="tpall"><input type="checkbox" data-tmpall2="1"${TP.cfg.all ? ' checked' : ''}> also works not on this device</label>`;
-  tmpFilterHead(); setTimeout(() => p.querySelector('.tfq')?.focus(), 50);
+  tmpFilterHead(); tmpFilterSug(); setTimeout(() => p.querySelector('.tfq')?.focus(), 50);
+}
+// 850a: what to filter by, one tap each – the text being read, the persons named in it, the filters used lately
+async function tmpFilterSug() {
+  const box = $('#tmpSide .tfsug'); if (!box) return; const fl = TP.cfg.flt || [], has = f => fl.some(x => x.t === f.t && JSON.stringify(x.v) === JSON.stringify(f.v)), out = [];
+  const w = S.text?.work; if (w) { const t = (S.catWork?.[w.id]?.author ? S.catWork[w.id].author + ', ' : '') + (w.title || w.id), bl = w.books?.[S.text.bi];
+    if (!has({ t: 'work', v: w.id })) out.push(`<button type="button" class="tpadd sm" data-tfw="${esc(w.id)}" data-l="${esc(t)}">${esc(t)}</button>`);
+    if (bl && (w.books?.length || 0) > 1 && !has({ t: 'book', v: { w: w.id, bi: S.text.bi } })) out.push(`<button type="button" class="tpadd sm" data-tfb="${esc(w.id)}" data-bi="${S.text.bi}" data-l="${esc(t + ' · ' + bl)}">${esc(bl)}</button>`); }
+  const n = new Map(); for (const h of S.prs?.values() || []) if (h?.pick) n.set(h.pick, (n.get(h.pick) || 0) + 1);
+  const ps = []; for (const [ref] of [...n].sort((a, b) => b[1] - a[1]).slice(0, 8)) { if (has({ t: 'person', v: ref })) continue; const { d, i } = pplParse(ref), r = d && await pplRow(d, i); if (r) ps.push(`<button type="button" class="tpadd sm" data-tfp="${esc(ref)}" data-l="${esc(r.name)}">${esc(r.name)}</button>`); }
+  const rec = (TP.cfg.recent || []).filter(f => !has(f)).slice(0, 8).map((f, i) => `<button type="button" class="tpadd sm" data-tfrec="${i}">${esc(f.lab)}</button>`);
+  const sec = (h, a) => a.length ? `<div class="tpsec"><div class="tph">${h}</div><div class="tchips">${a.join('')}</div></div>` : '';
+  box.innerHTML = sec('The text you are reading', out) + sec('Named in it', ps) + sec('Used lately', rec);
 }
 async function tmpPersonHits(q) {                         // as the Suda tab's search: names beginning so
   const k = gkey(q), out = []; if (k.length < 2) return out;
@@ -1144,17 +1157,17 @@ document.addEventListener('click', async ev => {
   const b = t.closest('button,[data-tmpr],[data-tmpl]'); if (!b) return;
   const D = b.dataset;
   if (D.tmpclose) { if (D.tmpclose === 'side') { $('#tmpSide').hidden = true; } else if (D.tmpclose === 'panel') { $('#tmpPanel').hidden = true; tmpChipsUpd(); } else { $('#tmpCard').hidden = true; TP.sel = null; TP.cur = null; tmpRedraw(); } return; }
-  if (D.tmp === 'filter') { if (sideOpen()) { $('#tmpSide').hidden = true; return; } return tmpFilterPanel(); }
-  if (D.tmp === 'ref') { const p = $('#tmpPanel'); if (!p.hidden && p.dataset.k === 'ref') { p.hidden = true; return; } return tmpRefPanel(); }
+  if (D.tmp === 'filter' || D.tmp === 'ref') { const p = $('#tmpSide'); if (sideOpen() && p.dataset.k === D.tmp) { p.hidden = true; return; } return D.tmp === 'ref' ? tmpRefPanel() : tmpFilterPanel(); }
   if (D.tfnot != null) { const f = TP.cfg.flt[+D.tfnot]; f.not = !f.not; TP.mi = null; tmpSave(); tmpChipsUpd(); tmpFilterHead(); return tmpRedraw(); }
   if (D.tfnav) { tmpFilterApply(); const ms = TP.matches || []; if (!ms.length) return toast('Nothing passes the filter.');
     if (D.tfnav === 'all') { const a = Math.min(...ms.map(i => i.t0)), z = Math.max(...ms.map(i => i.t1)); TP.mi = null; tmpGoTo(a, z); tmpDraw();
       const tops = ms.map(i => TP.laneTop?.[i._lid]).filter(v => v != null); if (tops.length) { TP.prevLay = null; TP.sy = Math.max(0, Math.min(...tops) - TP.RH - 40); tmpClampY(); } tmpChipsUpd(); return tmpRedraw(); }
     TP.mi = TP.mi == null ? (+D.tfnav > 0 ? 0 : ms.length - 1) : (TP.mi + +D.tfnav + ms.length) % ms.length; tmpChipsUpd(); return tmpToMatch(ms[TP.mi]); }
   if (D.tfrm != null) { const f = TP.cfg.flt.splice(+D.tfrm, 1)[0]; if (f?.t === 'person') TP.cfg.persons = TP.cfg.persons.filter(r => r !== f.v);   // (his lane goes with it)
-    TP.mi = null; tmpSave(); if (f?.t === 'word' || f?.t === 'person') await tmpData(); tmpChipsUpd(); tmpFilterHead(); tmpRedraw(); return; }
-  if (D.tfclear) { TP.cfg.flt = []; TP.cfg.persons = []; TP.mi = null; tmpSave(); await tmpData(); tmpChipsUpd(); tmpFilterHead(); tmpRedraw(); return; }
+    TP.mi = null; tmpSave(); if (f?.t === 'word' || f?.t === 'person') await tmpData(); tmpChipsUpd(); tmpFilterHead(); tmpFilterSug(); tmpRedraw(); return; }
+  if (D.tfclear) { TP.cfg.flt = []; TP.cfg.persons = []; TP.mi = null; tmpSave(); await tmpData(); tmpChipsUpd(); tmpFilterHead(); tmpFilterSug(); tmpRedraw(); return; }
   if (D.tfword) return tmpAddWord(D.tfword);
+  if (D.tfrec != null) { const has = f => (TP.cfg.flt || []).some(x => x.t === f.t && JSON.stringify(x.v) === JSON.stringify(f.v)); const f = (TP.cfg.recent || []).filter(f => !has(f))[+D.tfrec]; if (f) return tmpAddFilter(Object.assign({}, f, { not: false })); return; }
   if (D.tfw) return tmpAddFilter({ t: 'work', v: D.tfw, lab: D.l });
   if (D.tfb) return tmpAddFilter({ t: 'book', v: { w: D.tfb, bi: +D.bi }, lab: D.l });
   if (D.tfp) { const { d, i } = pplParse(D.tfp), e = d && await pplEntry(d, i); const keys = [...new Set((e?.k || []).map(k => k.length > 5 ? k.slice(0, -2) : k))];
