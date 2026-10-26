@@ -570,10 +570,10 @@ const evHue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charC
 // 843a: a level opens with the zoom, not at one point – the parts grow out of their bar as you widen or pinch apart, and fold back
 const sm = (x, a, b) => Math.min(1, Math.max(0, (x - a) / (b - a)));
 function tmpLevels(L) {                                     // → { la, lb, f }: between level la and lb, f of the way
-  if (!L.levels) return null; const w1 = L.avg[1] * TP.ppy, lh = TP.lh;
-  const f1 = Math.min(sm(w1, 45, 80), sm(lh, 17, 24));
+  if (!L.levels) return null; const lh = TP.lh;              // (only the vertical zoom opens or folds the levels – widening never makes a lane taller)
+  const f1 = sm(lh, 17, 24);
   if (f1 < 1 || !L.levels.includes(2)) return f1 <= 0 ? { la: 0, lb: 0, f: 0 } : f1 >= 1 ? { la: 1, lb: 1, f: 0 } : { la: 0, lb: 1, f: f1 };
-  const f2 = Math.min(sm(w1, 120, 180), sm(lh, 24, 29));
+  const f2 = sm(lh, 24, 29);
   return f2 <= 0 ? { la: 1, lb: 1, f: 0 } : f2 >= 1 ? { la: 2, lb: 2, f: 0 } : { la: 1, lb: 2, f: f2 };
 }
 function laneShown(L) { return (L.have || TP.cfg.all) && !TP.cfg.lhide?.[L.id]; }
