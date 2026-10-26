@@ -454,15 +454,29 @@ async function pplNameHTML(k, ti) {             // the persons of a name: choose
   if (tk) h += `<div class="ppnot"><button type="button" data-ppfix="0" data-k="${esc(k)}">Not a person</button><button type="button" data-ppfix="0" data-k="${esc(k)}" data-ti="${ti}">Not a person here</button>${h0 && (h0.why === 'chosen by you') ? `<button type="button" data-ppfix="" data-k="${esc(k)}" data-ti="${ti}">Undo my choice</button>` : ''}</div>`;
   return h;
 }
+// the order of the hits: those whose headword is the name typed (“Caesar, C. Julius”) before those who only carry it somewhere
+// (“Imp. Caesar …”); Smith's articles before the others; then the shortest names
+function pplRank(k) {
+  const head = x => { const n = x.ix?.p?.[x.i0 ?? x.i]?.[0] || ''; const h = gkey(n.split(/[\s,(]/)[0] || ''); return h === k ? 0 : h.startsWith(k) ? 1 : 2; };
+  const src = x => x.d.id === 'people-smith' ? 0 : x.d.kind === 'ident' ? 2 : 1;
+  const cmp = (a, b) => b.exact - a.exact || (a.h ??= head(a)) - (b.h ??= head(b)) || src(a) - src(b) || a.key.length - b.key.length || a.key.localeCompare(b.key) || a.i - b.i;
+  cmp.head = head; return cmp;
+}
+// among those whose headword is the name typed, the longest articles first – Smith's 30 Caesars: the dictator before the praetor of 208 BC
+async function pplProminent(hits, k) {
+  const r = pplRank(k), top = hits.filter(x => x.exact && (x.h ??= r.head(x)) === 0 && hits.indexOf(x) < 120).slice(0, 80); if (top.length < 2) return hits;
+  for (const x of top) x.len = (await pplEntry(x.d, x.i0 ?? x.i))?.html?.length || 0;
+  const rest = hits.filter(x => !top.includes(x)); top.sort((a, b) => b.len - a.len || r(a, b)); return [...top, ...rest];
+}
 async function pplSearchHTML(q, all = false) {
   const k = gkey(q); if (!k) return '<p class="hint">Type a name – Greek or Latin letters. Enter shows all results.</p>';
   const hits = [];
   for (const d of pplPkgs(true)) { const ix = await pplIx(d); if (!ix) continue;
-    for (const key of Object.keys(ix.n)) if (key.startsWith(k)) for (const i of ix.n[key]) { const sec = ix.p[i]?.[7]; hits.push({ d, i: sudaMerge() && sec != null ? sec : i, exact: key === k, key }); } }
+    for (const key of Object.keys(ix.n)) if (key.startsWith(k)) for (const i of ix.n[key]) { const sec = ix.p[i]?.[7]; hits.push({ d, ix, i0: i, i: sudaMerge() && sec != null ? sec : i, exact: key === k, key }); } }
   if (!hits.length) return `<p class="hint">Nothing found for “${esc(q)}”.</p>`;
-  hits.sort((a, b) => b.exact - a.exact || a.key.length - b.key.length || a.key.localeCompare(b.key) || a.i - b.i);
+  hits.sort(pplRank(k));
   const seen = new Set(), ids = [];
-  for (const x of hits) { const id = pref(x.d, x.i); if (!seen.has(id)) { seen.add(id); ids.push(x); } }
+  for (const x of await pplProminent(hits, k)) { const id = pref(x.d, x.i); if (!seen.has(id)) { seen.add(id); ids.push(x); } }
   const shown = all ? ids : ids.slice(0, 40), rows = [];
   for (const x of shown) { const r = await pplRow(x.d, x.i); if (r) rows.push(rowHTML(r)); }
   const more = !all && ids.length > shown.length ? ` <small>– the first ${shown.length}; Enter shows all</small>` : '';
