@@ -2310,4 +2310,7 @@ body:not(.nofade) #tabPeople{transition:border-color .333s ease}body:not(.nofade
 .tlanes .tpin{font:inherit;font-size:.78rem;padding:2px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--mut)}
 .tlanes .tpin.on{color:var(--acc);border-color:var(--acc)}
 .tplanes{margin-top:12px}
+.tmppanel .tfq{width:100%;box-sizing:border-box;font:inherit;padding:6px 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+.tfgrp{display:flex;flex-direction:column;gap:2px;margin:6px 0}.tftag{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mut)}
+.tpall{display:block;margin:.6em 0 .2em;font-size:.85rem}
 .tgrip{cursor:grab;color:var(--mut);touch-action:none;padding:2px 6px;font-size:1.05rem}

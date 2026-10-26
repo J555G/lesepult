@@ -12,10 +12,10 @@ const ax = y => y < 0 ? y + 1 : y;                     // historical -> astronom
 const hy = a => a <= 0 ? a - 1 : a;                    // astronomical -> historical
 const yTxt = y => y < 0 ? `${-y} BC` : `AD ${y}`;
 const yTxtS = y => y < 0 ? `${-y} BC` : `${y}`;
-const RULERS = [['jul', 'Julian years (BC / AD)'], ['ol', 'Olympiads'], ['auc', 'Years of the city (Varro, 753 BC)'], ['cato', 'Years of the city (Cato, 752 BC)'],
+const RULERS = [['jul', 'Julian calendar (BC / AD; Gregorian from 1582)'], ['sky', 'Sky (eclipses, new and full moons, equinoxes, solstices)'], ['ol', 'Olympiads'], ['auc', 'Years of the city (Varro, 753 BC)'], ['cato', 'Years of the city (Cato, 752 BC)'],
   ['cos', 'Consuls (Liebenam, 30 BC – AD 565)'], ['emp', 'Emperors and Caesars (Liebenam)'], ['sel', 'Seleucid era (autumn 312 BC)'],
   ['dio', 'Era of Diocletian (29 Aug. 284)'], ['ind', 'Indictions (from 1 Sept. 312)']];
-const RULER_ON = { jul: true, ol: true, auc: true, cato: false, cos: true, emp: true, sel: false, dio: false, ind: false };
+const RULER_ON = { jul: true, sky: true, ol: true, auc: true, cato: false, cos: true, emp: true, sel: false, dio: false, ind: false };
 
 async function tmpCfg() {
   if (TP.cfg) return TP.cfg;
@@ -72,6 +72,132 @@ document.addEventListener('click', async ev => {
   await tmpCfg(); TP.cfg.lim = {}; tmpSave(); await tmpLimits(); tmpRedraw();
   b.closest('.tmpset')?.querySelectorAll('[data-tmplim]').forEach(i => { i.value = ''; });
 });
+
+// ---------------------------------------------------------------- calendar and sky (Meeus, Astronomical Algorithms, 2nd ed.: ch. 7, 27, 49, 54)
+// the axis: a year y (astronomical) runs from its 1 January to the next, days evenly – Julian calendar to 4 Oct. 1582, Gregorian after
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const D2R = Math.PI / 180, sn = x => Math.sin(x * D2R), cs = x => Math.cos(x * D2R);
+function calToJd(y, m, d) {                               // (astronomical year; before 4712 BC by whole 4-year Julian cycles)
+  if (y < -4700) { const n = Math.ceil((-4700 - y) / 4); return calToJd(y + 4 * n, m, d) - 1461 * n; }
+  if (m <= 2) { y--; m += 12; } let B = 0; if (y > 1582 || (y === 1582 && (m > 10 || (m === 10 && d >= 15)))) { const A = Math.floor(y / 100); B = 2 - A + Math.floor(A / 4); }
+  return Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + d + B - 1524.5; }
+function jdToCal(jd) {
+  if (jd < 1000) { const n = Math.ceil((1000 - jd) / 1461); const c = jdToCal(jd + 1461 * n); c.y -= 4 * n; return c; }
+  const Z = Math.floor(jd + 0.5), F = jd + 0.5 - Z; let A = Z;
+  if (Z >= 2299161) { const al = Math.floor((Z - 1867216.25) / 36524.25); A = Z + 1 + al - Math.floor(al / 4); }
+  const B = A + 1524, C = Math.floor((B - 122.1) / 365.25), D = Math.floor(365.25 * C), E = Math.floor((B - D) / 30.6001);
+  const day = B - D - Math.floor(30.6001 * E) + F, m = E < 14 ? E - 1 : E - 13; return { y: m > 2 ? C - 4716 : C - 4715, m, d: Math.floor(day), f: day - Math.floor(day) }; }
+const jdY0 = Y => calToJd(Y, 1, 1);
+function axOfJd(jd) { let Y = jdToCal(jd).y, j0 = jdY0(Y); if (jd < j0) { Y--; j0 = jdY0(Y); } return Y + (jd - j0) / (jdY0(Y + 1) - j0); }
+function jdOfAx(a) { const Y = Math.floor(a), j0 = jdY0(Y); return j0 + (a - Y) * (jdY0(Y + 1) - j0); }
+function jdTxt(jd, time) { const c = jdToCal(jd), h = Math.floor(c.f * 24), mi = Math.floor((c.f * 24 - h) * 60);
+  return `${c.d} ${MON[c.m - 1]} ${yTxt(hy(c.y))}` + (time ? `, ${h}:${String(mi).padStart(2, '0')} UT` : ''); }
+function deltaT(y) { let u, t;                           // seconds (Espenak & Meeus); before about AD 1000 uncertain by hours
+  if (y < -500) { u = (y - 1820) / 100; return -20 + 32 * u * u; }
+  if (y < 500) { u = y / 100; return 10583.6 - 1014.41 * u + 33.78311 * u ** 2 - 5.952053 * u ** 3 - 0.1798452 * u ** 4 + 0.022174192 * u ** 5 + 0.0090316521 * u ** 6; }
+  if (y < 1600) { u = (y - 1000) / 100; return 1574.2 - 556.01 * u + 71.23472 * u ** 2 + 0.319781 * u ** 3 - 0.8503463 * u ** 4 - 0.005050998 * u ** 5 + 0.0083572073 * u ** 6; }
+  if (y < 1700) { t = y - 1600; return 120 - 0.9808 * t - 0.01532 * t * t + t ** 3 / 7129; }
+  if (y < 1800) { t = y - 1700; return 8.83 + 0.1603 * t - 0.0059285 * t * t + 0.00013336 * t ** 3 - t ** 4 / 1174000; }
+  if (y < 1860) { t = y - 1800; return 13.72 - 0.332447 * t + 0.0068612 * t * t + 0.0041116 * t ** 3 - 0.00037436 * t ** 4 + 0.0000121272 * t ** 5 - 0.0000001699 * t ** 6 + 0.000000000875 * t ** 7; }
+  if (y < 1900) { t = y - 1860; return 7.62 + 0.5737 * t - 0.251754 * t * t + 0.01680668 * t ** 3 - 0.0004473624 * t ** 4 + t ** 5 / 233174; }
+  if (y < 1920) { t = y - 1900; return -2.79 + 1.494119 * t - 0.0598939 * t * t + 0.0061966 * t ** 3 - 0.000197 * t ** 4; }
+  if (y < 1941) { t = y - 1920; return 21.20 + 0.84493 * t - 0.076100 * t * t + 0.0020936 * t ** 3; }
+  if (y < 1961) { t = y - 1950; return 29.07 + 0.407 * t - t * t / 233 + t ** 3 / 2547; }
+  if (y < 1986) { t = y - 1975; return 45.45 + 1.067 * t - t * t / 260 - t ** 3 / 718; }
+  if (y < 2005) { t = y - 2000; return 63.86 + 0.3345 * t - 0.060374 * t * t + 0.0017275 * t ** 3 + 0.000651814 * t ** 4 + 0.00002373599 * t ** 5; }
+  t = y - 2000; return 62.92 + 0.32217 * t + 0.005589 * t * t; }
+const ut = (jde, y) => jde - deltaT(y) / 86400;
+function moonPhase(k) {                                  // k whole: new moon, k + .5: full moon – its time (JDE) and the eclipse, if any (ch. 49, 54)
+  const T = k / 1236.85, E = 1 - 0.002516 * T - 0.0000074 * T * T;
+  let jde = 2451550.09766 + 29.530588861 * k + 0.00015437 * T * T - 0.00000015 * T ** 3 + 0.00000000073 * T ** 4;
+  const M = 2.5534 + 29.1053567 * k - 0.0000014 * T * T - 0.00000011 * T ** 3, Mp = 201.5643 + 385.81693528 * k + 0.0107582 * T * T + 0.00001238 * T ** 3 - 0.000000058 * T ** 4;
+  const F = 160.7108 + 390.67050284 * k - 0.0016118 * T * T - 0.00000227 * T ** 3 + 0.000000011 * T ** 4, Om = 124.7746 - 1.56375588 * k + 0.0020672 * T * T + 0.00000215 * T ** 3;
+  const full = Math.abs(k % 1) > 0.25, F1 = F - 0.02665 * sn(Om), A1 = 299.77 + 0.107408 * k - 0.009173 * T * T;
+  jde += (full ? -0.4065 * sn(Mp) + 0.1727 * E * sn(M) : -0.4075 * sn(Mp) + 0.1721 * E * sn(M))
+    + 0.0161 * sn(2 * Mp) - 0.0097 * sn(2 * F1) + 0.0073 * E * sn(Mp - M) - 0.0050 * E * sn(Mp + M) - 0.0023 * sn(Mp - 2 * F1) + 0.0021 * E * sn(2 * M)
+    + 0.0012 * sn(Mp + 2 * F1) + 0.0006 * E * sn(2 * Mp + M) - 0.0004 * sn(3 * Mp) - 0.0003 * E * sn(M + 2 * F1) + 0.0003 * sn(A1) - 0.0002 * E * sn(M - 2 * F1) - 0.0002 * E * sn(2 * Mp - M) - 0.0002 * sn(Om);
+  const out = { full, jde };
+  if (Math.abs(sn(F)) > 0.36) return out;
+  const P = 0.2070 * E * sn(M) + 0.0024 * E * sn(2 * M) - 0.0392 * sn(Mp) + 0.0116 * sn(2 * Mp) - 0.0073 * E * sn(Mp + M) + 0.0067 * E * sn(Mp - M) + 0.0118 * sn(2 * F1);
+  const Q = 5.2207 - 0.0048 * E * cs(M) + 0.0020 * E * cs(2 * M) - 0.3299 * cs(Mp) - 0.0060 * E * cs(Mp + M) + 0.0041 * E * cs(Mp - M);
+  const W = Math.abs(cs(F1)), g = (P * cs(F1) + Q * sn(F1)) * (1 - 0.0048 * W), u = 0.0059 + 0.0046 * E * cs(M) - 0.0182 * cs(Mp) + 0.0004 * cs(2 * Mp) - 0.0005 * cs(M + Mp), ag = Math.abs(g);
+  if (!full) {
+    if (ag > 1.5433 + u) return out;
+    if (ag < 0.9972) out.ecl = { sun: true, ty: u < 0 ? 'total' : u > 0.0047 || u >= 0.00464 * Math.sqrt(1 - g * g) ? 'annular' : 'hybrid', central: true };
+    else if (ag < 0.9972 + Math.abs(u)) out.ecl = { sun: true, ty: u < 0 ? 'total' : 'annular', central: false };
+    else out.ecl = { sun: true, ty: 'partial', mag: (1.5433 + u - ag) / (0.5461 + 2 * u) };
+  } else {
+    const pm = (1.5573 + u - ag) / 0.5450, um = (1.0128 - u - ag) / 0.5450;
+    if (pm > 0) out.ecl = { sun: false, ty: um >= 1 ? 'total' : um > 0 ? 'partial' : 'penumbral', mag: um > 0 ? um : pm };
+  }
+  return out;
+}
+const EQ_A = [485, 203, 199, 182, 156, 136, 77, 74, 70, 58, 52, 50, 45, 44, 29, 18, 17, 16, 14, 12, 12, 12, 9, 8];
+const EQ_B = [324.96, 337.23, 342.08, 27.85, 73.14, 171.52, 222.54, 296.72, 243.58, 119.81, 297.17, 21.02, 247.54, 325.15, 60.93, 155.12, 288.79, 198.04, 199.76, 95.39, 287.11, 320.81, 227.73, 15.45];
+const EQ_C = [1934.136, 32964.467, 20.186, 445267.112, 45036.886, 22518.443, 65928.934, 3034.906, 9037.513, 33718.147, 150.678, 2281.226, 29929.562, 31555.956, 4443.417, 67555.328, 4562.452, 62894.029, 31436.921, 14577.848, 31931.756, 34777.259, 1222.114, 16859.074];
+const SEASONS = ['spring equinox', 'summer solstice', 'autumn equinox', 'winter solstice'];
+function seasonJde(y, i) {                                 // ch. 27: astronomical year y; 0 March equinox, 1 June solstice, 2 September equinox, 3 December solstice
+  const lo = [[1721139.29189, 365242.13740, 0.06134, 0.00111, -0.00071], [1721233.25401, 365241.72562, -0.05323, 0.00907, 0.00025], [1721325.70455, 365242.49558, -0.11677, -0.00297, 0.00074], [1721414.39987, 365242.88257, -0.00769, -0.00933, -0.00006]];
+  const hi = [[2451623.80984, 365242.37404, 0.05169, -0.00411, -0.00057], [2451716.56767, 365241.62603, 0.00325, 0.00888, -0.00030], [2451810.21715, 365242.01767, -0.11575, 0.00337, 0.00078], [2451900.05952, 365242.74049, -0.06223, -0.00823, 0.00032]];
+  const [c, Y] = y < 1000 ? [lo[i], y / 1000] : [hi[i], (y - 2000) / 1000];
+  const j0 = c[0] + c[1] * Y + c[2] * Y * Y + c[3] * Y ** 3 + c[4] * Y ** 4, T = (j0 - 2451545) / 36525, W = 35999.373 * T - 2.47, dl = 1 + 0.0334 * cs(W) + 0.0007 * cs(2 * W);
+  let S = 0; for (let k = 0; k < 24; k++) S += EQ_A[k] * cs(EQ_B[k] + EQ_C[k] * T); return j0 + 0.00001 * S / dl; }
+const kOfJd = jd => (jd - 2451550.09766) / 29.530588861;
+function tmpEclipses() {                                   // every eclipse from 2000 BC to AD 2100, computed once (about 10 000)
+  if (TP.ecl) return TP.ecl; const out = [];
+  for (let k = Math.floor(kOfJd(jdY0(-1999))); k < kOfJd(jdY0(2101)); k += 0.5) { const p = moonPhase(k); if (!p.ecl) continue;
+    const y = Math.floor(axOfJd(p.jde)), j = ut(p.jde, y); out.push(Object.assign({ jd: j, a: axOfJd(j) }, p.ecl)); }
+  return TP.ecl = out;
+}
+const eclName = e => `${e.ty === 'hybrid' ? 'hybrid (annular–total)' : e.ty} ${e.sun ? 'solar' : 'lunar'} eclipse`;
+function drawSky(g, C, y, h, W, X, A0, A1, font) {
+  const ppy = TP.ppy, cy = y + h / 2 + 1, mk = [];            // (markers: drawn by importance, none on top of another; a label runs to the next one)
+  // eclipses (2000 BC – AD 2100)
+  if (ppy >= 3) { const E = tmpEclipses(); let lo = 0, hi = E.length; while (lo < hi) { const m = (lo + hi) >> 1; if (E[m].a < A0 - 0.01) lo = m + 1; else hi = m; }
+    for (let i = lo; i < E.length && E[i].a <= A1 + 0.01; i++) { const e = E[i]; if (e.ty === 'penumbral' && ppy < 120) continue;
+      mk.push({ x: X(e.a), pr: e.sun ? (e.central ? 0 : e.ty === 'partial' ? 3 : 1) : e.ty === 'total' ? 1 : e.ty === 'partial' ? 3 : 5, lab: ppy >= 400 ? eclName(e) : '', e, sky: Object.assign({ kind: 'ecl' }, e) }); } }
+  // new and full moons (not where an eclipse marks the same moment)
+  if (ppy >= 250) { const j0 = jdOfAx(A0), j1 = jdOfAx(A1);
+    for (let k = Math.floor(kOfJd(j0) * 2) / 2 - 0.5; k <= kOfJd(j1) + 0.5; k += 0.5) { const p = moonPhase(k); if (p.ecl && p.ecl.ty !== 'penumbral' && axOfJd(p.jde) >= -1999) continue;
+      const j = ut(p.jde, Math.floor(axOfJd(p.jde))); mk.push({ x: X(axOfJd(j)), pr: 6, moon: p.full, lab: ppy >= 3000 ? (p.full ? 'full moon' : 'new moon') : '', sky: { kind: 'moon', full: p.full, jd: j } }); } }
+  // equinoxes and solstices
+  if (ppy >= 60) for (let Y = Math.floor(A0); Y <= Math.ceil(A1); Y++) for (let i = 0; i < 4; i++) {
+    const j = ut(seasonJde(Y, i), Y), a = axOfJd(j); if (a < A0 - 0.05 || a > A1 + 0.05) continue;
+    mk.push({ x: X(a), pr: 2, season: i, lab: ppy >= 600 ? SEASONS[i] : '', sky: { kind: 'season', i, jd: j } }); }
+  const shown = [];
+  for (const m of mk.slice().sort((p, q) => p.pr - q.pr)) { if (m.x < -8 || m.x > W + 8) continue; if (shown.some(s => Math.abs(s.x - m.x) < 11)) continue; shown.push(m); }
+  shown.sort((p, q) => p.x - q.x);
+  shown.forEach((m, i) => { const x = m.x, e = m.e;
+    if (e) { const r = e.ty === 'partial' || e.ty === 'penumbral' ? 3.6 : 5; g.beginPath(); g.arc(x, cy, r, 0, 7);
+      if (e.sun) { if (e.ty === 'annular' || e.ty === 'hybrid') { g.fillStyle = '#e8b33a'; g.fill(); g.beginPath(); g.arc(x, cy, r - 1.6, 0, 7); g.fillStyle = C.fg; g.fill(); } else { g.fillStyle = C.fg; g.globalAlpha = e.ty === 'partial' ? 0.5 : 1; g.fill(); g.globalAlpha = 1; } }
+      else { g.fillStyle = '#b5523b'; g.globalAlpha = e.ty === 'total' ? 0.95 : e.ty === 'partial' ? 0.55 : 0.25; g.fill(); g.globalAlpha = 1; } }
+    else if (m.season != null) { g.fillStyle = m.season % 2 ? C.acc : C.acc2; g.globalAlpha = 0.8; g.beginPath(); g.moveTo(x, y + 4); g.lineTo(x + 3.5, y + h - 4); g.lineTo(x - 3.5, y + h - 4); g.closePath(); g.fill(); g.globalAlpha = 1; }
+    else { g.beginPath(); g.arc(x, cy, 3.4, 0, 7); if (m.moon) { g.fillStyle = C.card; g.fill(); g.strokeStyle = C.mut; g.lineWidth = 1; g.stroke(); } else { g.fillStyle = C.mut; g.fill(); } }
+    if (m.lab) { const room = (i + 1 < shown.length ? shown[i + 1].x - 8 : W) - (x + 8); if (room > 20) { g.save(); g.beginPath(); g.rect(x + 7, y, room, h); g.clip(); g.font = font(9.5); g.fillStyle = e ? C.fg : C.mut; g.fillText(m.lab, x + 8, y + h - 5); g.restore(); } }
+    TP.hit.push({ x0: x - 6, x1: x + 6, y0: y, y1: y + h, sky: m.sky }); });
+  if (ppy < 3 && A1 > -1999) { g.font = font(9.5); g.fillStyle = C.mut; g.fillText('zoom in for eclipses, moons, equinoxes and solstices', 6, y + h - 5); }
+}
+function tmpCardSky(s) {
+  const c = $('#tmpCard'); c.hidden = false; const y = hy(Math.floor(axOfJd(s.jd)));
+  const t = s.kind === 'ecl' ? eclName(s).replace(/^./, x => x.toUpperCase()) : s.kind === 'moon' ? (s.full ? 'Full moon' : 'New moon') : SEASONS[s.i].replace(/^./, x => x.toUpperCase());
+  const unc = y < 1000 ? ' Before about AD 1000 the hour is uncertain – the earth’s rotation slowed unevenly (ΔT, after Espenak and Meeus); before 2000 BC the eclipses are left out.' : '';
+  c.innerHTML = `<div class="tch"><b>${esc(t)}</b><button type="button" data-tmpclose="1" aria-label="Close">✕</button></div>`
+    + `<p>${esc(jdTxt(s.jd, true))} <small class="hint">(${y < 1583 ? 'Julian' : 'Gregorian'} calendar; hour of greatest eclipse or of the moment itself)</small></p>`
+    + (s.kind === 'ecl' ? `<p class="hint">${s.sun ? (s.central === false ? 'not central – ' : '') : ''}${s.mag != null ? `magnitude ${s.mag.toFixed(2)}` : 'central'}. Where it could be seen is not computed yet.</p>` : '')
+    + `<p class="hint small">Computed in the app after J. Meeus, Astronomical Algorithms (2nd ed. 1998), ch. ${s.kind === 'ecl' ? 54 : s.kind === 'moon' ? 49 : 27}.${unc}</p>`
+    + `<p class="tact"><button type="button" data-tmpyear="${y}">The year in all systems</button></p>`;
+}
+// the Julian calendar under the year: months, days, hours as you zoom in
+function julCells(A0, A1, ppy) {
+  const out = [], j0 = jdOfAx(A0), j1 = jdOfAx(A1);
+  if (ppy < 6000) { let { y, m } = jdToCal(j0);
+    for (let n = 0; n < 400; n++) { const a = axOfJd(calToJd(y, m, 1)), ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1, b = axOfJd(calToJd(ny, nm, 1));
+      if (a > A1) break; out.push({ a, b, lab: m === 1 ? `Jan ${yTxtS(hy(y))}` : MON[m - 1], strong: m === 1 }); y = ny; m = nm; } }
+  else if (ppy < 150000) for (let d = Math.floor(j0 - 0.5) + 0.5, n = 0; d < j1 && n < 800; d++, n++) { const c = jdToCal(d); out.push({ a: axOfJd(d), b: axOfJd(d + 1), lab: c.d === 1 ? `1 ${MON[c.m - 1]}` : String(c.d), strong: c.d === 1 }); }
+  else for (let h = Math.floor((j0 - 0.5) * 24) / 24 + 0.5, n = 0; h < j1 && n < 800; h += 1 / 24, n++) { const c = jdToCal(h + 1e-6), hr = Math.round(c.f * 24) % 24;
+    out.push({ a: axOfJd(h), b: axOfJd(h + 1 / 24), lab: hr === 0 ? `${c.d} ${MON[c.m - 1]}` : hr + 'h', strong: hr === 0 }); }
+  return out;
+}
 
 // ---------------------------------------------------------------- reading a year in the reference systems
 function olOf(a) { const k = Math.floor(a - 0.5 + 775); return k < 0 ? null : { n: Math.floor(k / 4) + 1, y: k % 4 + 1 }; }   // a: axis value
@@ -139,13 +265,10 @@ async function tmpData() {
           src: wTitle(wid), go: { w: wid, bi: 0, r: null }, note: 'the years this life narrates' });
         L.have = L.have || works.has(wid); continue;
       }
-      const its = Object.entries(m).map(([lab, [y0, y1]]) => ({ t0: ax(y0), t1: ax(y1) + 1, lab: lab === '*' ? 'the life' : lab.replace(/^Book /, 'Book '), kind: 'book', k2: 'narr', sid: 'narr',
+      const its = Object.entries(m).map(([lab, [y0, y1]]) => ({ t0: ax(y0), t1: ax(y1) + 1, lab: lab === '*' ? 'the life' : lab.replace(/^Book /, 'Book '), kind: 'book', k2: 'narr', sid: 'narr', lv: 1,
         src: wTitle(wid), go: { w: wid, bi: lab === '*' ? 0 : bookIx(wid, lab), r: null }, note: 'the years this part narrates' }));
       lanes.push({ id: 'nd:' + wid, g: 'Texts – the years they narrate', t: wTitle(wid), its, have: works.has(wid), wid });
     }
-    for (const L of lanes) if (L.col) { const ls = L.its; L.avg1 = ls.reduce((s, i) => s + i.t1 - i.t0, 0) / Math.max(1, ls.length);   // (zoomed out: the collection as one bar)
-      L.its.push({ t0: Math.min(...ls.map(i => i.t0)), t1: Math.max(...ls.map(i => i.t1)), lab: `${ls.length} lives – zoom in for each`, kind: 'book', k2: 'narr', sid: 'narr', lv: 0, lw: L.wid, src: L.t,
-        note: ls.slice().sort((p, q) => p.t0 - q.t0).map(i => i.lab).join(' · ') }); }
     // Diodorus' own years (chrono-texts)
     const ch = Object.values(S.installed || {}).find(d => d.kind === 'chrono');
     if (ch) {
@@ -155,8 +278,23 @@ async function tmpData() {
           src: title, go: { w: x[6]?.w, bi: x[4], r: x[5] }, text: x[6]?.text || null, fa: !!x[6]?.text && !x[6]?.ol?.[1], fb: !!x[6]?.text && !x[6]?.ol?.[1],
           note: x[6]?.text ? (x[6].ol?.[1] ? '' : 'the Olympiad only – any of its four years') : (x[6]?.fixed ? 'an Olympiad named here fixes the year' : 'counted from the Olympiad named before')
             + (x[6]?.uneven ? ' – in a stretch where his headers and his Olympiads disagree' : '') }));
+        for (const it of its) it.lv = 2;
+        const byB = new Map(); for (const it of its) { const k = it.go.bi ?? 0; if (!byB.has(k)) byB.set(k, []); byB.get(k).push(it); }   // (the books: the passages grouped)
+        for (const [bi, ps] of byB) { const w0 = ps[0].go.w, bl = (works.get(w0) || S.catWork?.[w0])?.books?.[bi];
+          its.push({ t0: Math.min(...ps.map(i => i.t0)), t1: Math.max(...ps.map(i => i.t1)), lab: (bl ? (/^\d/.test(bl) ? 'Book ' + bl : bl) : 'Book') + ` · ${ps.length} dates`, kind: 'book', k2: ps[0].k2, sid: lid, lv: 1, kids: ps,
+            src: title, go: { w: w0, bi, r: null }, note: 'the dates of this book – zoom in (also vertically) for each' }); }
         lanes.push({ id: 'ch:' + lid, g: 'Texts – the years they narrate', t: title, its, note, have: true, wid: wpre });
       }
+    }
+    // 822a: levels – the work as one bar, its books (or lives), their passages – shown as there is room, across and up and down
+    for (const L of lanes) { if (!L.wid) continue;
+      const l1 = L.its.filter(i => i.lv === 1); if (l1.length < 2) { for (const i of L.its) delete i.lv; continue; }
+      const l2 = L.its.filter(i => i.lv === 2), bn = l1.map(i => i.lab.match(/^Book (\S+)/)?.[1]);
+      L.levels = l2.length ? [0, 1, 2] : [0, 1];
+      L.avg = [0, 1, 2].map(k => { const s = L.its.filter(i => i.lv === k); return s.reduce((z, i) => z + i.t1 - i.t0, 0) / Math.max(1, s.length); });
+      const s1 = l1.slice().sort((p, q) => p.t0 - q.t0);
+      L.its.push({ t0: Math.min(...l1.map(i => i.t0)), t1: Math.max(...l1.map(i => i.t1)), kind: 'book', k2: l1[0].k2, sid: l1[0].sid, lv: 0, lw: L.wid, src: L.t, kids: l2.length ? l2 : l1,
+        lab: L.col ? `${l1.length} lives` : bn.every(Boolean) && !l2.length ? `Books ${bn[0]}–${bn[bn.length - 1]}` : `${l1.length} books`, note: 'zoom in – across and up and down – for the parts: ' + s1.map(i => i.lab.replace(/ ·.*$/, '')).join(' · ') });
     }
     // consular dates in the text being read (782a)
     if (S.text?.work && S.consDates?.length) {
@@ -222,10 +360,11 @@ async function tmpData() {
   // your statements (791a)
   const own = (await getAll('settings', IDBKeyRange.bound('tmp|', 'tmp|￿'))).map(x => x.v).filter(Boolean);
   if (own.length) lanes.push({ id: 'own', g: 'Your chronology', t: 'Your statements', its: own.map(s => ownItem(s)), have: true });
-  for (const L of lanes) { let a = Infinity, b = -Infinity; for (const it of L.its) { a = Math.min(a, it.t0); b = Math.max(b, it.t1); } L.a = a; L.b = b; }   // (the span a lane covers)
+  for (const L of lanes) { let a = Infinity, b = -Infinity; for (const it of L.its) { a = Math.min(a, it.t0); b = Math.max(b, it.t1); } L.a = a; L.b = b;   // (the span a lane covers – with its dates of writing: room is kept for them)
+    let na = Infinity, nb = -Infinity; for (const it of L.its) if (!it.wr) { na = Math.min(na, it.t0); nb = Math.max(nb, it.t1); } L.na = isFinite(na) ? na : a; L.nb = isFinite(nb) ? nb : b; }   // (its box: without them)
   for (const L of lanes) {                              // rows packed once over all the lane's items: an item keeps its row whatever is in view
     const sh = L.sh || L.t.replace(/ – .*$/, '');
-    for (const lv of L.col ? [0, 1] : [null]) {            // (a lane with levels: rows for each level)
+    for (const lv of L.levels || [null]) {               // (a lane with levels: rows for each level)
       const ends = [];
       for (const it of L.its.filter(i => lv == null || i.lv == null || i.lv === lv).sort((a, b) => a.t0 - b.t0)) {
         let r = ends.findIndex(e => e <= it.t0 + 1e-6); if (r < 0) { r = ends.length; ends.push(0); } ends[r] = it.t1; it.row = r; if (lv != null) it['row' + lv] = r; }
@@ -251,6 +390,12 @@ function tmpColors() {
   return { fg: v('--fg'), mut: v('--mut'), line: v('--line'), acc: v('--acc'), acc2: v('--acc2'), card: v('--card'), bar: v('--bar'), bg: v('--bg'), ui: v('--ui') };
 }
 const evHue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+function tmpLevel(L) {
+  if (!L.levels) return null; const w1 = L.avg[1] * TP.ppy; let v = 0;
+  if (w1 >= 60 && TP.lh >= 22) v = 1;
+  if (v === 1 && L.levels.includes(2) && w1 >= 150 && TP.lh >= 26) v = 2;
+  return v;
+}
 function laneShown(L) { return (L.have || TP.cfg.all) && !TP.cfg.lhide?.[L.id]; }
 // 828: the order of the lanes – pinned ones first in your order; then the text being read, what passes the filter, the rest by time
 function laneOrder(lanes) {
@@ -266,7 +411,7 @@ function tmpLayout(A0, A1) {
   const slots = [];
   for (const L of lanes) {
     if (hide && TP.fOn && !L.its.some(i => i.pass)) continue;           // (hidden: a lane with nothing that passes goes)
-    const lvl = L.col ? (L.avg1 * TP.ppy >= 80 ? 1 : 0) : null;          // (822a: the finer level once its parts are wide enough to read)
+    const lvl = tmpLevel(L);                                              // (822a: the finer level once there is room for it, across and up and down)
     if (lvl != null) for (const i of L.its) if (i.lv == null || i.lv === lvl) i.row = i['row' + lvl] ?? i.row;
     const atLv = i => lvl == null || i.lv == null || i.lv === lvl;
     const its = L.its.filter(i => atLv(i) && i.t1 > A0 && i.t0 < A1 && !(hide && !i.pass));
@@ -278,7 +423,7 @@ function tmpLayout(A0, A1) {
   for (const S of slots) S.sort((p, q) => p.a - q.a);
   return { slots };
 }
-function rulerHeight(id) { return id === 'emp' ? 14 * (TP.empRowsE || 1) + 6 : id === 'cos' ? 20 : 18; }
+function rulerHeight(id) { return id === 'emp' ? 14 * (TP.empRowsE || 1) + 6 : id === 'cos' || id === 'sky' ? 20 : 18; }
 // heights glide to their new values instead of jumping (a lane's row count, the emperor band, a reference row coming or going)
 function tmpEase(k, v) { const E = TP.ease || (TP.ease = new Map()); let c = E.get(k);
   if (c == null) c = v; else { c += (v - c) * 0.35; if (Math.abs(v - c) < 0.02) c = v; else TP.moving = true; } E.set(k, c); return c; }
@@ -307,9 +452,10 @@ function tmpDraw() {
   TP.RH = RH;
   tmpFilterApply();
   // ---- the lanes: their slots, heights (eased), and where each lies in the scrolled content
-  const { slots } = tmpLayout(A0, A1), lh = TP.lh, laneH = n => n > 0.02 ? Math.max(8, n * lh + 6) : 8;
+  const { slots } = tmpLayout(A0, A1), lh = TP.lh, TT = 14;                 // (TT: the strip with the lane's name, once, at the top of its box)
+  const laneH = (n, box) => n > 0.02 ? TT + n * lh + 6 : box ? TT + 4 : 8;
   const lay = []; let off = 0;
-  for (const SL of slots) { const ls = SL.map(r => Object.assign(r, { h: laneH(tmpEase('L:' + r.L.id, r.n)) })), hs = Math.max(8, ...ls.map(r => r.h));
+  for (const SL of slots) { const ls = SL.map(r => Object.assign(r, { box: r.L.na < A1 && r.L.nb > A0, h: 0 })).map(r => Object.assign(r, { h: laneH(tmpEase('L:' + r.L.id, r.n), r.box) })), hs = Math.max(8, ...ls.map(r => r.h));
     lay.push({ ls, off, hs, key: ls.map(r => r.L.id).join('|') }); off += hs + 4; }
   TP.contentH = off;
   // anchoring: the point under the fingers or the cursor (or the top of the lanes) keeps its place on screen while heights change
@@ -326,7 +472,7 @@ function tmpDraw() {
   // year grid
   const step = gridStep(TP.ppy);
   g.strokeStyle = C.line; g.lineWidth = 1; g.globalAlpha = 0.5;
-  for (let a = Math.ceil(A0 / step) * step; a < A1; a += step) { const x = Math.round(X(a)) + 0.5; g.beginPath(); g.moveTo(x, RH); g.lineTo(x, H); g.stroke(); }
+  for (const a of TP.ppy >= 150 ? julCells(A0, A1, TP.ppy).map(c => c.a) : (() => { const r = []; for (let a = Math.ceil(A0 / step) * step; a < A1; a += step) r.push(a); return r; })()) { const x = Math.round(X(a)) + 0.5; g.beginPath(); g.moveTo(x, RH); g.lineTo(x, H); g.stroke(); }
   g.globalAlpha = 1;
   const nPass = TP.fOn ? lay.reduce((s, l) => s + l.ls.reduce((z, r) => z + r.its.filter(i => i.pass !== false && !i.wr).length, 0), 0) : 0;
   const wmode = TP.fOn && nPass <= 30 ? 'passage' : (TP.cfg.wlines || 'work');   // (815, 821a: per work, book or passage; per passage when a filter leaves few in view)
@@ -335,7 +481,7 @@ function tmpDraw() {
     const top = y0 + off;
     ls.forEach(({ L, a, b, n, h, its: vis, atLv }, k) => {
       TP.laneTop[L.id] = top + TP.sy;
-      const ry = it => n ? top + 3 + Math.min(it.row, n - 1) * lh + (lh - 8) / 2 : top + 3;   // (an item's middle, kept within the lane as drawn)
+      const ry = it => n ? top + TT + 3 + Math.min(it.row, n - 1) * lh + (lh - 8) / 2 : top + 3;   // (an item's middle, kept within the lane as drawn)
       if (TP.cfg.written) for (const it of L.its) if (it.wr && atLv(it)) { const m = { x: X(it.t0), y: ry(it), dim: it.pass === false }; for (const wk of it.wks || [it.wk]) { if (!marks.has(wk)) marks.set(wk, []); marks.get(wk).push(m); } }
       if (TP.cfg.written) {                                                   // the items joined to their work's date of writing
         const by = new Map();
@@ -346,16 +492,19 @@ function tmpDraw() {
       }
       if (top >= H || top + hs <= RH) return;
       // 811a: alternate lanes faintly tinted or outlined – only over the span the lane covers
-      if (isFinite(L.a)) { const xa = Math.max(-10, X(a) - 3), xb = Math.min(W + 10, X(b) + 3);
+      if (isFinite(L.na)) { const xa = Math.max(-10, X(L.na) - 3), xb = Math.min(W + 10, X(L.nb) + 3);       // (the box: what the work narrates, not when it was written)
         if (xb > xa) { if ((si + k) % 2 === 0) { g.fillStyle = C.fg; g.globalAlpha = 0.045; g.fillRect(xa, top - 2, xb - xa, h + 4); }
-          else { g.strokeStyle = C.line; g.globalAlpha = 0.6; g.strokeRect(xa + 0.5, top - 1.5, xb - xa - 1, h + 2); } g.globalAlpha = 1; } }
+          else { g.strokeStyle = C.line; g.globalAlpha = 0.6; g.strokeRect(xa + 0.5, top - 1.5, xb - xa - 1, h + 2); } g.globalAlpha = 1;
+          // its name, once – at the box's left edge, or held at the screen's edge while the box runs on
+          const nm = L.t + (L.have ? '' : ' (not on this device)'); g.font = font(10.5); const tw = g.measureText(nm).width, tx = Math.max(xa + 4, Math.min(Math.max(xa + 4, 4), xb - tw - 4));
+          if (xb - xa > 30) { g.save(); g.beginPath(); g.rect(xa + 2, top - 2, xb - xa - 4, TT + 2); g.clip(); g.fillStyle = C.mut; g.fillText(nm, tx, top + 9.5); g.restore(); } } }
       // how far a label may run on (807a): to the next item in its row, and never into the next lane of the slot
       const stop = k + 1 < ls.length ? X(ls[k + 1].a) - 6 : W + 4000;
       const byRow = new Map(); for (const it of vis) { if (!byRow.has(it.row)) byRow.set(it.row, []); byRow.get(it.row).push(it); }
       const nextX = new Map(); for (const r of byRow.values()) { r.sort((p, q) => p.t0 - q.t0); r.forEach((it, j) => nextX.set(it, Math.min(stop, j + 1 < r.length ? X(r[j + 1].t0) - 6 : W + 4000))); }
       g.save(); g.beginPath(); g.rect(0, top - 2, W, h + 4); g.clip();                     // (a lane still growing shows only what fits)
       for (const it of vis) {
-        const x0 = X(it.t0), x1 = Math.max(X(it.t1) - 1, x0 + 3), yy = top + 3 + it.row * lh, bh = lh - 8;
+        const x0 = X(it.t0), x1 = Math.max(X(it.t1) - 1, x0 + 3), yy = top + TT + 3 + it.row * lh, bh = lh - 8;
         if (x1 < 0 && nextX.get(it) < 0) continue; if (x0 > W) continue;
         drawItem(g, C, it, x0, x1, yy, bh, font, nextX.get(it), W);
         if ((it.pass !== false || TP.cfg.fmode === 'hide') && yy < top + h) TP.hit.push({ x0, x1, y0: yy, y1: yy + bh, it, L });
@@ -413,7 +562,7 @@ function drawItem(g, C, it, x0, x1, y, h, font, lim = Infinity, W = 1e9) {
   if (it.uneven) { g.strokeStyle = C.acc; g.setLineDash([3, 2]); roundRect(g, x0, y, x1 - x0, h, 4); g.stroke(); g.setLineDash([]); }
   // the label: at the bar's start, moving with it; it may run on past a short bar up to the next item in its row (807a);
   // along a bar longer than the screen it is repeated about every screen-width (808a)
-  const txt = it.full || it.lab; g.font = font(11); const tw = g.measureText(txt).width;
+  const txt = it.lab; g.font = font(11); const tw = g.measureText(txt).width;
   const step = Math.max(W * 0.8, tw + 80), pos = [];
   if (x1 - x0 > W * 1.2) { for (let p = x0 + 4 + Math.max(0, Math.floor((-x0 - tw) / step)) * step; p < Math.min(x1 - 20, W); p += step) pos.push(p); }
   else pos.push(x0 + 4);
@@ -437,9 +586,14 @@ function drawRuler(g, C, id, y, h, W, X, A0, A1, emps, font) {
     if (tw <= room) g.fillText(lab, tx, y + h - 5);
   };
   const ppy = TP.ppy, st = gridStep(ppy), name = RULERS.find(r => r[0] === id)[1];
-  if (id === 'jul') {                                  // (round historical years: 600 BC, 400 BC, 200 BC, AD 1 / 200 …)
+  if (id === 'jul' && ppy < 150) {                     // (round historical years: 600 BC, 400 BC, 200 BC, AD 1 / 200 …)
     const ys = []; for (let Y = Math.floor((hy(Math.floor(A0)) - st) / st) * st; Y <= hy(Math.ceil(A1)) + st; Y += st) ys.push(Y === 0 ? 1 : Y);
     for (let i = 0; i < ys.length - 1; i++) cell(ax(ys[i]), ax(ys[i + 1]), yTxtS(ys[i]), true); }
+  if (id === 'jul' && ppy >= 150) {                    // (zoomed in: months, then days, then hours – and where you are, held at the left)
+    for (const c of julCells(A0, A1, ppy)) cell(c.a, c.b, c.lab, c.strong);
+    const c = jdToCal(jdOfAx(A0 + 2 / ppy)), ctx = ppy < 6000 ? yTxt(hy(c.y)) : `${ppy >= 150000 ? c.d + ' ' : ''}${MON[c.m - 1]} ${yTxt(hy(c.y))}`;
+    g.font = font(10.5); const tw = g.measureText(ctx).width; g.fillStyle = C.bar; g.fillRect(0, y + 1, tw + 10, h - 2); g.fillStyle = C.fg; g.fillText(ctx, 4, y + h - 5); }
+  if (id === 'sky') drawSky(g, C, y, h, W, X, A0, A1, font);
   if (id === 'ol') {
     if (ppy * 1 >= 26) { for (let a = Math.floor(A0) - 1; a < A1 + 1; a++) { const o = olOf(a + 0.6); if (o && o.n <= 293) cell(a + 0.5, a + 1.5, `${o.n}.${o.y}`, o.y === 1); } }
     else { const s = Math.max(1, Math.ceil(30 / (ppy * 4))); for (let n = Math.max(1, Math.floor((A0 + 775) / 4) - 1); n <= Math.min(293, (A1 + 775) / 4 + 1); n++) if ((n - 1) % s === 0) cell(-775 + 4 * (n - 1) + 0.5, -775 + 4 * (n - 1 + s) + 0.5, 'Ol. ' + n, true); }
@@ -490,8 +644,8 @@ async function showTempora() {
   if (has) $('#tmpHint')?.remove();
   await tmpData(); tmpChipsUpd(); tmpRedraw();
 }
-function tmpAt(px, py) { return TP.hit.slice().reverse().find(h => (py < TP.RH) === (h.emp != null) && px >= h.x0 - 3 && px <= h.x1 + 3 && py >= h.y0 - 2 && py <= h.y1 + 2) || null; }
-function tmpZoomX(f, px) { const a = TP.x0 + px / TP.ppy; TP.ppy = Math.min(4000, Math.max(0.005, TP.ppy * f)); TP.x0 = a - px / TP.ppy; tmpSave(); tmpRedraw(); }
+function tmpAt(px, py) { return TP.hit.slice().reverse().find(h => (py < TP.RH) === (h.emp != null || h.sky != null) && px >= h.x0 - 3 && px <= h.x1 + 3 && py >= h.y0 - 2 && py <= h.y1 + 2) || null; }
+function tmpZoomX(f, px) { const a = TP.x0 + px / TP.ppy; TP.ppy = Math.min(400000, Math.max(0.005, TP.ppy * f)); TP.x0 = a - px / TP.ppy; tmpSave(); tmpRedraw(); }
 function tmpZoomY(f) { TP.lh = Math.min(90, Math.max(16, TP.lh * f)); tmpSave(); tmpRedraw(); }
 function tmpClampY() { const cv = $('#tmpCanvas'); const max = Math.max(0, (TP.contentH || 0) - (cv.clientHeight - (TP.RH || 0)) + 40, TP.over || 0);
   TP.sy = Math.min(max, Math.max(0, TP.sy)); TP.over = Math.min(TP.over || 0, TP.sy); }   // (TP.over: how far the header has grown over the lanes)
@@ -504,7 +658,7 @@ function tmpWire(cv) {
   cv.addEventListener('pointermove', e => { if (!TP.ptr.has(e.pointerId)) return; TP.userMove = Date.now(); TP.ptr.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
     if (pinch && TP.ptr.size === 2) { const [p, q] = [...TP.ptr.values()], dx = Math.abs(p.x - q.x), dy = Math.abs(p.y - q.y), mx = (p.x + q.x) / 2;
       const a = pinch.x0 + pinch.mx / pinch.ppy;                 // two fingers: across = time, up and down = lane height
-      if (pinch.dx > 40) TP.ppy = Math.min(4000, Math.max(0.005, pinch.ppy * dx / pinch.dx));
+      if (pinch.dx > 40) TP.ppy = Math.min(400000, Math.max(0.005, pinch.ppy * dx / pinch.dx));
       if (pinch.dy > 40) TP.lh = Math.min(90, Math.max(16, pinch.lh * dy / pinch.dy));
       TP.x0 = a - mx / TP.ppy; TP.focusY = (p.y + q.y) / 2; moved = true; tmpSave(); tmpRedraw(); return; }
     if (!down) return; const dx = e.offsetX - down.x, dy = e.offsetY - down.y;
@@ -525,6 +679,7 @@ function tmpWire(cv) {
 function tmpTap(px, py) {
   const h = tmpAt(px, py);
   if (h?.it) { TP.sel = h; TP.cur = null; tmpCardItem(h); }
+  else if (h?.sky) { TP.sel = null; TP.cur = axOfJd(h.sky.jd); tmpCardSky(h.sky); }
   else if (h?.emp != null) { const e = TP.data.F.k[h.emp]; TP.sel = null; TP.cur = null; tmpCardEmp(e); }
   else if (py < (TP.RH || 0)) { TP.sel = null; TP.cur = TP.x0 + px / TP.ppy; tmpCardYear(hy(Math.floor(TP.cur))); }   // (a reference row: what that year is called)
   else { TP.sel = null; TP.cur = null; const c = $('#tmpCard'); if (c) c.hidden = true; }                               // (an empty place: nothing opens)
@@ -620,10 +775,10 @@ function fMatch(it, f) {
 function tmpFilterApply() {
   const fl = TP.cfg.flt || [], ands = fl.filter(f => f.op === 'and'), ors = fl.filter(f => f.op !== 'and');
   TP.fOn = fl.length > 0; let n = 0, m = 0;
-  for (const L of TP.data?.lanes || []) for (const it of L.its) {
-    it.pass = !fl.length || (ands.every(f => fMatch(it, f)) && (!ors.length || ors.some(f => fMatch(it, f))));
-    n++; if (it.pass) m++;
-  }
+  for (const L of TP.data?.lanes || []) { for (const it of L.its) { if (it.kids) continue;
+      it.pass = !fl.length || (ands.every(f => fMatch(it, f)) && (!ors.length || ors.some(f => fMatch(it, f))));
+      n++; if (it.pass) m++; }
+    for (const it of L.its) if (it.kids) it.pass = it.kids.some(k => k.pass); }   // (a book or a work passes when one of its parts does)
   TP.fCount = [m, n];
 }
 function sieveN() { const [m, n] = TP.fCount || [0, 0]; if (!TP.fOn) return 0; return !m ? 7 : Math.min(7, 1 + Math.floor(Math.log2(n / m) + 1e-9)); }
@@ -636,6 +791,10 @@ function tmpChipsUpd() {
   c.innerHTML = fl.map((f, i) => chipHTML(f, i)).join('') + (fl.length ? `<button type="button" class="tclr" data-tfclear="1">Clear</button>` : '');
 }
 const chipHTML = (f, i) => `<span class="tchip"><button type="button" class="top" data-tfop="${i}" title="Tap: either / and">${f.op === 'and' ? 'and' : 'either'}</button><span class="tcl">${esc(f.lab)}</span><button type="button" class="tx" data-tfrm="${i}" aria-label="Remove">✕</button></span>`;
+async function tmpAddWord(w) {                             // a word: the books it occurs in (its lemmas too)
+  let keys = [gkey(w)]; try { const A = await analyses(w); keys = [...new Set([gkey(w), ...A.lemmas.map(x => gkey(x.lemma))])]; } catch (_) { }
+  return tmpAddFilter({ t: 'word', v: keys[keys.length > 1 ? 1 : 0], keys, lab: w });
+}
 async function tmpAddFilter(f) {
   const fl = TP.cfg.flt = TP.cfg.flt || [];
   if (fl.some(x => x.t === f.t && JSON.stringify(x.v) === JSON.stringify(f.v))) return;
@@ -645,20 +804,22 @@ async function tmpAddFilter(f) {
   if (!$('#tmpPanel').hidden && $('#tmpPanel').dataset.k === 'filter') tmpFilterPanel(true);
 }
 function tmpFilterPanel(keep) {
-  const p = $('#tmpPanel'); p.hidden = false; p.dataset.k = 'filter';
+  const p = $('#tmpPanel'), q0 = keep && p.dataset.k === 'filter' ? p.querySelector('[data-tfs="all"]')?.value || '' : '';
+  if (keep && p.dataset.k === 'filter') p.dataset.open = [...p.querySelectorAll('details[open]')].map(d => d.dataset.o).join('');
+  p.hidden = false; p.dataset.k = 'filter';
   const scroll = keep ? p.scrollTop : 0, fl = TP.cfg.flt || [], [m, n] = TP.fCount || [0, 0];
   const works = new Map();                                   // the works Tempora knows something about
   for (const L of TP.data?.lanes || []) for (const it of L.its) if (it.go?.w) { const w = works.get(it.go.w) || { id: it.go.w, t: it.src || it.go.w, books: new Map() }; if (it.kind === 'book' || it.kind === 'year') w.books.set(it.go.bi, it.lab.replace(/ ·.*$/, '')); works.set(it.go.w, w); }
   const on = (t, v) => fl.some(f => f.t === t && JSON.stringify(f.v) === JSON.stringify(v));
   p.innerHTML = `<div class="tch"><b>Filter</b><small class="hint">${TP.fOn ? `${m} of ${n} items` : `${n} items`}</small><button type="button" data-tmpclose="panel" aria-label="Close">✕</button></div>`
-    + `<div class="tpsec"><label class="tpall"><input type="checkbox" data-tmpall2="1"${TP.cfg.all ? ' checked' : ''}> also works not on this device</label></div>`
     + (fl.length ? `<div class="tpsec"><div class="tph">Your filter <button type="button" class="tclr" data-tfclear="1">Clear</button></div><div class="tchips">${fl.map((f, i) => chipHTML(f, i)).join('')}</div><p class="hint small">An item shows when it meets every “and” and – if there are any – at least one “either”. Tap “either” / “and” to change it.</p></div>` : '')
-    + `<details class="tpsec"${keep && p.dataset.open?.includes('t') ? ' open' : ''} data-o="t"><summary class="tph">Texts</summary>${[...works.values()].sort((a, b) => a.t.localeCompare(b.t)).map(w => `<div class="tpw"><button type="button" class="tpadd${on('work', w.id) ? ' on' : ''}" data-tfw="${esc(w.id)}" data-l="${esc(w.t)}">${esc(w.t)}</button>${w.books.size > 1 ? `<div class="tpbk">${[...w.books].sort((a, b) => a[0] - b[0]).map(([bi, l]) => `<button type="button" class="tpadd sm${on('book', { w: w.id, bi }) ? ' on' : ''}" data-tfb="${esc(w.id)}" data-bi="${bi}" data-l="${esc(w.t + ' · ' + l)}">${esc(l)}</button>`).join('')}</div>` : ''}</div>`).join('') || '<p class="hint small">Nothing dated yet.</p>'}</details>`
-    + `<div class="tpsec"><div class="tph">Persons</div><input type="search" data-tfs="person" placeholder="A name – Greek or Latin letters" autocomplete="off"><div class="tpres" data-tfr="person"></div></div>`
-    + `<div class="tpsec"><div class="tph">Places</div><input type="search" data-tfs="place" placeholder="A place of the map" autocomplete="off"><div class="tpres" data-tfr="place"></div></div>`
-    + `<div class="tpsec"><div class="tph">Words</div><input type="search" data-tfs="word" placeholder="A word – Enter adds it" enterkeyhint="done" autocomplete="off"><p class="hint small">The books it occurs in, at the years they narrate – from the index of all texts (Settings → Search).</p></div>`
-    + `<div class="tpsec"><div class="tph">Kinds of date</div><div class="tchips">${KINDS.map(([v, l]) => `<button type="button" class="tpadd sm${on('kind', v) ? ' on' : ''}" data-tfk="${v}" data-l="${esc(l)}">${esc(l)}</button>`).join('')}</div></div>`
-    + `<div class="tpsec"><div class="tph">Sources</div><div class="tchips">${SOURCES.map(([v, l]) => `<button type="button" class="tpadd sm${on('src', v) ? ' on' : ''}" data-tfsrc="${v}" data-l="${esc(l)}">${esc(l)}</button>`).join('')}</div></div>`;
+    + `<div class="tpsec"><input type="search" data-tfs="all" class="tfq" placeholder="A text, person, place or word …" enterkeyhint="done" autocomplete="off" autocapitalize="off" spellcheck="false"><div class="tpres" data-tfr="all"></div></div>`
+    + `<details class="tpsec"${keep && p.dataset.open?.includes('k') ? ' open' : ''} data-o="k"><summary class="tph">Kinds of date</summary><div class="tchips">${KINDS.map(([v, l]) => `<button type="button" class="tpadd sm${on('kind', v) ? ' on' : ''}" data-tfk="${v}" data-l="${esc(l)}">${esc(l)}</button>`).join('')}</div></details>`
+    + `<details class="tpsec"${keep && p.dataset.open?.includes('s') ? ' open' : ''} data-o="s"><summary class="tph">Sources</summary><div class="tchips">${SOURCES.map(([v, l]) => `<button type="button" class="tpadd sm${on('src', v) ? ' on' : ''}" data-tfsrc="${v}" data-l="${esc(l)}">${esc(l)}</button>`).join('')}</div></details>`
+    + `<details class="tpsec"${keep && p.dataset.open?.includes('t') ? ' open' : ''} data-o="t"><summary class="tph">All texts</summary>${[...works.values()].sort((a, b) => a.t.localeCompare(b.t)).map(w => `<div class="tpw"><button type="button" class="tpadd${on('work', w.id) ? ' on' : ''}" data-tfw="${esc(w.id)}" data-l="${esc(w.t)}">${esc(w.t)}</button>${w.books.size > 1 ? `<div class="tpbk">${[...w.books].sort((a, b) => a[0] - b[0]).map(([bi, l]) => `<button type="button" class="tpadd sm${on('book', { w: w.id, bi }) ? ' on' : ''}" data-tfb="${esc(w.id)}" data-bi="${bi}" data-l="${esc(w.t + ' · ' + l)}">${esc(l)}</button>`).join('')}</div>` : ''}</div>`).join('') || '<p class="hint small">Nothing dated yet.</p>'}</details>`
+    + `<label class="tpall"><input type="checkbox" data-tmpall2="1"${TP.cfg.all ? ' checked' : ''}> also works not on this device</label>`;
+  TP.fWorks = works;
+  if (q0) { const i = p.querySelector('[data-tfs="all"]'); i.value = q0; i.dispatchEvent(new Event('input', { bubbles: true })); }
   p.scrollTop = scroll; tmpChipsUpd();
 }
 async function tmpPersonHits(q) {                         // as the Suda tab's search: names beginning so
@@ -673,21 +834,24 @@ async function tmpPersonHits(q) {                         // as the Suda tab's s
 let tfT = 0;
 document.addEventListener('input', ev => {
   const t = ev.target;
-  if (t.dataset?.tfs === 'person' || t.dataset?.tfs === 'place') { clearTimeout(tfT); tfT = setTimeout(async () => {
-    const box = t.parentElement.querySelector('.tpres'), q = t.value.trim();
-    if (t.dataset.tfs === 'person') { const rows = await tmpPersonHits(q); box.innerHTML = rows.map(r => `<button type="button" class="tpadd" data-tfp="${esc(r.ref)}" data-l="${esc(r.name)}"><b>${esc(r.name)}</b>${r.no ? ` <small>${r.no}</small>` : ''} <small class="hint">${esc((r.desc || '').slice(0, 70))}</small></button>`).join('') || (q.length > 1 ? '<p class="hint small">Nobody of that name.</p>' : ''); }
-    else { if (typeof searchPlaces !== 'function') { box.innerHTML = '<p class="hint small">The map is not installed.</p>'; return; }
-      if (!M.P?.full) await loadPlaceIndex(true).catch(() => null);
-      const ps = q.length > 1 ? searchPlaces(q).slice(0, 12) : [];
-      TP.plHits = ps; box.innerHTML = ps.map((p, i) => `<button type="button" class="tpadd" data-tfpl="${i}"><b>${esc(p.t)}</b> <small class="hint">${esc(typeLabel?.(p) || '')}</small></button>`).join('') || (q.length > 1 ? '<p class="hint small">No such place.</p>' : ''); }
+  if (t.dataset?.tfs === 'all') { clearTimeout(tfT); tfT = setTimeout(async () => {
+    const box = t.parentElement.querySelector('.tpres'), q = t.value.trim(), k = tfold(q).trim(); if (k.length < 2) { box.innerHTML = ''; return; }
+    const sec = (h, rows) => rows.length ? `<div class="tfgrp"><span class="tftag">${h}</span>${rows.join('')}</div>` : '';
+    const tx = [];                                          // texts and their books
+    for (const w of (TP.fWorks || new Map()).values()) { if (tfold(w.t).includes(k)) tx.push(`<button type="button" class="tpadd" data-tfw="${esc(w.id)}" data-l="${esc(w.t)}">${esc(w.t)}</button>`);
+      for (const [bi, l] of w.books) if (tx.length < 14 && tfold(w.t + ' ' + l).includes(k) && !tfold(w.t).includes(k)) tx.push(`<button type="button" class="tpadd" data-tfb="${esc(w.id)}" data-bi="${bi}" data-l="${esc(w.t + ' · ' + l)}">${esc(w.t)} · ${esc(l)}</button>`); }
+    const ps = (await tmpPersonHits(q).catch(() => [])).map(r => `<button type="button" class="tpadd" data-tfp="${esc(r.ref)}" data-l="${esc(r.name)}"><b>${esc(r.name)}</b>${r.no ? ` <small>${r.no}</small>` : ''} <small class="hint">${esc((r.desc || '').slice(0, 60))}</small></button>`);
+    let pl = []; if (typeof searchPlaces === 'function') { if (!M.P?.full) await loadPlaceIndex(true).catch(() => null);
+      TP.plHits = searchPlaces(q).slice(0, 8); pl = TP.plHits.map((p, i) => `<button type="button" class="tpadd" data-tfpl="${i}"><b>${esc(p.t)}</b> <small class="hint">${esc(typeLabel?.(p) || '')}</small></button>`); }
+    if (t.value.trim() !== q) return;
+    box.innerHTML = sec('Texts', tx.slice(0, 14)) + sec('Persons', ps.slice(0, 8)) + sec('Places', pl)
+      + sec('Word', [`<button type="button" class="tpadd" data-tfword="${esc(q)}">“${esc(q)}” <small class="hint">– the books it occurs in (Enter)</small></button>`]);
   }, 220); }
   if (t.id === 'tmpQ') { clearTimeout(tfT); tfT = setTimeout(() => tmpSearch(t.value, false), 160); }
 });
 document.addEventListener('keydown', async ev => {
   const t = ev.target; if (ev.key !== 'Enter') return;
-  if (t.dataset?.tfs === 'word') { ev.preventDefault(); const w = t.value.trim(); if (!w) return;
-    let keys = [gkey(w)]; try { const A = await analyses(w); keys = [...new Set([gkey(w), ...A.lemmas.map(x => gkey(x.lemma))])]; } catch (_) { }
-    t.value = ''; return tmpAddFilter({ t: 'word', v: keys[keys.length > 1 ? 1 : 0], keys, lab: w }); }
+  if (t.dataset?.tfs === 'all') { ev.preventDefault(); const w = t.value.trim(); if (!w) return; t.value = ''; return tmpAddWord(w); }
   if (t.id === 'tmpQ') { ev.preventDefault(); tmpSearch(t.value, true); }
 });
 
@@ -781,6 +945,7 @@ document.addEventListener('click', async ev => {
   if (D.tfrm != null) { const f = TP.cfg.flt.splice(+D.tfrm, 1)[0]; if (f?.t === 'person') TP.cfg.persons = TP.cfg.persons.filter(r => r !== f.v);   // (his lane goes with it)
     tmpSave(); if (f?.t === 'word' || f?.t === 'person') await tmpData(); tmpChipsUpd(); tmpRedraw(); if (!$('#tmpPanel').hidden && $('#tmpPanel').dataset.k === 'filter') tmpFilterPanel(true); return; }
   if (D.tfclear) { TP.cfg.flt = []; TP.cfg.persons = []; tmpSave(); await tmpData(); tmpChipsUpd(); tmpRedraw(); if (!$('#tmpPanel').hidden && $('#tmpPanel').dataset.k === 'filter') tmpFilterPanel(true); return; }
+  if (D.tfword) return tmpAddWord(D.tfword);
   if (D.tfw) return tmpAddFilter({ t: 'work', v: D.tfw, lab: D.l });
   if (D.tfb) return tmpAddFilter({ t: 'book', v: { w: D.tfb, bi: +D.bi }, lab: D.l });
   if (D.tfk) return tmpAddFilter({ t: 'kind', v: D.tfk, lab: D.l });
