@@ -543,10 +543,16 @@ async function tmpData() {
     let na = Infinity, nb = -Infinity; for (const it of L.its) if (!it.wr) { na = Math.min(na, it.t0); nb = Math.max(nb, it.t1); } L.na = isFinite(na) ? na : a; L.nb = isFinite(nb) ? nb : b; }   // (its box: without them)
   for (const L of lanes) {                              // rows packed once over all the lane's items: an item keeps its row whatever is in view
     const sh = L.sh || L.t.replace(/ – .*$/, '');
-    for (const lv of L.levels || [null]) {               // (a lane with levels: rows for each level)
-      const ends = [];
-      for (const it of L.its.filter(i => lv == null || i.lv == null || i.lv === lv).sort((a, b) => a.t0 - b.t0)) {
-        let r = ends.findIndex(e => e <= it.t0 + 1e-6); if (r < 0) { r = ends.length; ends.push(0); } ends[r] = it.t1; it.row = r; if (lv != null) it['row' + lv] = r; }
+    if (!L.levels) { const ends = [];
+      for (const it of L.its.slice().sort((a, b) => a.t0 - b.t0)) { let r = ends.findIndex(e => e <= it.t0 + 1e-6); if (r < 0) { r = ends.length; ends.push(0); } ends[r] = it.t1; it.row = r; } }
+    else {                                               // 854a: the finest parts packed first; each bar above them takes the top row of its parts,
+      const Fv = Math.max(...L.levels), place = (its, occ) => {   // so zooming in only ever adds rows (overlapping books in one row: cut where the next begins)
+        for (const it of its.sort((a, b) => a.t0 - b.t0)) { let r = 0; while ((occ[r] || []).some(([a, b]) => it.t0 < b - 1e-6 && it.t1 > a + 1e-6)) r++; (occ[r] ??= []).push([it.t0, it.t1]); it.row = r; it['row' + it._k] = r; } };
+      const fin = L.its.filter(i => i.lv === Fv); for (const i of fin) i._k = Fv; place(fin, []);
+      for (let k = Fv - 1; k >= 0; k--) for (const it of L.its.filter(i => i.lv === k)) { const ch = L.its.filter(i => i.par === it && i.lv === k + 1); it.row = it['row' + k] = ch.length ? Math.min(...ch.map(i => i['row' + (k + 1)])) : 0; }
+      for (const k of L.levels) {                        // (the dates of writing and the like: in the first free row at each level)
+        const occ = []; for (const i of L.its.filter(i => i.lv === k)) (occ[i['row' + k]] ??= []).push([i.t0, i.t1]);
+        for (const it of L.its.filter(i => i.lv == null).sort((a, b) => a.t0 - b.t0)) { let r = 0; while ((occ[r] || []).some(([a, b]) => it.t0 < b - 1e-6 && it.t1 > a + 1e-6)) r++; (occ[r] ??= []).push([it.t0, it.t1]); it['row' + k] = r; it.row = r; } }
     }
     for (const it of L.its) it.full = (L.id === 'own' || L.id === 'wr:lib' || it.wr ? '' : sh + ' · ') + it.lab + (L.have ? '' : ' (not on this device)');
   }
@@ -638,8 +644,9 @@ function tmpDraw() {
   TP.empRowsE = tmpEase('emp', TP.empRows);
   // ---- the reference rows: each fades in or out over its span
   const SPAN = { att: [-700, 400], auc: [-752, 1e9], cato: [-751, 1e9], ol: [-775, 394], cos: [-29, 566], emp: [-62, 566], sel: [-311, 1e9], dio: [284, 1e9], ind: [312, 1e9] };
-  const rulers = rulerOrder().filter(id => TP.cfg.rulers[id]).map(id => ({ id, h: rulerHeight(id) }));   // (every row switched on keeps its height – empty outside its span)
-  const RH = rulers.reduce((s, r) => s + r.h, 0) + 4;
+  let rulers = rulerOrder().filter(id => TP.cfg.rulers[id]).map(id => ({ id, h: rulerHeight(id) }));   // (every row switched on keeps its height – empty outside its span)
+  if (TP.cfg.rcoll) rulers = rulers.slice(0, 1);                    // (folded: only the uppermost row)
+  const RH = rulers.reduce((s, r) => s + r.h, 0) + 14;              // (+ the handle that folds and unfolds them)
   TP.RH = RH;
   tmpFilterApply();
   // ---- the lanes: their slots, heights (eased), and where each lies in the scrolled content
@@ -692,11 +699,14 @@ function tmpDraw() {
           if (xb - xa > 30) { g.save(); g.beginPath(); g.rect(xa + 2, top - 2, xb - xa - 4, TT + 2); g.clip(); g.fillStyle = C.mut; g.fillText(nm, tx, top + 9.5); g.restore(); } } }
       // how far a label may run on (807a): to the next item in its row, and never into the next lane of the slot
       const stop = k + 1 < ls.length ? X(ls[k + 1].a) - 6 : W + 4000;
+      const cutX = new Map(), byLv = new Map();             // (854a: bars sharing a row – overlapping books – cut where the next one begins)
+      for (const it of vis) { const k = Math.round(it._y ?? it.row) + '|' + (it.lv ?? 'm'); if (!byLv.has(k)) byLv.set(k, []); byLv.get(k).push(it); }
+      for (const r of byLv.values()) { r.sort((p, q) => p.t0 - q.t0); r.forEach((it, j) => { const nx = r[j + 1]; if (nx && nx.t0 < it.t1) cutX.set(it, X(nx.t0)); }); }
       const byRow = new Map(); for (const it of vis) { if (it._al < 0.5) continue; const r = Math.round(it._y ?? it.row); if (!byRow.has(r)) byRow.set(r, []); byRow.get(r).push(it); }
       const nextX = new Map(); for (const r of byRow.values()) { r.sort((p, q) => p.t0 - q.t0); r.forEach((it, j) => nextX.set(it, Math.min(stop, j + 1 < r.length ? X(r[j + 1].t0) - 6 : W + 4000))); }
       g.save(); g.beginPath(); g.rect(0, top - 2, W, h + 4); g.clip();                     // (a lane still growing shows only what fits)
       for (const it of vis) {
-        const x0 = X(it.t0), x1 = Math.max(X(it.t1) - 1, x0 + 3), yy = top + TT + 3 + (it._y ?? it.row) * lh, bh = Math.max(3, lh - 8);
+        const x0 = X(it.t0), x1 = Math.max(Math.min(X(it.t1), cutX.get(it) ?? Infinity) - 1, x0 + 3), yy = top + TT + 3 + (it._y ?? it.row) * lh, bh = Math.max(3, lh - 8);
         if (x1 < 0 && nextX.get(it) < 0) continue; if (x0 > W) continue;
         drawItem(g, C, it, x0, x1, yy, bh, font, nextX.get(it), W);
         if ((it.pass !== false || TP.cfg.fmode === 'hide') && yy < top + h && (it._al ?? 1) >= 0.5) TP.hit.push({ x0, x1, y0: yy, y1: yy + bh, it, L });
@@ -732,6 +742,8 @@ function tmpDraw() {
   let ry = 0;
   for (const r of rulers) { drawRuler(g, C, r.id, ry, r.h, W, X, A0, A1, emps, font); ry += r.h; }
   g.strokeStyle = C.line; g.beginPath(); g.moveTo(0, RH - 0.5); g.lineTo(W, RH - 0.5); g.stroke();
+  { const cx = W / 2, cy = RH - 6; g.strokeStyle = C.mut; g.lineWidth = 1.6; g.beginPath();      // the handle: ︿ folds the reference rows, ﹀ unfolds them
+    if (TP.cfg.rcoll) { g.moveTo(cx - 9, cy - 2.5); g.lineTo(cx, cy + 2.5); g.lineTo(cx + 9, cy - 2.5); } else { g.moveTo(cx - 9, cy + 2.5); g.lineTo(cx, cy - 2.5); g.lineTo(cx + 9, cy + 2.5); } g.stroke(); g.lineWidth = 1; }
   // links of consular dates to the consul ruler (782a)
   const cosR = rulers.findIndex(r => r.id === 'cos');
   if (cosR >= 0) { const cy = rulers.slice(0, cosR).reduce((s, r) => s + r.h, 0) + rulers[cosR].h;
@@ -828,8 +840,7 @@ async function showTempora() {
       + `<button type="button" data-tmp="writ" id="tmpWritBtn" class="${TP.cfg.written ? 'on' : ''}" title="Also show when each work was written – joined by a thin line to what it narrates">Written</button>`
       + `<button type="button" data-tmp="add" title="Add your own statement">＋ Statement</button>`
       + `<button type="button" data-tmp="here" title="The years of the text being read">This text</button></div>`
-      + `<div id="tmpChips" class="tmpchips" hidden></div>`
-      + `<div class="tmprow"><div class="tmpwrap"><canvas id="tmpCanvas"></canvas></div><aside id="tmpSide" class="tmppanel tmpside" hidden></aside></div><div id="tmpCard" class="tmpcard" hidden></div><div id="tmpPanel" class="tmppanel" hidden></div>`;
+      + `<div class="tmprow"><div class="tmpwrap"><canvas id="tmpCanvas"></canvas><div id="tmpNav" class="tmpnav" hidden></div></div><aside id="tmpSide" class="tmppanel tmpside" hidden></aside></div><div id="tmpCard" class="tmpcard" hidden></div><div id="tmpPanel" class="tmppanel" hidden></div>`;
     tmpWire($('#tmpCanvas'));
   }
   const has = Object.values(S.installed || {}).some(d => d.kind === 'fasti');
@@ -840,7 +851,7 @@ async function showTempora() {
 function tmpAt(px, py) { return TP.hit.slice().reverse().find(h => (py < TP.RH) === (h.emp != null || h.sky != null) && px >= h.x0 - 3 && px <= h.x1 + 3 && py >= h.y0 - 2 && py <= h.y1 + 2) || null; }
 function tmpZoomX(f, px) { const a = TP.x0 + px / TP.ppy; TP.ppy = Math.min(400000, Math.max(0.005, TP.ppy * f)); TP.x0 = a - px / TP.ppy; tmpSave(); tmpRedraw(); }
 function tmpZoomY(f) { TP.lh = Math.min(90, Math.max(10, TP.lh * f)); tmpSave(); tmpRedraw(); }
-function tmpClampY() { const cv = $('#tmpCanvas'); const max = Math.max(0, (TP.contentH || 0) - (cv.clientHeight - (TP.RH || 0)) + 40, TP.over || 0);
+function tmpClampY() { const cv = $('#tmpCanvas'); const max = Math.max(0, (TP.contentH || 0) - 40, TP.over || 0);   // (the lowest lane can be pulled up to the top)
   TP.sy = Math.min(max, Math.max(0, TP.sy)); TP.over = Math.min(TP.over || 0, TP.sy); }   // (TP.over: how far the header has grown over the lanes)
 function tmpWire(cv) {
   new ResizeObserver(() => tmpRedraw()).observe(cv);
@@ -851,8 +862,10 @@ function tmpWire(cv) {
   cv.addEventListener('pointermove', e => { if (!TP.ptr.has(e.pointerId)) return; TP.userMove = Date.now(); TP.ptr.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
     if (pinch && TP.ptr.size === 2) { const [p, q] = [...TP.ptr.values()], dx = Math.abs(p.x - q.x), dy = Math.abs(p.y - q.y), mx = (p.x + q.x) / 2;
       const a = pinch.x0 + pinch.mx / pinch.ppy;                 // two fingers: across = time, up and down = lane height
-      if (pinch.dx > 40) TP.ppy = Math.min(400000, Math.max(0.005, pinch.ppy * dx / pinch.dx));
-      if (pinch.dy > 40) TP.lh = Math.min(90, Math.max(10, pinch.lh * dy / pinch.dy));
+      // one direction per pinch: across (time) or up and down (rows) – whichever the fingers are set apart in more
+      pinch.ax ??= pinch.dx >= pinch.dy ? 'x' : 'y';
+      if (pinch.ax === 'x' && pinch.dx > 20) TP.ppy = Math.min(400000, Math.max(0.005, pinch.ppy * dx / pinch.dx));
+      if (pinch.ax === 'y' && pinch.dy > 20) TP.lh = Math.min(90, Math.max(10, pinch.lh * dy / pinch.dy));
       TP.x0 = a - mx / TP.ppy; TP.focusY = (p.y + q.y) / 2; moved = true; tmpSave(); tmpRedraw(); return; }
     if (!down) return; const dx = e.offsetX - down.x, dy = e.offsetY - down.y;
     if (Math.abs(dx) + Math.abs(dy) > 6) moved = true;
@@ -870,6 +883,7 @@ function tmpWire(cv) {
     else { TP.x0 += e.deltaX / TP.ppy; TP.sy += e.deltaY; tmpClampY(); tmpSave(); tmpRedraw(); } }, { passive: false });
 }
 function tmpTap(px, py) {
+  if (py < TP.RH && py >= TP.RH - 13) { TP.cfg.rcoll = !TP.cfg.rcoll; tmpSave(); return tmpRedraw(); }   // (the handle under the reference rows)
   const h = tmpAt(px, py);
   if (h?.it) { TP.sel = h; TP.cur = null; tmpCardItem(h); }
   else if (h?.sky) { TP.sel = null; TP.cur = h.sky.jd != null ? axOfJd(h.sky.jd) : null; tmpCardSky(h.sky); }
@@ -977,15 +991,16 @@ function tmpFilterApply() {
 }
 function sieveN() { const [m, n] = TP.fCount || [0, 0]; if (!TP.fOn) return 0; return !m ? 7 : Math.min(7, 1 + Math.floor(Math.log2(n / m) + 1e-9)); }
 const sideOpen = () => !!$('#tmpSide') && !$('#tmpSide').hidden;
-function tmpChipsUpd() {                                    // 851a: the chips stand only here, in the bar under the top bar
+const filtOpen = () => !!document.querySelector('#dlg[open] .tmpfilt');
+function tmpChipsUpd() {                                    // the sieve's fill, the pill that steps through the matches, the chips in the filter
   TP.cfg.flt = (TP.cfg.flt || []).filter(f => FCAT[f.t]);       // (kinds and sources are gone from the filter – 847)
   tmpFilterApply();
   const b = $('#tmpFiltBtn'); if (b) { b.innerHTML = sieveIcon(sieveN(), 'tf'); b.classList.toggle('active', !!TP.fOn); }
-  const c = $('#tmpChips'); if (!c) return;
-  const fl = TP.cfg.flt, [m] = TP.fCount || [0];
-  c.hidden = !fl.length;
-  c.innerHTML = fl.map((f, i) => chipHTML(f, i)).join('')
-    + (fl.length ? `<span class="tnav"><button type="button" data-tfnav="-1" aria-label="Previous match">‹</button><span>${TP.mi != null && m ? `${TP.mi + 1} / ` : ''}${m} found</span><button type="button" data-tfnav="1" aria-label="Next match">›</button><button type="button" data-tfnav="all">Show all</button></span><button type="button" class="tclr" data-tfclear="1">Clear</button>` : '');
+  const fl = TP.cfg.flt, [m] = TP.fCount || [0], nav = $('#tmpNav');
+  if (nav) { nav.hidden = !fl.length;
+    nav.innerHTML = fl.length ? `<button type="button" data-tfnav="-1" aria-label="Previous match">‹</button><button type="button" data-tmp="filter" class="tnc">${TP.mi != null && m ? `${TP.mi + 1} / ` : ''}${m} found</button><button type="button" data-tfnav="1" aria-label="Next match">›</button><button type="button" data-tfnav="all">Show all</button>` : ''; }
+  const c = document.querySelector('.tmpfilt .tfchips');
+  if (c) c.innerHTML = fl.length ? fl.map((f, i) => chipHTML(f, i)).join('') + `<button type="button" class="tclr" data-tfclear="1">Clear all</button>` : '<p class="hint">Nothing chosen yet – search below, or tap a suggestion.</p>';
 }
 const chipHTML = (f, i) => `<span class="tchip${f.not ? ' not' : ''}" title="${FCATN[FCAT[f.t]]}"><button type="button" class="top" data-tfnot="${i}" title="Tap: leave these out / keep them">${f.not ? 'not' : esc(FCATN[FCAT[f.t]].slice(0, -1).toLowerCase())}</button><span class="tcl">${esc(f.lab)}</span><button type="button" class="tx" data-tfrm="${i}" aria-label="Remove">✕</button></span>`;
 async function tmpAddWord(w) {                             // a word: the books it occurs in (its lemmas too)
@@ -999,25 +1014,25 @@ async function tmpAddFilter(f) {
   TP.cfg.recent = [f, ...(TP.cfg.recent || []).filter(x => !(x.t === f.t && JSON.stringify(x.v) === JSON.stringify(f.v)))].slice(0, 12);
   if (f.t === 'person' && !TP.cfg.persons.includes(f.v)) TP.cfg.persons.push(f.v);   // (a person: also his lane)
   tmpSave(); if (f.t === 'person' || f.t === 'word') await tmpData(); tmpChipsUpd(); tmpRedraw();
-  const q = $('#tmpSide [data-tfs="all"]'); if (q) { q.value = ''; $('#tmpSide [data-tfr="all"]').innerHTML = ''; }   // (845a: added – the search is cleared)
-  if (sideOpen()) { tmpFilterHead(); tmpFilterSug(); }
+  const q = document.querySelector('.tmpfilt [data-tfs="all"]'); if (q) { q.value = ''; document.querySelector('.tmpfilt [data-tfr="all"]').innerHTML = ''; }   // (845a: added – the search is cleared)
+  if (filtOpen()) { tmpFilterHead(); tmpFilterSug(); }
 }
-function tmpFilterHead() { const h = $('#tmpSide .tfhead'); if (!h) return; const [m, n] = TP.fCount || [0, 0]; h.textContent = TP.fOn ? `${m} of ${n} items` : `${n} items`; }
-function tmpFilterPanel() {                                // the filter at the side of the timeline (not dropped over it)
-  const p = $('#tmpSide'); if (!p) return; p.hidden = false; p.dataset.k = 'filter';
+function tmpFilterHead() { const h = document.querySelector('.tmpfilt .tfcount'); if (!h) return; const [m, n] = TP.fCount || [0, 0]; h.textContent = TP.fOn ? `${m} of ${n} items pass` : `${n} items in Tempora`; }
+async function tmpFilterPanel() {                          // the filter on the whole screen, like the library (not dropped over the timeline)
   const works = new Map();                                   // the works Tempora knows something about (for the search)
   for (const L of TP.data?.lanes || []) for (const it of L.its) if (it.go?.w) { const w = works.get(it.go.w) || { id: it.go.w, t: it.src || it.go.w, books: new Map() }; if (it.kind === 'book' || it.kind === 'year') w.books.set(it.go.bi, it.lab.replace(/ ·.*$/, '')); works.set(it.go.w, w); }
   TP.fWorks = works;
-  p.innerHTML = `<div class="tch"><b>Filter</b><small class="hint tfhead"></small><button type="button" data-tmpclose="side" aria-label="Close">✕</button></div>`
-    + `<input type="search" data-tfs="all" class="tfq" placeholder="A text, person, place or word …" enterkeyhint="done" autocomplete="off" autocapitalize="off" spellcheck="false"><div class="tpres" data-tfr="all"></div><div class="tfsug"></div>`
-    + `<p class="hint small">Of one kind, any of them (Socrates <i>or</i> Plato); of different kinds, all together (Socrates <i>in</i> Diogenes Laertius). Tap a chip’s kind to make it “not”.</p>`
-    + `<div class="tpsec"><div class="tph">What the filter leaves out</div><span class="tmpseg"><button type="button" data-tmpfm="dim" class="${TP.cfg?.fmode !== 'hide' ? 'on' : ''}">Dimmed</button><button type="button" data-tmpfm="hide" class="${TP.cfg?.fmode === 'hide' ? 'on' : ''}">Hidden</button></span></div>`
-    + `<label class="tpall"><input type="checkbox" data-tmpall2="1"${TP.cfg.all ? ' checked' : ''}> also works not on this device</label>`;
-  tmpFilterHead(); tmpFilterSug(); setTimeout(() => p.querySelector('.tfq')?.focus(), 50);
+  const pr = dialog(dlgHead('Tempora – filter') + `<div class="tmpfilt"><p class="tfcount hint"></p>`
+    + `<div class="tfs"><div class="tph">Your filter</div><div class="tfchips"></div><p class="hint small">Of one kind, any of them (Socrates <i>or</i> Plato); of different kinds, all together (Socrates <i>in</i> Diogenes Laertius). Tap a chip’s kind to turn it into “not”.</p></div>`
+    + `<div class="tfs"><div class="tph">Add</div><input type="search" data-tfs="all" class="tfq" placeholder="A text, person, place or word …" enterkeyhint="done" autocomplete="off" autocapitalize="off" spellcheck="false"><div class="tpres" data-tfr="all"></div><div class="tfsug"></div></div>`
+    + `<div class="tfs"><div class="tph">What does not pass</div><span class="tmpseg"><button type="button" data-tmpfm="dim" class="${TP.cfg?.fmode !== 'hide' ? 'on' : ''}">Dimmed</button><button type="button" data-tmpfm="hide" class="${TP.cfg?.fmode === 'hide' ? 'on' : ''}">Hidden</button></span>`
+    + `<label class="tpall"><input type="checkbox" data-tmpall2="1"${TP.cfg.all ? ' checked' : ''}> also works not on this device</label></div></div>`, [['ok', 'Done']]);
+  tmpFilterHead(); tmpChipsUpd(); tmpFilterSug(); setTimeout(() => document.querySelector('.tmpfilt .tfq')?.focus(), 80);
+  await pr; tmpChipsUpd(); tmpRedraw();
 }
 // 850a: what to filter by, one tap each – the text being read, the persons named in it, the filters used lately
 async function tmpFilterSug() {
-  const box = $('#tmpSide .tfsug'); if (!box) return; const fl = TP.cfg.flt || [], has = f => fl.some(x => x.t === f.t && JSON.stringify(x.v) === JSON.stringify(f.v)), out = [];
+  const box = document.querySelector('.tmpfilt .tfsug'); if (!box) return; const fl = TP.cfg.flt || [], has = f => fl.some(x => x.t === f.t && JSON.stringify(x.v) === JSON.stringify(f.v)), out = [];
   const w = S.text?.work; if (w) { const t = (S.catWork?.[w.id]?.author ? S.catWork[w.id].author + ', ' : '') + (w.title || w.id), bl = w.books?.[S.text.bi];
     if (!has({ t: 'work', v: w.id })) out.push(`<button type="button" class="tpadd sm" data-tfw="${esc(w.id)}" data-l="${esc(t)}">${esc(t)}</button>`);
     if (bl && (w.books?.length || 0) > 1 && !has({ t: 'book', v: { w: w.id, bi: S.text.bi } })) out.push(`<button type="button" class="tpadd sm" data-tfb="${esc(w.id)}" data-bi="${S.text.bi}" data-l="${esc(t + ' · ' + bl)}">${esc(bl)}</button>`); }
@@ -1026,6 +1041,7 @@ async function tmpFilterSug() {
   const rec = (TP.cfg.recent || []).filter(f => !has(f)).slice(0, 8).map((f, i) => `<button type="button" class="tpadd sm" data-tfrec="${i}">${esc(f.lab)}</button>`);
   const sec = (h, a) => a.length ? `<div class="tpsec"><div class="tph">${h}</div><div class="tchips">${a.join('')}</div></div>` : '';
   box.innerHTML = sec('The text you are reading', out) + sec('Named in it', ps) + sec('Used lately', rec);
+  box.hidden = !!document.querySelector('.tmpfilt .tfq')?.value.trim();
 }
 async function tmpPersonHits(q) {                         // as the Suda tab's search: names beginning so
   const k = gkey(q), out = []; if (k.length < 2) return out;
@@ -1042,7 +1058,8 @@ let tfT = 0;
 document.addEventListener('input', ev => {
   const t = ev.target;
   if (t.dataset?.tfs === 'all') { clearTimeout(tfT); tfT = setTimeout(async () => {
-    const box = t.parentElement.querySelector('.tpres'), q = t.value.trim(), k = tfold(q).trim(); if (k.length < 2) { box.innerHTML = ''; return; }
+    const box = t.parentElement.querySelector('.tpres'), q = t.value.trim(), k = tfold(q).trim(), sg = t.parentElement.querySelector('.tfsug'); if (sg) sg.hidden = !!q;
+    if (k.length < 2) { box.innerHTML = ''; return; }
     const fl = TP.cfg.flt || [], has = (ty, v) => fl.some(f => f.t === ty && JSON.stringify(f.v) === JSON.stringify(v));
     const btn = (attrs, inner, n, on) => `<button type="button" class="tpadd${on ? ' on' : ''}${n === 0 ? ' none' : ''}" ${attrs}${on ? ' disabled' : ''}>${inner} <small class="tfn">${on ? '✓ in the filter' : n == null ? '' : n === 0 ? 'nothing dated yet' : n + (n === 1 ? ' item' : ' items')}</small></button>`;
     const sec = (h, rows) => rows.length ? `<div class="tfgrp"><span class="tftag">${h}</span>${rows.join('')}</div>` : '';
@@ -1153,12 +1170,13 @@ async function tmpMapMarkers() {
 
 // ---------------------------------------------------------------- clicks
 document.addEventListener('click', async ev => {
-  const t = ev.target; if (!t.closest?.('#temporaBody')) return;
+  const t = ev.target; if (!t.closest?.('#temporaBody,.tmpfilt')) return;
   const b = t.closest('button,[data-tmpr],[data-tmpl]'); if (!b) return;
   const D = b.dataset;
   if (D.tmpclose) { if (D.tmpclose === 'side') { $('#tmpSide').hidden = true; } else if (D.tmpclose === 'panel') { $('#tmpPanel').hidden = true; tmpChipsUpd(); } else { $('#tmpCard').hidden = true; TP.sel = null; TP.cur = null; tmpRedraw(); } return; }
-  if (D.tmp === 'filter' || D.tmp === 'ref') { const p = $('#tmpSide'); if (sideOpen() && p.dataset.k === D.tmp) { p.hidden = true; return; } return D.tmp === 'ref' ? tmpRefPanel() : tmpFilterPanel(); }
-  if (D.tfnot != null) { const f = TP.cfg.flt[+D.tfnot]; f.not = !f.not; TP.mi = null; tmpSave(); tmpChipsUpd(); tmpFilterHead(); return tmpRedraw(); }
+  if (D.tmp === 'filter') return tmpFilterPanel();
+  if (D.tmp === 'ref') { const p = $('#tmpSide'); if (sideOpen() && p.dataset.k === 'ref') { p.hidden = true; return; } return tmpRefPanel(); }
+  if (D.tfnot != null) { const f = TP.cfg.flt[+D.tfnot]; f.not = !f.not; TP.mi = null; tmpSave(); tmpChipsUpd(); tmpFilterHead(); return tmpRedraw(); }   // (in the filter's screen)
   if (D.tfnav) { tmpFilterApply(); const ms = TP.matches || []; if (!ms.length) return toast('Nothing passes the filter.');
     if (D.tfnav === 'all') { const a = Math.min(...ms.map(i => i.t0)), z = Math.max(...ms.map(i => i.t1)); TP.mi = null; tmpGoTo(a, z); tmpDraw();
       const tops = ms.map(i => TP.laneTop?.[i._lid]).filter(v => v != null); if (tops.length) { TP.prevLay = null; TP.sy = Math.max(0, Math.min(...tops) - TP.RH - 40); tmpClampY(); } tmpChipsUpd(); return tmpRedraw(); }
@@ -1198,7 +1216,7 @@ document.addEventListener('click', async ev => {
     b.disabled = true; b.textContent = 'Downloading …'; const w = setInterval(() => { if (S.installed?.['fasti-liebenam'] && S.installed?.['chrono-texts']) { clearInterval(w); PP.fasti = null; showTempora(); } }, 800); return; }
 });
 document.addEventListener('change', async ev => {
-  const t = ev.target; if (!t.closest?.('#tmpPanel,#tmpSide')) return;
+  const t = ev.target; if (!t.closest?.('#tmpPanel,#tmpSide,.tmpfilt')) return;
   if (t.dataset.tmpr) { TP.cfg.rulers[t.dataset.tmpr] = t.checked; tmpSave(); tmpRedraw(); }
   if (t.dataset.tmplh) { TP.cfg.lhide = TP.cfg.lhide || {}; if (t.checked) delete TP.cfg.lhide[t.dataset.tmplh]; else TP.cfg.lhide[t.dataset.tmplh] = 1; tmpSave(); tmpRedraw(); return tmpRefPanel(true); }
   if (t.dataset.tmpall2) { TP.cfg.all = t.checked; tmpSave(); tmpRedraw(); }
