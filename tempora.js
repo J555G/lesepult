@@ -12,10 +12,11 @@ const ax = y => y < 0 ? y + 1 : y;                     // historical -> astronom
 const hy = a => a <= 0 ? a - 1 : a;                    // astronomical -> historical
 const yTxt = y => y < 0 ? `${-y} BC` : `AD ${y}`;
 const yTxtS = y => y < 0 ? `${-y} BC` : `${y}`;
-const RULERS = [['jul', 'Julian calendar (BC / AD; Gregorian from 1582)'], ['sky', 'Sky (eclipses, new and full moons, equinoxes, solstices)'], ['ol', 'Olympiads'], ['auc', 'Years of the city (Varro, 753 BC)'], ['cato', 'Years of the city (Cato, 752 BC)'],
+const RULERS = [['jul', 'Julian calendar (BC / AD; Gregorian from 1582)'], ['sky', 'Sky (eclipses, new and full moons, equinoxes, solstices)'], ['sky2', 'Sky (planets meeting, comets, the rising of Sirius)'],
+  ['rom', 'Roman calendar (Kalends, Nones, Ides)'], ['att', 'Athenian months (computed)'], ['ol', 'Olympiads'], ['auc', 'Years of the city (Varro, 753 BC)'], ['cato', 'Years of the city (Cato, 752 BC)'],
   ['cos', 'Consuls (Liebenam, 30 BC – AD 565)'], ['emp', 'Emperors and Caesars (Liebenam)'], ['sel', 'Seleucid era (autumn 312 BC)'],
   ['dio', 'Era of Diocletian (29 Aug. 284)'], ['ind', 'Indictions (from 1 Sept. 312)']];
-const RULER_ON = { jul: true, sky: true, ol: true, auc: true, cato: false, cos: true, emp: true, sel: false, dio: false, ind: false };
+const RULER_ON = { jul: true, sky: true, sky2: true, rom: false, att: false, ol: true, auc: true, cato: false, cos: true, emp: true, sel: false, dio: false, ind: false };
 
 async function tmpCfg() {
   if (TP.cfg) return TP.cfg;
@@ -179,14 +180,146 @@ function drawSky(g, C, y, h, W, X, A0, A1, font) {
 }
 function tmpCardSky(s) {
   const c = $('#tmpCard'); c.hidden = false; const y = hy(Math.floor(axOfJd(s.jd)));
-  const t = s.kind === 'ecl' ? eclName(s).replace(/^./, x => x.toUpperCase()) : s.kind === 'moon' ? (s.full ? 'Full moon' : 'New moon') : SEASONS[s.i].replace(/^./, x => x.toUpperCase());
+  const t = s.kind === 'ecl' ? eclName(s).replace(/^./, x => x.toUpperCase()) : s.kind === 'moon' ? (s.full ? 'Full moon' : 'New moon') : s.kind === 'comet' ? s.name : s.kind === 'conj' ? `${s.a} meets ${s.b}` : s.kind === 'sirius' ? 'Sirius rises before the sun' : SEASONS[s.i].replace(/^./, x => x.toUpperCase());
   const unc = y < 1000 ? ' Before about AD 1000 the hour is uncertain – the earth’s rotation slowed unevenly (ΔT, after Espenak and Meeus); before 2000 BC the eclipses are left out.' : '';
   c.innerHTML = `<div class="tch"><b>${esc(t)}</b><button type="button" data-tmpclose="1" aria-label="Close">✕</button></div>`
     + `<p>${esc(jdTxt(s.jd, true))} <small class="hint">(${y < 1583 ? 'Julian' : 'Gregorian'} calendar; hour of greatest eclipse or of the moment itself)</small></p>`
-    + (s.kind === 'ecl' ? `<p class="hint">${s.sun ? (s.central === false ? 'not central – ' : '') : ''}${s.mag != null ? `magnitude ${s.mag.toFixed(2)}` : 'central'}. Where it could be seen is not computed yet.</p>` : '')
-    + `<p class="hint small">Computed in the app after J. Meeus, Astronomical Algorithms (2nd ed. 1998), ch. ${s.kind === 'ecl' ? 54 : s.kind === 'moon' ? 49 : 27}.${unc}</p>`
-    + `<p class="tact"><button type="button" data-tmpyear="${y}">The year in all systems</button></p>`;
+    + (s.kind === 'ecl' ? `<p class="hint">${s.sun ? (s.central === false ? 'not central – ' : '') : ''}${s.mag != null ? `magnitude ${s.mag.toFixed(2)}` : 'central'}.</p><div class="tmploc"><p class="hint small">Where it was seen …</p></div>` : '')
+    + (s.kind === 'comet' ? `<p class="hint">${esc(s.note)}.</p>` : s.kind === 'conj' ? `<p class="hint">${s.a} and ${s.b} ${s.s < 0.2 ? 'almost touching' : 'close together'}: ${s.s.toFixed(2)}° apart (as seen from the earth), ${Math.round(s.el)}° from the sun${s.el < 12 ? ' – too near the sun to be seen' : ''}.</p>`
+      : s.kind === 'sirius' ? `<p class="hint">The first morning Sirius was seen again before sunrise at Memphis (the sun 7.5° below the horizon, the star 1.5° above it) – the start of the Nile flood and the Egyptian “Sothic” year. Computed; the real first sighting depended on the air.</p>` : '')
+    + (s.kind === 'comet' ? '' : `<p class="hint small">Computed in the app – ${s.kind === 'conj' || s.kind === 'sirius' ? 'with astronomy-engine (D. Cross)' : `after J. Meeus, Astronomical Algorithms (2nd ed. 1998), ch. ${s.kind === 'ecl' ? 54 : s.kind === 'moon' ? 49 : 27}${s.kind === 'ecl' ? '; where it was seen, with astronomy-engine (D. Cross)' : ''}`}.${unc}</p>`)
+    + `<p class="tact">${s.kind === 'ecl' && s.sun ? '<button type="button" data-tmpeclmap="1">The shadow on the map</button>' : ''}<button type="button" data-tmpyear="${y}">The year in all systems</button></p>`;
+  TP.skySel = s;
+  if (s.kind === 'ecl') tmpAstro().then(() => { const box = c.querySelector('.tmploc'); if (!box || TP.skySel !== s) return; const L = eclLocal(s);
+    box.innerHTML = `<p class="hint small"><b>Where it was seen</b> (time by the sun there):</p><ul class="tmplocl">${L.map(([n, v]) => `<li><b>${n}</b>: ${esc(v)}</li>`).join('')}</ul>`; }).catch(() => {});
 }
+// ---- astronomy-engine (Don Cross, MIT) for what Meeus' short formulas do not give: where an eclipse was seen, its track, the planets, Sirius
+function tmpAstro() {
+  if (window.Astronomy) return Promise.resolve(window.Astronomy);
+  return TP.astroP ??= new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'astronomy.min.js'; s.onload = () => { ok(window.Astronomy); tmpRedraw(); }; s.onerror = no; document.head.appendChild(s); });
+}
+const AT = jd => window.Astronomy.MakeTime(jd - 2451545);               // (UT)
+const PLACES = [['Athens', 37.97, 23.72], ['Rome', 41.89, 12.49], ['Alexandria', 31.20, 29.92], ['Syracuse', 37.07, 15.29], ['Babylon', 32.54, 44.42], ['Jerusalem', 31.78, 35.23], ['Miletus', 37.53, 27.28], ['Constantinople', 41.01, 28.98]];
+function eclLocal(e) {                                    // 830a: how each place saw it (local time = time by the sun there)
+  const A = window.Astronomy; if (!A) return null; const out = [];
+  for (const [n, la, lo] of PLACES) { const ob = new A.Observer(la, lo, 0), lt = jd => { const c = jdToCal(jd + lo / 360); const h = c.f * 24; return `${Math.floor(h)}:${String(Math.floor((h % 1) * 60)).padStart(2, '0')}`; };
+    try {
+      if (e.sun) { const r = A.SearchLocalSolarEclipse(AT(e.jd - 1), ob); const pj = r.peak.time.ut + 2451545;
+        out.push([n, Math.abs(pj - e.jd) < 1 && r.peak.altitude > 0 ? `${r.kind === 'partial' ? 'partial' : r.kind}, ${Math.round(r.obscuration * 100)}% of the sun covered, about ${lt(pj)}, the sun ${Math.round(r.peak.altitude)}° high` : 'not seen']); }
+      else { const t = AT(e.jd), eq = A.Equator(A.Body.Moon, t, ob, true, true), hz = A.Horizon(t, ob, eq.ra, eq.dec, 'normal');
+        out.push([n, hz.altitude > 0 ? `seen, about ${lt(e.jd)}, the moon ${Math.round(hz.altitude)}° high` : 'the moon below the horizon at the middle of the eclipse']); }
+    } catch (_) { out.push([n, '?']); }
+  }
+  return out;
+}
+function eclTrack(e) {                                    // the centre of the moon's shadow on the earth, every 3 minutes
+  const A = window.Astronomy, Re = 6378.137 / 149597870.7, pts = [];
+  for (let m = -240; m <= 240; m += 3) { const t = AT(e.jd + m / 1440), S = A.GeoVector(A.Body.Sun, t, true), Mo = A.GeoVector(A.Body.Moon, t, true);
+    let dx = Mo.x - S.x, dy = Mo.y - S.y, dz = Mo.z - S.z; const L = Math.hypot(dx, dy, dz); dx /= L; dy /= L; dz /= L;
+    const b = Mo.x * dx + Mo.y * dy + Mo.z * dz, c = Mo.x ** 2 + Mo.y ** 2 + Mo.z ** 2 - Re * Re, D = b * b - c; if (D < 0) continue;
+    const s = -b - Math.sqrt(D), P = new A.Vector(Mo.x + s * dx, Mo.y + s * dy, Mo.z + s * dz, t), o = A.VectorObserver(P, false); pts.push([o.longitude, o.latitude]); }
+  return pts;
+}
+async function tmpEclMap(e) {
+  await tmpAstro(); const pts = eclTrack(e); if (pts.length < 2) return toast('The centre of the shadow does not touch the earth – a partial eclipse only.', 4000);
+  toggleMapTab(true);
+  setTimeout(() => { const m = M.map; if (!m) return; const segs = [[]];   // (split where it crosses the date line)
+    pts.forEach((p, i) => { if (i && Math.abs(p[0] - pts[i - 1][0]) > 180) segs.push([]); segs[segs.length - 1].push(p); });
+    const gj = { type: 'FeatureCollection', features: segs.filter(s => s.length > 1).map(s => ({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: s } })) };
+    if (m.getSource('tmpEcl')) m.getSource('tmpEcl').setData(gj); else { m.addSource('tmpEcl', { type: 'geojson', data: gj });
+      m.addLayer({ id: 'tmpEcl', type: 'line', source: 'tmpEcl', paint: { 'line-color': '#222', 'line-width': 3, 'line-opacity': 0.75, 'line-dasharray': [2, 1] } }); }
+    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]); m.fitBounds([[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]], { padding: 60, maxZoom: 5 });
+    toast(`${eclName(e)}, ${jdTxt(e.jd)}: the centre line of the shadow (computed; before about AD 1000 it may lie some degrees east or west – ΔT)`, 6000); }, 700);
+}
+// 831: Halley's comet at perihelion (Sitarski 1988; Julian calendar to 1531)
+const HALLEY = [[-239, 3, 30], [-163, 11, 17], [-86, 8, 2], [-11, 10, 5], [66, 1, 26], [141, 3, 22], [218, 5, 17], [295, 4, 20], [374, 2, 17], [451, 6, 24], [530, 9, 26], [607, 3, 13], [684, 10, 28], [760, 5, 22], [837, 2, 28], [912, 7, 9], [989, 9, 9], [1066, 3, 23], [1145, 4, 21], [1222, 9, 30], [1301, 10, 24], [1378, 11, 9], [1456, 6, 9], [1531, 8, 25], [1607, 10, 27], [1682, 9, 15], [1758, 3, 13], [1835, 11, 16], [1910, 4, 20], [1986, 2, 9]];
+// the rising of Sirius before the sun at Memphis (the Egyptian calendar's anchor): the first morning it is seen again
+function sirius(Y) {
+  const A = window.Astronomy; if (!A) return null; TP.sir ??= new Map(); if (TP.sir.has(Y)) return TP.sir.get(Y);
+  const dy = Y - 2000, ra = 6.752477 + (-0.54601 / 3600 / Math.cos(-16.716 * D2R)) * dy / 15, dec = -16.716117 - 1.22307 / 3600 * dy;
+  A.DefineStar(A.Body.Star1, ra, dec, 8.6); const ob = new A.Observer(29.85, 31.25, 0); let seen = null, prev = true;
+  for (let d = 0; d < 40; d++) { const t0 = AT(calToJd(Y, 7, 1) + d); const tw = A.SearchAltitude(A.Body.Sun, ob, +1, t0, 1, -7.5); if (!tw) continue;
+    const eq = A.Equator(A.Body.Star1, tw, ob, true, true), alt = A.Horizon(tw, ob, eq.ra, eq.dec, 'normal').altitude, vis = alt >= 1.5;
+    if (vis && !prev) { seen = tw.ut + 2451545; break; } prev = vis; }
+  TP.sir.set(Y, seen); return seen;
+}
+// close meetings of the planets (under 1°), year by year, computed when first in view
+const PLAN = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'];
+function conjYear(Y) {
+  const A = window.Astronomy; if (!A) return null; TP.cj ??= new Map(); if (TP.cj.has(Y)) return TP.cj.get(Y);
+  const j0 = calToJd(Y, 1, 1), j1 = calToJd(Y + 1, 1, 1), out = [], pos = jd => PLAN.map(p => A.GeoVector(p, AT(jd), true)), sep = (jd, a, b) => A.AngleBetween(A.GeoVector(a, AT(jd), true), A.GeoVector(b, AT(jd), true));
+  const st = []; for (let jd = j0 - 4; jd < j1 + 4; jd += 2) st.push([jd, pos(jd)]);       // (all five every second day, then each pair)
+  for (let i = 0; i < 5; i++) for (let k = i + 1; k < 5; k++) { const s = st.map(([jd, P]) => A.AngleBetween(P[i], P[k]));
+    for (let n = 1; n < s.length - 1; n++) if (s[n] < s[n - 1] && s[n] <= s[n + 1] && s[n] < 2) { const a = PLAN[i], b = PLAN[k]; let lo = st[n - 1][0], hi = st[n + 1][0];
+      for (let r = 0; r < 16; r++) { const m1 = lo + (hi - lo) / 3, m2 = hi - (hi - lo) / 3; if (sep(m1, a, b) < sep(m2, a, b)) hi = m2; else lo = m1; }
+      const tj = (lo + hi) / 2, sp = sep(tj, a, b); if (sp < 1 && tj >= j0 && tj < j1) out.push({ jd: tj, a, b, s: sp, el: A.AngleFromSun(a, AT(tj)) }); } }
+  TP.cj.set(Y, out); return out;
+}
+function drawSky2(g, C, y, h, W, X, A0, A1, font) {
+  const ppy = TP.ppy, cy = y + h / 2 + 1, mk = [];
+  for (const [yy, m, d] of HALLEY) { const jd = calToJd(yy, m, d), a = axOfJd(jd); if (a < A0 - 1 || a > A1 + 1) continue;
+    mk.push({ x: X(a), pr: 0, kind: 'comet', lab: ppy >= 2 ? 'Halley’s comet' : '', sky: { kind: 'comet', jd, name: 'Halley’s comet', note: 'at its nearest to the sun (perihelion), after Sitarski (1988); it was seen for some weeks around this' } }); }
+  const A = window.Astronomy; if (!A && ppy >= 15) tmpAstro();
+  if (A && ppy >= 15 && A1 - A0 < 60) { let n = 0;
+    for (let Y = Math.floor(A0); Y <= Math.floor(A1); Y++) {
+      if (!TP.cj?.has(Y) && n++ > 1) { TP.moving = true; continue; }           // (a year or two per frame: the rest on the next ones)
+      for (const c of conjYear(Y)) { const a = axOfJd(c.jd); if (a < A0 || a > A1) continue;
+        mk.push({ x: X(a), pr: c.el < 12 ? 3 : 1, kind: 'conj', lab: ppy >= 300 ? `${c.a} and ${c.b}` : '', sky: Object.assign({ kind: 'conj' }, c) }); }
+      if (Y >= -2500 && Y <= 2100) { if (!TP.sir?.has(Y) && n++ > 1) { TP.moving = true; continue; }
+        const j = sirius(Y); if (j) { const a = axOfJd(j); if (a >= A0 && a <= A1) mk.push({ x: X(a), pr: 2, kind: 'sirius', lab: ppy >= 300 ? 'Sirius rises (Memphis)' : '', sky: { kind: 'sirius', jd: j } }); } }
+    } }
+  const shown = []; for (const m of mk.sort((p, q) => p.pr - q.pr)) { if (m.x < -8 || m.x > W + 8 || shown.some(s => Math.abs(s.x - m.x) < 11)) continue; shown.push(m); }
+  shown.sort((p, q) => p.x - q.x);
+  shown.forEach((m, i) => { const x = m.x;
+    if (m.kind === 'comet') { g.fillStyle = C.acc2; g.beginPath(); g.arc(x, cy, 3.5, 0, 7); g.fill(); g.strokeStyle = C.acc2; g.lineWidth = 1.4; g.beginPath(); g.moveTo(x - 3, cy - 1); g.lineTo(x - 13, cy - 5); g.moveTo(x - 3, cy + 1); g.lineTo(x - 12, cy + 2); g.stroke(); }
+    else if (m.kind === 'conj') { g.fillStyle = '#c08a2b'; g.globalAlpha = m.pr === 3 ? 0.45 : 1; g.beginPath(); g.arc(x - 2.5, cy, 2.6, 0, 7); g.arc(x + 2.5, cy, 2.6, 0, 7); g.fill(); g.globalAlpha = 1; }
+    else { g.fillStyle = '#4a74b8'; g.beginPath(); for (let k = 0; k < 8; k++) { const r = k % 2 ? 1.6 : 5, an = k * Math.PI / 4; g.lineTo(x + r * Math.cos(an), cy + r * Math.sin(an)); } g.closePath(); g.fill(); }
+    if (m.lab) { const room = (i + 1 < shown.length ? shown[i + 1].x - 8 : W) - (x + 8); if (room > 20) { g.save(); g.beginPath(); g.rect(x + 7, y, room, h); g.clip(); g.font = font(9.5); g.fillStyle = C.mut; g.fillText(m.lab, x + 8, y + h - 5); g.restore(); } }
+    TP.hit.push({ x0: x - 6, x1: x + 6, y0: y, y1: y + h, sky: m.sky }); });
+  if (ppy < 15) { g.font = font(9.5); g.fillStyle = C.mut; const s = 'zoom in for the planets and Sirius'; const tw = g.measureText(s).width; g.fillText(s, Math.max(6, W - tw - 190), y + h - 5); }
+}
+// 832a: the Roman calendar – Kalends, Nones, Ides (Julian calendar from 45 BC; before it the Republican calendar ran differently)
+const RMON = ['Ian.', 'Feb.', 'Mart.', 'Apr.', 'Mai.', 'Iun.', 'Iul.', 'Aug.', 'Sept.', 'Oct.', 'Nov.', 'Dec.'];
+const RMONN = ['Ianuarius', 'Februarius', 'Martius', 'Aprilis', 'Maius', 'Iunius', 'Iulius', 'Augustus', 'September', 'October', 'November', 'December'];
+const ROMN2 = n => ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV', 'XVI', 'XVII', 'XVIII', 'XIX'][n] || String(n);
+function romMonth(y, m, full) { const old = m === 7 && y < -43 ? ['Quinct.', 'Quinctilis'] : m === 8 && y < -7 ? ['Sext.', 'Sextilis'] : [RMON[m - 1], RMONN[m - 1]]; return full ? old[1] : old[0]; }
+function romDay(y, m, d) {                              // (y astronomical, Julian calendar)
+  const big = [3, 5, 7, 10].includes(m), N = big ? 7 : 5, I = big ? 15 : 13, leap = y % 4 === 0;
+  if (d === 1) return 'Kal. ' + romMonth(y, m);
+  if (d === N) return 'Non. ' + romMonth(y, m); if (d === I) return 'Id. ' + romMonth(y, m);
+  if (d < N) return (d === N - 1 ? 'pr.' : `a.d. ${ROMN2(N - d + 1)}`) + ' Non. ' + romMonth(y, m);
+  if (d < I) return (d === I - 1 ? 'pr.' : `a.d. ${ROMN2(I - d + 1)}`) + ' Id. ' + romMonth(y, m);
+  const nm = m === 12 ? 1 : m + 1, ny = m === 12 ? y + 1 : y, len = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1];
+  let n = len - d + 2; if (m === 2 && leap) { if (d === 25) return 'a.d. bis VI Kal. ' + romMonth(ny, nm); n = d < 25 ? 30 - d : 31 - d; }   // (the doubled 24 February)
+  return (n === 2 ? 'pr.' : `a.d. ${ROMN2(n)}`) + ' Kal. ' + romMonth(ny, nm);
+}
+function drawRoman(g, C, y, h, W, X, A0, A1, font, cell) {
+  const ppy = TP.ppy;
+  if (A1 < -44) { g.font = font(9.5); g.fillStyle = C.mut; g.fillText('before 45 BC the Roman year ran ahead of or behind these dates – its reconstruction is not in Pult yet', 6, y + h - 5); return; }
+  if (ppy < 150) { g.font = font(9.5); g.fillStyle = C.mut; g.fillText('zoom in for the months and days', Math.max(6, X(-44) + 6), y + h - 5); return; }
+  if (ppy < 6000) { for (const c of julCells(A0, A1, ppy)) { const cc = jdToCal(jdOfAx(c.a + 1e-9)); if (cc.y < -44) continue; cell(c.a, c.b, romMonth(cc.y, cc.m, ppy >= 600), false); } return; }
+  for (const c of julCells(A0, A1, Math.min(ppy, 149999))) { const cc = jdToCal(jdOfAx(c.a + 1e-9)); if (cc.y < -44) continue; const lab = romDay(cc.y, cc.m, cc.d), key = /^(Kal|Non|Id)\./.test(lab);
+    cell(c.a, c.b, ppy >= 40000 || key ? (ppy >= 40000 ? lab : lab.replace(/ \S+$/, '')) : '', key); }
+}
+// 832b: the Athenian months – the year begins with the first new moon after the summer solstice; a month with the first crescent
+// (about a day and a half after the new moon); a 13th month (Poseideon II) when the year has 13. Computed – the archons often did otherwise.
+const ATT = ['Hekatombaion', 'Metageitnion', 'Boedromion', 'Pyanepsion', 'Maimakterion', 'Poseideon', 'Gamelion', 'Anthesterion', 'Elaphebolion', 'Mounichion', 'Thargelion', 'Skirophorion'];
+function atticYear(Y) {
+  TP.att ??= new Map(); if (TP.att.has(Y)) return TP.att.get(Y);
+  const start = Y => { const s = ut(seasonJde(Y, 1), Y); let k = Math.ceil(kOfJd(s)); let nm = ut(moonPhase(k).jde, Y); if (nm < s) nm = ut(moonPhase(++k).jde, Y); return { k, jd: nm }; };
+  const a = start(Y), b = start(Y + 1), n = b.k - a.k, ms = [];
+  for (let i = 0; i < n; i++) { const k = a.k + i, j = Math.floor(ut(moonPhase(k).jde, Y) + 1.5 - 0.5) + 0.5, j2 = Math.floor(ut(moonPhase(k + 1).jde, Y) + 1.5 - 0.5) + 0.5;
+    const nm = n === 13 ? (i < 6 ? ATT[i] : i === 6 ? 'Poseideon II' : ATT[i - 1]) : ATT[i]; ms.push({ j, j2, nm }); }
+  TP.att.set(Y, ms); return ms;
+}
+function drawAttic(g, C, y, h, W, X, A0, A1, font, cell) {
+  const ppy = TP.ppy; if (ppy < 40) { g.font = font(9.5); g.fillStyle = C.mut; g.fillText('zoom in for the Athenian months', 6, y + h - 5); return; }
+  for (let Y = Math.floor(A0) - 1; Y <= Math.ceil(A1); Y++) for (const m of atticYear(Y)) { const a = axOfJd(m.j), b = axOfJd(m.j2); if (b < A0 || a > A1) continue;
+    const lab = ppy >= 1200 ? m.nm : ppy >= 300 ? m.nm.slice(0, m.nm === 'Poseideon II' ? 99 : 4) + (m.nm === 'Poseideon II' ? '' : '.') : '';
+    if (ppy >= 6000 && ppy < 150000) { for (let d = m.j, n = 1; d < m.j2 && n < 31; d++, n++) cell(axOfJd(d), axOfJd(d + 1), n === 1 ? lab || m.nm : String(n), n === 1); }
+    else cell(a, b, lab, m.nm === 'Hekatombaion'); }
+}
+
 // the Julian calendar under the year: months, days, hours as you zoom in
 function julCells(A0, A1, ppy) {
   const out = [], j0 = jdOfAx(A0), j1 = jdOfAx(A1);
@@ -423,7 +556,7 @@ function tmpLayout(A0, A1) {
   for (const S of slots) S.sort((p, q) => p.a - q.a);
   return { slots };
 }
-function rulerHeight(id) { return id === 'emp' ? 14 * (TP.empRowsE || 1) + 6 : id === 'cos' || id === 'sky' ? 20 : 18; }
+function rulerHeight(id) { return id === 'emp' ? 14 * (TP.empRowsE || 1) + 6 : id === 'cos' || id === 'sky' || id === 'sky2' ? 20 : 18; }
 // heights glide to their new values instead of jumping (a lane's row count, the emperor band, a reference row coming or going)
 function tmpEase(k, v) { const E = TP.ease || (TP.ease = new Map()); let c = E.get(k);
   if (c == null) c = v; else { c += (v - c) * 0.35; if (Math.abs(v - c) < 0.02) c = v; else TP.moving = true; } E.set(k, c); return c; }
@@ -446,7 +579,7 @@ function tmpDraw() {
   TP.empRows = Math.max(1, ...emps.filter(x => x.a1 > A0 && x.a0 < A1).map(x => x.row + 1));
   TP.empRowsE = tmpEase('emp', TP.empRows);
   // ---- the reference rows: each fades in or out over its span
-  const SPAN = { auc: [-752, 1e9], cato: [-751, 1e9], ol: [-775, 394], cos: [-29, 566], emp: [-62, 566], sel: [-311, 1e9], dio: [284, 1e9], ind: [312, 1e9] };
+  const SPAN = { att: [-700, 400], auc: [-752, 1e9], cato: [-751, 1e9], ol: [-775, 394], cos: [-29, 566], emp: [-62, 566], sel: [-311, 1e9], dio: [284, 1e9], ind: [312, 1e9] };
   const rulers = rulerOrder().filter(id => TP.cfg.rulers[id]).map(id => ({ id, h: rulerHeight(id) * tmpEase('r:' + id, !SPAN[id] || (A1 > SPAN[id][0] && A0 < SPAN[id][1]) ? 1 : 0) })).filter(r => r.h > 0.5);
   const RH = rulers.reduce((s, r) => s + r.h, 0) + 4;
   TP.RH = RH;
@@ -594,6 +727,9 @@ function drawRuler(g, C, id, y, h, W, X, A0, A1, emps, font) {
     const c = jdToCal(jdOfAx(A0 + 2 / ppy)), ctx = ppy < 6000 ? yTxt(hy(c.y)) : `${ppy >= 150000 ? c.d + ' ' : ''}${MON[c.m - 1]} ${yTxt(hy(c.y))}`;
     g.font = font(10.5); const tw = g.measureText(ctx).width; g.fillStyle = C.bar; g.fillRect(0, y + 1, tw + 10, h - 2); g.fillStyle = C.fg; g.fillText(ctx, 4, y + h - 5); }
   if (id === 'sky') drawSky(g, C, y, h, W, X, A0, A1, font);
+  if (id === 'sky2') drawSky2(g, C, y, h, W, X, A0, A1, font);
+  if (id === 'rom') drawRoman(g, C, y, h, W, X, A0, A1, font, cell);
+  if (id === 'att') drawAttic(g, C, y, h, W, X, A0, A1, font, cell);
   if (id === 'ol') {
     if (ppy * 1 >= 26) { for (let a = Math.floor(A0) - 1; a < A1 + 1; a++) { const o = olOf(a + 0.6); if (o && o.n <= 293) cell(a + 0.5, a + 1.5, `${o.n}.${o.y}`, o.y === 1); } }
     else { const s = Math.max(1, Math.ceil(30 / (ppy * 4))); for (let n = Math.max(1, Math.floor((A0 + 775) / 4) - 1); n <= Math.min(293, (A1 + 775) / 4 + 1); n++) if ((n - 1) % s === 0) cell(-775 + 4 * (n - 1) + 0.5, -775 + 4 * (n - 1 + s) + 0.5, 'Ol. ' + n, true); }
@@ -963,6 +1099,7 @@ document.addEventListener('click', async ev => {
   if (D.tmp === 'here') return tmpHere();
   if (D.tmppin) { const pin = TP.cfg.lpin = TP.cfg.lpin || [], i = pin.indexOf(D.tmppin); if (i >= 0) pin.splice(i, 1); else pin.push(D.tmppin); tmpSave(); tmpRedraw(); return tmpRefPanel(true); }
   if (D.tmpunpin) { TP.cfg.lpin = []; tmpSave(); tmpRedraw(); return tmpRefPanel(true); }
+  if (D.tmpeclmap && TP.skySel) return tmpEclMap(TP.skySel);
   if (D.tmpwpick != null) { TP.cfg.wpick = TP.cfg.wpick || {}; if (D.tmpwpick) TP.cfg.wpick[D.wid] = D.tmpwpick; else delete TP.cfg.wpick[D.wid];
     tmpSave(); $('#tmpCard').hidden = true; TP.sel = null; await tmpData(); return tmpRedraw(); }
   if (D.tmp === 'writ') { TP.cfg.written = !TP.cfg.written; b.classList.toggle('on', TP.cfg.written); tmpSave(); await tmpData(); return tmpRedraw(); }
