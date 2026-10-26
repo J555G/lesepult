@@ -27,6 +27,46 @@ async function tmpCfg() {
 let tmpSaveT = 0;
 function tmpSave() { clearTimeout(tmpSaveT); tmpSaveT = setTimeout(() => { TP.cfg.view = { x0: TP.x0, ppy: TP.ppy, lh: TP.lh }; setting('tmpCfg', TP.cfg); }, 600); }
 
+// ---------------------------------------------------------------- the limits of the timeline (Settings → Tempora): by default 7777 BC to the
+// date the app was last published; nothing beyond them can be scrolled or zoomed to
+const MONTHS = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+async function pubAxis() {                              // the publication date as a point of the axis (year + its fraction)
+  const pd = (await setting('pubDate')) || {}, m = String(pd.date || '').match(/(\d{1,2})\s+([A-Za-z]{3})\w*\s+(\d{4})/);
+  const d = m ? new Date(+m[3], MONTHS[m[2].toLowerCase()] ?? 0, +m[1]) : new Date();
+  return d.getFullYear() + (d - new Date(d.getFullYear(), 0, 1)) / (365.25 * 864e5);
+}
+async function tmpLimits() {
+  const L = (await tmpCfg()).lim || {}, pub = await pubAxis();
+  TP.pub = pub; TP.lim = [ax(L.min ?? -7777), L.max != null ? ax(L.max) + 1 : pub];
+  if (TP.lim[1] - TP.lim[0] < 2) TP.lim = [ax(-7777), pub];
+  return TP.lim;
+}
+function tmpClampX(W) {
+  const [a, b] = TP.lim || [ax(-7777), 2100];
+  if (W / TP.ppy > b - a) TP.ppy = W / (b - a);
+  TP.x0 = Math.min(Math.max(TP.x0, a), b - W / TP.ppy);
+}
+function tmpSettingsHTML() {
+  const L = TP.cfg?.lim || {}, pubY = Math.floor(TP.pub || new Date().getFullYear());
+  return `<div class="tmpset"><label class="srow1"><span>Earliest year<small class="hint">the timeline begins here</small></span><input data-tmplim="min" value="${esc(L.min != null ? yTxt(L.min) : '')}" placeholder="7777 BC" autocomplete="off"></label>`
+    + `<label class="srow1"><span>Latest year<small class="hint">empty: the date the app was last published (now AD ${pubY})</small></span><input data-tmplim="max" value="${esc(L.max != null ? yTxt(L.max) : '')}" placeholder="AD ${pubY}" autocomplete="off"></label>`
+    + `<small class="hint">Years as 7777 BC, AD 2026, Ol. 1, AUC 1. Tempora cannot be scrolled or zoomed beyond them.</small> <button type="button" data-tmplimreset="1">Back to the defaults</button></div>`;
+}
+document.addEventListener('change', async ev => {      // Settings → Tempora: the limits
+  const t = ev.target; if (!t.dataset?.tmplim) return;
+  await tmpCfg(); const v = t.value.trim(), lim = TP.cfg.lim = TP.cfg.lim || {};
+  if (!v) lim[t.dataset.tmplim] = null;
+  else { const r = parseWhen(v); if (!r || r.y0 == null) { toast('The year was not understood: ' + v, 4000); t.value = lim[t.dataset.tmplim] != null ? yTxt(lim[t.dataset.tmplim]) : ''; return; }
+    lim[t.dataset.tmplim] = t.dataset.tmplim === 'max' ? (r.y1 ?? r.y0) : r.y0; t.value = yTxt(lim[t.dataset.tmplim]); }
+  if (lim.min != null && lim.max != null && lim.max <= lim.min) { toast('The latest year must come after the earliest.', 4000); lim[t.dataset.tmplim] = null; t.value = ''; }
+  tmpSave(); await tmpLimits(); tmpRedraw();
+});
+document.addEventListener('click', async ev => {
+  const b = ev.target.closest?.('[data-tmplimreset]'); if (!b) return;
+  await tmpCfg(); TP.cfg.lim = {}; tmpSave(); await tmpLimits(); tmpRedraw();
+  b.closest('.tmpset')?.querySelectorAll('[data-tmplim]').forEach(i => { i.value = ''; });
+});
+
 // ---------------------------------------------------------------- reading a year in the reference systems
 function olOf(a) { const k = Math.floor(a - 0.5 + 775); return k < 0 ? null : { n: Math.floor(k / 4) + 1, y: k % 4 + 1 }; }   // a: axis value
 function systemsAt(y) {                                // all readings of the historical year y
@@ -146,6 +186,7 @@ function tmpDraw() {
   TP.raf = 0;
   const cv = $('#tmpCanvas'); if (!cv || !TP.data) return;
   const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  tmpClampX(W);                                          // (the limits of Settings → Tempora)
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
   const C = TP.C = tmpColors(), font = s => `${s}px ${C.ui || 'sans-serif'}`;
@@ -273,7 +314,7 @@ function tmpRedraw() { if (!TP.raf) TP.raf = requestAnimationFrame(tmpDraw); }
 async function showTempora() {
   showTab('tempora');
   const body = $('#temporaBody'); if (!body) return;
-  await tmpCfg();
+  await tmpCfg(); await tmpLimits();
   if (!$('#tmpCanvas')) {
     body.innerHTML = `<div class="tmpbar"><button type="button" data-tmp="layers" title="Layers and filters">☰ Layers</button>`
       + `<span class="tmpseg"><button type="button" data-tmpmode="narr" title="Place texts at the years they narrate">Narrated</button><button type="button" data-tmpmode="writ" title="Place texts at the time they were written">Written</button></span>`
@@ -291,7 +332,7 @@ async function showTempora() {
   await tmpData(); tmpRedraw();
 }
 function tmpAt(px, py) { return TP.hit.slice().reverse().find(h => (py < TP.RH) === (h.emp != null) && px >= h.x0 - 3 && px <= h.x1 + 3 && py >= h.y0 - 2 && py <= h.y1 + 2) || null; }
-function tmpZoomX(f, px) { const a = TP.x0 + px / TP.ppy; TP.ppy = Math.min(4000, Math.max(0.02, TP.ppy * f)); TP.x0 = a - px / TP.ppy; tmpSave(); tmpRedraw(); }
+function tmpZoomX(f, px) { const a = TP.x0 + px / TP.ppy; TP.ppy = Math.min(4000, Math.max(0.005, TP.ppy * f)); TP.x0 = a - px / TP.ppy; tmpSave(); tmpRedraw(); }
 function tmpZoomY(f) { TP.lh = Math.min(90, Math.max(16, TP.lh * f)); tmpSave(); tmpRedraw(); }
 function tmpClampY() { const cv = $('#tmpCanvas'); const max = Math.max(0, (TP.contentH || 0) - (cv.clientHeight - (TP.RH || 0)) + 40); TP.sy = Math.min(max, Math.max(0, TP.sy)); }
 function tmpWire(cv) {
@@ -303,7 +344,7 @@ function tmpWire(cv) {
   cv.addEventListener('pointermove', e => { if (!TP.ptr.has(e.pointerId)) return; TP.ptr.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
     if (pinch && TP.ptr.size === 2) { const [p, q] = [...TP.ptr.values()], dx = Math.abs(p.x - q.x), dy = Math.abs(p.y - q.y), mx = (p.x + q.x) / 2;
       const a = pinch.x0 + pinch.mx / pinch.ppy;                 // two fingers: across = time, up and down = lane height
-      if (pinch.dx > 40) TP.ppy = Math.min(4000, Math.max(0.02, pinch.ppy * dx / pinch.dx));
+      if (pinch.dx > 40) TP.ppy = Math.min(4000, Math.max(0.005, pinch.ppy * dx / pinch.dx));
       if (pinch.dy > 40) TP.lh = Math.min(90, Math.max(16, pinch.lh * dy / pinch.dy));
       TP.x0 = a - mx / TP.ppy; moved = true; tmpSave(); tmpRedraw(); return; }
     if (!down) return; const dx = e.offsetX - down.x, dy = e.offsetY - down.y;

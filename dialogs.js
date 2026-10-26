@@ -541,13 +541,15 @@ async function settingsDialog(focus) {
     + rsec('slat', 'Latin', swRow(SW('data-set="latQuant"', S.latQuant && coll, !coll), 'Mark vowel lengths (ā, ĕ …)', coll ? '' : 'needs Collatinus (Instruments → Analysis)', !coll))
     + (hasMap ? rsec('splaces', 'Places', swRow(SW('data-mapset="mark"', M.cfg.mark !== false), 'Mark place names in the text', 'a dotted line beneath names found on the map')) : '');
   await libSettingsPrep();
+  if (typeof tmpLimits === 'function') await tmpLimits();   // (Settings → Tempora)
   if (want) openAt('set', want);
   const rows = [{ k: 'read', title: 'Reading', sub: `text ${Math.round((S.tz || 1) * 100)} % · glosses, grammar line, colourisation` },
     { k: 'search', title: 'Search', sub: 'suggestions · Greek in Latin letters · typo tolerance · index of all texts' },
     { k: 'lib', title: 'Library', sub: 'revision notices · rejected revisions' },
     { k: 'suda', title: 'Suda', sub: 'encyclopaedias and lexica · sections of one article' },
+    { k: 'tempora', title: 'Tempora', sub: 'the limits of the timeline' },
     ...(hasMap ? [{ k: 'map', title: 'Map', sub: 'places in texts · period · significance · engine' }] : [])];
-  const dlgP = dialog(pagedHTML('set', 'Settings', rows, { read: reading, search: searchSettingsHTML(), lib: libSettingsHTML(), suda: swRow(SW('data-sudamerge="1"', S.sudaMerge !== false), 'Sections of one article as one entry', 'Smith divides some articles into numbered parts that look like persons of the same name – Zeus 1–5, Artemis 1–5; on: one entry, the parts beneath it'), ...(hasMap ? { map: `<div class="mapset">${settingsHTML()}</div>` } : {}) },
+  const dlgP = dialog(pagedHTML('set', 'Settings', rows, { read: reading, search: searchSettingsHTML(), lib: libSettingsHTML(), suda: swRow(SW('data-sudamerge="1"', S.sudaMerge !== false), 'Sections of one article as one entry', 'Smith divides some articles into numbered parts that look like persons of the same name – Zeus 1–5, Artemis 1–5; on: one entry, the parts beneath it'), tempora: typeof tmpSettingsHTML === 'function' ? tmpSettingsHTML() : '', ...(hasMap ? { map: `<div class="mapset">${settingsHTML()}</div>` } : {}) },
       `<div class="srow1 sapp"><b>Appearance</b>${seg('theme', dark ? 'dark' : 'light', [['light', 'Light'], ['dark', 'Dark']])}</div>`
       + `<label class="srow1 swr sapp2"><span>Fades<small class="hint">buttons light up briefly when tapped, switches fade in and out</small></span>${SW('data-fades="1"', !document.body.classList.contains('nofade'))}</label>`
       + `<label class="srow1 swr sapp2"><span>Notices<small class="hint">short hints and confirmations at the bottom of the screen (warnings always show)</small></span>${SW('data-notices="1"', document.body.classList.contains('notices'))}</label>`)
@@ -1041,7 +1043,8 @@ const ACKS = [
     ['Prosopographia Imperii Romani (PIR²) – Berlin-Brandenburg Academy of Sciences and Humanities', 'https://pir.bbaw.de', 'persons of the imperial period (31 BC – AD 284), with Smith’s where they are the same', 'CC BY 4.0'],
     ['W. Liebenam, Fasti consulares imperii Romani von 30 v. Chr. bis 565 n. Chr. mit Kaiserliste und Anhang (Bonn 1909) – scan at the Internet Archive', 'https://archive.org/details/fasticonsularesi0000lieb', 'the table of emperors and the consuls by year: which emperor or consul a name means; Caesars who never became Augustus from H. F. Clinton, Fasti Romani I (Oxford 1845)', 'public domain'],
     ['Tempora – dates read from the library’s texts (Diodorus’ year headers; the dates by Olympiad in Dionysius of Halicarnassus and Diogenes Laertius)', 'https://github.com/PerseusDL/canonical-greekLit', 'lanes of the Tempora tab', 'CC BY-SA 4.0'],
-    ['Tempora’s button: the Parian Marble (Marmor Parium), an engraving of the stone', '', 'the picture of the Tempora tab', 'public domain']]],
+    ['Tempora’s button: the Parian Marble (Marmor Parium), an engraving of the stone', '', 'the picture of the Tempora tab', 'public domain'],
+    ['The Suda’s button: a manuscript of the Suda, a title in red', '', 'the picture of the Suda tab', 'supplied by the user']]],
   ['Latin dictionaries and analysis', [
     ['Perseus Digital Library – lexica', 'https://github.com/PerseusDL/lexica', 'C. T. Lewis & C. Short, A Latin Dictionary (1879); text provided by the Perseus Digital Library with funding from the National Endowment for the Humanities', 'CC BY-SA 4.0'],
     ['K. E. Georges, Ausführliches lateinisch-deutsches Handwörterbuch (8th ed. 1913) – TEI edition by Thibault Clérice', 'https://github.com/PonteIneptique/K-E-Georges-1913-TEI', 'Latin–German dictionary', 'public domain'],
