@@ -154,7 +154,7 @@ function dictSelection() {
   const sel = window.getSelection(); if (!sel.rangeCount) return null;
   const text = String(sel).trim(); if (!text) return null;
   const r = sel.getRangeAt(0);
-  if (!$('#dictPane').contains(r.commonAncestorContainer)) return null;
+  if (!$('#dictPane').contains(r.commonAncestorContainer) || $('#temporaBody')?.contains(r.commonAncestorContainer)) return null;   // (Tempora: no highlighting or glosses)
   const el = n => n.nodeType === 1 ? n : n.parentElement;
   const eb = el(r.startContainer)?.closest('.eb'), eb2 = el(r.endContainer)?.closest('.eb');
   if (!eb || eb !== eb2 || !eb.dataset.hl) return { text };
@@ -247,7 +247,7 @@ function wireTouchSelect() {
   const pt = e => e.touches[0] || e.changedTouches[0];
   const at = (x, y, root) => { const c = caretAt(x, y); if (!c || c.node.nodeType !== 3 || !root.contains(c.node)) return null; const [wa, wb] = wordBounds(c.node, c.off); const o = offsetIn(root, c.node, 0); return { a: o + wa, b: o + wb, c: o + c.off }; };
   pane.addEventListener('touchstart', e => {
-    if (e.touches.length !== 1 || e.target.closest('input,textarea,select,button,summary,[contenteditable]')) { hold = null; return; }
+    if (e.touches.length !== 1 || e.target.closest('input,textarea,select,button,summary,[contenteditable],#temporaBody')) { hold = null; return; }   // (Tempora: no selecting)
     const p = pt(e), x = p.clientX, y = p.clientY, target = e.target;
     hold = { x, y, moved: false, timer: setTimeout(() => {
       const root = target.closest?.('.eb') || $('#dictBody'); const w = at(x, y, root);
