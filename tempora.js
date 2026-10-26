@@ -67,7 +67,8 @@ async function tmpData() {
       const L = (await pplRec(ch, '#l'))?.e || [], I = (await pplRec(ch, '#s'))?.e || [];
       for (const [lid, title, wpre, note] of L) {
         const its = I.filter(x => x[0] === lid).map(x => ({ t0: x[1], t1: x[2], lab: x[3], kind: 'year', uneven: x[6]?.uneven, fixed: x[6]?.fixed,
-          src: title, go: { w: x[6]?.w, bi: x[4], r: x[5] }, note: (x[6]?.fixed ? 'an Olympiad named here fixes the year' : 'counted from the Olympiad named before')
+          src: title, go: { w: x[6]?.w, bi: x[4], r: x[5] }, text: x[6]?.text || null, fa: !!x[6]?.text && !x[6]?.ol?.[1], fb: !!x[6]?.text && !x[6]?.ol?.[1],
+          note: x[6]?.text ? (x[6].ol?.[1] ? '' : 'the Olympiad only – any of its four years') : (x[6]?.fixed ? 'an Olympiad named here fixes the year' : 'counted from the Olympiad named before')
             + (x[6]?.uneven ? ' – in a stretch where his headers and his Olympiads disagree' : '') }));
         lanes.push({ id: 'ch:' + lid, g: 'Texts – the years they narrate', t: title, its, note, have: true });
       }
@@ -334,7 +335,7 @@ function tmpCardItem(h) {
   const it = h.it, c = $('#tmpCard'); c.hidden = false;
   c.innerHTML = `<div class="tch"><b>${esc(it.lab)}</b><button type="button" data-tmpclose="1" aria-label="Close">✕</button></div>`
     + `<p>${esc(rangeTxt(it.t0, it.t1))}${it.fa || it.fb ? ' <small>(vague)</small>' : ''} · <span class="hint">${esc(it.src || '')}</span></p>`
-    + (it.note ? `<p class="hint">${esc(it.note)}</p>` : '')
+    + (it.text ? `<p class="gk tmptext">${esc(it.text)}</p>` : '') + (it.note ? `<p class="hint">${esc(it.note)}</p>` : '')
     + `<p class="tact">${it.go?.w ? `<button type="button" data-tmpgo="1">Open the passage</button>` : ''}${it.ref ? `<button type="button" data-tmpperson="${esc(it.ref)}">Person page</button>` : ''}`
     + `${it.place ? `<button type="button" data-tmpmap="1">Show on the map</button>` : ''}${it.own ? `<button type="button" data-tmpedit="${esc(it.own.id)}">Edit</button>` : ''}`
     + `<button type="button" data-tmpyear="${hy(Math.floor(it.t0 + 0.001))}">The year in all systems</button></p>`;

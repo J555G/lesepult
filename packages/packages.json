@@ -199,11 +199,11 @@
    "name": "Tempora – dates read from the library's texts",
    "kind": "chrono",
    "src": "grc",
-   "title": "Diodorus' year headers (Books 11–20); more to come",
+   "title": "Diodorus' year headers (Books 11–20); the dates by Olympiad in Dionysius of Halicarnassus and Diogenes Laertius",
    "source": "the texts of the library (Perseus Digital Library)",
    "license": "CC BY-SA 4.0",
-   "bytes": 8882,
-   "version": "46ec643cf168"
+   "bytes": 19835,
+   "version": "4c92b0e0841d"
   }
  ]
 }
