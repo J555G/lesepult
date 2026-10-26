@@ -13,10 +13,10 @@ const hy = a => a <= 0 ? a - 1 : a;                    // astronomical -> histor
 const yTxt = y => y < 0 ? `${-y} BC` : `AD ${y}`;
 const yTxtS = y => y < 0 ? `${-y} BC` : `${y}`;
 const RULERS = [['jul', 'Julian calendar (BC / AD; Gregorian from 1582)'], ['sky', 'Sky (eclipses, new and full moons, equinoxes, solstices)'], ['sky2', 'Sky (planets meeting, comets, the rising of Sirius)'],
-  ['rom', 'Roman calendar (Kalends, Nones, Ides)'], ['att', 'Athenian months (computed)'], ['ol', 'Olympiads'], ['auc', 'Years of the city (Varro, 753 BC)'], ['cato', 'Years of the city (Cato, 752 BC)'],
+  ['anc', 'Seasons of the ancient authors (Thucydides, Hesiod, Vegetius)'], ['rom', 'Roman calendar (Kalends, Nones, Ides)'], ['att', 'Athenian months (computed)'], ['ol', 'Olympiads'], ['auc', 'Years of the city (Varro, 753 BC)'], ['cato', 'Years of the city (Cato, 752 BC)'],
   ['cos', 'Consuls (Liebenam, 30 BC – AD 565)'], ['emp', 'Emperors and Caesars (Liebenam)'], ['sel', 'Seleucid era (autumn 312 BC)'],
   ['dio', 'Era of Diocletian (29 Aug. 284)'], ['ind', 'Indictions (from 1 Sept. 312)']];
-const RULER_ON = { jul: true, sky: true, sky2: true, rom: false, att: false, ol: true, auc: true, cato: false, cos: true, emp: true, sel: false, dio: false, ind: false };
+const RULER_ON = { jul: true, sky: true, sky2: true, anc: true, rom: false, att: false, ol: true, auc: true, cato: false, cos: true, emp: true, sel: false, dio: false, ind: false };
 
 async function tmpCfg() {
   if (TP.cfg) return TP.cfg;
@@ -180,13 +180,14 @@ function drawSky(g, C, y, h, W, X, A0, A1, font) {
 }
 function tmpCardSky(s) {
   const c = $('#tmpCard'); c.hidden = false; const y = hy(Math.floor(axOfJd(s.jd)));
+  if (s.kind === 'anc') { const a = ANC.find(x => x[0] === s.k); c.innerHTML = `<div class="tch"><b>${esc(a[1])}</b><button type="button" data-tmpclose="1" aria-label="Close">✕</button></div><p class="hint">${esc(a[2])}</p>`; return; }
   const t = s.kind === 'ecl' ? eclName(s).replace(/^./, x => x.toUpperCase()) : s.kind === 'moon' ? (s.full ? 'Full moon' : 'New moon') : s.kind === 'comet' ? s.name : s.kind === 'conj' ? `${s.a} meets ${s.b}` : s.kind === 'sirius' ? 'Sirius rises before the sun' : SEASONS[s.i].replace(/^./, x => x.toUpperCase());
   const unc = y < 1000 ? ' Before about AD 1000 the hour is uncertain – the earth’s rotation slowed unevenly (ΔT, after Espenak and Meeus); before 2000 BC the eclipses are left out.' : '';
   c.innerHTML = `<div class="tch"><b>${esc(t)}</b><button type="button" data-tmpclose="1" aria-label="Close">✕</button></div>`
     + `<p>${esc(jdTxt(s.jd, true))} <small class="hint">(${y < 1583 ? 'Julian' : 'Gregorian'} calendar; hour of greatest eclipse or of the moment itself)</small></p>`
     + (s.kind === 'ecl' ? `<p class="hint">${s.sun ? (s.central === false ? 'not central – ' : '') : ''}${s.mag != null ? `magnitude ${s.mag.toFixed(2)}` : 'central'}.</p><div class="tmploc"><p class="hint small">Where it was seen …</p></div>` : '')
     + (s.kind === 'comet' ? `<p class="hint">${esc(s.note)}.</p>` : s.kind === 'conj' ? `<p class="hint">${s.a} and ${s.b} ${s.s < 0.2 ? 'almost touching' : 'close together'}: ${s.s.toFixed(2)}° apart (as seen from the earth), ${Math.round(s.el)}° from the sun${s.el < 12 ? ' – too near the sun to be seen' : ''}.</p>`
-      : s.kind === 'sirius' ? `<p class="hint">The first morning Sirius was seen again before sunrise at Memphis (the sun 7.5° below the horizon, the star 1.5° above it) – the start of the Nile flood and the Egyptian “Sothic” year. Computed; the real first sighting depended on the air.</p>` : '')
+      : s.kind === 'sirius' ? `<p class="hint">The first morning Sirius was seen again before sunrise at Memphis – the start of the Nile flood and of the Egyptian “Sothic” year. At Alexandria, further north: ${(() => { const j = sirius(s.Y, [31.20, 29.92]); return j ? esc(jdTxt(j)) : '?'; })()}.</p><p class="hint small">A model, not a sighting: the sun 7.5° below the horizon, the star 1.5° above it. What the ancient sources say about the day (Censorinus for AD 139, the Canopus decree, papyri) will stand beside it as their own statements, as they are read in.</p>` : '')
     + (s.kind === 'comet' ? '' : `<p class="hint small">Computed in the app – ${s.kind === 'conj' || s.kind === 'sirius' ? 'with astronomy-engine (D. Cross)' : `after J. Meeus, Astronomical Algorithms (2nd ed. 1998), ch. ${s.kind === 'ecl' ? 54 : s.kind === 'moon' ? 49 : 27}${s.kind === 'ecl' ? '; where it was seen, with astronomy-engine (D. Cross)' : ''}`}.${unc}</p>`)
     + `<p class="tact">${s.kind === 'ecl' && s.sun ? '<button type="button" data-tmpeclmap="1">The shadow on the map</button>' : ''}<button type="button" data-tmpyear="${y}">The year in all systems</button></p>`;
   TP.skySel = s;
@@ -234,14 +235,14 @@ async function tmpEclMap(e) {
 // 831: Halley's comet at perihelion (Sitarski 1988; Julian calendar to 1531)
 const HALLEY = [[-239, 3, 30], [-163, 11, 17], [-86, 8, 2], [-11, 10, 5], [66, 1, 26], [141, 3, 22], [218, 5, 17], [295, 4, 20], [374, 2, 17], [451, 6, 24], [530, 9, 26], [607, 3, 13], [684, 10, 28], [760, 5, 22], [837, 2, 28], [912, 7, 9], [989, 9, 9], [1066, 3, 23], [1145, 4, 21], [1222, 9, 30], [1301, 10, 24], [1378, 11, 9], [1456, 6, 9], [1531, 8, 25], [1607, 10, 27], [1682, 9, 15], [1758, 3, 13], [1835, 11, 16], [1910, 4, 20], [1986, 2, 9]];
 // the rising of Sirius before the sun at Memphis (the Egyptian calendar's anchor): the first morning it is seen again
-function sirius(Y) {
-  const A = window.Astronomy; if (!A) return null; TP.sir ??= new Map(); if (TP.sir.has(Y)) return TP.sir.get(Y);
+function sirius(Y, pl = [29.85, 31.25]) {                // (Memphis; Alexandria: [31.20, 29.92])
+  const A = window.Astronomy, key = Y + '|' + pl[0]; if (!A) return null; TP.sir ??= new Map(); if (TP.sir.has(key)) return TP.sir.get(key);
   const dy = Y - 2000, ra = 6.752477 + (-0.54601 / 3600 / Math.cos(-16.716 * D2R)) * dy / 15, dec = -16.716117 - 1.22307 / 3600 * dy;
-  A.DefineStar(A.Body.Star1, ra, dec, 8.6); const ob = new A.Observer(29.85, 31.25, 0); let seen = null, prev = true;
+  A.DefineStar(A.Body.Star1, ra, dec, 8.6); const ob = new A.Observer(pl[0], pl[1], 0); let seen = null, prev = true;
   for (let d = 0; d < 40; d++) { const t0 = AT(calToJd(Y, 7, 1) + d); const tw = A.SearchAltitude(A.Body.Sun, ob, +1, t0, 1, -7.5); if (!tw) continue;
     const eq = A.Equator(A.Body.Star1, tw, ob, true, true), alt = A.Horizon(tw, ob, eq.ra, eq.dec, 'normal').altitude, vis = alt >= 1.5;
     if (vis && !prev) { seen = tw.ut + 2451545; break; } prev = vis; }
-  TP.sir.set(Y, seen); return seen;
+  TP.sir.set(key, seen); return seen;
 }
 // close meetings of the planets (under 1°), year by year, computed when first in view
 const PLAN = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'];
@@ -265,8 +266,8 @@ function drawSky2(g, C, y, h, W, X, A0, A1, font) {
       if (!TP.cj?.has(Y) && n++ > 1) { TP.moving = true; continue; }           // (a year or two per frame: the rest on the next ones)
       for (const c of conjYear(Y)) { const a = axOfJd(c.jd); if (a < A0 || a > A1) continue;
         mk.push({ x: X(a), pr: c.el < 12 ? 3 : 1, kind: 'conj', lab: ppy >= 300 ? `${c.a} and ${c.b}` : '', sky: Object.assign({ kind: 'conj' }, c) }); }
-      if (Y >= -2500 && Y <= 2100) { if (!TP.sir?.has(Y) && n++ > 1) { TP.moving = true; continue; }
-        const j = sirius(Y); if (j) { const a = axOfJd(j); if (a >= A0 && a <= A1) mk.push({ x: X(a), pr: 2, kind: 'sirius', lab: ppy >= 300 ? 'Sirius rises (Memphis)' : '', sky: { kind: 'sirius', jd: j } }); } }
+      if (Y >= -2500 && Y <= 2100) { if (!TP.sir?.has(Y + '|29.85') && n++ > 1) { TP.moving = true; continue; }
+        const j = sirius(Y); if (j) { const a = axOfJd(j); if (a >= A0 && a <= A1) mk.push({ x: X(a), pr: 2, kind: 'sirius', lab: ppy >= 300 ? 'Sirius rises (Memphis)' : '', sky: { kind: 'sirius', jd: j, Y } }); } }
     } }
   const shown = []; for (const m of mk.sort((p, q) => p.pr - q.pr)) { if (m.x < -8 || m.x > W + 8 || shown.some(s => Math.abs(s.x - m.x) < 11)) continue; shown.push(m); }
   shown.sort((p, q) => p.x - q.x);
@@ -278,6 +279,39 @@ function drawSky2(g, C, y, h, W, X, A0, A1, font) {
     TP.hit.push({ x0: x - 6, x1: x + 6, y0: y, y1: y + h, sky: m.sky }); });
   if (ppy < 15) { g.font = font(9.5); g.fillStyle = C.mut; const s = 'zoom in for the planets and Sirius'; const tw = g.measureText(s).width; g.fillText(s, Math.max(6, W - tw - 190), y + h - 5); }
 }
+// 834a: the seasons – summer and winter fading into each other behind the lanes (warmest about a month after the summer solstice,
+// coldest a month after the winter one, as in the Mediterranean), and the seasons the ancient authors reckon by
+const WARM = [214, 140, 60], COOL = [70, 120, 200];
+function seasonTint(g, X, A0, A1, top, W, H) {
+  const f = Math.min(1, Math.max(0, (TP.ppy - 25) / 60)); if (!f) return;                 // (it comes in as the months open up)
+  const step = 3, sum = Y => ut(seasonJde(Y, 1), Y) + 30;
+  let Y = Math.floor(A0), s0 = sum(Y), s1 = sum(Y + 1);
+  for (let x = 0; x < W; x += step) { const jd = jdOfAx(TP.x0 + (x + step / 2) / TP.ppy); while (jd > s1) { Y++; s0 = s1; s1 = sum(Y + 1); } while (jd < s0) { Y--; s1 = s0; s0 = sum(Y); }
+    const w = Math.cos(2 * Math.PI * (jd - s0) / (s1 - s0)), c = w > 0 ? WARM : COOL;
+    g.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${(Math.abs(w) * 0.085 * f).toFixed(3)})`; g.fillRect(x, top, step, H - top); }
+}
+const ANC = [
+  ['thuc', 'Thucydides’ war year', 'Thucydides counts the war by summers and winters (2.1; 5.20): the summer from about the beginning of spring, the winter from about the setting of the Pleiades in early November. Here: from the spring equinox, and from 8 November – approximately; the exact boundaries are disputed.'],
+  ['hes', 'Hesiod: the time to sail', 'Hesiod, Works and Days 663–665: “fifty days after the turning of the sun” in summer is the time for sailing – then the sea is gentle; hurry home before the new wine and the autumn rains. Here: from 50 to 90 days after the summer solstice.'],
+  ['veg', 'Vegetius: the sea open, doubtful, closed', 'Vegetius, Epitome of Military Science 4.39: safe from the rising of the Pleiades (27 May) to the rising of Arcturus (14 September); doubtful from then to 11 November and from 10 March to 27 May; closed from 11 November to 10 March (Julian calendar).'],
+];
+function drawAncient(g, C, y, h, W, X, A0, A1, font) {
+  const ppy = TP.ppy, bh = 8, rows = [y + 2, y + 11.5, y + 21];
+  if (ppy < 20) { g.font = font(9.5); g.fillStyle = C.mut; g.fillText('zoom in for the seasons of Thucydides, Hesiod and Vegetius', 6, y + 19); return; }
+  const band = (r, a, b, col, alpha, lab, key) => { const x0 = X(a), x1 = X(b); if (x1 < 0 || x0 > W) return; g.fillStyle = col; g.globalAlpha = alpha; g.fillRect(x0, rows[r], x1 - x0, bh); g.globalAlpha = 1;
+    if (lab && x1 - Math.max(x0, 0) > 60) { g.save(); g.beginPath(); g.rect(Math.max(x0, 0), rows[r] - 1, x1 - Math.max(x0, 0), bh + 2); g.clip(); g.font = font(8.5); g.fillStyle = C.fg; g.fillText(lab, Math.max(x0, 0) + 3, rows[r] + 7); g.restore(); }
+    TP.hit.push({ x0, x1, y0: rows[r] - 1, y1: rows[r] + bh + 1, sky: { kind: 'anc', k: key } }); };
+  const warm = `rgb(${WARM})`, cool = `rgb(${COOL})`;
+  for (let Y = Math.floor(A0) - 1; Y <= Math.ceil(A1); Y++) {
+    const eq = axOfJd(ut(seasonJde(Y, 0), Y)), pl = axOfJd(calToJd(Y, 11, 8)), eqn = axOfJd(ut(seasonJde(Y + 1, 0), Y + 1)), sol = ut(seasonJde(Y, 1), Y);
+    band(0, eq, pl, warm, 0.55, 'summer (Thucydides)', 'thuc'); band(0, pl, eqn, cool, 0.45, 'winter (Thucydides)', 'thuc');
+    band(1, axOfJd(sol + 50), axOfJd(sol + 90), '#3f8f8a', 0.6, 'Hesiod: sail now', 'hes');
+    const v = (m, d) => axOfJd(calToJd(Y, m, d));
+    band(2, v(3, 10), v(5, 27), '#3f8f8a', 0.3, 'doubtful', 'veg'); band(2, v(5, 27), v(9, 14), '#3f8f8a', 0.65, 'the sea open (Vegetius)', 'veg');
+    band(2, v(9, 14), v(11, 11), '#3f8f8a', 0.3, 'doubtful', 'veg'); band(2, v(11, 11), axOfJd(calToJd(Y + 1, 3, 10)), C.mut, 0.3, 'the sea closed', 'veg');
+  }
+}
+
 // 832a: the Roman calendar – Kalends, Nones, Ides (Julian calendar from 45 BC; before it the Republican calendar ran differently)
 const RMON = ['Ian.', 'Feb.', 'Mart.', 'Apr.', 'Mai.', 'Iun.', 'Iul.', 'Aug.', 'Sept.', 'Oct.', 'Nov.', 'Dec.'];
 const RMONN = ['Ianuarius', 'Februarius', 'Martius', 'Aprilis', 'Maius', 'Iunius', 'Iulius', 'Augustus', 'September', 'October', 'November', 'December'];
@@ -556,7 +590,7 @@ function tmpLayout(A0, A1) {
   for (const S of slots) S.sort((p, q) => p.a - q.a);
   return { slots };
 }
-function rulerHeight(id) { return id === 'emp' ? 14 * (TP.empRowsE || 1) + 6 : id === 'cos' || id === 'sky' || id === 'sky2' ? 20 : 18; }
+function rulerHeight(id) { return id === 'emp' ? 14 * (TP.empRowsE || 1) + 6 : id === 'anc' ? 31 : id === 'cos' || id === 'sky' || id === 'sky2' ? 20 : 18; }
 // heights glide to their new values instead of jumping (a lane's row count, the emperor band, a reference row coming or going)
 function tmpEase(k, v) { const E = TP.ease || (TP.ease = new Map()); let c = E.get(k);
   if (c == null) c = v; else { c += (v - c) * 0.35; if (Math.abs(v - c) < 0.02) c = v; else TP.moving = true; } E.set(k, c); return c; }
@@ -607,6 +641,7 @@ function tmpDraw() {
   g.strokeStyle = C.line; g.lineWidth = 1; g.globalAlpha = 0.5;
   for (const a of TP.ppy >= 150 ? julCells(A0, A1, TP.ppy).map(c => c.a) : (() => { const r = []; for (let a = Math.ceil(A0 / step) * step; a < A1; a += step) r.push(a); return r; })()) { const x = Math.round(X(a)) + 0.5; g.beginPath(); g.moveTo(x, RH); g.lineTo(x, H); g.stroke(); }
   g.globalAlpha = 1;
+  seasonTint(g, X, A0, A1, RH, W, H);
   const nPass = TP.fOn ? lay.reduce((s, l) => s + l.ls.reduce((z, r) => z + r.its.filter(i => i.pass !== false && !i.wr).length, 0), 0) : 0;
   const wmode = TP.fOn && nPass <= 30 ? 'passage' : (TP.cfg.wlines || 'work');   // (815, 821a: per work, book or passage; per passage when a filter leaves few in view)
   const selIt = TP.sel?.it && !TP.sel.it.wr ? TP.sel.it : null;
@@ -728,6 +763,7 @@ function drawRuler(g, C, id, y, h, W, X, A0, A1, emps, font) {
     g.font = font(10.5); const tw = g.measureText(ctx).width; g.fillStyle = C.bar; g.fillRect(0, y + 1, tw + 10, h - 2); g.fillStyle = C.fg; g.fillText(ctx, 4, y + h - 5); }
   if (id === 'sky') drawSky(g, C, y, h, W, X, A0, A1, font);
   if (id === 'sky2') drawSky2(g, C, y, h, W, X, A0, A1, font);
+  if (id === 'anc') drawAncient(g, C, y, h, W, X, A0, A1, font);
   if (id === 'rom') drawRoman(g, C, y, h, W, X, A0, A1, font, cell);
   if (id === 'att') drawAttic(g, C, y, h, W, X, A0, A1, font, cell);
   if (id === 'ol') {
@@ -815,7 +851,7 @@ function tmpWire(cv) {
 function tmpTap(px, py) {
   const h = tmpAt(px, py);
   if (h?.it) { TP.sel = h; TP.cur = null; tmpCardItem(h); }
-  else if (h?.sky) { TP.sel = null; TP.cur = axOfJd(h.sky.jd); tmpCardSky(h.sky); }
+  else if (h?.sky) { TP.sel = null; TP.cur = h.sky.jd != null ? axOfJd(h.sky.jd) : null; tmpCardSky(h.sky); }
   else if (h?.emp != null) { const e = TP.data.F.k[h.emp]; TP.sel = null; TP.cur = null; tmpCardEmp(e); }
   else if (py < (TP.RH || 0)) { TP.sel = null; TP.cur = TP.x0 + px / TP.ppy; tmpCardYear(hy(Math.floor(TP.cur))); }   // (a reference row: what that year is called)
   else { TP.sel = null; TP.cur = null; const c = $('#tmpCard'); if (c) c.hidden = true; }                               // (an empty place: nothing opens)
