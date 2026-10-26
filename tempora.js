@@ -51,7 +51,8 @@ function tmpSettingsHTML() {
   return `<div class="tmpset"><label class="srow1"><span>Earliest year<small class="hint">the timeline begins here</small></span><input data-tmplim="min" value="${esc(L.min != null ? yTxt(L.min) : '')}" placeholder="7777 BC" autocomplete="off"></label>`
     + `<label class="srow1"><span>Latest year<small class="hint">empty: the date the app was last published (now AD ${pubY})</small></span><input data-tmplim="max" value="${esc(L.max != null ? yTxt(L.max) : '')}" placeholder="AD ${pubY}" autocomplete="off"></label>`
     + `<small class="hint">Years as 7777 BC, AD 2026, Ol. 1, AUC 1. Tempora cannot be scrolled or zoomed beyond them.</small> <button type="button" data-tmplimreset="1">Back to the defaults</button>`
-    + `<label class="srow1"><span>What the filter leaves out<small class="hint">dimmed: still there, faint · hidden: gone</small></span><span class="tmpseg"><button type="button" data-tmpfm="dim" class="${TP.cfg?.fmode !== 'hide' ? 'on' : ''}">Dimmed</button><button type="button" data-tmpfm="hide" class="${TP.cfg?.fmode === 'hide' ? 'on' : ''}">Hidden</button></span></label></div>`;
+    + `<label class="srow1"><span>What the filter leaves out<small class="hint">dimmed: still there, faint · hidden: gone</small></span><span class="tmpseg"><button type="button" data-tmpfm="dim" class="${TP.cfg?.fmode !== 'hide' ? 'on' : ''}">Dimmed</button><button type="button" data-tmpfm="hide" class="${TP.cfg?.fmode === 'hide' ? 'on' : ''}">Hidden</button></span></label>`
+    + `<label class="srow1"><span>“Written”: lines to the date of writing<small class="hint">one from each work, book or passage – with a filter on, one from each passage it shows</small></span><span class="tmpseg">${[['work', 'Work'], ['book', 'Book'], ['passage', 'Passage']].map(([v, l]) => `<button type="button" data-tmpwl="${v}" class="${(TP.cfg?.wlines || 'work') === v ? 'on' : ''}">${l}</button>`).join('')}</span></label></div>`;
 }
 document.addEventListener('change', async ev => {      // Settings → Tempora: the limits
   const t = ev.target; if (!t.dataset?.tmplim) return;
@@ -63,6 +64,7 @@ document.addEventListener('change', async ev => {      // Settings → Tempora: 
   tmpSave(); await tmpLimits(); tmpRedraw();
 });
 document.addEventListener('click', async ev => {
+  const wl = ev.target.closest?.('[data-tmpwl]'); if (wl) { await tmpCfg(); TP.cfg.wlines = wl.dataset.tmpwl; tmpSave(); wl.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === wl)); return tmpRedraw(); }
   const fm = ev.target.closest?.('[data-tmpfm]'); if (fm) { await tmpCfg(); TP.cfg.fmode = fm.dataset.tmpfm; tmpSave(); fm.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === fm)); return tmpRedraw(); }
   const b = ev.target.closest?.('[data-tmplimreset]'); if (!b) return;
   await tmpCfg(); TP.cfg.lim = {}; tmpSave(); await tmpLimits(); tmpRedraw();
@@ -90,19 +92,30 @@ const ROMN = n => ['', 'I', 'II', 'III', 'IIII', 'V', 'VI', 'VII', 'VIII', 'VIII
 
 // ---------------------------------------------------------------- the data: lanes of items
 // item: {t0, t1 (axis), lab, fa, fb (fuzzy start / end), kind, src, go: {w, bi, r} (a passage), ref (a person), ev (event), col}
-// when the works that have lanes were written (a first table, by hand – the usual dates of the handbooks; work id prefix ->
-// [[from, to, note, vague, label]]). The Historia Augusta twice: the date it claims and the date now generally accepted.
+// when the works that have lanes were written (814a+b): [work id prefix, from, to, label, note, vague, source]. Two sources side by side:
+// the usual dates of today's handbooks (a first table, by hand) and what Smith's Dictionary (1849) says – the sentences its articles
+// give, found by a search of the articles for writing, composing, publishing, dedicating with a year, and read by hand.
+const SM = 'Smith’s Dictionary: ', DIOCL = [284, 305], CONST = [306, 337];
+const haSmith = (ids, [y0, y1], who, how) => ids.map(n => [`phi2331.phi${String(n).padStart(3, '0')}`, y0, y1, `Smith: ${how} ${who}`, SM + `this life is ${how} ${who} (reigned ${y0}–${y1}) – the articles Spartianus, Capitolinus, Lampridius`, true, 'smith']);
 const WRITTEN = [
-  ['stoa0023.stoa001', [[389, 391, 'finished in Rome about AD 390/391 (the last events narrated: 378)', true, 'written c. AD 390']]],
-  ['phi1351.phi004', [[105, 110, 'about AD 105–110, under Trajan', true, 'Histories written c. AD 105–110']]],
-  ['phi1351.phi005', [[114, 120, 'about AD 114–120, under Trajan and Hadrian', true, 'Annals written c. AD 114–120']]],
-  ['phi1348.abo', [[119, 122, 'about AD 119–122: dedicated to Septicius Clarus, praetorian prefect in those years', true, 'Lives of the Caesars written c. AD 120']]],
-  ['stoa0121.stoa001', [[369, 370, 'AD 369/370, dedicated to the emperor Valens', false, 'written AD 369/370']]],
-  ['phi2331', [[293, 330, 'as the work claims: six authors writing under Diocletian and Constantine', true, 'written – as it claims (293–330)'],
-               [390, 400, 'as now generally held (since Dessau 1889): one author, late 4th century', true, 'written – the modern view (c. 395)']]],
-  ['tlg0060.tlg001', [[-60, -30, 'about 60–30 BC: thirty years’ work, he says (1.4.1); the last events he mentions are of the 40s–30s BC', true, 'written c. 60–30 BC']]],
-  ['tlg0081.tlg001', [[-30, -7, 'begun after his arrival in Rome about 30 BC; published 7 BC, twenty-two years later (1.3.4, 1.7.2)', false, 'written 30–7 BC']]],
-  ['tlg0004.tlg001', [[200, 250, 'probably the first half of the 3rd century AD – uncertain', true, 'written c. AD 200–250 (?)']]],
+  ['stoa0023.stoa001', 389, 391, 'written c. AD 390', 'finished in Rome about AD 390/391 (the last events narrated: 378)', true, 'hb'],
+  ['stoa0023.stoa001', 390, 395, 'Smith: after AD 390', SM + '“composed his history” in Rome; his death “must have happened later than 390, since a reference occurs to the consulship of Neoterius”', true, 'smith'],
+  ['phi1351.phi004', 105, 110, 'Histories written c. AD 105–110', 'about AD 105–110, under Trajan', true, 'hb'],
+  ['phi1351.phi004', 98, 110, 'Smith: after AD 98', SM + '“The Historiae were written after the death of Nerva, AD 98, and before the Annales”', true, 'smith'],
+  ['phi1351.phi005', 114, 120, 'Annals written c. AD 114–120', 'about AD 114–120, under Trajan and Hadrian (Smith: “the work of a mature age”, no year)', true, 'hb'],
+  ['phi1348.abo', 119, 122, 'Lives of the Caesars written c. AD 120', 'about AD 119–122: dedicated to Septicius Clarus, praetorian prefect in those years (Smith gives no year)', true, 'hb'],
+  ['stoa0121.stoa001', 369, 370, 'written AD 369/370', 'AD 369/370, dedicated to the emperor Valens', false, 'hb'],
+  ['stoa0121.stoa001', 364, 378, 'Smith: under Valens', SM + 'composed “by command” of Valens, “to whom it is inscribed” (Valens reigned 364–378)', true, 'smith'],
+  ['phi2331', 293, 330, 'written – as it claims (293–330)', 'as the work claims: six authors writing under Diocletian and Constantine', true, 'hb'],
+  ['phi2331', 390, 400, 'written – the modern view (c. 395)', 'as now generally held (since Dessau 1889): one author, late 4th century', true, 'hb'],
+  ...haSmith([1, 2, 3, 4, 5, 7, 9, 10, 11], DIOCL, 'Diocletian', 'inscribed to'),
+  ...haSmith([12, 14, 15, 18, 19, 20], CONST, 'Constantine', 'inscribed to'),
+  ...haSmith([17], CONST, 'Constantine', 'addressed to'),
+  ['tlg0060.tlg001', -60, -30, 'written c. 60–30 BC', 'about 60–30 BC: thirty years’ work, he says (1.4.1); the last events he mentions are of the 40s–30s BC', true, 'hb'],
+  ['tlg0060.tlg001', -8, 1, 'Smith: after 8 BC', SM + 'Scaliger “has made it highly probable that Diodorus wrote his work after the year B. C. 8, when Augustus corrected the calendar”', true, 'smith'],
+  ['tlg0081.tlg001', -30, -7, 'written 30–7 BC', 'begun after his arrival in Rome about 30 BC; published 7 BC, twenty-two years later (1.3.4, 1.7.2)', false, 'hb'],
+  ['tlg0081.tlg001', -29, -7, 'Smith: 29–7 BC', SM + 'came to Rome “about the middle of Ol. 187, that is, B. C. 29”; “B. C. 7, the year in which he completed and published his great work”', false, 'smith'],
+  ['tlg0004.tlg001', 200, 250, 'written c. AD 200–250 (?)', 'probably the first half of the 3rd century AD – uncertain (Smith: “nothing can be said with certainty”)', true, 'hb'],
 ];
 async function tmpData() {
   const cfg = await tmpCfg(), F = await fastiTab(), lanes = [];
@@ -138,15 +151,15 @@ async function tmpData() {
   }
   // "Written": when each work was written, in its own lane, joined to what it narrates by thin lines (drawn in tmpDraw)
   if (cfg.written) {
-    const wl = wid => WRITTEN.find(([p]) => wid.startsWith(p))?.[1];
-    for (const L of lanes) { const ws = L.wid && wl(L.wid); if (!ws) continue;
-      for (const [y0, y1, note, fz, lab] of ws) L.its.push({ t0: ax(y0), t1: ax(y1) + 1, fa: !!fz, fb: !!fz, lab: lab || 'written ' + (y0 === y1 ? yTxt(y0) : rangeTxt(ax(y0), ax(y1) + 1)), kind: 'work', k2: 'written', sid: 'written', wr: true,
-        src: 'Pult’s table of dates of writing', note, go: L.its[0]?.go ? { w: L.its[0].go.w, bi: 0, r: null } : null }); }
+    const wl = wid => WRITTEN.filter(([p]) => wid.startsWith(p));
+    for (const L of lanes) { const ws = L.wid ? wl(L.wid) : []; const ww = L.its.find(i => i.go?.w)?.go.w;
+      for (const [p, y0, y1, lab, note, fz, src] of ws) L.its.push({ t0: ax(y0), t1: ax(y1) + 1, fa: !!fz, fb: !!fz, lab, kind: 'work', k2: 'written', wr: true, wk: L.wid,
+        sid: src === 'smith' ? 'people-smith' : 'written', src: src === 'smith' ? 'Smith’s Dictionary (1849)' : 'today’s handbooks (Pult’s table)', note, go: ww ? { w: ww, bi: 0, r: null } : null }); }
     // the other works of your library: only the author's century in the catalogue
     const done = new Set(lanes.filter(L => L.wid).map(L => L.wid)), its = [];
-    for (const w of works.values()) { if (wl(w.id) || [...done].some(p => w.id.startsWith(p))) continue;
+    for (const w of works.values()) { if (wl(w.id).length || [...done].some(p => w.id.startsWith(p))) continue;
       const a = S.catAuthor?.[w.id], y = a?.year; if (y == null) continue;
-      its.push({ t0: ax(y) - 50, t1: ax(y) + 50, fa: true, fb: true, lab: wTitle(w.id) + (a.date ? ' · ' + a.date : ''), kind: 'work', k2: 'written', sid: 'catalogue', src: 'the catalogue (the author’s century only)', go: { w: w.id, bi: 0, r: null } }); }
+      its.push({ t0: ax(y) - 50, t1: ax(y) + 50, fa: true, fb: true, lab: wTitle(w.id) + (a.date ? ' · ' + a.date : ''), kind: 'work', k2: 'written', sid: 'catalogue', wr: true, wk: w.id, src: 'the catalogue (the author’s century only)', go: { w: w.id, bi: 0, r: null } }); }
     if (its.length) lanes.push({ id: 'wr:lib', g: 'Texts – when they were written', t: 'Your library', its, have: true });
   }
   // persons added from the Suda tab
@@ -227,9 +240,12 @@ function tmpLayout(A0, A1) {
   for (const S of slots) S.sort((p, q) => p.a - q.a);
   return { slots };
 }
-function rulerHeight(id) { return id === 'emp' ? 14 * (TP.empRows || 1) + 6 : id === 'cos' ? 20 : 18; }
+function rulerHeight(id) { return id === 'emp' ? 14 * (TP.empRowsE || 1) + 6 : id === 'cos' ? 20 : 18; }
+// heights glide to their new values instead of jumping (a lane's row count, the emperor band, a reference row coming or going)
+function tmpEase(k, v) { const E = TP.ease || (TP.ease = new Map()); let c = E.get(k);
+  if (c == null) c = v; else { c += (v - c) * 0.35; if (Math.abs(v - c) < 0.02) c = v; else TP.moving = true; } E.set(k, c); return c; }
 function tmpDraw() {
-  TP.raf = 0;
+  TP.raf = 0; TP.moving = false;
   const cv = $('#tmpCanvas'); if (!cv || !TP.data) return;
   const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
   tmpClampX(W);                                          // (the limits of Settings → Tempora)
@@ -245,14 +261,27 @@ function tmpDraw() {
     for (const x of emps) { let r = ends.findIndex(v => v <= x.a0); if (r < 0) { r = ends.length; ends.push(0); } ends[r] = x.a1; TP.empRow.set(x.j, r); } }
   for (const x of emps) x.row = TP.empRow.get(x.j);
   TP.empRows = Math.max(1, ...emps.filter(x => x.a1 > A0 && x.a0 < A1).map(x => x.row + 1));
-  // ---- lanes (below the rulers, scrolled)
+  TP.empRowsE = tmpEase('emp', TP.empRows);
+  // ---- the reference rows: each fades in or out over its span
   const SPAN = { auc: [-752, 1e9], cato: [-751, 1e9], ol: [-775, 394], cos: [-29, 566], emp: [-62, 566], sel: [-311, 1e9], dio: [284, 1e9], ind: [312, 1e9] };
-  const rulers = rulerOrder().map(id => RULERS.find(r => r[0] === id)).filter(([id]) => TP.cfg.rulers[id] && (!SPAN[id] || (A1 > SPAN[id][0] && A0 < SPAN[id][1])));
-  const RH = rulers.reduce((s, [id]) => s + rulerHeight(id), 0) + 4;
+  const rulers = rulerOrder().filter(id => TP.cfg.rulers[id]).map(id => ({ id, h: rulerHeight(id) * tmpEase('r:' + id, !SPAN[id] || (A1 > SPAN[id][0] && A0 < SPAN[id][1]) ? 1 : 0) })).filter(r => r.h > 0.5);
+  const RH = rulers.reduce((s, r) => s + r.h, 0) + 4;
   TP.RH = RH;
   tmpFilterApply();
-  const { slots } = tmpLayout(A0, A1), lh = TP.lh;
-  let y = RH + 6 - TP.sy; const centers = [], wlines = [];
+  // ---- the lanes: their slots, heights (eased), and where each lies in the scrolled content
+  const { slots } = tmpLayout(A0, A1), lh = TP.lh, laneH = n => n > 0.02 ? Math.max(8, n * lh + 6) : 8;
+  const lay = []; let off = 0;
+  for (const SL of slots) { const ls = SL.map(r => Object.assign(r, { h: laneH(tmpEase('L:' + r.L.id, r.n)) })), hs = Math.max(8, ...ls.map(r => r.h));
+    lay.push({ ls, off, hs, key: ls.map(r => r.L.id).join('|') }); off += hs + 4; }
+  TP.contentH = off;
+  // anchoring: the point under the fingers or the cursor (or the top of the lanes) keeps its place on screen while heights change
+  const P = TP.prevLay;
+  if (P && P.slots.length) { const fy = TP.focusY ?? (P.RH + 6), cy = fy - (P.RH + 6) + P.sy;
+    const p = P.slots.find(s => cy < s.off + s.hs + 4) || P.slots[P.slots.length - 1], q = p && lay.find(s => s.key === p.key);
+    if (q) { const f = Math.min(1, Math.max(0, (cy - p.off) / (p.hs + 4))); TP.sy += (q.off + f * (q.hs + 4)) - (p.off + f * (p.hs + 4)); } }
+  tmpClampY();
+  TP.prevLay = { RH, sy: TP.sy, slots: lay.map(s => ({ key: s.key, off: s.off, hs: s.hs })) };
+  const y0 = RH + 6 - TP.sy, centers = [], marks = new Map(), from = [];
   TP.laneTop = {};
   g.save(); g.beginPath(); g.rect(0, RH, W, H - RH); g.clip();
   // year grid
@@ -260,47 +289,51 @@ function tmpDraw() {
   g.strokeStyle = C.line; g.lineWidth = 1; g.globalAlpha = 0.5;
   for (let a = Math.ceil(A0 / step) * step; a < A1; a += step) { const x = Math.round(X(a)) + 0.5; g.beginPath(); g.moveTo(x, RH); g.lineTo(x, H); g.stroke(); }
   g.globalAlpha = 1;
-  slots.forEach((SL, si) => {
-    const top = y, hs = Math.max(8, ...SL.map(r => r.n ? r.n * lh + 6 : 8));   // the slot as high as its fullest lane in view
-    SL.forEach(({ L, a, b, n, its: vis }, k) => {
+  const wmode = TP.fOn ? 'passage' : (TP.cfg.wlines || 'work');            // (815: one line per work, book or passage; with a filter, one per passage shown)
+  lay.forEach(({ ls, off, hs }, si) => {
+    const top = y0 + off;
+    ls.forEach(({ L, a, b, n, h, its: vis }, k) => {
       TP.laneTop[L.id] = top + TP.sy;
-      const h = n ? n * lh + 6 : 8;                                           // each lane swells or thins by itself
-      if (top < H && top + hs > RH) {
-        // 811a: alternate lanes faintly tinted or outlined – only over the span the lane covers
-        if (isFinite(L.a)) { const xa = Math.max(-10, X(a) - 3), xb = Math.min(W + 10, X(b) + 3);
-          if (xb > xa) { if ((si + k) % 2 === 0) { g.fillStyle = C.fg; g.globalAlpha = 0.045; g.fillRect(xa, top - 2, xb - xa, h + 4); }
-            else { g.strokeStyle = C.line; g.globalAlpha = 0.6; g.strokeRect(xa + 0.5, top - 1.5, xb - xa - 1, h + 2); } g.globalAlpha = 1; } }
-        // how far a label may run on (807a): to the next item in its row, and never into the next lane of the slot
-        const stop = k + 1 < SL.length ? X(SL[k + 1].a) - 6 : W + 4000;
-        const byRow = new Map(); for (const it of vis) { if (!byRow.has(it.row)) byRow.set(it.row, []); byRow.get(it.row).push(it); }
-        const nextX = new Map(); for (const r of byRow.values()) { r.sort((p, q) => p.t0 - q.t0); r.forEach((it, j) => nextX.set(it, Math.min(stop, j + 1 < r.length ? X(r[j + 1].t0) - 6 : W + 4000))); }
-        for (const it of vis) {
-          const x0 = X(it.t0), x1 = Math.max(X(it.t1) - 1, x0 + 3), yy = top + 3 + it.row * lh, bh = lh - 8;
-          if (x1 < 0 && nextX.get(it) < 0) continue; if (x0 > W) continue;
-          drawItem(g, C, it, x0, x1, yy, bh, font, nextX.get(it), W);
-          if (it.pass !== false || TP.cfg.fmode === 'hide') TP.hit.push({ x0, x1, y0: yy, y1: yy + bh, it, L });
-          if ((it.ev || it.link) && it.pass !== false) centers.push({ it, x: (Math.max(x0, 0) + Math.min(x1, W)) / 2, y: yy + bh / 2 });
-        }
+      const ry = it => n ? top + 3 + Math.min(it.row, n - 1) * lh + (lh - 8) / 2 : top + 3;   // (an item's middle, kept within the lane as drawn)
+      if (TP.cfg.written) for (const it of L.its) if (it.wr) { const m = { x: X(it.t0), y: ry(it), dim: it.pass === false }; if (!marks.has(it.wk)) marks.set(it.wk, []); marks.get(it.wk).push(m); }
+      if (TP.cfg.written) {                                                   // the items joined to their work's date of writing
+        const by = new Map();
+        for (const it of L.its) { if (it.wr || !it.go?.w || (TP.fOn && it.pass === false)) continue;
+          const kk = wmode === 'passage' ? it : wmode === 'book' ? it.go.w + '#' + (it.go.bi ?? 0) : it.go.w, o = by.get(kk); if (!o || it.t1 > o.t1) by.set(kk, it); }
+        for (const it of by.values()) from.push({ w: it.go.w, x: X(it.t1) - 1, y: ry(it), dim: it.pass === false });
       }
-      // "Written": each book (or part) joined to the date of writing by a thin line – also when one end is out of view
-      if (TP.cfg.written && L.its.some(i => i.wr)) {
-        const marks = L.its.filter(i => i.wr), last = new Map();
-        for (const it of L.its) if (!it.wr && !(TP.cfg.fmode === 'hide' && it.pass === false)) { const kb = it.go?.bi ?? 0, o = last.get(kb); if (!o || it.t1 > o.t1) last.set(kb, it); }
-        const ry = it => n ? top + 3 + Math.min(it.row, n - 1) * lh + (lh - 8) / 2 : top + 3;   // (kept within the lane as it is drawn)
-        for (const it of last.values()) for (const m of marks) wlines.push({ x0: X(it.t1) - 1, y0: ry(it), x1: X(m.t0), y1: ry(m), dim: it.pass === false || m.pass === false });
+      if (top >= H || top + hs <= RH) return;
+      // 811a: alternate lanes faintly tinted or outlined – only over the span the lane covers
+      if (isFinite(L.a)) { const xa = Math.max(-10, X(a) - 3), xb = Math.min(W + 10, X(b) + 3);
+        if (xb > xa) { if ((si + k) % 2 === 0) { g.fillStyle = C.fg; g.globalAlpha = 0.045; g.fillRect(xa, top - 2, xb - xa, h + 4); }
+          else { g.strokeStyle = C.line; g.globalAlpha = 0.6; g.strokeRect(xa + 0.5, top - 1.5, xb - xa - 1, h + 2); } g.globalAlpha = 1; } }
+      // how far a label may run on (807a): to the next item in its row, and never into the next lane of the slot
+      const stop = k + 1 < ls.length ? X(ls[k + 1].a) - 6 : W + 4000;
+      const byRow = new Map(); for (const it of vis) { if (!byRow.has(it.row)) byRow.set(it.row, []); byRow.get(it.row).push(it); }
+      const nextX = new Map(); for (const r of byRow.values()) { r.sort((p, q) => p.t0 - q.t0); r.forEach((it, j) => nextX.set(it, Math.min(stop, j + 1 < r.length ? X(r[j + 1].t0) - 6 : W + 4000))); }
+      g.save(); g.beginPath(); g.rect(0, top - 2, W, h + 4); g.clip();                     // (a lane still growing shows only what fits)
+      for (const it of vis) {
+        const x0 = X(it.t0), x1 = Math.max(X(it.t1) - 1, x0 + 3), yy = top + 3 + it.row * lh, bh = lh - 8;
+        if (x1 < 0 && nextX.get(it) < 0) continue; if (x0 > W) continue;
+        drawItem(g, C, it, x0, x1, yy, bh, font, nextX.get(it), W);
+        if ((it.pass !== false || TP.cfg.fmode === 'hide') && yy < top + h) TP.hit.push({ x0, x1, y0: yy, y1: yy + bh, it, L });
+        if ((it.ev || it.link) && it.pass !== false) centers.push({ it, x: (Math.max(x0, 0) + Math.min(x1, W)) / 2, y: yy + bh / 2 });
       }
+      g.restore();
     });
-    y += hs + 4;
   });
-  if (wlines.length) {
-    g.lineWidth = 1; g.strokeStyle = C.mut;
-    for (const l of wlines) { if (Math.max(l.x0, l.x1) < 0 || Math.min(l.x0, l.x1) > W || Math.max(l.y0, l.y1) < RH - 60 || Math.min(l.y0, l.y1) > H + 60) continue;
-      g.globalAlpha = l.dim ? 0.12 : 0.55; const hgt = Math.min(22, 5 + Math.abs(l.x1 - l.x0) / 10);
-      g.beginPath(); g.moveTo(l.x0, l.y0); g.bezierCurveTo(l.x0 + Math.min(30, (l.x1 - l.x0) / 3), l.y0 - hgt, l.x1 - Math.min(30, (l.x1 - l.x0) / 3), l.y1 - hgt, l.x1, l.y1); g.stroke();
-      g.beginPath(); g.arc(l.x1, l.y1, 1.8, 0, 7); g.fillStyle = C.mut; g.fill(); }
+  // "Written" (815, 819): thin lines from what a work narrates – in its own lane, a person's or a word's – to when it was written
+  if (marks.size && from.length) {
+    g.lineWidth = 1; g.strokeStyle = C.mut; g.fillStyle = C.mut;
+    const keys = [...marks.keys()];
+    for (const f of from) for (const wk of keys) { if (!f.w.startsWith(wk)) continue;
+      for (const m of marks.get(wk)) {
+        if (Math.max(f.x, m.x) < 0 || Math.min(f.x, m.x) > W || Math.max(f.y, m.y) < RH - 60 || Math.min(f.y, m.y) > H + 60) continue;
+        g.globalAlpha = f.dim || m.dim ? 0.12 : 0.5; const hgt = Math.min(22, 5 + Math.abs(m.x - f.x) / 10), c = Math.min(30, Math.abs(m.x - f.x) / 3) * Math.sign(m.x - f.x || 1);
+        g.beginPath(); g.moveTo(f.x, f.y); g.bezierCurveTo(f.x + c, f.y - hgt, m.x - c, m.y - hgt, m.x, m.y); g.stroke();
+        g.beginPath(); g.arc(m.x, m.y, 1.8, 0, 7); g.fill(); } }
     g.globalAlpha = 1;
   }
-  TP.contentH = y + TP.sy - RH;
   // the same event in several places: one colour, joined by lines (786)
   const byEv = new Map(); for (const c of centers) if (c.it.ev) { const k = c.it.ev.toLowerCase(); if (!byEv.has(k)) byEv.set(k, []); byEv.get(k).push(c); }
   g.lineWidth = 1.6;
@@ -314,15 +347,16 @@ function tmpDraw() {
   // ---- rulers (fixed at the top)
   g.fillStyle = C.bar; g.fillRect(0, 0, W, RH);
   let ry = 0;
-  for (const [id] of rulers) { const rh = rulerHeight(id); drawRuler(g, C, id, ry, rh, W, X, A0, A1, emps, font); ry += rh; }
+  for (const r of rulers) { drawRuler(g, C, r.id, ry, r.h, W, X, A0, A1, emps, font); ry += r.h; }
   g.strokeStyle = C.line; g.beginPath(); g.moveTo(0, RH - 0.5); g.lineTo(W, RH - 0.5); g.stroke();
   // links of consular dates to the consul ruler (782a)
-  const cosR = rulers.findIndex(([id]) => id === 'cos');
-  if (cosR >= 0) { const cy = rulers.slice(0, cosR).reduce((s, [id]) => s + rulerHeight(id), 0) + 20;
+  const cosR = rulers.findIndex(r => r.id === 'cos');
+  if (cosR >= 0) { const cy = rulers.slice(0, cosR).reduce((s, r) => s + r.h, 0) + rulers[cosR].h;
     g.strokeStyle = C.acc2; g.globalAlpha = 0.5; g.setLineDash([2, 3]);
     for (const c of centers) if (c.it.link && c.y > RH) { g.beginPath(); g.moveTo(c.x, c.y); g.lineTo(c.x, cy); g.stroke(); }
     g.setLineDash([]); g.globalAlpha = 1; }
   if (TP.cur != null) { const x = X(TP.cur); g.strokeStyle = C.acc; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, RH); g.stroke(); }
+  if (TP.moving) tmpRedraw();                              // (until every height has reached its value)
 }
 function drawItem(g, C, it, x0, x1, y, h, font, lim = Infinity, W = 1e9) {
   const sel = TP.sel?.it === it, dim = it.pass === false;
@@ -374,7 +408,7 @@ function drawRuler(g, C, id, y, h, W, X, A0, A1, emps, font) {
     for (let yh = Math.max(-30, hy(Math.floor(A0))); yh <= Math.min(565, hy(Math.ceil(A1))); yh++) { const v = c[String(yh)]; if (!v) continue;
       const short = p => { const w = String(p[0]).replace(/\[[^\]]*\]|\([^)]*\)/g, '').split(/\s+/).filter(x => /^[A-Z][a-z]/.test(x) && !/^(Imp|Flavius|Caesar|Aug)$/.test(x.replace('.', ''))); return (w[w.length - 1] || p[0]) + (p[1] > 1 ? ' ' + ROMN(p[1]) : ''); };
       cell(ax(yh), ax(yh) + 1, ppy >= 60 ? (v.o || []).map(short).join(' · ') : ppy >= 22 ? short(v.o?.[0] || ['']) : '', false); } }
-  if (id === 'emp') { for (const x of emps) { if (x.row >= TP.empRows) continue; const x0 = X(x.a0), x1 = Math.max(X(x.a1), x0 + 2); if (x1 < 0 || x0 > W) continue;
+  if (id === 'emp') { for (const x of emps) { if (x.row >= Math.ceil(TP.empRowsE - 0.05)) continue; const x0 = X(x.a0), x1 = Math.max(X(x.a1), x0 + 2); if (x1 < 0 || x0 > W) continue;
       const e = x.e, yy = y + 3 + x.row * 14, cz = e[6] != null && e[6] < e[4] ? X(ax(e[6])) : null;
       g.fillStyle = e[7] === 'U' ? C.mut : C.acc2; g.globalAlpha = e[7] === 'C' ? 0.3 : 0.55;
       if (cz != null && e[7] !== 'C') { g.globalAlpha = 0.25; g.fillRect(cz, yy, X(ax(e[4])) - cz, 11); g.globalAlpha = 0.55; g.fillRect(X(ax(e[4])), yy, x1 - X(ax(e[4])), 11); }
@@ -422,23 +456,25 @@ function tmpWire(cv) {
   new ResizeObserver(() => tmpRedraw()).observe(cv);
   let down = null, pinch = null, moved = false, lastTap = 0;
   cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); TP.ptr.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
-    if (TP.ptr.size === 1) { down = { x: e.offsetX, y: e.offsetY, x0: TP.x0, sy: TP.sy }; moved = false; }
-    if (TP.ptr.size === 2) { const [p, q] = [...TP.ptr.values()]; pinch = { dx: Math.abs(p.x - q.x), dy: Math.abs(p.y - q.y), ppy: TP.ppy, lh: TP.lh, mx: (p.x + q.x) / 2, x0: TP.x0 }; down = null; } });
+    if (TP.ptr.size === 1) { down = { x: e.offsetX, y: e.offsetY, x0: TP.x0, ly: e.offsetY }; moved = false; }
+    if (TP.ptr.size === 2) { const [p, q] = [...TP.ptr.values()]; TP.focusY = (p.y + q.y) / 2; pinch = { dx: Math.abs(p.x - q.x), dy: Math.abs(p.y - q.y), ppy: TP.ppy, lh: TP.lh, mx: (p.x + q.x) / 2, x0: TP.x0 }; down = null; } });
   cv.addEventListener('pointermove', e => { if (!TP.ptr.has(e.pointerId)) return; TP.ptr.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
     if (pinch && TP.ptr.size === 2) { const [p, q] = [...TP.ptr.values()], dx = Math.abs(p.x - q.x), dy = Math.abs(p.y - q.y), mx = (p.x + q.x) / 2;
       const a = pinch.x0 + pinch.mx / pinch.ppy;                 // two fingers: across = time, up and down = lane height
       if (pinch.dx > 40) TP.ppy = Math.min(4000, Math.max(0.005, pinch.ppy * dx / pinch.dx));
       if (pinch.dy > 40) TP.lh = Math.min(90, Math.max(16, pinch.lh * dy / pinch.dy));
-      TP.x0 = a - mx / TP.ppy; moved = true; tmpSave(); tmpRedraw(); return; }
+      TP.x0 = a - mx / TP.ppy; TP.focusY = (p.y + q.y) / 2; moved = true; tmpSave(); tmpRedraw(); return; }
     if (!down) return; const dx = e.offsetX - down.x, dy = e.offsetY - down.y;
     if (Math.abs(dx) + Math.abs(dy) > 6) moved = true;
-    if (moved) { TP.x0 = down.x0 - dx / TP.ppy; TP.sy = down.sy - dy; tmpClampY(); tmpSave(); tmpRedraw(); } });
-  const up = e => { TP.ptr.delete(e.pointerId); if (TP.ptr.size < 2) pinch = null;
+    if (moved) { TP.x0 = down.x0 - dx / TP.ppy; TP.sy += down.ly - e.offsetY; down.ly = e.offsetY; tmpClampY(); tmpSave(); tmpRedraw(); } });   // (vertically by steps: the anchoring may move it too)
+  const up = e => { TP.ptr.delete(e.pointerId); if (TP.ptr.size < 2) { pinch = null; TP.focusY = null; }
     if (down && !moved && TP.ptr.size === 0) { const now = Date.now();
-      if (now - lastTap < 300) { tmpZoomX(2, e.offsetX); lastTap = 0; } else { lastTap = now; tmpTap(e.offsetX, e.offsetY); } }
+      if (now - lastTap < 300) { TP.focusY = e.offsetY; tmpZoomX(2, e.offsetX); setTimeout(() => { TP.focusY = null; }, 400); lastTap = 0; } else { lastTap = now; tmpTap(e.offsetX, e.offsetY); } }
     if (TP.ptr.size === 0) down = null; };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  let wt = 0;
   cv.addEventListener('wheel', e => { e.preventDefault();
+    if (e.ctrlKey || e.metaKey || e.shiftKey) { TP.focusY = e.offsetY; clearTimeout(wt); wt = setTimeout(() => { TP.focusY = null; }, 400); }   // (the spot under the cursor stays put)
     if (e.ctrlKey || e.metaKey) tmpZoomX(Math.exp(-e.deltaY / 200), e.offsetX);
     else if (e.shiftKey) tmpZoomY(Math.exp(-e.deltaY / 300));
     else { TP.x0 += e.deltaX / TP.ppy; TP.sy += e.deltaY; tmpClampY(); tmpSave(); tmpRedraw(); } }, { passive: false });
@@ -447,7 +483,8 @@ function tmpTap(px, py) {
   const h = tmpAt(px, py);
   if (h?.it) { TP.sel = h; TP.cur = null; tmpCardItem(h); }
   else if (h?.emp != null) { const e = TP.data.F.k[h.emp]; TP.sel = null; TP.cur = null; tmpCardEmp(e); }
-  else { TP.sel = null; TP.cur = TP.x0 + px / TP.ppy; tmpCardYear(hy(Math.floor(TP.cur))); }
+  else if (py < (TP.RH || 0)) { TP.sel = null; TP.cur = TP.x0 + px / TP.ppy; tmpCardYear(hy(Math.floor(TP.cur))); }   // (a reference row: what that year is called)
+  else { TP.sel = null; TP.cur = null; const c = $('#tmpCard'); if (c) c.hidden = true; }                               // (an empty place: nothing opens)
   tmpRedraw();
 }
 const rangeTxt = (t0, t1) => { const a = hy(Math.floor(t0 + 0.001)), b = hy(Math.ceil(t1 - 0.001) - 1); return a === b ? yTxt(a) : `${yTxt(a)} – ${yTxt(b)}`; };
@@ -726,8 +763,8 @@ document.addEventListener('click', async ev => {          // the Suda tab's pers
   await tmpAddFilter({ t: 'person', v: b.dataset.tmpshow, keys: [...new Set((e?.k || []).map(k => k.length > 5 ? k.slice(0, -2) : k))], lab: rw?.name || 'person' });
   const L = TP.data.lanes.find(l => l.id === 'p:' + b.dataset.tmpshow), its = L?.its || [];
   if (its.length) { const a = Math.min(...its.map(i => i.t0)), z = Math.max(...its.map(i => i.t1)), W = $('#tmpCanvas').clientWidth;
-    TP.ppy = Math.min(200, Math.max(0.05, W * 0.7 / Math.max(1, z - a))); TP.x0 = a - W * 0.15 / TP.ppy; TP.sy = 0; tmpDraw();
-    TP.sy = Math.max(0, (TP.laneTop?.['p:' + b.dataset.tmpshow] ?? 0) - TP.RH - 40); tmpClampY(); tmpSave(); tmpRedraw(); }
+    TP.ppy = Math.min(200, Math.max(0.05, W * 0.7 / Math.max(1, z - a))); TP.x0 = a - W * 0.15 / TP.ppy; TP.sy = 0; TP.prevLay = null; tmpDraw();
+    TP.prevLay = null; TP.sy = Math.max(0, (TP.laneTop?.['p:' + b.dataset.tmpshow] ?? 0) - TP.RH - 40); tmpClampY(); tmpSave(); tmpRedraw(); }
 });
 document.addEventListener('DOMContentLoaded', () => {
   const b = $('#tabTempora'); if (!b) return;
