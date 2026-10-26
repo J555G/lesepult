@@ -2303,6 +2303,11 @@ body:not(.nofade) #tabPeople{transition:border-color .333s ease}body:not(.nofade
 .tpadd{font-size:.85rem!important}.tpadd.sm{font-size:.78rem!important;padding:2px 8px!important}.tpadd.on{border-color:var(--acc2)!important;color:var(--acc2)!important}
 .tpw{margin:4px 0}.tpbk{display:flex;flex-wrap:wrap;gap:4px;margin:3px 0 0 10px}
 .tpall{font-size:.85rem;margin-top:6px}
-.tref .trow{display:flex;align-items:center;gap:8px;padding:4px 2px;border-radius:6px;background:var(--card)}
-.tref .trow.drag{background:var(--bar);box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.tref .trow,.tlanes .trow{display:flex;align-items:center;gap:8px;padding:4px 2px;border-radius:6px;background:var(--card)}
+.tref .trow.drag,.tlanes .trow.drag{background:var(--bar);box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.tlanes .trow label{flex:1;min-width:0}
+.tlanes .trow.off label{opacity:.5}
+.tlanes .tpin{font:inherit;font-size:.78rem;padding:2px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--mut)}
+.tlanes .tpin.on{color:var(--acc);border-color:var(--acc)}
+.tplanes{margin-top:12px}
 .tgrip{cursor:grab;color:var(--mut);touch-action:none;padding:2px 6px;font-size:1.05rem}

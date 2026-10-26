@@ -98,7 +98,8 @@ const ROMN = n => ['', 'I', 'II', 'III', 'IIII', 'V', 'VI', 'VII', 'VIII', 'VIII
 // the usual dates of today's handbooks (a first table, by hand) and what Smith's Dictionary (1849) says – the sentences its articles
 // give, found by a search of the articles for writing, composing, publishing, dedicating with a year, and read by hand.
 const SM = 'Smith’s Dictionary: ', DIOCL = [284, 305], CONST = [306, 337];
-const haSmith = (ids, [y0, y1], who, how) => ids.map(n => [`phi2331.phi${String(n).padStart(3, '0')}`, y0, y1, `Smith: ${how} ${who}`, SM + `this life is ${how} ${who} (reigned ${y0}–${y1}) – the articles Spartianus, Capitolinus, Lampridius`, true, 'smith']);
+const haSmith = (ids, [y0, y1], who, how) => ids.map(n => [`phi2331.phi${String(n).padStart(3, '0')}`, y0, y1, `Smith: ${how} ${who}`, SM + `this life is ${how} ${who} (reigned ${y0}–${y1}) – the articles Spartianus, Capitolinus, Lampridius`, true, 'smith', `Smith: to ${who}`]);
+const COLL = [['phi2331', 'Historia Augusta (Scriptores Historiae Augustae)', 'Hist. Aug.'], ['phi1348.abo', 'Suetonius, Lives of the Caesars', 'Suetonius']];
 const WSRC = [['hb', 'Today’s handbooks'], ['claim', 'What the work claims'], ['smith', 'Smith’s Dictionary (1849)']];
 const WRITTEN = [
   ['stoa0023.stoa001', 389, 391, 'written c. AD 390', 'finished in Rome about AD 390/391 (the last events narrated: 378)', true, 'hb'],
@@ -129,10 +130,22 @@ async function tmpData() {
   {
     // what the books narrate (781a: Ammianus, Tacitus, Suetonius, Historia Augusta, Eutropius)
     for (const [wid, m] of Object.entries(F?.nd || {})) { if (wid === 'b') continue;
+      const col = COLL.find(c => wid.startsWith(c[0]));
+      if (col) {                                           // (829a: a collection of lives is one lane; the lives are its parts, shown as you zoom in)
+        let L = lanes.find(l => l.id === 'col:' + col[0]);
+        if (!L) { L = { id: 'col:' + col[0], g: 'Texts – the years they narrate', t: col[1], sh: col[2], its: [], have: false, wid: col[0], col: true, seen: new Set() }; lanes.push(L); }
+        const core = wid.split('.').slice(0, 2).join('.'); if (L.seen.has(core)) continue; L.seen.add(core);    // (one edition of each life)
+        for (const [, [y0, y1]] of Object.entries(m)) L.its.push({ t0: ax(y0), t1: ax(y1) + 1, lab: (works.get(wid) || S.catWork?.[wid])?.title || wid, kind: 'book', k2: 'narr', sid: 'narr', lv: 1, cw: col[0],
+          src: wTitle(wid), go: { w: wid, bi: 0, r: null }, note: 'the years this life narrates' });
+        L.have = L.have || works.has(wid); continue;
+      }
       const its = Object.entries(m).map(([lab, [y0, y1]]) => ({ t0: ax(y0), t1: ax(y1) + 1, lab: lab === '*' ? 'the life' : lab.replace(/^Book /, 'Book '), kind: 'book', k2: 'narr', sid: 'narr',
         src: wTitle(wid), go: { w: wid, bi: lab === '*' ? 0 : bookIx(wid, lab), r: null }, note: 'the years this part narrates' }));
       lanes.push({ id: 'nd:' + wid, g: 'Texts – the years they narrate', t: wTitle(wid), its, have: works.has(wid), wid });
     }
+    for (const L of lanes) if (L.col) { const ls = L.its; L.avg1 = ls.reduce((s, i) => s + i.t1 - i.t0, 0) / Math.max(1, ls.length);   // (zoomed out: the collection as one bar)
+      L.its.push({ t0: Math.min(...ls.map(i => i.t0)), t1: Math.max(...ls.map(i => i.t1)), lab: `${ls.length} lives – zoom in for each`, kind: 'book', k2: 'narr', sid: 'narr', lv: 0, lw: L.wid, src: L.t,
+        note: ls.slice().sort((p, q) => p.t0 - q.t0).map(i => i.lab).join(' · ') }); }
     // Diodorus' own years (chrono-texts)
     const ch = Object.values(S.installed || {}).find(d => d.kind === 'chrono');
     if (ch) {
@@ -156,15 +169,24 @@ async function tmpData() {
   if (cfg.written) {
     const wl = wid => WRITTEN.filter(([p]) => wid.startsWith(p));
     const src = cfg.wsrc || {}, pick = cfg.wpick || {};                   // (which dates: by source – Settings – and, for a work, the one you chose)
-    for (const L of lanes) { let ws = L.wid ? wl(L.wid).filter(r => src[r[6]] !== false) : []; const ww = L.its.find(i => i.go?.w)?.go.w;
+    const short = r => r[6] === 'hb' ? 'written' : r[6] === 'claim' ? 'written (as it claims)' : r[7] || 'Smith';   // (829b: the full text in the card)
+    for (const L of lanes) { if (!L.wid) continue;
+      let ws = (L.col ? WRITTEN.filter(r => r[0].startsWith(L.wid) || L.wid.startsWith(r[0])) : wl(L.wid)).filter(r => src[r[6]] !== false);
+      const all = ws.length, ww = L.its.find(i => i.go?.w)?.go.w;
       if (pick[L.wid] && ws.some(r => r[3] === pick[L.wid])) ws = ws.filter(r => r[3] === pick[L.wid]);
-      for (const [p, y0, y1, lab, note, fz, so] of ws) L.its.push({ t0: ax(y0), t1: ax(y1) + 1, fa: !!fz, fb: !!fz, lab, kind: 'work', k2: 'written', wr: true, wk: L.wid, wlab: lab, wn: wl(L.wid).length,
-        sid: so === 'smith' ? 'people-smith' : 'written', src: WSRC.find(s => s[0] === so)[1] + (so === 'smith' ? '' : ' (Pult’s table)'), note, go: ww ? { w: ww, bi: 0, r: null } : null }); }
+      const groups = new Map();                            // (the same date for several lives: one mark)
+      for (const r of ws) { const k = [r[1], r[2], short(r)].join('|'); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
+      for (const rs of groups.values()) { const [p, y0, y1, lab, note, fz, so] = rs[0], per = L.col && p.length > L.wid.length;
+        const names = per ? rs.map(r => L.its.find(i => i.go?.w?.startsWith(r[0]))?.lab).filter(Boolean) : [];
+        L.its.push({ t0: ax(y0), t1: ax(y1) + 1, fa: !!fz, fb: !!fz, lab: short(rs[0]), kind: 'work', k2: 'written', wr: true, wks: rs.map(r => per ? r[0] : L.wid), wk: L.wid, wlab: lab, wn: all, lv: per ? 1 : undefined,
+          sid: so === 'smith' ? 'people-smith' : 'written', src: WSRC.find(s => s[0] === so)[1] + (so === 'smith' ? '' : ' (Pult’s table)'),
+          note: per ? note.replace(/this life is/, 'these lives are') + ': ' + names.join(', ') : lab + ' – ' + note, go: ww && !L.col ? { w: ww, bi: 0, r: null } : null }); }
+    }
     // the other works of your library: only the author's century in the catalogue
     const done = new Set(lanes.filter(L => L.wid).map(L => L.wid)), its = [];
     for (const w of works.values()) { if (wl(w.id).length || [...done].some(p => w.id.startsWith(p))) continue;
       const a = S.catAuthor?.[w.id], y = a?.year; if (y == null) continue;
-      its.push({ t0: ax(y) - 50, t1: ax(y) + 50, fa: true, fb: true, lab: wTitle(w.id) + (a.date ? ' · ' + a.date : ''), kind: 'work', k2: 'written', sid: 'catalogue', wr: true, wk: w.id, src: 'the catalogue (the author’s century only)', go: { w: w.id, bi: 0, r: null } }); }
+      its.push({ t0: ax(y) - 50, t1: ax(y) + 50, fa: true, fb: true, lab: wTitle(w.id) + (a.date ? ' · ' + a.date : ''), kind: 'work', k2: 'written', sid: 'catalogue', wr: true, wk: w.id, wks: [w.id], src: 'the catalogue (the author’s century only)', go: { w: w.id, bi: 0, r: null } }); }
     if (its.length) lanes.push({ id: 'wr:lib', g: 'Texts – when they were written', t: 'Your library', its, have: true });
   }
   // persons added from the Suda tab
@@ -202,11 +224,13 @@ async function tmpData() {
   if (own.length) lanes.push({ id: 'own', g: 'Your chronology', t: 'Your statements', its: own.map(s => ownItem(s)), have: true });
   for (const L of lanes) { let a = Infinity, b = -Infinity; for (const it of L.its) { a = Math.min(a, it.t0); b = Math.max(b, it.t1); } L.a = a; L.b = b; }   // (the span a lane covers)
   for (const L of lanes) {                              // rows packed once over all the lane's items: an item keeps its row whatever is in view
-    const sh = L.sh || L.t.replace(/ – .*$/, ''), ends = [];
-    for (const it of L.its.slice().sort((a, b) => a.t0 - b.t0)) {
-      let r = ends.findIndex(e => e <= it.t0 + 1e-6); if (r < 0) { r = ends.length; ends.push(0); } ends[r] = it.t1; it.row = r;
-      it.full = (L.id === 'own' || L.id === 'wr:lib' ? '' : sh + ' · ') + it.lab + (L.have ? '' : ' (not on this device)');
+    const sh = L.sh || L.t.replace(/ – .*$/, '');
+    for (const lv of L.col ? [0, 1] : [null]) {            // (a lane with levels: rows for each level)
+      const ends = [];
+      for (const it of L.its.filter(i => lv == null || i.lv == null || i.lv === lv).sort((a, b) => a.t0 - b.t0)) {
+        let r = ends.findIndex(e => e <= it.t0 + 1e-6); if (r < 0) { r = ends.length; ends.push(0); } ends[r] = it.t1; it.row = r; if (lv != null) it['row' + lv] = r; }
     }
+    for (const it of L.its) it.full = (L.id === 'own' || L.id === 'wr:lib' || it.wr ? '' : sh + ' · ') + it.lab + (L.have ? '' : ' (not on this device)');
   }
   TP.data = { F, lanes };
   return TP.data;
@@ -227,20 +251,29 @@ function tmpColors() {
   return { fg: v('--fg'), mut: v('--mut'), line: v('--line'), acc: v('--acc'), acc2: v('--acc2'), card: v('--card'), bar: v('--bar'), bg: v('--bg'), ui: v('--ui') };
 }
 const evHue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
-function laneShown(L) { return L.have || TP.cfg.all; }
+function laneShown(L) { return (L.have || TP.cfg.all) && !TP.cfg.lhide?.[L.id]; }
+// 828: the order of the lanes – pinned ones first in your order; then the text being read, what passes the filter, the rest by time
+function laneOrder(lanes) {
+  const pin = TP.cfg.lpin || [], wid = S.text?.work?.id, cur = L => !!wid && (L.id.endsWith(':' + wid) || L.id.endsWith(wid) || (L.col && wid.startsWith(L.wid)));
+  const rank = L => { const p = pin.indexOf(L.id); return p >= 0 ? [0, p] : cur(L) ? [1, 0] : TP.fOn && L.its.some(i => i.pass) ? [2, L.a] : [3, isFinite(L.a) ? L.a : 1e9]; };
+  return lanes.map(L => [rank(L), L]).sort((p, q) => p[0][0] - q[0][0] || p[0][1] - q[0][1]).map(x => x[1]);
+}
 function tmpLayout(A0, A1) {
   // 810a/812a: lanes keep their place; the space before and after a lane is free for others – lanes whose spans do not meet share
   // a slot (packed once over the whole spans, so nothing moves while you pan); a lane with nothing in view thins to a strip
-  const wid = S.text?.work?.id, hide = TP.cfg.fmode === 'hide', GAP = 2;
-  const lanes = TP.data.lanes.filter(laneShown).sort((a, b) => (b.id.endsWith(':' + wid) || b.id.endsWith(wid)) - (a.id.endsWith(':' + wid) || a.id.endsWith(wid)));
+  const hide = TP.cfg.fmode === 'hide', GAP = 2;
+  const lanes = laneOrder(TP.data.lanes.filter(laneShown));
   const slots = [];
   for (const L of lanes) {
     if (hide && TP.fOn && !L.its.some(i => i.pass)) continue;           // (hidden: a lane with nothing that passes goes)
-    const its = L.its.filter(i => i.t1 > A0 && i.t0 < A1 && !(hide && !i.pass));
+    const lvl = L.col ? (L.avg1 * TP.ppy >= 80 ? 1 : 0) : null;          // (822a: the finer level once its parts are wide enough to read)
+    if (lvl != null) for (const i of L.its) if (i.lv == null || i.lv === lvl) i.row = i['row' + lvl] ?? i.row;
+    const atLv = i => lvl == null || i.lv == null || i.lv === lvl;
+    const its = L.its.filter(i => atLv(i) && i.t1 > A0 && i.t0 < A1 && !(hide && !i.pass));
     const a = isFinite(L.a) ? L.a : -1e9, b = isFinite(L.b) ? L.b : 1e9;
     let s = slots.findIndex(S => S.every(M => b + GAP <= M.a || M.b + GAP <= a));
     if (s < 0) { s = slots.length; slots.push([]); }
-    slots[s].push({ L, a, b, n: its.length ? 1 + Math.max(...its.map(i => i.row)) : 0, its });
+    slots[s].push({ L, a, b, n: its.length ? 1 + Math.max(...its.map(i => i.row)) : 0, its, atLv });
   }
   for (const S of slots) S.sort((p, q) => p.a - q.a);
   return { slots };
@@ -300,15 +333,15 @@ function tmpDraw() {
   const selIt = TP.sel?.it && !TP.sel.it.wr ? TP.sel.it : null;
   lay.forEach(({ ls, off, hs }, si) => {
     const top = y0 + off;
-    ls.forEach(({ L, a, b, n, h, its: vis }, k) => {
+    ls.forEach(({ L, a, b, n, h, its: vis, atLv }, k) => {
       TP.laneTop[L.id] = top + TP.sy;
       const ry = it => n ? top + 3 + Math.min(it.row, n - 1) * lh + (lh - 8) / 2 : top + 3;   // (an item's middle, kept within the lane as drawn)
-      if (TP.cfg.written) for (const it of L.its) if (it.wr) { const m = { x: X(it.t0), y: ry(it), dim: it.pass === false }; if (!marks.has(it.wk)) marks.set(it.wk, []); marks.get(it.wk).push(m); }
+      if (TP.cfg.written) for (const it of L.its) if (it.wr && atLv(it)) { const m = { x: X(it.t0), y: ry(it), dim: it.pass === false }; for (const wk of it.wks || [it.wk]) { if (!marks.has(wk)) marks.set(wk, []); marks.get(wk).push(m); } }
       if (TP.cfg.written) {                                                   // the items joined to their work's date of writing
         const by = new Map();
-        for (const it of L.its) { if (it.wr || !it.go?.w || (TP.fOn && it.pass === false)) continue;
-          const kk = wmode === 'passage' ? it : wmode === 'book' ? it.go.w + '#' + (it.go.bi ?? 0) : it.go.w, o = by.get(kk); if (!o || it.t1 > o.t1) by.set(kk, it); }
-        for (const it of by.values()) from.push({ w: it.go.w, x: X(it.t1) - 1, y: ry(it), dim: it.pass === false });
+        for (const it of L.its) { const w = it.lw || it.go?.w; if (it.wr || !w || !atLv(it) || (TP.fOn && it.pass === false)) continue;
+          const kk = wmode === 'passage' ? it : wmode === 'book' ? w + '#' + (it.go?.bi ?? 0) : it.cw || w, o = by.get(kk); if (!o || it.t1 > o.t1) by.set(kk, it); }
+        for (const it of by.values()) from.push({ w: it.lw || it.go.w, x: X(it.t1) - 1, y: ry(it), dim: it.pass === false });
         if (selIt && L.its.includes(selIt) && selIt.go?.w) from.push({ w: selIt.go.w, x: X(selIt.t1) - 1, y: ry(selIt), sel: true });   // (821: the tapped one's own line)
       }
       if (top >= H || top + hs <= RH) return;
@@ -538,17 +571,29 @@ function tmpHere() {                                     // the years of the boo
 // the icon: a measuring rod with ticks (802)
 const ROD_ICON = '<svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round"><rect x="2.5" y="8.5" width="19" height="7" rx="1.2" stroke-width="1.3"/><path d="M5.5 8.5v3M8.5 8.5v2M11.5 8.5v3.6M14.5 8.5v2M17.5 8.5v3" stroke-width="1.1"/></g></svg>';
 function rulerOrder() { const o = (TP.cfg.rorder || []).filter(id => RULERS.some(r => r[0] === id)); for (const [id] of RULERS) if (!o.includes(id)) o.push(id); return o; }
-function tmpRefPanel() {
-  const p = $('#tmpPanel'); p.hidden = false; p.dataset.k = 'ref';
-  p.innerHTML = `<div class="tch"><b>Reference systems</b><button type="button" data-tmpclose="panel" aria-label="Close">✕</button></div><p class="hint small">The rows at the top of the timeline. Drag ⠿ to change their order.</p>`
-    + `<div class="tref">${rulerOrder().map(id => `<div class="trow" data-rid="${id}"><span class="tgrip" aria-label="Drag">⠿</span><label><input type="checkbox" data-tmpr="${id}"${TP.cfg.rulers[id] ? ' checked' : ''}> ${esc(RULERS.find(r => r[0] === id)[1])}</label></div>`).join('')}</div>`;
-  const box = p.querySelector('.tref'); let drag = null;
+function tmpDragList(box, onEnd) {                         // rows dragged by their ⠿ into a new order
+  let drag = null;
   box.addEventListener('pointerdown', e => { const g = e.target.closest('.tgrip'); if (!g) return; e.preventDefault(); drag = g.closest('.trow'); drag.classList.add('drag'); g.setPointerCapture(e.pointerId); });
   box.addEventListener('pointermove', e => { if (!drag) return;
-    const rows = [...box.children].filter(r => r !== drag), after = rows.find(r => e.clientY < r.getBoundingClientRect().top + r.offsetHeight / 2);
+    const rows = [...box.children].filter(r => r !== drag && r.classList.contains('trow')), after = rows.find(r => e.clientY < r.getBoundingClientRect().top + r.offsetHeight / 2);
     if (after) box.insertBefore(drag, after); else box.appendChild(drag); });
-  const end = () => { if (!drag) return; drag.classList.remove('drag'); drag = null; TP.cfg.rorder = [...box.children].map(r => r.dataset.rid); tmpSave(); tmpRedraw(); };
+  const end = () => { if (!drag) return; const d = drag; drag.classList.remove('drag'); drag = null; onEnd(d); };
   box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
+}
+function tmpRefPanel(keep) {
+  const p = $('#tmpPanel'); p.hidden = false; p.dataset.k = 'ref'; const scroll = keep ? p.scrollTop : 0;
+  const all = (TP.data?.lanes || []).filter(L => L.have || TP.cfg.all), pin = TP.cfg.lpin || [];
+  const order = [...laneOrder(all.filter(L => !TP.cfg.lhide?.[L.id])), ...all.filter(L => TP.cfg.lhide?.[L.id])];
+  p.innerHTML = `<div class="tch"><b>Reference systems and lanes</b><button type="button" data-tmpclose="panel" aria-label="Close">✕</button></div><p class="hint small">The rows at the top of the timeline. Drag ⠿ to change their order.</p>`
+    + `<div class="tref">${rulerOrder().map(id => `<div class="trow" data-rid="${id}"><span class="tgrip" aria-label="Drag">⠿</span><label><input type="checkbox" data-tmpr="${id}"${TP.cfg.rulers[id] ? ' checked' : ''}> ${esc(RULERS.find(r => r[0] === id)[1])}</label></div>`).join('')}</div>`
+    + `<div class="tph tplanes">Lanes</div><p class="hint small">Pinned lanes stay at the top, in your order – drag ⠿ to place a lane (it and those above it are pinned), or pin it. The others follow the text being read, then what passes the filter, then time. Lanes that do not meet in time share a level.</p>`
+    + `<div class="tlanes">${order.map(L => { const pi = pin.includes(L.id), hid = !!TP.cfg.lhide?.[L.id];
+        return `<div class="trow${hid ? ' off' : ''}" data-lid="${esc(L.id)}"><span class="tgrip" aria-label="Drag">⠿</span><label><input type="checkbox" data-tmplh="${esc(L.id)}"${hid ? '' : ' checked'}> ${esc(L.t)}${isFinite(L.a) ? ` <small class="hint">${esc(rangeTxt(L.a, L.b))}</small>` : ''}</label><button type="button" class="tpin${pi ? ' on' : ''}" data-tmppin="${esc(L.id)}">${pi ? 'Pinned' : 'Pin'}</button></div>`; }).join('')}</div>`
+    + (pin.length ? `<p><button type="button" data-tmpunpin="1">Unpin all</button></p>` : '');
+  p.scrollTop = scroll;
+  tmpDragList(p.querySelector('.tref'), () => { TP.cfg.rorder = [...p.querySelectorAll('.tref .trow')].map(r => r.dataset.rid); tmpSave(); tmpRedraw(); });
+  tmpDragList(p.querySelector('.tlanes'), d => { const ids = [...p.querySelectorAll('.tlanes .trow')].map(r => r.dataset.lid); TP.cfg.lpin = ids.slice(0, ids.indexOf(d.dataset.lid) + 1).filter(id => !TP.cfg.lhide?.[id]);
+    tmpSave(); tmpRedraw(); tmpRefPanel(true); });
 }
 
 // ---------------------------------------------------------------- the filter (803a–805): texts, persons, places, words, kinds, sources
@@ -751,6 +796,8 @@ document.addEventListener('click', async ev => {
     return tmpRedraw(); }
   if (D.tmp === 'add') return tmpEdit(null);
   if (D.tmp === 'here') return tmpHere();
+  if (D.tmppin) { const pin = TP.cfg.lpin = TP.cfg.lpin || [], i = pin.indexOf(D.tmppin); if (i >= 0) pin.splice(i, 1); else pin.push(D.tmppin); tmpSave(); tmpRedraw(); return tmpRefPanel(true); }
+  if (D.tmpunpin) { TP.cfg.lpin = []; tmpSave(); tmpRedraw(); return tmpRefPanel(true); }
   if (D.tmpwpick != null) { TP.cfg.wpick = TP.cfg.wpick || {}; if (D.tmpwpick) TP.cfg.wpick[D.wid] = D.tmpwpick; else delete TP.cfg.wpick[D.wid];
     tmpSave(); $('#tmpCard').hidden = true; TP.sel = null; await tmpData(); return tmpRedraw(); }
   if (D.tmp === 'writ') { TP.cfg.written = !TP.cfg.written; b.classList.toggle('on', TP.cfg.written); tmpSave(); await tmpData(); return tmpRedraw(); }
@@ -767,6 +814,7 @@ document.addEventListener('click', async ev => {
 document.addEventListener('change', async ev => {
   const t = ev.target; if (!t.closest?.('#tmpPanel')) return;
   if (t.dataset.tmpr) { TP.cfg.rulers[t.dataset.tmpr] = t.checked; tmpSave(); tmpRedraw(); }
+  if (t.dataset.tmplh) { TP.cfg.lhide = TP.cfg.lhide || {}; if (t.checked) delete TP.cfg.lhide[t.dataset.tmplh]; else TP.cfg.lhide[t.dataset.tmplh] = 1; tmpSave(); tmpRedraw(); return tmpRefPanel(true); }
   if (t.dataset.tmpall2) { TP.cfg.all = t.checked; tmpSave(); tmpRedraw(); }
 });
 document.addEventListener('pointerdown', ev => { if (!ev.target.closest?.('.tmpq')) { const r = $('#tmpRes'); if (r) r.hidden = true; } });
