@@ -7,7 +7,7 @@
    (see core.js for the order of the scripts) */
 'use strict';
 const PP = { ix: new Map(), rec: new Map(), view: null, back: [], q: '' };
-const PKINDS = ['deity', 'hero', 'Homeric', 'ruler', 'magistrate', 'military', 'author', 'philosopher', 'artist', 'physician', 'Christian', 'woman', 'family'];
+const PKINDS = ['deity', 'hero', 'Homeric', 'ruler', 'magistrate', 'military', 'author', 'philosopher', 'artist', 'physician', 'Christian', 'woman', 'family', 'senator', 'eques'];
 // packages of persons (kind "people": also the marks in the text) and the other encyclopaedias (kind "encyclopedia": places, things)
 const ENCK = new Set(['people', 'encyclopedia']);
 const pplPkgs = (all = false) => Object.values(S.installed || {}).filter(d => (all ? ENCK.has(d.kind) : d.kind === 'people') && !S.dictPrefs?.off?.includes(d.id)).sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
@@ -34,10 +34,10 @@ async function personsFor(k, all = false) {      // all persons (all: also place
   return out;
 }
 // entries of other packages attached to this one (PIR persons found in Smith): [[package, [numbers]]]
-async function attachedTo(d, i) {
+async function attachedTo(d, i, maybe = false) {   // maybe: the entries that fitted this person and others equally (766)
   const out = [];
   for (const o of Object.values(S.installed || {})) { if (!ENCK.has(o.kind) || o.id === d.id || S.dictPrefs?.off?.includes(o.id)) continue;
-    const at = await pplRec(o, '#at'); const m = at?.to === d.id ? at.m?.[String(i)] : null; if (m?.length) out.push([o, m]); }
+    const at = await pplRec(o, '#at'); const m = at?.to === d.id ? at[maybe ? 'p' : 'm']?.[String(i)] : null; if (m?.length) out.push([o, m]); }
   return out;
 }
 const MYTHK = new Set(['deity', 'hero', 'Homeric']);      // (years an article mentions say nothing of a god's life)
@@ -321,6 +321,9 @@ async function pplPersonHTML(ref, ti) {
   const { d, i } = pplParse(ref); if (!d) return '<p class="hint">This person’s package is not installed.</p>';
   const e = await pplEntry(d, i), r = await pplRow(d, i); if (!e || !r) return '<p class="hint">Not found.</p>';
   const h0 = ti != null ? S.prs?.get(ti) : null;
+  const att = await attachedTo(d, i);
+  if (!r.ownKinds) for (const [o, m] of att) for (const j of m) { const rr = await pplRow(o, j); for (const k of rr?.kinds || []) if (!r.kinds.includes(k)) r.kinds.push(k); }
+  r.kinds.sort((a, b) => PKINDS.indexOf(a) - PKINDS.indexOf(b));
   let h = `<div class="pphead"><div class="ppname">${esc(e.h)}${r.no ? ` <small>${r.no}</small>` : ''}</div>${e.g ? `<div class="ppgreek gk">${esc(e.g)}</div>` : ''}`
     + `<div class="ppmeta">${r.y0 != null ? `<span title="the years the article mentions">years mentioned: ${yearsTxt(r.y0, r.y1)}</span> · ` : ''}${kindChips(r, true)}${r.ownKinds ? ' <small class="hint">(your kinds)</small>' : ''}</div>`
     + (h0 ? `<div class="ppat">${h0.sure ? `Marked in the text: ${esc(h0.why)}.` : 'Not yet certain in the text.'} <button type="button" data-ppname="${esc(h0.k)}" data-ti="${ti}">${h0.cands.length > 1 ? 'Someone else?' : 'Not this person?'}</button></div>` : '')
@@ -329,7 +332,7 @@ async function pplPersonHTML(ref, ti) {
   let secs = '';
   if (sudaMerge()) { const ix = await pplIx(d); for (let j = i + 1; j < ix.p.length && j < i + 40; j++) if (ix.p[j]?.[7] === i) { const se = await pplEntry(d, j); if (se) secs += `<div class="ppsec">${se.html}</div>`; } }
   h += `<details class="src" open data-pd="${d.id}"><summary>${esc(d.name)} <small>${esc(d.title || '')}</small></summary><div class="ent"><div class="eb">${e.html}${secs}</div></div></details>`;
-  for (const [o, m] of await attachedTo(d, i)) {                    // the same person in another source (PIR …), by itself
+  for (const [o, m] of att) {                                         // the same person in another source (PIR …), by itself
     let inner = ''; for (const j of m) { const oe = await pplEntry(o, j); if (oe) inner += `<div class="ent"><div class="eb">${oe.html}</div></div>`; }
     h += `<details class="src" open data-pd="${o.id}"><summary>${esc(o.name)} <small>${esc(o.title || '')}</small></summary>${inner}</details>`;
   }
@@ -354,6 +357,8 @@ async function pplPersonHTML(ref, ti) {
     }
     h += `<details class="src ppass" open><summary>Passages in the library <small>${ps.length} cited by ${esc(d.name.split(',')[0])}</small></summary>${inner}</details>`;
   }
+  const mb = []; for (const [o, m] of await attachedTo(d, i, true)) for (const j of m) { const rr = await pplRow(o, j); if (rr) mb.push(rowHTML(rr)); }
+  if (mb.length) h += `<details class="src"><summary>Possibly the same person <small>${mb.length} – entries that fit this person and others equally</small></summary><div class="list plain">${mb.join('')}</div></details>`;
   // others of the same name
   const others = []; for (const k of (e.k || []).slice(0, 1)) for (const c of await personsFor(k, true)) if (c !== ref) { const x = pplParse(c), rr = await pplRow(x.d, x.i); if (rr) others.push(rowHTML(rr)); }
   if (others.length) h += `<details class="src"><summary>Others of the name ${esc(e.h.split(/[ ,]/)[0])} <small>${others.length}</small></summary><div class="list plain">${others.join('')}</div></details>`;
