@@ -347,8 +347,8 @@ function atticYear(Y) {
   TP.att.set(Y, ms); return ms;
 }
 function drawAttic(g, C, y, h, W, X, A0, A1, font, cell) {
-  const ppy = TP.ppy; if (ppy < 40) { g.font = font(9.5); g.fillStyle = C.mut; g.fillText('zoom in for the Athenian months', 6, y + h - 5); return; }
-  for (let Y = Math.floor(A0) - 1; Y <= Math.ceil(A1); Y++) for (const m of atticYear(Y)) { const a = axOfJd(m.j), b = axOfJd(m.j2); if (b < A0 || a > A1) continue;
+  const ppy = TP.ppy; if (A1 < -700 || A0 > 401) return; if (ppy < 40) { g.font = font(9.5); g.fillStyle = C.mut; g.fillText('zoom in for the Athenian months', Math.max(6, X(-700) + 6), y + h - 5); return; }
+  for (let Y = Math.max(-700, Math.floor(A0) - 1); Y <= Math.min(400, Math.ceil(A1)); Y++) for (const m of atticYear(Y)) { const a = axOfJd(m.j), b = axOfJd(m.j2); if (b < A0 || a > A1) continue;
     const lab = ppy >= 1200 ? m.nm : ppy >= 300 ? m.nm.slice(0, m.nm === 'Poseideon II' ? 99 : 4) + (m.nm === 'Poseideon II' ? '' : '.') : '';
     if (ppy >= 6000 && ppy < 150000) { for (let d = m.j, n = 1; d < m.j2 && n < 31; d++, n++) cell(axOfJd(d), axOfJd(d + 1), n === 1 ? lab || m.nm : String(n), n === 1); }
     else cell(a, b, lab, m.nm === 'Hekatombaion'); }
@@ -585,7 +585,8 @@ function tmpLayout(A0, A1) {
     const a = isFinite(L.a) ? L.a : -1e9, b = isFinite(L.b) ? L.b : 1e9;
     let s = slots.findIndex(S => S.every(M => b + GAP <= M.a || M.b + GAP <= a));
     if (s < 0) { s = slots.length; slots.push([]); }
-    slots[s].push({ L, a, b, n: its.length ? 1 + Math.max(...its.map(i => i.row)) : 0, its, atLv });
+    const all = L.its.filter(i => atLv(i) && !(hide && !i.pass));            // (its height: the rows of all its items at this level, wherever they are – it changes only as you zoom)
+    slots[s].push({ L, a, b, n: all.length ? 1 + Math.max(...all.map(i => i.row)) : 0, its, atLv });
   }
   for (const S of slots) S.sort((p, q) => p.a - q.a);
   return { slots };
@@ -610,19 +611,19 @@ function tmpDraw() {
   if (TP.empKey !== F) { TP.empKey = F; TP.empRow = new Map(); const ends = [];   // (packed once: an emperor keeps his row whatever is in view)
     for (const x of emps) { let r = ends.findIndex(v => v <= x.a0); if (r < 0) { r = ends.length; ends.push(0); } ends[r] = x.a1; TP.empRow.set(x.j, r); } }
   for (const x of emps) x.row = TP.empRow.get(x.j);
-  TP.empRows = Math.max(1, ...emps.filter(x => x.a1 > A0 && x.a0 < A1).map(x => x.row + 1));
+  TP.empRows = Math.max(1, ...emps.map(x => x.row + 1));                  // (the band as high as it ever needs: it does not grow as you pan)
   TP.empRowsE = tmpEase('emp', TP.empRows);
   // ---- the reference rows: each fades in or out over its span
   const SPAN = { att: [-700, 400], auc: [-752, 1e9], cato: [-751, 1e9], ol: [-775, 394], cos: [-29, 566], emp: [-62, 566], sel: [-311, 1e9], dio: [284, 1e9], ind: [312, 1e9] };
-  const rulers = rulerOrder().filter(id => TP.cfg.rulers[id]).map(id => ({ id, h: rulerHeight(id) * tmpEase('r:' + id, !SPAN[id] || (A1 > SPAN[id][0] && A0 < SPAN[id][1]) ? 1 : 0) })).filter(r => r.h > 0.5);
+  const rulers = rulerOrder().filter(id => TP.cfg.rulers[id]).map(id => ({ id, h: rulerHeight(id) }));   // (every row switched on keeps its height – empty outside its span)
   const RH = rulers.reduce((s, r) => s + r.h, 0) + 4;
   TP.RH = RH;
   tmpFilterApply();
   // ---- the lanes: their slots, heights (eased), and where each lies in the scrolled content
   const { slots } = tmpLayout(A0, A1), lh = TP.lh, TT = 14;                 // (TT: the strip with the lane's name, once, at the top of its box)
-  const laneH = (n, box) => n > 0.02 ? TT + n * lh + 6 : box ? TT + 4 : 8;
+  const laneH = n => TT + Math.max(0, n) * lh + (n > 0.02 ? 6 : 4);
   const lay = []; let off = 0;
-  for (const SL of slots) { const ls = SL.map(r => Object.assign(r, { box: r.L.na < A1 && r.L.nb > A0, h: 0 })).map(r => Object.assign(r, { h: laneH(tmpEase('L:' + r.L.id, r.n), r.box) })), hs = Math.max(8, ...ls.map(r => r.h));
+  for (const SL of slots) { const ls = SL.map(r => Object.assign(r, { box: r.L.na < A1 && r.L.nb > A0, h: 0 })).map(r => Object.assign(r, { h: laneH(tmpEase('L:' + r.L.id, r.n)) })), hs = Math.max(8, ...ls.map(r => r.h));
     lay.push({ ls, off, hs, key: ls.map(r => r.L.id).join('|') }); off += hs + 4; }
   TP.contentH = off;
   // anchoring: the point under the fingers or the cursor (or the top of the lanes) keeps its place on screen while heights change
