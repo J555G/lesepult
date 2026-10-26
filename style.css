@@ -2219,3 +2219,8 @@ dialog .sver{-webkit-user-select:none;user-select:none;touch-action:manipulation
 #peopleBody ul.dprr li{margin:.15rem 0}
 #peopleBody ul.dprr small{color:var(--mut)}
 #peopleBody .tpl{text-decoration:underline dotted color-mix(in srgb,#5d93bd 70%,transparent);text-underline-offset:3px}
+#peopleBody .ppidm{margin:.2rem 0 .4rem}
+#peopleBody .ppidm .pprow{border:1px solid color-mix(in srgb,#b8693a 40%,var(--line));border-radius:8px}
+#peopleBody .ppidbox{border-bottom:1px solid var(--line);padding:.5rem .2rem}
+#peopleBody .ppidbox>.ppn{font:15px var(--greek)}
+#peopleBody .ppidbox>.ppd{font:14px var(--ui);color:var(--mut);margin-bottom:.2rem}

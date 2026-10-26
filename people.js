@@ -114,7 +114,8 @@ async function identTables(wid, bi) {
     const at = new Map(), dflt = new Map(), book = +((await libGet('works', wid))?.books?.[bi] || '').replace(/\D/g, '');
     for (const [b, ref, j] of r.r) if (b === bi) { if (!at.has(ref)) at.set(ref, []); at.get(ref).push(j); }
     r.e.forEach((e, j) => { if (e[6]?.includes(book)) for (const k of e[5]) { if (!dflt.has(k)) dflt.set(k, []); dflt.get(k).push(j); } });
-    out.push({ d, e: r.e, at, dflt, src: 'identified by ' + (r.src || d.name) });
+    const own = new Map((await getAll('settings', IDBKeyRange.bound(`idm|${d.id}|`, `idm|${d.id}|￿`))).map(x => [+x.k.split('|')[2], x.v]));   // 775: your matches
+    out.push({ d, e: r.e, r: r.r, at, dflt, own, src: 'identified by ' + (r.src || d.name) });
   }
   return out.length ? out : null;
 }
@@ -122,18 +123,22 @@ async function identTables(wid, bi) {
 const LATEND = /(ibus|orum|arum|ius|ium|iis|ii|io|ia|ae|am|em|im|is|es|os|um|us|ui|a|e|i|o|u)$/;
 const latStem = k => { const s = k.replace(LATEND, ''); return s.length >= 3 ? s : k; };
 const stemFit = (a, b) => a === b || (!/[α-ω]/.test(a + b) && latStem(a) === latStem(b));
+function identHit(T, j) {                         // one entry of the index: its person (your match first), shown under its main entry
+  const c = T.e[j][7] ?? j, o = T.own.get(c);
+  return { target: o === undefined ? T.e[c][4] || T.e[j][4] : o || null, ref: T.d.id + '|' + c, src: T.src };
+}
 function identAt(tabs, tk, ref) {
   if (!ref) return null;
   const ks = [...new Set([tk.lemma, tk.s].filter(Boolean).map(gkey))], ch = String(ref).split('.')[0];
   for (const T of tabs) {
     const js = [...new Set([...(T.at.get(ref) || []), ...(T.at.get(ch) || [])])].filter(j => T.e[j][5].some(k => ks.some(x => stemFit(x, k))));
-    const ps = js.filter(j => T.e[j][3] === 'p' || (T.e[j][3] === '?' && T.e[j][4])), ls = js.filter(j => T.e[j][3] === 'l');   // ('?': no description – used only when matched)
-    const tg = new Set(ps.map(j => T.e[j][4] || 'r' + j));
-    if (ps.length && tg.size === 1) { const j = ps[0]; return { target: T.e[j][4], ref: T.d.id + '|' + j, src: T.src }; }
+    const ps = js.filter(j => T.e[j][3] === 'p' || (T.e[j][3] === '?' && (T.e[j][4] || T.e[j][7] != null))), ls = js.filter(j => T.e[j][3] === 'l');   // ('?': no description – used only when matched)
+    const tg = new Set(ps.map(j => identHit(T, j).target || 'r' + (T.e[j][7] ?? j)));
+    if (ps.length && tg.size === 1) return identHit(T, ps[0]);
     if (!ps.length && ls.length) return { place: true };
     if (ps.length) return null;                                   // two persons of the name at one place: the rules decide
     const dj = [...new Set(ks.flatMap(k => [...T.dflt.keys()].filter(x => stemFit(k, x)).flatMap(x => T.dflt.get(x))))].filter(j => T.e[j][3] !== 'l' && T.e[j][4]);
-    if (dj.length === 1) return { target: T.e[dj[0]][4], ref: T.d.id + '|' + dj[0], src: T.src, dflt: true };
+    if (dj.length === 1) return Object.assign(identHit(T, dj[0]), { dflt: true });
   }
   return null;
 }
@@ -282,6 +287,7 @@ async function pplRender() {
   if (!pplPkgs(true).length && !S.installed?.suda) h = `<p class="hint">No encyclopaedia installed yet. Open the menu ☰ → Instruments → Suda – Encyclopaedias and Lexica and download one, e.g. “William Smith, A Dictionary of Greek and Roman Biography and Mythology”.</p>`;
   else if (v.t === 'person') h = await pplPersonHTML(v.ref, v.ti);
   else if (v.t === 'word') h = await pplWordHTML(v.form, v.lemma, v.ti);
+  else if (v.t === 'idmatch') h = await pplIdMatchHTML();
   else if (v.t === 'search') h = await pplSearchHTML(v.q, v.all);
   else if (v.t === 'name') h = await pplNameHTML(v.k, v.ti);
   else h = await pplTextHTML();
@@ -300,14 +306,16 @@ const srcTag = d => d.id === 'people-smith' ? '' : ` <small class="ppsrc">${esc(
 const rowHTML = (r, extra = '') => `<button type="button" class="pprow" data-ppref="${esc(r.ref)}"><span class="ppn"><b>${esc(r.name)}</b>${srcTag(r.d)}${r.no ? ` <small>${r.no}</small>` : ''}${r.y0 != null && !r.kinds.some(k => MYTHK.has(k)) ? ` <small class="ppy">${yearsTxt(r.y0, r.y1)}</small>` : ''}</span><span class="ppd">${esc(r.desc || '')}</span>${r.kinds.length ? kindChips(r) : ''}${extra}</button>`;
 async function pplTextHTML() {
   const t = S.text; if (!t) return '<p class="hint">Open a text: the persons named in it are listed here.</p>';
+  const tabs = t.work ? await identTables(t.work.id, t.bi) : null, n = tabs ? (await idMatchList(tabs)).length : 0;
+  const idl = n ? `<div class="ppidm"><button type="button" class="pprow" data-ppidm="1"><span class="ppn"><b>Persons of the index to match</b> <small>${n}</small></span><span class="ppd">${esc(tabs[0].src.replace(/^identified by /, ''))}: persons not yet matched, though the encyclopaedias have someone of the name</span></button></div>` : '';
   const by = new Map();
   for (const [i, x] of S.prs || []) { if (x.grp && x.grp[0] !== i) continue;     // (a name of several words: once)
     const id = (x.sure ? '' : '?') + (x.pick || x.k); let g = by.get(id); if (!g) by.set(id, g = { x, is: [] }); g.is.push(i); }
-  if (!by.size) return `<p class="hint">No names of persons found in this part${S.morph || S.latMorph ? '' : ' (the names are recognised from the lemmata – install the morphological analysis: ☰ → Instruments → Analysis)'}.</p>`;
+  if (!by.size) return idl + `<p class="hint">No names of persons found in this part${S.morph || S.latMorph ? '' : ' (the names are recognised from the lemmata – install the morphological analysis: ☰ → Instruments → Analysis)'}.</p>`;
   const unsure = [], sure = [];
   for (const [id, g] of by) (g.x.sure ? sure : unsure).push([id, g]);
   const occ = g => `<span class="ppocc">${g.is.slice(0, 12).map(i => `<button type="button" data-ppjump="${i}">${esc(refAt(i) || '·')}</button>`).join('')}${g.is.length > 12 ? `<small>+${g.is.length - 12}</small>` : ''}</span>`;
-  let h = '';
+  let h = idl;
   if (unsure.length) {
     h += `<div class="navh3">To check <small>${unsure.length}</small></div><div class="list plain">`;
     for (const [, g] of unsure.sort((a, b) => a[1].is[0] - b[1].is[0])) {
@@ -408,6 +416,32 @@ async function pplPersonHTML(ref, ti) {
   if (others.length) h += `<details class="src"><summary>Others of the name ${esc(e.h.split(/[ ,]/)[0])} <small>${others.length}</small></summary><div class="list plain">${others.join('')}</div></details>`;
   return h;
 }
+// 775: the index's persons without a match, though the encyclopaedias have someone of the name – matched by the reader
+async function idMatchList(tabs) {
+  const out = [];
+  for (const T of tabs) {
+    const cnt = new Map(); for (const [, , j] of T.r) { const c = T.e[j][7] ?? j; cnt.set(c, (cnt.get(c) || 0) + 1); }
+    for (let j = 0; j < T.e.length; j++) {
+      const e = T.e[j]; if (e[7] != null || e[3] === 'l' || e[4] || T.own.has(j) || !cnt.get(j)) continue;
+      if (e[3] === '?' && !T.e.some(x => x[7] === j)) continue;
+      const cs = (await personsFor(e[5][0])).filter(c => { const { d, i } = pplParse(c); const y0 = d?.id === 'people-pir' ? -31 : null; return y0 == null || y0 <= 420; });
+      if (cs.length) out.push({ T, j, e, cs, n: cnt.get(j) });
+    }
+  }
+  return out.sort((a, b) => b.n - a.n);
+}
+async function pplIdMatchHTML() {
+  const t = S.text, tabs = t?.work ? await identTables(t.work.id, t.bi) : null; if (!tabs) return '<p class="hint">No index of names for this work.</p>';
+  const L = await idMatchList(tabs);
+  if (!L.length) return '<p class="hint">Every person of the index is matched (or has no namesake in the encyclopaedias).</p>';
+  let h = `<div class="pphead"><div class="ppname">Persons of the index to match</div><div class="ppmeta">${L.length} · most passages first · your matches go into the backup</div></div><div class="list plain">`;
+  for (const x of L.slice(0, 80)) {
+    const rows = []; for (const c of x.cs.slice(0, 8)) { const { d, i } = pplParse(c), r = await pplRow(d, i); if (r) rows.push(`<div class="ppchk">${rowHTML(r)}<span class="ppchoose"><button type="button" data-ppidset="${esc(c)}" data-d="${esc(x.T.d.id)}" data-j="${x.j}">This one</button></span></div>`); }
+    h += `<div class="ppidbox"><div class="ppn"><b>${esc(x.e[0])}</b>${x.e[1] ? ` <small>${x.e[1]}</small>` : ''} <small>${x.n} passage${x.n === 1 ? '' : 's'}</small></div><div class="ppd">${esc(x.e[2] || '(no description in the index)')}</div>${rows.join('')}`
+      + `<div class="ppnot"><button type="button" data-ppidset="0" data-d="${esc(x.T.d.id)}" data-j="${x.j}">None of these</button></div></div>`;
+  }
+  return h + '</div>';
+}
 // any word: its entries in the Suda and in every encyclopaedia, each source by itself (755)
 async function pplWordHTML(form, lemma, ti) {
   const keys = [...new Set([lemma, form].filter(Boolean).map(gkey).filter(Boolean))];
@@ -474,6 +508,11 @@ document.addEventListener('click', ev => {
   const b = t.closest('[data-ppback]'); if (b) { if (!PP.back.length) return; PP.view = PP.back.pop(); $('#pplQ').value = PP.view.t === 'search' ? PP.view.q : ''; pplRender(); return; }
   if (t.closest('[data-pptext]')) return pplGo({ t: 'text' });
   const ke = t.closest('[data-ppkinds]'); if (ke) return pplKindsDialog(ke.dataset.ppkinds);
+  if (t.closest('[data-ppidm]')) return pplGo({ t: 'idmatch' });
+  const im = t.closest('[data-ppidset]'); if (im) { (async () => {          // 775: the reader's match (or none) for a person of the index
+    await setting(`idm|${im.dataset.d}|${im.dataset.j}`, im.dataset.ppidset === '0' ? 0 : im.dataset.ppidset);
+    await personsForText(); pplRender(); toast(im.dataset.ppidset === '0' ? 'Kept as a person of the index only' : 'Matched');
+  })(); return; }
   const gt = t.closest('[data-ppget]'); if (gt) { ev.preventDefault(); const id = gt.dataset.ppget; gt.disabled = true; gt.textContent = 'Downloading …'; queueDownload(id);
     const w = setInterval(() => { if (S.installed?.[id]) { clearInterval(w); pplRender(); } else if (!DL.has(id)) { clearInterval(w); gt.disabled = false; gt.textContent = 'Download'; } }, 700); return; }
   const fx = t.closest('[data-ppfix]'); if (fx) return pplFix(fx.dataset.ppfix, fx.dataset.k, fx.dataset.ti != null ? +fx.dataset.ti : null);

@@ -891,7 +891,7 @@ async function backupData() {
     places: Object.fromEntries((await getAll('settings')).filter(r => /^(pl|plw|plg|pown|draw|dset|mmap|wyear)\|/.test(r.k)).map(r => [r.k, r.v])),
     mapCfg: (await setting('mapCfg')) || null,
     // People: who is meant by a name (per work), the kinds of persons changed by the reader
-    people: Object.fromEntries((await getAll('settings')).filter(r => /^(prs|pk)\|/.test(r.k)).map(r => [r.k, r.v])),
+    people: Object.fromEntries((await getAll('settings')).filter(r => /^(prs|pk|idm)\|/.test(r.k)).map(r => [r.k, r.v])),
     favourites: (await setting('favs')) || {},
     prefs: { theme: document.documentElement.dataset.theme, textZoom: S.tz || 1, posCfg: S.posCfg, posOn: S.posOn, gramCfg: S.gramCfg, showGloss: !document.body.classList.contains('nogloss'),
       glossMode: S.glossMode, latQuant: S.latQuant, sudaMerge: S.sudaMerge, gramBtn: S.gramBtn, showGram: S.gram, dictPrefs: S.dictPrefs } };
@@ -997,7 +997,7 @@ async function restoreBackup(file) {
   for (const [k, r] of Object.entries(data.markers || {})) await setting('mk|' + k, r);
   for (const [k, r] of Object.entries(data.readings || {})) await setting('an|' + k, r);
   for (const [k, r] of Object.entries(data.places || {})) if (/^(pl|plw|plg|pown|draw|dset|mmap|wyear)\|/.test(k)) await setting(k, r);
-  for (const [k, r] of Object.entries(data.people || {})) if (/^(prs|pk)\|/.test(k)) await setting(k, r);
+  for (const [k, r] of Object.entries(data.people || {})) if (/^(prs|pk|idm)\|/.test(k)) await setting(k, r);
   if (typeof M !== 'undefined') M.draw = null;                    // drawings are read again
   if (data.mapCfg) { await setting('mapCfg', data.mapCfg); if (typeof M !== 'undefined') { M.cfg = null; M.P = null; M.own = new Map(); } }
   if (data.favourites) { S.favs = Object.assign((await setting('favs')) || {}, data.favourites); await setting('favs', S.favs); }
