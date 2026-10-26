@@ -438,6 +438,7 @@ async function tmpData() {
   const cfg = await tmpCfg(), F = await fastiTab(), lanes = [];
   if (!S.catWork) await cachedCatalog().catch(() => null);
   const works = new Map((await libWorks()).map(w => [w.id, w]));
+  TP.instW = new Set(works.keys());
   const wTitle = id => { const w = works.get(id) || S.catWork?.[id]; return w ? `${w.author ? w.author + ', ' : ''}${w.title}` : id; };
   const auShort = id => { const a = (works.get(id) || S.catWork?.[id])?.author || S.catAuthor?.[id]?.name || ''; return a.split(',')[0].trim(); };   // (“Tacitus, Cornelius” → “Tacitus”)
   const wOnly = id => (works.get(id) || S.catWork?.[id])?.title || id;
@@ -471,7 +472,7 @@ async function tmpData() {
         const byB = new Map(); for (const it of its) { const k = it.go.w + '#' + (it.go.bi ?? 0); if (!byB.has(k)) byB.set(k, []); byB.get(k).push(it); }   // (the books: the passages grouped – by edition and book, since Diodorus is in three editions)
         for (const ps of byB.values()) { const w0 = ps[0].go.w, bi = ps[0].go.bi ?? 0, bl = (works.get(w0) || S.catWork?.[w0])?.books?.[bi];
           its.push({ t0: Math.min(...ps.map(i => i.t0)), t1: Math.max(...ps.map(i => i.t1)), lab: (bl ? (/^\d/.test(bl) ? 'Book ' + bl : bl) : 'Book') + ` · ${ps.length} dates`, kind: 'book', k2: ps[0].k2, sid: lid, lv: 1, kids: ps,
-            src: title, go: { w: w0, bi, r: null }, note: 'the dates of this book – zoom in (also vertically) for each' }); for (const q of ps) q.par = its[its.length - 1]; }
+            src: title, go: { w: w0, bi, r: null }, note: 'the dates of this book – pinch the rows apart for each' }); for (const q of ps) q.par = its[its.length - 1]; }
         const w1 = Object.keys(S.catWork || {}).find(k => k.startsWith(wpre + '.')) || wpre;
         lanes.push({ id: 'ch:' + lid, g: 'Texts – the years they narrate', t: auShort(w1) || title.replace(/ – .*$/, ''), wt: wOnly(w1), its, note, have: true, wid: wpre });
       }
@@ -484,7 +485,7 @@ async function tmpData() {
       L.avg = [0, 1, 2].map(k => { const s = L.its.filter(i => i.lv === k); return s.reduce((z, i) => z + i.t1 - i.t0, 0) / Math.max(1, s.length); });
       const s1 = l1.slice().sort((p, q) => p.t0 - q.t0);
       L.its.push({ t0: Math.min(...l1.map(i => i.t0)), t1: Math.max(...l1.map(i => i.t1)), kind: 'book', k2: l1[0].k2, sid: l1[0].sid, lv: 0, lw: L.wid, src: L.t, kids: l2.length ? l2 : l1,   // (856a: labelled with the work's title)
-        lab: L.wt || (L.col ? `${l1.length} lives` : `${l1.length} books`), note: 'zoom in – across and up and down – for the parts: ' + s1.map(i => i.lab.replace(/ ·.*$/, '')).join(' · ') });
+        lab: L.wt || (L.col ? `${l1.length} lives` : `${l1.length} books`), note: 'pinch the rows apart for the parts: ' + s1.map(i => i.lab.replace(/ ·.*$/, '')).join(' · ') });
       for (const i of l1) i.par = L.its[L.its.length - 1];
     }
     // consular dates in the text being read (782a)
@@ -914,6 +915,7 @@ function tmpCardEmp(e) {
     + `<p class="hint">${e[9] === 'Clinton' ? 'Clinton, Fasti Romani I (1845)' : `Liebenam, Fasti consulares (1909), p. ${e[9]}`}</p>`
     + (e[10]?.length ? `<p><button type="button" data-tmpperson="${esc(e[10][0])}">Person page</button> <button type="button" data-tmpadd="${esc(e[10][0])}">Add as a lane</button></p>` : '');
 }
+const tmpWorkOf = it => it.go?.w || it.kids?.find(k => k.go?.w)?.go.w || null;   // (the work an item belongs to – for a whole work's bar, from its parts)
 function tmpCardItem(h) {
   const it = h.it, c = $('#tmpCard'); c.hidden = false;
   c.innerHTML = `<div class="tch"><b>${esc(it.lab)}</b><button type="button" data-tmpclose="1" aria-label="Close">✕</button></div>`
@@ -921,14 +923,14 @@ function tmpCardItem(h) {
     + (it.text ? `<p class="gk tmptext">${esc(it.text)}</p>` : '') + (it.note ? `<p class="hint">${esc(it.note)}</p>` : '')
     + (!it.wr && it.go?.w && WRITTEN.some(r => it.go.w.startsWith(r[0])) ? `<p class="hint small">Written: ${WRITTEN.filter(r => it.go.w.startsWith(r[0])).map(r => esc(r[3].replace(/^(.*· )?/, ''))).join(' · ')}</p>` : '')
     + (it.wr && it.wn > 1 ? `<p class="tact">${TP.cfg.wpick?.[it.wk] ? `<button type="button" data-tmpwpick="" data-wid="${esc(it.wk)}">Show all its dates of writing</button>` : `<button type="button" data-tmpwpick="${esc(it.wlab)}" data-wid="${esc(it.wk)}">Show only this date for this work</button>`}</p>` : '')
-    + `<p class="tact">${it.go?.w ? `<button type="button" data-tmpgo="1">Open the passage</button>` : ''}${it.ref ? `<button type="button" data-tmpperson="${esc(it.ref)}">Person page</button>` : ''}`
+    + `<p class="tact">${it.go?.w && TP.instW?.has(it.go.w) ? `<button type="button" data-tmpgo="1">Open the passage</button>` : ''}${tmpWorkOf(it) ? `<button type="button" data-tmpwork="${esc(tmpWorkOf(it))}">The work’s page</button>` : ''}${it.ref ? `<button type="button" data-tmpperson="${esc(it.ref)}">Person page</button>` : ''}`
     + `${it.place ? `<button type="button" data-tmpmap="1">Show on the map</button>` : ''}${it.own ? `<button type="button" data-tmpedit="${esc(it.own.id)}">Edit</button>` : ''}`
     + `<button type="button" data-tmpyear="${hy(Math.floor(it.t0 + 0.001))}">The year in all systems</button></p>`;
 }
 async function tmpGo(go) {
   if (!go?.w) return;
   if (go.r) return pplPassage(go.w, go.bi || 0, go.r, '');
-  if (!(await libGet('works', go.w))) { try { note('Downloading …'); await downloadWork('work:' + go.w); } catch (e) { return toast('Download failed: ' + e.message, 4000); } }
+  if (!(await libGet('works', go.w))) return libMenu(go.w);       // (not on this device: its page in the library, where it can be downloaded – nothing downloads by itself)
   await openWork(go.w, go.bi || 0);
 }
 function tmpHere() {                                     // the years of the book being read, or of its consular dates
@@ -1038,6 +1040,7 @@ async function tmpFilterPanel() {                          // the filter on the 
     + `<div class="tfs"><div class="tph">Add</div><input type="search" data-tfs="all" class="tfq" placeholder="A text, person, place or word …" enterkeyhint="done" autocomplete="off" autocapitalize="off" spellcheck="false"><div class="tpres" data-tfr="all"></div><div class="tfsug"></div></div>`
     + `<div class="tfs"><div class="tph">What does not pass</div><span class="tmpseg"><button type="button" data-tmpfm="dim" class="${TP.cfg?.fmode !== 'hide' ? 'on' : ''}">Dimmed</button><button type="button" data-tmpfm="hide" class="${TP.cfg?.fmode === 'hide' ? 'on' : ''}">Hidden</button></span>`
     + `<label class="tpall"><input type="checkbox" data-tmpall2="1"${TP.cfg.all ? ' checked' : ''}> also works not on this device</label></div></div>`, [['ok', 'Done']]);
+  const dl = $('#dlg'); dl.classList.add('lmdlg'); pr.then(() => dl.classList.remove('lmdlg'));   // (on the whole screen, as the library)
   tmpFilterHead(); tmpChipsUpd(); tmpFilterSug(); setTimeout(() => document.querySelector('.tmpfilt .tfq')?.focus(), 80);
   await pr; tmpChipsUpd(); tmpRedraw();
 }
@@ -1218,6 +1221,7 @@ document.addEventListener('click', async ev => {
   if (D.tmp === 'writ') { TP.cfg.written = !TP.cfg.written; b.classList.toggle('on', TP.cfg.written); tmpSave(); await tmpData(); return tmpRedraw(); }
   if (D.tmpz) { const W = $('#tmpCanvas').clientWidth; if (D.tmpz === 'x+') tmpZoomX(1.6, W / 2); if (D.tmpz === 'x-') tmpZoomX(1 / 1.6, W / 2); if (D.tmpz === 'y+') tmpZoomY(1.25); if (D.tmpz === 'y-') tmpZoomY(0.8); return; }
   if (D.tmpgo) return tmpGo(TP.sel?.it?.go);
+  if (D.tmpwork) return libMenu(D.tmpwork);
   if (D.tmpperson) { await showPeople(); return pplGo({ t: 'person', ref: D.tmpperson }); }
   if (D.tmpadd) { if (!TP.cfg.persons.includes(D.tmpadd)) TP.cfg.persons.push(D.tmpadd); tmpSave(); await tmpData(); return tmpRedraw(); }
   if (D.tmpedit) return tmpEdit(D.tmpedit);
