@@ -549,11 +549,17 @@ async function tmpData() {
     const sh = L.sh || L.t.replace(/ – .*$/, '');
     if (!L.levels) { const ends = [];
       for (const it of L.its.slice().sort((a, b) => a.t0 - b.t0)) { let r = ends.findIndex(e => e <= it.t0 + 1e-6); if (r < 0) { r = ends.length; ends.push(0); } ends[r] = it.t1; it.row = r; } }
-    else {                                               // 854a: the finest parts packed first; each bar above them takes the top row of its parts,
-      const Fv = Math.max(...L.levels), place = (its, occ) => {   // so zooming in only ever adds rows (overlapping books in one row: cut where the next begins)
-        for (const it of its.sort((a, b) => a.t0 - b.t0)) { let r = 0; while ((occ[r] || []).some(([a, b]) => it.t0 < b - 1e-6 && it.t1 > a + 1e-6)) r++; (occ[r] ??= []).push([it.t0, it.t1]); it.row = r; it['row' + it._k] = r; } };
-      const fin = L.its.filter(i => i.lv === Fv); for (const i of fin) i._k = Fv; place(fin, []);
-      for (let k = Fv - 1; k >= 0; k--) for (const it of L.its.filter(i => i.lv === k)) { const ch = L.its.filter(i => i.par === it && i.lv === k + 1); it.row = it['row' + k] = ch.length ? Math.min(...ch.map(i => i['row' + (k + 1)])) : 0; }
+    else {                                               // 861a: laid out from the top down – the top bars packed tightly; when a bar opens, its parts get a
+      const pack = its => { const occ = []; for (const it of its.slice().sort((a, b) => a.t0 - b.t0)) {   // block of rows right beneath it, and all below moves down by that block
+        let r = 0; while ((occ[r] || []).some(([a, b]) => it.t0 < b - 1e-6 && it.t1 > a + 1e-6)) r++; (occ[r] ??= []).push([it.t0, it.t1]); it._loc = r; } return occ.length; };
+      const top = L.its.filter(i => i.lv === L.levels[0]); pack(top); for (const i of top) i.row = i['row' + L.levels[0]] = i._loc;
+      for (const k of L.levels.slice(1)) {
+        const kids = L.its.filter(i => i.lv === k), by = new Map(); for (const i of kids) { const p = i.par; if (!by.has(p)) by.set(p, []); by.get(p).push(i); }
+        const H = []; for (const [p, cs] of by) { const n = pack(cs), R = p ? p['row' + (k - 1)] : 0; H[R] = Math.max(H[R] || 1, n); }
+        const nPrev = 1 + Math.max(0, ...L.its.filter(i => i.lv === k - 1).map(i => i['row' + (k - 1)]));
+        const start = []; let s = 0; for (let R = 0; R < nPrev; R++) { start[R] = s; s += H[R] || 1; }
+        for (const i of kids) { const R = i.par ? i.par['row' + (k - 1)] : 0; i.row = i['row' + k] = (start[R] ?? 0) + i._loc; }
+      }
       for (const k of L.levels) {                        // (the dates of writing and the like: in the first free row at each level)
         const occ = []; for (const i of L.its.filter(i => i.lv === k)) (occ[i['row' + k]] ??= []).push([i.t0, i.t1]);
         for (const it of L.its.filter(i => i.lv == null).sort((a, b) => a.t0 - b.t0)) { let r = 0; while ((occ[r] || []).some(([a, b]) => it.t0 < b - 1e-6 && it.t1 > a + 1e-6)) r++; (occ[r] ??= []).push([it.t0, it.t1]); it['row' + k] = r; it.row = r; } }
