@@ -660,10 +660,13 @@ function tmpDraw() {
   const P = TP.prevLay;
   if (P && P.slots.length) { const fy = TP.focusY ?? (P.RH + 6), cy = fy - (P.RH + 6) + P.sy;
     const p = P.slots.find(s => cy < s.off + s.hs + 4) || P.slots[P.slots.length - 1], q = p && lay.find(s => s.key === p.key);
-    if (q) { const f = Math.min(1, Math.max(0, (cy - p.off) / (p.hs + 4))); TP.sy += (q.off + f * (q.hs + 4)) - (p.off + f * (p.hs + 4)); }
+    if (q && TP.focusY != null) {                          // (zooming: the row under the fingers stays under them – rows are counted, not the slot's fraction)
+      const TT = 14, d = cy - p.off - TT - 3, rho = d / (P.lh || TP.lh);
+      TP.sy += d <= 0 ? q.off - p.off : (q.off + TT + 3 + rho * TP.lh) - cy; }
+    else if (q) { const f = Math.min(1, Math.max(0, (cy - p.off) / (p.hs + 4))); TP.sy += (q.off + f * (q.hs + 4)) - (p.off + f * (p.hs + 4)); }
     if (P.sy > 0 && Date.now() - (TP.userMove || 0) < 500) { TP.sy += RH - P.RH; TP.over = Math.max(0, (TP.over || 0) + RH - P.RH); } }   // (only while you move it yourself, and not at the very top)                                                    // (820a: the header grows over the lanes – they stay where they are)
   tmpClampY();
-  TP.prevLay = { RH, sy: TP.sy, slots: lay.map(s => ({ key: s.key, off: s.off, hs: s.hs })) };
+  TP.prevLay = { RH, lh: TP.lh, sy: TP.sy, slots: lay.map(s => ({ key: s.key, off: s.off, hs: s.hs })) };
   const y0 = RH + 6 - TP.sy, centers = [], marks = new Map(), from = [];
   TP.laneTop = {};
   g.save(); g.beginPath(); g.rect(0, RH, W, H - RH); g.clip();
