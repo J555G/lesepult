@@ -105,11 +105,43 @@ async function groupHit(run) {
   if (!best) { const p = parts.reduce((a, b) => b.cands.length <= a.cands.length ? b : a); best = { k: p.k, cands: p.cands }; }
   return Object.assign(best, { name, k: 'g:' + run.filter(x => !x.abbr).map(x => gkey(x.lem || x.tk.s)).join(' ') + '|' + best.k });
 }
+// ---- identification tables (772): an edition's index of names for one work – which person (or place) a name is at a passage
+async function identTables(wid, bi) {
+  const out = [];
+  for (const d of Object.values(S.installed || {})) {
+    if (d.kind !== 'ident' || S.dictPrefs?.off?.includes(d.id)) continue;
+    const r = await pplRec(d, '#id'); if (r?.work !== wid) continue;
+    const at = new Map(), dflt = new Map(), book = +((await libGet('works', wid))?.books?.[bi] || '').replace(/\D/g, '');
+    for (const [b, ref, j] of r.r) if (b === bi) { if (!at.has(ref)) at.set(ref, []); at.get(ref).push(j); }
+    r.e.forEach((e, j) => { if (e[6]?.includes(book)) for (const k of e[5]) { if (!dflt.has(k)) dflt.set(k, []); dflt.get(k).push(j); } });
+    out.push({ d, e: r.e, at, dflt, src: 'identified by ' + (r.src || d.name) });
+  }
+  return out.length ? out : null;
+}
+// a Latin form and the index's name: the same once the endings are off ("Galli" ~ "Gallus", not "Constantii" ~ "Constans")
+const LATEND = /(ibus|orum|arum|ius|ium|iis|ii|io|ia|ae|am|em|im|is|es|os|um|us|ui|a|e|i|o|u)$/;
+const latStem = k => { const s = k.replace(LATEND, ''); return s.length >= 3 ? s : k; };
+const stemFit = (a, b) => a === b || (!/[α-ω]/.test(a + b) && latStem(a) === latStem(b));
+function identAt(tabs, tk, ref) {
+  if (!ref) return null;
+  const ks = [...new Set([tk.lemma, tk.s].filter(Boolean).map(gkey))], ch = String(ref).split('.')[0];
+  for (const T of tabs) {
+    const js = [...new Set([...(T.at.get(ref) || []), ...(T.at.get(ch) || [])])].filter(j => T.e[j][5].some(k => ks.some(x => stemFit(x, k))));
+    const ps = js.filter(j => T.e[j][3] === 'p' || (T.e[j][3] === '?' && T.e[j][4])), ls = js.filter(j => T.e[j][3] === 'l');   // ('?': no description – used only when matched)
+    const tg = new Set(ps.map(j => T.e[j][4] || 'r' + j));
+    if (ps.length && tg.size === 1) { const j = ps[0]; return { target: T.e[j][4], ref: T.d.id + '|' + j, src: T.src }; }
+    if (!ps.length && ls.length) return { place: true };
+    if (ps.length) return null;                                   // two persons of the name at one place: the rules decide
+    const dj = [...new Set(ks.flatMap(k => [...T.dflt.keys()].filter(x => stemFit(k, x)).flatMap(x => T.dflt.get(x))))].filter(j => T.e[j][3] !== 'l' && T.e[j][4]);
+    if (dj.length === 1) return { target: T.e[dj[0]][4], ref: T.d.id + '|' + dj[0], src: T.src, dflt: true };
+  }
+  return null;
+}
 async function personsForText() {
   const t = S.text, run = personsForText.run = (personsForText.run || 0) + 1;
   S.prs = new Map();
-  const pk = pplPkgs();
-  if (!t || !pk.length) { markPersons(); return; }
+  const pk = pplPkgs(), idt = t?.work ? await identTables(t.work.id, t.bi) : null;
+  if (!t || (!pk.length && !idt)) { markPersons(); return; }
   const fix = (await setting('prs|' + workKeyOfText(t))) || { k: {}, t: {} };
   const cited = new Set(), here = new Map();               // persons cited in this work; reference -> persons cited there
   if (t.work) for (const d of pk) {
@@ -145,27 +177,30 @@ async function personsForText() {
     if (lat && capF && PRAEN.has(latkey(tk.s)) && nx?.t === 'p' && /^\./.test(nx.s)) { items.push({ tk, abbr: true, lat, st }); continue; }   // 744
     const lowOk = lem && !capL && capF && !st;                // 748: a capital mid-sentence beats a lemma in small letters (Ἠώς, Θρασύβουλος)
     if (lem ? !(capL || lowOk) : !capF) { items.push(null); continue; }
-    if (capL && isAdjWord(tk, lem, n)) { items.push(null); continue; }   // 743a: "Ἀθηναῖος", "Ὀλύμπιος" – the morphology calls it an adjective
+    const idh = idt ? identAt(idt, tk, R[rj]?.s) : null;        // 771: an edition's index of names says who (or what) is meant here
+    if (idh?.place) { items.push(null); continue; }
+    if (!idh && capL && isAdjWord(tk, lem, n)) { items.push(null); continue; }   // 743a: "Ἀθηναῖος", "Ὀλύμπιος" – the morphology calls it an adjective
     const num = numberOf(tk);
     let k = gkey(lowOk ? tk.s : lem || tk.s), cands = [];
     if (num === 'p') {                                         // 746: plural – only groups and families (the Dioscuri, the Muses, the Gracchi)
       for (const pk of new Set([gkey(tk.s), ...pluralKeys(lem || tk.s)])) { const c = await look(pk); if (c.length) { k = pk; cands = c; break; } }
       if (!cands.length) cands = await familiesOf(await look(k));
-      if (!cands.length) { items.push(null); continue; }
+      if (!cands.length && !idh) { items.push(null); continue; }
     } else {
       cands = await look(k);
       if (!cands.length && lowOk) { const c = await look(gkey(lem)); if (c.length) { k = gkey(lem); cands = c; } }   // ("Θρασυβούλου": the lemma θρασύβουλος)
       for (const v of cands.length ? [] : dialectKeys(k)) { const c = await look(v); if (c.length) { k = v; cands = c; break; } }   // 747: Τήρας ~ Τήρης
       if (!cands.length && lem && gkey(tk.s) !== k && isNom(tk)) { const c = await look(gkey(tk.s)); if (c.length) { k = gkey(tk.s); cands = c; } }   // 747: the form, only a nominative
     }
-    items.push({ tk, k, cands, st, lem, lat, title: TITLES.has(k) });
+    items.push({ tk, k, cands, st, lem, lat, title: TITLES.has(k), idh });
     if (run !== personsForText.run) return;
   }
   // pass 2: Latin names of several words read together (745); the rest word by word
-  const decide = (cands, ti, k, st, lem, why0) => {
+  const decide = (cands, ti, k, st, lem, why0, idh) => {
     const ft = fix.t?.[t.bi + ':' + ti] ?? fix.t?.[ti], fk = fix.k?.[k];
     if (ft === 0 || (ft == null && fk === 0)) return null;     // "not a person"
     if (ft || fk) return { pick: ft || fk, sure: true, why: 'chosen by you' };
+    if (idh) return { pick: idh.target || idh.ref, sure: !idh.dflt, why: (idh.dflt ? 'probably – ' : '') + idh.src + (idh.dflt ? ' (the usual person of this name in these books)' : '') + (idh.target ? '' : ' – in no encyclopaedia installed') };
     const nh = near.get(rjOf.get(ti)), c1 = nh ? cands.filter(c => nh.has(c)) : [], cw = cands.filter(c => cited.has(c));
     if (c1.length === 1) return { pick: c1[0], sure: true, why: 'cited by the source at this place' };
     if (!lem && st) return null;                                // no lemma, at the start of a sentence: "Mene …" is no name
@@ -183,13 +218,14 @@ async function personsForText() {
     let seq = items.slice(j, e); j = e;
     while (seq.length > 1 && seq[seq.length - 1].abbr) seq = seq.slice(0, -1);   // "Constantio A.": no name follows
     if (seq.length === 1) {
-      const x = seq[0]; if (x.abbr || x.title || !x.cands?.length) continue;   // 744: "Augustus", "Caesar" alone – left for the table of reigns
-      const d = decide(x.cands, x.tk.i, x.k, x.st, x.lem); if (d) put(Object.assign({ k: x.k, cands: x.cands }, d), seq);
+      const x = seq[0]; if (x.abbr || (x.title && !x.idh) || (!x.cands?.length && !x.idh)) continue;   // 744: "Augustus", "Caesar" alone – left for the table of reigns
+      const d = decide(x.cands, x.tk.i, x.k, x.st, x.lem, null, x.idh); if (d) put(Object.assign({ k: x.k, cands: x.cands }, d), seq);
       continue;
     }
-    const g = await groupHit(seq);
+    const gi = seq.find(x => x.idh && !x.title)?.idh || seq.find(x => x.idh)?.idh;
+    const g = await groupHit(seq) || (gi ? { k: seq.find(x => x.idh).k, cands: [], name: seq.map(x => x.tk.s + (x.abbr ? '.' : '')).join(' ') } : null);
     if (!g) continue;
-    const d = decide(g.cands, seq[0].tk.i, g.k, seq[0].st && !seq[0].abbr, seq.some(x => x.lem), g.full ? 'the whole name fits' : null);
+    const d = decide(g.cands, seq[0].tk.i, g.k, seq[0].st && !seq[0].abbr, seq.some(x => x.lem), g.full ? 'the whole name fits' : null, gi);
     if (d) put(Object.assign({ k: g.k, cands: g.cands, name: g.name }, d), seq);
   }
   if (run !== personsForText.run) return;
@@ -260,7 +296,7 @@ function pplRowsInto(list, rows, n, from = 0) {                // all the result
   if (from + 300 < rows.length) requestAnimationFrame(() => pplRowsInto(list, rows, n, from + 300));
 }
 const kindChips = (r, edit) => `<span class="ppkinds">${r.kinds.map(k => `<span class="ppk">${esc(k)}</span>`).join('')}${edit ? `<button type="button" class="ppkedit" data-ppkinds="${esc(r.ref)}" title="Change the kinds">${r.kinds.length ? 'edit' : '+ kind'}</button>` : ''}</span>`;
-const srcTag = d => d.id === 'people-smith' ? '' : ` <small class="ppsrc">${esc({ 'people-pir': 'PIR', 'people-dprr': 'DPRR', 'enc-smith-geo': 'Geography', 'enc-smith-ant': 'Antiquities', 'enc-stephanus': 'Stephanus' }[d.id] || d.name)}</small>`;
+const srcTag = d => d.id === 'people-smith' ? '' : ` <small class="ppsrc">${esc({ 'people-pir': 'PIR', 'people-dprr': 'DPRR', 'enc-smith-geo': 'Geography', 'enc-smith-ant': 'Antiquities', 'enc-stephanus': 'Stephanus' }[d.id] || (d.kind === 'ident' ? 'index' : d.name))}</small>`;
 const rowHTML = (r, extra = '') => `<button type="button" class="pprow" data-ppref="${esc(r.ref)}"><span class="ppn"><b>${esc(r.name)}</b>${srcTag(r.d)}${r.no ? ` <small>${r.no}</small>` : ''}${r.y0 != null && !r.kinds.some(k => MYTHK.has(k)) ? ` <small class="ppy">${yearsTxt(r.y0, r.y1)}</small>` : ''}</span><span class="ppd">${esc(r.desc || '')}</span>${r.kinds.length ? kindChips(r) : ''}${extra}</button>`;
 async function pplTextHTML() {
   const t = S.text; if (!t) return '<p class="hint">Open a text: the persons named in it are listed here.</p>';
@@ -319,6 +355,14 @@ async function pplSearchHTML(q, all = false) {
 }
 async function pplPersonHTML(ref, ti) {
   const { d, i } = pplParse(ref); if (!d) return '<p class="hint">This person’s package is not installed.</p>';
+  if (d.kind === 'ident') {                                        // (770) a person known only from an edition's index of names
+    const rw = await pplRow(d, i), h1 = ti != null ? S.prs?.get(ti) : null;
+    let h = `<div class="pphead"><div class="ppname">${esc(rw?.name || '')}${rw?.no ? ` <small>${rw.no}</small>` : ''}</div><div class="ppmeta">${esc(rw?.desc || '')}</div>`
+      + `<div class="ppat">In none of the encyclopaedias installed – identified in the text by ${esc(d.name.replace(/^Identifications: /, ''))}.${h1 ? ` <button type="button" data-ppname="${esc(h1.k)}" data-ti="${ti}">Someone else?</button>` : ''}</div></div>`;
+    const others = []; for (const c of await personsFor(gkey((rw?.name || '').split(/[ (]/)[0]), true)) { const x = pplParse(c), rr = await pplRow(x.d, x.i); if (rr) others.push(rowHTML(rr)); }
+    if (others.length) h += `<details class="src"><summary>Others of the name in the encyclopaedias <small>${others.length}</small></summary><div class="list plain">${others.join('')}</div></details>`;
+    return h;
+  }
   const e = await pplEntry(d, i), r = await pplRow(d, i); if (!e || !r) return '<p class="hint">Not found.</p>';
   const h0 = ti != null ? S.prs?.get(ti) : null;
   const att = await attachedTo(d, i);

@@ -379,19 +379,20 @@ async function dictsDialog() {
     if (d.kind === 'morph') return toolRow('grc', d);
     if (d.kind === 'latmorph') return toolRow('la', d);
     if (d.kind === 'morphhints') return hintsRow();
-    if (d.kind === 'people' || d.kind === 'encyclopedia') return pplInstRow(d);
+    if (['people', 'encyclopedia', 'ident'].includes(d.kind)) return pplInstRow(d);
     return ''; };
   // People: encyclopaedias and prosopographies (the People tab, the marks on names)
   const pplInstRow = d => pkRow({ id: d.id, sw: SW(`data-dict-on="${d.id}" aria-label="Use ${esc(d.name)}"`, !S.dictPrefs.off.includes(d.id)), name: esc(d.name),
-    desc: `${esc(d.title || '')}${d.count ? ' · ' + d.count.toLocaleString('en') + (d.kind === 'people' ? ' persons' : ' entries') : ''}${d.size ? ' · ' + mbs(d.size) : ''}`, right: getBtn(d.id), del: delD(d.id) });
-  const pplInst = Object.values(S.installed).filter(d => d.kind === 'people' || d.kind === 'encyclopedia').sort((a, b) => (a.order ?? 99) - (b.order ?? 99)),
-    pplAv = Object.values(remote).filter(p => !S.installed[p.id] && (p.kind === 'people' || p.kind === 'encyclopedia'))
+    desc: `${esc(d.title || '')}${d.count ? ' · ' + d.count.toLocaleString('en') + (d.kind === 'people' ? ' persons' : d.kind === 'ident' ? ' names identified' : ' entries') : ''}${d.size ? ' · ' + mbs(d.size) : ''}`, right: getBtn(d.id), del: delD(d.id) });
+  const PPLK = ['people', 'encyclopedia', 'ident'];
+  const pplInst = Object.values(S.installed).filter(d => PPLK.includes(d.kind)).sort((a, b) => (a.order ?? 99) - (b.order ?? 99)),
+    pplAv = Object.values(remote).filter(p => !S.installed[p.id] && PPLK.includes(p.kind))
     .map(p => pkRow({ grip: '<span class="trsp"></span>', name: esc(p.name), desc: `${esc(p.title || '')}${p.title ? ' · ' : ''}${mbs(p.bytes)} download${p.priv ? ' · private repository' : ''}`, right: getBtn(p.id), cls: 'avail' })).join('');
   const pplBody = `<div class="list plain">${pplInst.map(pplInstRow).join('')}${pplAv}${pplInst.length || pplAv ? '' : '<p class="hint small">None available.</p>'}</div>`
     + '<p class="hint small">Persons, places and things of the texts, shown in the Suda tab beside the dictionary, with the Suda itself (a dictionary – under Dictionaries → Greek). Names of persons get a line beneath them in the text (switch: Settings → Reading → Colourisation).</p>';
   const addons = { grc: S.hintsInst ? pkRow({ id: S.hintsInst.id, sw: SW(`data-dict-on="${S.hintsInst.id}"`, !S.dictPrefs.off.includes(S.hintsInst.id)), name: esc(S.hintsInst.name), desc: 'preferred lemma for ambiguous forms; word classes for the colours', right: getBtn(S.hintsInst.id), del: delD(S.hintsInst.id) }) : '', la: '' };
   const usedName = lang => langTools(lang).find(x => !S.dictPrefs.off.includes(x.id))?.name || 'none';
-  const isTool = Object.assign(p => !['dictionary', 'people', 'encyclopedia'].includes(p.kind), { spacer: '<span class="trsp"></span>' });
+  const isTool = Object.assign(p => !['dictionary', 'people', 'encyclopedia', 'ident'].includes(p.kind), { spacer: '<span class="trsp"></span>' });
   const toolBody = Object.entries(LANGS).map(([lang, name]) => { const av = avail(lang, isTool);
       return `<div class="navh2">${name}</div><div class="list plain">${tLang[lang].join('')}${tLang[lang].length ? none(lang) : ''}${av}${tLang[lang].length || av ? '' : '<p class="hint small">None available.</p>'}</div>`
         + (addons[lang] ? `<div class="navh3">Add-ons</div><div class="list plain">${addons[lang]}</div>` : ''); }).join('')
