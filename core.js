@@ -33,6 +33,23 @@ function gkey(s) {                // accent-insensitive key
   if (!isGreek(s)) return latkey(s).replace(/[^a-z]/g, '');
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/ς/g, 'σ').replace(/[^Ͱ-Ͽ]/g, '');
 }
+// one name in its Latin and its Greek-style spelling: "Pisistratus" ~ "Peisistratus", "Thucydides" ~ "Thoukydides",
+// "Aeschylus" ~ "Aischylos" (both the typed name and the keys are brought to this loose form)
+function looseKey(k) {
+  if (!/[a-z]/.test(k)) return k;
+  return k.replace(/ph/g, 'f').replace(/ei/g, 'i').replace(/ai|ae/g, 'e').replace(/oi|oe/g, 'e').replace(/ou/g, 'u')
+    .replace(/k/g, 'c').replace(/y/g, 'i').replace(/os$/, 'us').replace(/on$/, 'o');
+}
+// the keys of a names index beginning with k: [key, exact], first as typed, then in the loose spelling (marked loose)
+function nameKeys(ix, k) {
+  const out = [], seen = new Set();
+  for (const key of Object.keys(ix.n)) if (key.startsWith(k)) { out.push([key, key === k, false]); seen.add(key); }
+  if (/[a-z]/.test(k)) {
+    const lk = looseKey(k), L = ix._loose || (ix._loose = Object.keys(ix.n).map(key => [looseKey(key), key]));
+    for (const [l, key] of L) if (!seen.has(key) && l.startsWith(lk)) out.push([key, l === lk, true]);
+  }
+  return out;
+}
 function stripSecondAccent(f) {  // enclitic accent: αἴτιός -> αἴτιος, μεῖζόν -> μεῖζον
   const d = f.normalize('NFD'); const idx = [];
   for (let i = 0; i < d.length; i++) if (d[i] === '́' || d[i] === '͂') idx.push(i);

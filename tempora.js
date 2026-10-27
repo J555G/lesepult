@@ -1083,7 +1083,7 @@ async function tmpFilterSug() {
 async function tmpPersonHits(q) {                         // as the Suda tab's search: names beginning so
   const k = gkey(q), out = []; if (k.length < 2) return out;
   for (const d of pplPkgs(false)) { const ix = await pplIx(d); if (!ix) continue;
-    for (const key of Object.keys(ix.n)) if (key.startsWith(k)) for (const i of ix.n[key]) out.push({ d, ix, i, key, exact: key === k }); }
+    for (const [key, exact] of nameKeys(ix, k)) for (const i of ix.n[key]) out.push({ d, ix, i, key, exact }); }
   out.sort(pplRank(k));                                     // (as the Suda tab: “Caesar, C. Julius” before “Imp. Caesar …”, the longest articles first)
   const rows = [], seen = new Set();
   for (const x of await pplProminent(out, k)) { const ref = pref(x.d, x.i); if (seen.has(ref)) continue; seen.add(ref); const r = await pplRow(x.d, x.i); if (r) rows.push(r); if (rows.length >= 12) break; }
