@@ -898,12 +898,32 @@ async function backupData() {
     prefs: { theme: document.documentElement.dataset.theme, textZoom: S.tz || 1, posCfg: S.posCfg, posOn: S.posOn, gramCfg: S.gramCfg, showGloss: !document.body.classList.contains('nogloss'),
       glossMode: S.glossMode, latQuant: S.latQuant, sudaMerge: S.sudaMerge, gramBtn: S.gramBtn, showGram: S.gram, dictPrefs: S.dictPrefs } };
 }
+// 924a: the reader's corrections and choices about the data (persons, kinds, identifications), as decisions for the toolkit –
+// layer 3 of the data: kept apart, never overwritten, always preferred (docs/DATA_PRINCIPLES.md). One file, merged there.
+async function decisionsData() {
+  const at = new Date().toISOString(), out = [];
+  const h = s => { let x = 5381; for (const c of s) x = ((x << 5) + x + c.codePointAt(0)) >>> 0; return x.toString(36); };   // the same choice → the same id
+  const add = (key, op, target, data, note) => out.push({ id: `D-${key}-${h(JSON.stringify(data))}`, op, target, data, by: 'user', at, note });
+  for (const r of await getAll('settings')) {
+    const [kind, ...rest] = r.k.split('|'), key = rest.join('|');
+    if (kind === 'pk') add(r.k, 'override', 'kinds:' + key, { kinds: r.v }, 'kinds of the person changed in Pult');
+    else if (kind === 'prs' && r.v) {
+      for (const [k, v] of Object.entries(r.v.k || {})) add(`${r.k}|k|${k}`, 'same', `name:${key}:${k}`, { person: v, scope: 'work' }, v === 0 ? 'not a person in this work' : 'who is meant in this work');
+      for (const [tk, v] of Object.entries(r.v.t || {})) add(`${r.k}|t|${tk}`, 'same', `place:${key}:${tk}`, { person: v, scope: 'place' }, v === 0 ? 'not a person here' : 'who is meant here');
+    } else if (kind === 'idm') add(r.k, 'same', 'ident:' + key, { person: r.v }, r.v === 0 ? 'kept as a person of the index only' : 'matched to an encyclopaedia person');
+    else if (kind === 'dec' && r.v?.op) out.push(r.v);                       // later corrections made directly as decisions
+  }
+  return { format: 'pult-decisions-1', exported: at, decisions: out };
+}
 // ☰ → This Pult: what the reader has stored on this device, and backups
 async function pultDialog() {
   // the backup file is prepared first, so that the download link is tapped directly by the user (needed on iPad)
   const data = await backupData();
   const href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
   const name = 'pult-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+  const decs = await decisionsData();
+  const dhref = URL.createObjectURL(new Blob([JSON.stringify(decs, null, 1)], { type: 'application/json' }));
+  const dname = 'pult-decisions-' + new Date().toISOString().slice(0, 10) + '.json';
   const works = await libWorks(), wsize = works.reduce((a, w) => a + (w.size || 0), 0);
   await loadDicts(); const dicts = Object.values(S.installed || {}), dsize = dicts.reduce((a, d) => a + (d.size || 0), 0);
   const glossTexts = new Set(data.glosses.map(g => g.textId)).size;
@@ -921,14 +941,15 @@ async function pultDialog() {
     ['Highlights in dictionaries', n(Object.keys(data.highlights).length)],
     ['Markers', n(Object.keys(data.markers).length)],
     ['Favourites', n(Object.keys(data.favourites).length)],
+    ['Your corrections to the data (persons, kinds)', n(decs.decisions.length)],
     ['Instruments (dictionaries, analysis, maps)', `${n(dicts.length)}${dsize ? ` · ≈ ${mb(dsize)}` : ''}`],
     ['Storage', [use, prot].filter(Boolean).join(' · ') || '–'],
     ['Crash reports', String((crGet?.(CR_REPS) || []).length), 'crash']];
   const r = await dialog(`${dlgHead('This Pult')}
-    <p class="hint small">Everything is stored only on this device. ${info('A backup contains your imported texts, glosses, default glosses, chosen readings, lemma choices, highlights, markers, favourites, colours and display settings. Library texts and dictionaries are not included – they can be downloaded again.')}</p>
+    <p class="hint small">Everything is stored only on this device. ${info('A backup contains your imported texts, glosses, default glosses, chosen readings, lemma choices, highlights, markers, favourites, colours and display settings. Library texts and dictionaries are not included – they can be downloaded again. “Export corrections” saves only your corrections to the data (who is meant by a name, the kinds of persons) as one file for the toolkit, where they are kept apart and always take precedence.')}</p>
     <div class="list plain pultlist">${rows.map(([k, v, go]) => go ? `<button type="button" class="item pgo" data-v="${go}"><span class="t">${k}</span><span class="pv">${v}</span><i aria-hidden="true">›</i></button>` : `<div class="item"><span class="t">${k}</span><span class="pv">${v}</span></div>`).join('')}</div>`,
-    [['link', 'Export backup', { href, name }], ['file', 'Import backup …', 'fileBackup']]);
-  setTimeout(() => URL.revokeObjectURL(href), 60000);
+    [['link', 'Export backup', { href, name }], ['file', 'Import backup …', 'fileBackup'], ...(decs.decisions.length ? [['link', 'Export corrections', { href: dhref, name: dname }]] : [])]);
+  setTimeout(() => { URL.revokeObjectURL(href); URL.revokeObjectURL(dhref); }, 60000);
   if (r.action === 'annot') return annotDialog();
   if (r.action === 'crash') return crashDialog();
 }
