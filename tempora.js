@@ -29,7 +29,7 @@ async function tmpCfg() {
   if (TP.cfg.rv !== 2) {                                   // (994: once – the sky on top, the Julian years at the bottom)
     const o = (TP.cfg.rorder || RORDER0).filter(id => !['emp', 'jul', 'sky', 'sky2', '|'].includes(id));
     TP.cfg.rorder = ['sky', 'sky2', ...o, '|', 'jul']; TP.cfg.rv = 2; delete TP.cfg.written; }
-  if (c.view) Object.assign(TP, { x0: c.view.x0, ppy: c.view.ppy, lh: Math.max(16, c.view.lh || 30) });
+  if (c.view) Object.assign(TP, { x0: c.view.x0, ppy: c.view.ppy, lh: Math.max(12, c.view.lh || 30) });
   return TP.cfg;
 }
 let tmpSaveT = 0;
@@ -1008,10 +1008,12 @@ function drawItem(g, C, it, x0, x1, y, h, font, lim = Infinity, W = 1e9) {
   if (it.blood && !it.fb) { g.fillStyle = '#b3261e'; g.globalAlpha = fa * 0.85; g.fillRect(Math.max(x0, x1 - 5), y, Math.min(5, x1 - x0), h); g.globalAlpha = fa; }   // (920a: a violent end – the bar ends in red)
   // the label, once: at the bar's start – or, while the bar runs on past the screen's left edge, held at that edge, and pushed
   // off with the bar's end; past a short bar it may run on up to the next item in its row (807a)
-  const fs = Math.max(9.5, Math.min(11, h - 2)); g.font = font(fs);   // (rows pinched small: smaller type)
+  const fs = Math.max(9, Math.min(11, h - 2)); g.font = font(fs);   // (rows pinched small: smaller type)
   const end = Math.min(Math.max(x1 - 3, lim), W + 2000), [txt, tw] = it.ref ? fitName(g, it.lab, Math.min(end, W) - Math.max(x0, 0) - 6) : [it.lab, g.measureText(it.lab).width];
   g.fillStyle = C.fg;
-  for (const cp of nameCopies(it, it.t0, it.t1, x0, x1, tw, end, W, 4)) { g.globalAlpha = fa * cp.a; g.fillText(txt, cp.x, y + h / 2 + fs * 0.36); }
+  const cps = nameCopies(it, it.t0, it.t1, x0, x1, tw, end, W, 4);
+  for (const cp of cps) { g.globalAlpha = fa * cp.a; g.fillText(txt, cp.x, y + h / 2 + fs * 0.36); }
+  if (!cps.length && x0 + 4 >= 0) { const cut = cutName(g, txt, Math.min(end, W) - x0 - 6); if (cut) { g.globalAlpha = fa; g.fillText(cut, x0 + 4, y + h / 2 + fs * 0.36); } }
   g.globalAlpha = 1;
 }
 // 998a: a life bar in three degrees. Far: a plain bar – the origin's colour at its start, imperial purple from the accession, a red end.
@@ -1069,7 +1071,9 @@ function drawLife(g, C, it, x0, x1, y, h, font, lim, W, dense) {
   const [nm, tw] = fitName(g, it.lab, Math.min(end, W) - Math.max(x0, 0) - 8);       // (the longest form of the name that fits)
   const cps = nameCopies(it, it.t0, it.t1, x0, x1, tw, end, W, 5), p = cps[0]?.x ?? -1e9;
   if (!it.yrs) lifeAges(g, C, it, x0, x1, y, h, font, W, cps.map(c => [c.x - 3, c.x + tw + 3]));
-  g.font = font(fs); g.fillStyle = C.fg; for (const cp of cps) { g.globalAlpha = fa * cp.a; g.fillText(nm, cp.x, y + h / 2 + fs * 0.36); } g.globalAlpha = fa;
+  g.font = font(fs); g.fillStyle = C.fg; for (const cp of cps) { g.globalAlpha = fa * cp.a; g.fillText(nm, cp.x, y + h / 2 + fs * 0.36); }
+  if (!cps.length && x0 + 5 >= 0) { const cut = cutName(g, nm, Math.min(end, W) - x0 - 7); if (cut) { g.globalAlpha = fa; g.fillText(cut, x0 + 5, y + h / 2 + fs * 0.36); } }
+  g.globalAlpha = fa;
   if (deg < 2 || it.yrs || !it.P) { g.globalAlpha = 1; return; }
   const L = it.sts || TS_ST.get(it.P); if (!L) { tsWant(it.P); g.globalAlpha = 1; return; }
   const ms = []; for (const c of L) { if (!TS_SYM[c.p] || c.st === 'rejects') continue; const tm = tsTime(c); if (!tm) continue; const x = X((tm[0] + tm[1]) / 2); if (x < Math.max(x0, 0) || x > Math.min(x1, W) || (x > p - 4 && x < p + tw + 6)) continue; ms.push({ x, c }); }   // (not over the name)
@@ -1090,6 +1094,8 @@ const NAMEF = new Map();
 function nameForms(lab) {
   let f = NAMEF.get(lab); if (f) return f; const full = tcase(String(lab || '')), first = full.split(/\s+or\s+/)[0], bare = first.split(/,\s*/)[0];
   f = [...new Set([full, first, bare])]; NAMEF.set(lab, f); return f; }
+// a bar too short for even the shortest form of its name: as much of it as fits ("Mag" for Magnentius), at the bar's start
+function cutName(g, txt, room) { if (g.measureText(txt.slice(0, 2)).width > room) return ''; let n = txt.length; while (n > 2 && g.measureText(txt.slice(0, n)).width > room) n--; return txt.slice(0, n); }
 function fitName(g, lab, room) { const fs = nameForms(lab); for (const n of fs) { const w = g.measureText(n).width; if (w <= room) return [n, w]; } const n = fs[fs.length - 1]; return [n, g.measureText(n).width]; }
 // 1017b–1019a: a name is never pinned to the screen. It stands at points fixed on its bar – the start, then every so many years
 // (at most two thirds of a screen apart, so one always fits) – and moves with the bar; of the copies that fit whole on the screen only the one nearest
@@ -1185,8 +1191,8 @@ function selPt() { const it = TP.sel?.it; if (!it) return null; const h = TP.hit
   return { x: (x0 + x1) / 2, y: (h.y0 + h.y1) / 2 }; }
 function tmpZoomX(f, px) { const sp = selPt(); if (sp) { px = sp.x; TP.focusY = sp.y; clearTimeout(TP.fyT); TP.fyT = setTimeout(() => { TP.focusY = null; }, 400); }
   const a = TP.x0 + px / TP.ppy; TP.ppy = Math.min(400000, Math.max(0.005, TP.ppy * f)); TP.x0 = a - px / TP.ppy; tmpSave(); tmpRedraw(); }
-const BH = lh => Math.max(13, lh - 8);                   // (a bar is never lower than the height of its name; rows are never closer than that)
-function tmpZoomY(f) { const sp = selPt(); if (sp) { TP.focusY = sp.y; clearTimeout(TP.fyT); TP.fyT = setTimeout(() => { TP.focusY = null; }, 400); } TP.lh = Math.min(90, Math.max(16, TP.lh * f)); tmpSave(); tmpRedraw(); }
+const BH = lh => Math.max(11, Math.min(lh - 1, Math.max(13, lh - 8)));   // (1026a: rows down to 12 px, bars down to 11 px – still the height of their name in 9 px type)
+function tmpZoomY(f) { const sp = selPt(); if (sp) { TP.focusY = sp.y; clearTimeout(TP.fyT); TP.fyT = setTimeout(() => { TP.focusY = null; }, 400); } TP.lh = Math.min(90, Math.max(12, TP.lh * f)); tmpSave(); tmpRedraw(); }
 function tmpClampY() { const cv = $('#tmpCanvas'); const max = Math.max(0, (TP.contentH || 0) - 40, TP.over || 0);   // (the lowest lane can be pulled up to the top)
   TP.sy = Math.min(max, Math.max(-(TP.under || 0), TP.sy)); TP.over = Math.min(TP.over || 0, TP.sy); TP.under = Math.max(0, Math.min(TP.under || 0, -TP.sy)); }   // (TP.under: room left above the first lane by an anchoring – it closes as you scroll)   // (TP.over: how far the header has grown over the lanes)
 function tmpWire(cv) {
@@ -1204,7 +1210,7 @@ function tmpWire(cv) {
         if (mx_ + my_ < 12) return; pinch.ax = mx_ >= my_ ? 'x' : 'y'; Object.assign(pinch, { dx, dy, ppy: TP.ppy, lh: TP.lh }); }
       const ratio = (d, d0) => d0 >= 80 ? d / d0 : (d + 60) / (d0 + 60);   // (fingers set down close together in that direction: a gentler, steady scale)
       if (pinch.ax === 'x') TP.ppy = Math.min(400000, Math.max(0.005, pinch.ppy * ratio(dx, pinch.dx)));
-      if (pinch.ax === 'y') TP.lh = Math.min(90, Math.max(16, pinch.lh * ratio(dy, pinch.dy)));
+      if (pinch.ax === 'y') TP.lh = Math.min(90, Math.max(12, pinch.lh * ratio(dy, pinch.dy)));
       if (pinch.sp) { TP.x0 = a - pinch.sp.x / TP.ppy; TP.focusY = pinch.sp.y; } else { TP.x0 = a - mx / TP.ppy; TP.focusY = (p.y + q.y) / 2; } moved = true; tmpSave(); tmpRedraw(); return; }
     if (!down) return; const dx = e.offsetX - down.x, dy = e.offsetY - down.y;
     if (Math.abs(dx) + Math.abs(dy) > 6) moved = true;
