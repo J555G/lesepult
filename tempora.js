@@ -564,7 +564,7 @@ function tsOverview(L, name) {                                    // composed by
   if (di || pd || dm) out.push(`Died ${di ? f(di, when(di)) : ''}${pd ? ' at ' + f(pd, tsVal(pd.v)) : ''}${dm ? ' – ' + f(dm, tsVal(dm.v)) : ''}${kb ? ', killed by ' + f(kb, tsVal(kb.v)) : ''}.`);
   const rg = all('reign'); if (rg.length) out.push(rg.slice(0, 3).map(c => f(c, tsVal(c.v) + ' ' + when(c))).join('; ') + '.');
   const of = all('office'); if (of.length) out.push('Offices: ' + of.slice(0, 8).map(c => f(c, tsVal(c.v) + (when(c) ? ' ' + when(c) : ''))).join(', ') + (of.length > 8 ? ` and ${of.length - 8} more` : '') + '.');
-  const kin = ['child', 'spouse', 'parent', 'sibling']                       // ("child" = this person is the child of v: v is a parent).map(p => [p, all(p)]).filter(x => x[1].length);
+  const kin = ['child', 'spouse', 'parent', 'sibling'].map(p => [p, all(p)]).filter(x => x[1].length);   // ("child" = this person is the child of v: v is a parent)
   if (kin.length) out.push(kin.map(([p, cs]) => ({ parent: 'Children', spouse: 'Married', child: 'Parents', sibling: 'Siblings' })[p] + ': ' + cs.slice(0, 5).map(c => f(c, tsVal(c.v))).join(', ')).join('. ') + '.');
   const wr = all('wrote'); if (wr.length) out.push('Wrote: ' + wr.slice(0, 6).map(c => f(c, tsVal(c.v))).join('; ') + (wr.length > 6 ? ` and ${wr.length - 6} more` : '') + '.');
   const ch = first('character'); if (ch) out.push('Character: ' + f(ch, tsVal(ch.v)) + '.');
@@ -776,6 +776,9 @@ async function tmpData() {
     }
     for (const it of L.its) it.full = (L.id === 'own' || L.id === 'wr:lib' || it.wr ? '' : sh + ' · ') + it.lab;
   }
+  if (TP.sel?.it) {                                       // (the lanes are new objects: the selection moves to the same item in them)
+    const o = TP.sel.it, k = i => [i.k2, i.ref || '', i.lab, i.t0, i.t1, i.st?.i || ''].join('|'), ko = k(o);
+    for (const L of lanes) { const n = L.its.find(i => k(i) === ko); if (n) { n._lid = L.id; TP.sel = Object.assign({}, TP.sel, { it: n, L }); break; } } }
   TP.data = { F, lanes };
   return TP.data;
 }
@@ -995,6 +998,8 @@ function tmpDraw() {
     for (const c of centers) if (c.it.link && c.y > RH && c.y < H - RB) { g.beginPath(); g.moveTo(c.x, c.y); g.lineTo(c.x, cy); g.stroke(); }
     g.setLineDash([]); g.globalAlpha = 1; }
   if (TP.cur != null) { const x = X(TP.cur); g.strokeStyle = C.acc; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, RH); g.moveTo(x, H - RB); g.lineTo(x, H); g.stroke(); }
+  if (TP.focusY != null && TP.sel?.it) {                  // (zooming with something selected: it is held exactly at its place – also in the persons' thin rows)
+    const h = TP.hit.find(h => h.it === TP.sel.it); if (h) { const d = (h.y0 + h.y1) / 2 - TP.focusY; if (Math.abs(d) > 0.5) { TP.sy += d; tmpClampY(); TP.prevLay = null; TP.moving = true; } } }
   if (TP.moving) tmpRedraw();                              // (until every height has reached its value)
 }
 function drawItem(g, C, it, x0, x1, y, h, font, lim = Infinity, W = 1e9) {
@@ -1140,9 +1145,14 @@ async function showTempora() {
 const inRef = py => py < (TP.RH || 0) || py > (TP.H || 1e9) - (TP.RB || 0);
 function tmpAt(px, py) { const r = inRef(py), dense = h => h.it && (h.it.pop || h.it.yrs);       // (the persons' thin rows: exactly, no margin)
   return TP.hit.slice().reverse().find(h => r === (h.emp != null || h.sky != null) && (dense(h) ? px >= h.x0 - 1 && px <= h.x1 + 1 && py >= h.y0 - 1 && py <= h.y1 + 1 : px >= h.x0 - 3 && px <= h.x1 + 3 && py >= h.y0 - 2 && py <= h.y1 + 2)) || null; }
-function tmpZoomX(f, px) { const a = TP.x0 + px / TP.ppy; TP.ppy = Math.min(400000, Math.max(0.005, TP.ppy * f)); TP.x0 = a - px / TP.ppy; tmpSave(); tmpRedraw(); }
+// zooming while something is selected: it stays where it is on the screen, wherever the fingers or the cursor are
+function selPt() { const it = TP.sel?.it; if (!it) return null; const h = TP.hit.find(h => h.it === it); const cv = $('#tmpCanvas'); if (!h || !cv) return null;
+  const W = cv.clientWidth, x0 = Math.max(h.x0, 0), x1 = Math.min(h.x1, W); if (x1 < 0 || x0 > W || h.y1 < (TP.RH || 0) || h.y0 > cv.clientHeight - (TP.RB || 0)) return null;
+  return { x: (x0 + x1) / 2, y: (h.y0 + h.y1) / 2 }; }
+function tmpZoomX(f, px) { const sp = selPt(); if (sp) { px = sp.x; TP.focusY = sp.y; clearTimeout(TP.fyT); TP.fyT = setTimeout(() => { TP.focusY = null; }, 400); }
+  const a = TP.x0 + px / TP.ppy; TP.ppy = Math.min(400000, Math.max(0.005, TP.ppy * f)); TP.x0 = a - px / TP.ppy; tmpSave(); tmpRedraw(); }
 const BH = lh => Math.max(13, lh - 8);                   // (a bar is never lower than the height of its name; rows are never closer than that)
-function tmpZoomY(f) { TP.lh = Math.min(90, Math.max(16, TP.lh * f)); tmpSave(); tmpRedraw(); }
+function tmpZoomY(f) { const sp = selPt(); if (sp) { TP.focusY = sp.y; clearTimeout(TP.fyT); TP.fyT = setTimeout(() => { TP.focusY = null; }, 400); } TP.lh = Math.min(90, Math.max(16, TP.lh * f)); tmpSave(); tmpRedraw(); }
 function tmpClampY() { const cv = $('#tmpCanvas'); const max = Math.max(0, (TP.contentH || 0) - 40, TP.over || 0);   // (the lowest lane can be pulled up to the top)
   TP.sy = Math.min(max, Math.max(-(TP.under || 0), TP.sy)); TP.over = Math.min(TP.over || 0, TP.sy); TP.under = Math.max(0, Math.min(TP.under || 0, -TP.sy)); }   // (TP.under: room left above the first lane by an anchoring – it closes as you scroll)   // (TP.over: how far the header has grown over the lanes)
 function tmpWire(cv) {
@@ -1150,7 +1160,8 @@ function tmpWire(cv) {
   let down = null, pinch = null, moved = false, lastTap = 0;
   cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); TP.ptr.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
     if (TP.ptr.size === 1) { down = { x: e.offsetX, y: e.offsetY, x0: TP.x0, ly: e.offsetY }; moved = false; }
-    if (TP.ptr.size === 2) { const [p, q] = [...TP.ptr.values()]; TP.focusY = (p.y + q.y) / 2; pinch = { dx: Math.abs(p.x - q.x), dy: Math.abs(p.y - q.y), ppy: TP.ppy, lh: TP.lh, mx: (p.x + q.x) / 2, x0: TP.x0 }; down = null; } });
+    if (TP.ptr.size === 2) { const [p, q] = [...TP.ptr.values()], sp = selPt(); TP.focusY = sp ? sp.y : (p.y + q.y) / 2;   // (a selected item: held where it is)
+      pinch = { dx: Math.abs(p.x - q.x), dy: Math.abs(p.y - q.y), ppy: TP.ppy, lh: TP.lh, mx: sp ? sp.x : (p.x + q.x) / 2, x0: TP.x0, sp }; down = null; } });
   cv.addEventListener('pointermove', e => { if (!TP.ptr.has(e.pointerId)) return; TP.userMove = Date.now(); TP.ptr.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
     if (pinch && TP.ptr.size === 2) { const [p, q] = [...TP.ptr.values()], dx = Math.abs(p.x - q.x), dy = Math.abs(p.y - q.y), mx = (p.x + q.x) / 2;
       const a = pinch.x0 + pinch.mx / pinch.ppy;                 // two fingers: across = time, up and down = lane height
@@ -1158,18 +1169,18 @@ function tmpWire(cv) {
       pinch.ax ??= pinch.dx >= pinch.dy ? 'x' : 'y';
       if (pinch.ax === 'x' && pinch.dx > 20) TP.ppy = Math.min(400000, Math.max(0.005, pinch.ppy * dx / pinch.dx));
       if (pinch.ax === 'y' && pinch.dy > 20) TP.lh = Math.min(90, Math.max(16, pinch.lh * dy / pinch.dy));
-      TP.x0 = a - mx / TP.ppy; TP.focusY = (p.y + q.y) / 2; moved = true; tmpSave(); tmpRedraw(); return; }
+      if (pinch.sp) { TP.x0 = a - pinch.sp.x / TP.ppy; TP.focusY = pinch.sp.y; } else { TP.x0 = a - mx / TP.ppy; TP.focusY = (p.y + q.y) / 2; } moved = true; tmpSave(); tmpRedraw(); return; }
     if (!down) return; const dx = e.offsetX - down.x, dy = e.offsetY - down.y;
     if (Math.abs(dx) + Math.abs(dy) > 6) moved = true;
     if (moved) { TP.x0 = down.x0 - dx / TP.ppy; TP.sy += down.ly - e.offsetY; down.ly = e.offsetY; tmpClampY(); tmpSave(); tmpRedraw(); } });   // (vertically by steps: the anchoring may move it too)
   const up = e => { TP.ptr.delete(e.pointerId); if (TP.ptr.size < 2) { pinch = null; TP.focusY = null; }
     if (down && !moved && TP.ptr.size === 0) { const now = Date.now();
-      if (now - lastTap < 300) { TP.focusY = e.offsetY; tmpZoomX(2, e.offsetX); setTimeout(() => { TP.focusY = null; }, 400); lastTap = 0; } else { lastTap = now; tmpTap(e.offsetX, e.offsetY); } }
+      if (now - lastTap < 300) { TP.focusY = selPt()?.y ?? e.offsetY; tmpZoomX(2, e.offsetX); setTimeout(() => { TP.focusY = null; }, 400); lastTap = 0; } else { lastTap = now; tmpTap(e.offsetX, e.offsetY); } }
     if (TP.ptr.size === 0) down = null; };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
   let wt = 0;
   cv.addEventListener('wheel', e => { e.preventDefault(); TP.userMove = Date.now();
-    if (e.ctrlKey || e.metaKey || e.shiftKey) { TP.focusY = e.offsetY; clearTimeout(wt); wt = setTimeout(() => { TP.focusY = null; }, 400); }   // (the spot under the cursor stays put)
+    if (e.ctrlKey || e.metaKey || e.shiftKey) { TP.focusY = selPt()?.y ?? e.offsetY; clearTimeout(wt); wt = setTimeout(() => { TP.focusY = null; }, 400); }   // (the spot under the cursor stays put)
     if (e.ctrlKey || e.metaKey) tmpZoomX(Math.exp(-e.deltaY / 200), e.offsetX);
     else if (e.shiftKey) tmpZoomY(Math.exp(-e.deltaY / 300));
     else { TP.x0 += e.deltaX / TP.ppy; TP.sy += e.deltaY; tmpClampY(); tmpSave(); tmpRedraw(); } }, { passive: false });
@@ -1179,7 +1190,7 @@ function tmpTap(px, py) {
   if (px > W - 26 && TP.chevT && py >= TP.chevT[0] && py < TP.chevT[1]) { TP.cfg.rcoll = !TP.cfg.rcoll; tmpSave(); return tmpRedraw(); }
   if (px > W - 26 && TP.chevB && py >= TP.chevB[0] && py < TP.chevB[1]) { TP.cfg.rcollB = !TP.cfg.rcollB; tmpSave(); return tmpRedraw(); }
   const h = tmpAt(px, py);
-  if (h?.it && (h.it.life || h.it.yrs) && h.it.ref) {        // 999a: a life bar – the person's panel; from the persons' layer also his full lane (997a)
+  if (h?.it && (h.it.life || h.it.yrs || h.it.kind === 'life') && h.it.ref) {        // 999a: a life bar – the person's panel; from the persons' layer also his full lane (997a)
     TP.sel = h; TP.cur = null; $('#tmpCard').hidden = true; tmpSelWork(null); tsPanel(h.it.ref);
     if ((h.it.pop || h.it.yrs) && !(TP.cfg.persons || []).includes(h.it.ref)) { const an = tmpAnchorGet(); TP.cfg.persons.push(h.it.ref); tmpSave(); tmpData().then(() => tmpAnchorKeep(an)); return; }
     return tmpRedraw(); }
@@ -1288,8 +1299,8 @@ const itKinds = it => it._k ??= new Set([...(it.roles || it.par?.roles || []), .
 function fMatch(it, f) {
   const txt = () => it._t ??= tfold([it.full, it.lab, it.text, it.note, it.own?.note].filter(Boolean).join(' '));
   switch (f.t) {
-    case 'work': return it.go?.w === f.v || (it.go?.w || '').startsWith(f.v + '.') || it.own?.src?.w === f.v || (it.lw && f.v.startsWith(it.lw));
-    case 'book': return it.go?.w === f.v.w && it.go?.bi === f.v.bi;
+    case 'work': return it.go?.w === f.v || (it.go?.w || '').startsWith(f.v + '.') || it.own?.src?.w === f.v || (it.lw && f.v.startsWith(it.lw)) || fRelHit(it, f, f.v);
+    case 'book': return (it.go?.w === f.v.w && it.go?.bi === f.v.bi) || fRelHit(it, f, f.v.w);
     case 'person': return it.ref === f.v;                                         // (852a: only what is tied to him)
     case 'place': return it.place?.id === f.v || (f.keys || []).some(k => k.length > 2 && txt().includes(k));
     case 'word': return it.word === f.v || (f.keys || []).some(k => k.length > 2 && txt().includes(k));
@@ -1299,6 +1310,22 @@ function fMatch(it, f) {
     case 'pset': return !!it.P && ((TP.psetC ??= {})[f.v] ??= new Set(TS_IX?.sets?.[f.v]?.p || [])).has(it.P);
   }
   return true;
+}
+// a text in the filter brings with it all that has to do with it: the persons it speaks of (Smith's citations of it, the
+// statements read from it) – their bars, and of their statements those read from this text
+const FREL = new WeakMap();
+function fRelHit(it, f, w) {
+  if (it.st) return String(it.st.e?.[1] || '').startsWith(w) && (f.t !== 'book' || !f.bl || String(it.st.e?.[2] || '').split('.')[0] === f.bl);
+  if (!it.ref || !f.rel) return false; let set = FREL.get(f); if (!set) FREL.set(f, set = new Set(f.rel)); return set.has(it.ref);
+}
+async function fRelOf(f) {
+  const w = f.t === 'work' ? f.v : f.v.w, bi = f.t === 'book' ? f.v.bi : null, refs = new Set();
+  const wk = (await libGet('works', w).catch(() => null)) || S.catWork?.[w], bl = bi != null && wk?.books?.[bi] != null ? String(wk.books[bi]).replace(/^Book /, '') : null;
+  const sd = S.installed?.['people-smith'];
+  if (sd) { const r = await pplRec(sd, 'w:' + w).catch(() => null); for (const [b, , i] of r?.r || []) if (bi == null || b === bi) refs.add('people-smith|' + i); }
+  const ix = await tsIx(); if (ix?.wk) for (const [rec, books] of Object.entries(ix.wk)) { if (!rec.startsWith(w) && !w.startsWith(rec)) continue;
+    for (const [b, Ps] of Object.entries(books)) if (bi == null || b === bl || b === '#' + bi) for (const P of Ps) refs.add(tsRefOf(P)); }
+  f.rel = [...refs]; if (bl) f.bl = bl; FREL.delete(f); return f;
 }
 function fNorm(fl) {                                              // 1001a: every chip after the first has its word – or, and, not (older filters: by kind)
   fl.forEach((f, i) => { if (f.op == null) f.op = f.not ? 'not' : !i ? '' : FCAT[f.t] === FCAT[fl[i - 1].t] ? 'or' : 'and'; delete f.not; if (!i && f.op !== 'not') f.op = ''; if (i && !f.op) f.op = 'and'; });
@@ -1321,6 +1348,8 @@ const sideOpen = () => !!$('#tmpSide') && !$('#tmpSide').hidden;
 const filtOpen = () => !!document.querySelector('#dlg[open] .tmpfilt');
 function tmpChipsUpd() {                                    // the sieve's fill, the pill that steps through the matches, the chips in the filter
   TP.cfg.flt = fNorm((TP.cfg.flt || []).filter(f => FCAT[f.t]));
+  const old = TP.cfg.flt.filter(f => (f.t === 'work' || f.t === 'book') && !f.rel);   // (texts chosen before: their persons are looked up once)
+  if (old.length) Promise.all(old.map(fRelOf)).then(() => { tmpSave(); tmpChipsUpd(); tmpRedraw(); });
   tmpFilterApply();
   const b = $('#tmpFiltBtn'); if (b) { b.innerHTML = sieveIcon(sieveN(), 'tf'); b.classList.toggle('active', !!TP.fOn); }
   const fl = TP.cfg.flt, [m] = TP.fCount || [0], nav = $('#tmpNav');
@@ -1338,6 +1367,7 @@ async function tmpAddFilter(f) {
   const fl = TP.cfg.flt = TP.cfg.flt || [];
   if (fl.some(x => x.t === f.t && JSON.stringify(x.v) === JSON.stringify(f.v))) return;
   delete f.not; f.op = fl.length ? (FCAT[fl[fl.length - 1].t] === FCAT[f.t] ? 'or' : 'and') : '';
+  if (f.t === 'work' || f.t === 'book') await fRelOf(f);          // (what the text speaks of comes with it)
   fl.push(f); TP.mi = null;
   TP.cfg.recent = [f, ...(TP.cfg.recent || []).filter(x => !(x.t === f.t && JSON.stringify(x.v) === JSON.stringify(f.v)))].slice(0, 12);
   if (f.t === 'person' && !TP.cfg.persons.includes(f.v)) TP.cfg.persons.push(f.v);   // (a person: also his lane)

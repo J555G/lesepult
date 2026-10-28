@@ -142,8 +142,8 @@
    "title": "London 1849 · Perseus Digital Library edition",
    "source": "Perseus Digital Library (canonical-pdlrefwk), CC BY-SA 4.0; text of 1849 in the public domain",
    "license": "CC-BY-SA-4.0",
-   "bytes": 11611993,
-   "version": "5a5628e23cbb"
+   "bytes": 11611160,
+   "version": "5c46927e91ef"
   },
   {
    "id": "people-pir",
@@ -155,7 +155,7 @@
    "source": "pir.bbaw.de, retrieved 2026-10-25",
    "license": "CC-BY-4.0",
    "bytes": 962676,
-   "version": "cd0de4496ea5"
+   "version": "458b44e213f3"
   },
   {
    "id": "enc-smith-geo",
@@ -191,7 +191,7 @@
    "source": "archive.org/details/fasticonsularesi0000lieb (the printed text in the public domain)",
    "license": "public domain",
    "bytes": 32443,
-   "version": "062b236100a6"
+   "version": "f6b922bce2f2"
   },
   {
    "id": "chrono-texts",
@@ -214,8 +214,8 @@
    "title": "873 dated persons (178 read from the texts): every statement with its source and words",
    "source": "W. Smith, Dictionary of Greek and Roman Biography (1849); Ammianus Marcellinus (Perseus); read by helpers, checked by program",
    "license": "CC BY-SA 4.0",
-   "bytes": 607385,
-   "version": "25594ce2f5a0"
+   "bytes": 608200,
+   "version": "7a106fad96a3"
   }
  ]
 }
