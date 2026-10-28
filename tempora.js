@@ -415,6 +415,7 @@ const WRITTEN = [
   ['tlg0004.tlg001', 200, 250, 'written c. AD 200–250 (?)', 'probably the first half of the 3rd century AD – uncertain (Smith: “nothing can be said with certainty”)', true, 'hb'],
 ];
 async function tmpPersonIts(ref, F, works = new Map(), wTitle = id => id) {    // a person's items: life, offices, Diogenes' dates, passages citing him
+  const TS = await tsPerson(ref); if (TS) return TS;                                // (read from the texts: the statements – tempora-persons)
   const { d, i } = pplParse(ref); if (!d) return null; const r = await pplRow(d, i); if (!r) return null;
   const its = [];
   if (r.y0 != null) its.push({ t0: ax(r.y0), t1: ax(r.y1 ?? r.y0) + 1, fa: true, fb: true, lab: 'years the article mentions', kind: 'life', k2: 'life', sid: d.id, src: d.name, ref });
@@ -434,6 +435,116 @@ async function tmpPersonIts(ref, F, works = new Map(), wTitle = id => id) {    /
     its.push({ t0: ax(yy[0]), t1: ax(yy[1]) + 1, fa: true, fb: true, lab: p[3], kind: 'cite', k2: 'cite', sid: d.id, src: wTitle(p[0]), go: { w: p[0], bi: p[1], r: p[2] }, ref, note: 'cited by ' + d.name + ' – placed at the years its book narrates' }); }
   return { r, its };
 }
+// ---------------------------------------------------------------- persons read from the texts (tempora-persons, kind "tstmt")
+// Every statement about a person, as the readers wrote it down from Smith and from the texts, with its words and its witness. The
+// data stay as they are; what is drawn here is only their presentation: the life bar estimated from them (and explained), each
+// dated statement as a bar or mark, the witness's colour (an ancient text – filled; Smith – lighter), a violent end red.
+const tsPkg = () => Object.values(S.installed || {}).find(d => d.kind === 'tstmt' && !S.dictPrefs?.off?.includes(d.id)) || null;
+async function tsIx() { const d = tsPkg(); return d ? await pplRec(d, '#ix') : null; }
+const tsPid = n => 'P-' + String(n).padStart(6, '0');
+const tsName = n => String(n || '').replace(/>/g, '').replace(/\b([IVX])([ivx]+)\./g, (m, a, b) => a + b.toUpperCase() + '.').replace(/\s+/g, ' ').trim();   // ("Flavius Julius> Constantius Ii." → "… Constantius II.")
+async function tsRefP(ref) {                                   // 'people-smith|4781' or 'tp|P-019460' -> the person record P-…
+  const ix = await tsIx(); if (!ix) return null;
+  let P = ref.startsWith('tp|') ? ref.slice(3) : ref.startsWith('people-smith|') ? tsPid(+ref.split('|')[1]) : null;
+  if (P && !ix.p[P] && ix.same?.[P]) P = ix.same[P];              // (987a: a cross-reference stands for its main article)
+  return P && ix.p[P] ? P : null;
+}
+async function tsStatements(P) { const d = tsPkg(); if (!d) return null; const r = await pplRec(d, 'p:' + (+P.slice(2) >> 6)); return r?.e?.[P] || null; }
+const TSV = v => TS_IX?.vocab?.[v] || String(v).replace(/^[a-z]+:/, '').replace(/-/g, ' ');
+let TS_IX = null;
+function tsVal(v) {                                             // a value as words
+  if (v == null) return '';
+  if (typeof v === 'string') return /^[a-z]+:/.test(v) ? TSV(v) : v.startsWith('P-') ? (TS_IX?.p?.[v]?.[0] || v) : v;
+  if (typeof v !== 'object') return String(v);
+  const parts = [];
+  if (v.concept) parts.push(TSV(v.concept)); if (v.name) parts.push(v.P && TS_IX?.p?.[v.P] ? TS_IX.p[v.P][0] : v.name); if (v.title) parts.push('“' + v.title + '”');
+  if (v.event) parts.push(v.event); if (v.age != null) parts.push('aged ' + v.age); if (v.detail) parts.push(v.detail); if (v.iter) parts.push('(' + v.iter + ')');
+  if (v.gen) parts.push(v.gen === 2 ? '' : `(${v.gen} generations)`); if (v.list) parts.push(v.list.join('; ')); if (v.text) parts.push(v.text); if (v.place) parts.push(v.place);
+  if (v.kind && v.name) parts.push(`(${v.kind})`); if (v.reading) parts.push(`– read: ${v.reading.orig || v.reading.y}`);
+  return parts.filter(Boolean).join(' ');
+}
+const TS_PL = { kind: 'kind', gender: 'gender', origin: 'origin', citizenship: 'citizen of', 'place-born': 'born at', 'place-active': 'at', 'place-died': 'died at', 'place-buried': 'buried at',
+  role: '', office: '', reign: 'reigned', born: 'born', died: 'died', floruit: 'flourished', attested: 'attested', 'age-at': 'age', 'death-manner': 'death', phase: '', honour: '', 'took-part': '',
+  wrote: 'wrote', 'wrote-against': 'wrote against', killed: 'killed', 'killed-by': 'killed by', name: 'name', character: 'character', school: 'school', family: 'family', status: '', religion: '',
+  sources: 'sources', issue: 'problem in the source', varro: 'Varro', see: 'see', 'same-person': 'same person as', 'influenced-by': 'drew on', ancestor: 'ancestor of', descendant: 'descendant of' };
+const tsLab = c => { const l = TS_PL[c.p]; const v = tsVal(c.v); return l == null ? (c.p.replace(/-/g, ' ') + (v ? ': ' + v : '')) : l ? (l + (v ? (c.p === 'age-at' ? ' ' : ': ') + v : '')) : v; };
+const tsWit = c => c.w?.[0] || '';
+const tsAncient = c => c.e?.[0] === 'texts';                       // (the witness is an ancient text itself)
+function tsTime(c) {                                             // → [t0, t1, fuzzy start, fuzzy end] on the axis, or null
+  const t = c.tr || c.t; if (!t || t.rel) return null;
+  let a = t.lo ?? t.start?.lo, b = t.hi ?? t.end?.hi;
+  if (a == null && b == null) return null;
+  let fa = false, fb = false;
+  if (a == null) { a = b - 5; fa = true; } if (b == null) { b = a + 5; fb = true; }
+  if (t.open === 'lo') fa = true; if (t.open === 'hi') fb = true; if (t.w === 'triangular') { fa = fb = true; }
+  return [a, b, fa, fb];
+}
+async function tsPerson(ref) {
+  const P = await tsRefP(ref); if (!P) return null;
+  TS_IX = await tsIx(); const L = await tsStatements(P); if (!L?.length) return null;
+  const row = TS_IX.p[P], its = [], name = row[0];
+  const dated = L.map(c => ({ c, tm: tsTime(c) })).filter(x => x.tm && !['issue', 'sources', 'varro', 'stance'].includes(x.c.p));
+  for (const { c, tm } of dated) {
+    if (c.st === 'rejects') continue;                              // (a view the witness rejects: in the card, not on the bar)
+    its.push({ t0: tm[0], t1: Math.max(tm[1], tm[0] + 0.25), fa: tm[2], fb: tm[3], lab: tsLab(c), kind: 'st', k2: 'st', sid: c.e?.[0] || 'smith', st: c, P, ref,
+      anc: tsAncient(c), src: tsWit(c) + (c.w?.[1] ? ' – via ' + c.w[1] : ''), note: c.n || '', read: !!c.tr });
+  }
+  // the life: estimated (and said so) from what the statements give
+  const one = p => dated.filter(x => x.c.p === p && x.c.st !== 'rejects').sort((x, y) => (y.c.c ?? .8) - (x.c.c ?? .8) || (tsAncient(y.c) - tsAncient(x.c)))[0];
+  const born = one('born'), died = one('died'), ages = L.filter(c => c.p === 'age-at' && c.v?.age != null && /death|died/i.test(JSON.stringify(c.v) + (c.e?.[3] || '')));
+  const why = []; let a = null, b = null, fa = false, fb = false;
+  if (died) { b = died.tm[1]; why.push('died ' + (died.c.t?.orig || rangeTxt(died.tm[0], died.tm[1])) + ' (' + tsWit(died.c) + ')'); }
+  if (born) { a = born.tm[0]; why.push('born ' + (born.c.t?.orig || rangeTxt(born.tm[0], born.tm[1])) + ' (' + tsWit(born.c) + ')'); }
+  else if (died && ages.length) { a = died.tm[0] - ages[0].v.age; fa = true; why.push(`born worked back from the age at death, ${ages[0].v.age}`); }
+  const act = dated.filter(x => !['born', 'died'].includes(x.c.p) && x.c.p !== 'same-person'), mn = act.length ? Math.min(...act.map(x => x.tm[0])) : null, mx = act.length ? Math.max(...act.map(x => x.tm[1])) : null;
+  if (a == null && mn != null) { a = mn - 18; fa = true; why.push('start: 18 years before the first dated activity (no birth given)'); }
+  if (b == null && mx != null) { b = mx + 5; fb = true; why.push('end: after the last dated activity (no death given)'); }
+  if (a != null && b != null && b > a) {
+    const dm = L.filter(c => c.p === 'death-manner' && c.st !== 'rejects').map(c => c.v), blood = dm.includes('death:violent') || dm.includes('death:suicide');
+    const life = { t0: a, t1: b, fa, fb, lab: tsName(name), kind: 'life', k2: 'life', sid: 'tempora-persons', P, ref, life: true, blood, dm, src: 'estimated from the statements', note: why.join(' · '), lv: 0 };
+    for (const i of its) { i.lv = 1; i.par = life; } life.kids = its.slice(); its.unshift(life);   // (zoomed out: the life; pinched apart: every statement)
+  }
+  return { r: { name: tsName(name), ref }, its, P, levels: its[0]?.lv === 0 };
+}
+function tsCard(it) {                                            // the card of one statement: what, when, whose words, which source
+  const c = it.st, e = c.e || [], wit = c.w || [];
+  const tm = tsTime(c), when = c.t?.orig ? esc(c.t.orig) + (tm ? ` <small class="hint">(${esc(rangeTxt(tm[0], tm[1]))})</small>` : '') : tm ? esc(rangeTxt(tm[0], tm[1])) : '';
+  const srcTxt = e[0] === 'texts' ? `${esc(wit[0] || '')}, ${esc(e[2] || '')}` : `Smith, Dictionary (1849), ${esc(e[1] || '')}${e[2] ? ' · ' + esc(e[2]) : ''}`;
+  const st = c.st ? `<p><b>${{ accepts: 'Smith accepts this view', doubts: 'Smith doubts this view', rejects: 'Smith rejects this view' }[c.st] || c.st}</b></p>` : '';
+  return `<p>${when}${c.tr ? ` <small class="tsread">read: ${esc(c.tr.why)}</small>` : ''}</p>`
+    + (wit[0] && wit[0] !== 'Smith' && e[0] !== 'texts' ? `<p>The view of <b>${esc(wit[0])}</b>${wit[1] ? `, reported by ${esc(wit[1])}` : ''}</p>` : '') + st
+    + (e[3] ? `<blockquote class="tsq">${esc(e[3])}</blockquote>` : '')
+    + `<p class="hint small">${srcTxt}${e[4]?.length ? ' · cites ' + e[4].map(esc).join('; ') : ''}${c.b ? ' · basis: ' + esc(TSV(c.b)) : ''}${c.c != null ? ' · confidence ' + c.c : ''}</p>`
+    + (c.r?.length ? `<p class="hint small">${c.r.map(r => esc(r[0] + ' ' + r[1] + (r[2] ? ' (block)' : ''))).join(' · ')}</p>` : '')
+    + (c.inf ? `<p class="hint small"><b>inferred</b> – not stated in words</p>` : '') + (c.n ? `<p class="hint small">${esc(c.n)}</p>` : '');
+}
+async function tsAllPanel(P) {                                   // every statement of a person, grouped – to inspect what was read
+  const L = await tsStatements(P); if (!L) return; TS_IX = await tsIx();
+  const p = $('#tmpSide'); p.hidden = false; p.dataset.k = 'ts'; p.scrollTop = 0;
+  const ORDER = ['kind', 'name', 'gender', 'origin', 'citizenship', 'family', 'status', 'born', 'place-born', 'died', 'place-died', 'place-buried', 'death-manner', 'killed-by', 'age-at', 'reign', 'office', 'role', 'honour', 'phase',
+    'floruit', 'attested', 'took-part', 'place-active', 'parent', 'child', 'spouse', 'sibling', 'grandparent', 'grandchild', 'ancestor', 'descendant', 'uncle-aunt', 'nephew-niece', 'cousin', 'parent-in-law', 'child-in-law', 'sibling-in-law',
+    'step-parent', 'step-child', 'adoptive-parent', 'adoptive-child', 'partner', 'teacher', 'pupil', 'school', 'influenced-by', 'colleague', 'ally', 'opponent', 'killed', 'patron', 'client', 'associate', 'correspondent',
+    'wrote', 'wrote-against', 'religion', 'character', 'varro', 'same-person', 'see', 'issue', 'sources'];
+  const by = new Map(); for (const c of L) { if (!by.has(c.p)) by.set(c.p, []); by.get(c.p).push(c); }
+  const keys = [...by.keys()].sort((a, b) => (ORDER.indexOf(a) + 1 || 99) - (ORDER.indexOf(b) + 1 || 99));
+  const wb = c => `<span class="tswit ${tsAncient(c) ? 'anc' : c.w?.[0] && c.w[0] !== 'Smith' ? 'rep' : ''}">${esc(tsAncient(c) ? (c.w?.[0] || '').replace(/ Marcellinus/, '') + ' ' + (c.e?.[2] || '') : c.w?.[0] && c.w[0] !== 'Smith' ? c.w[0] + ' (Smith)' : 'Smith ' + (c.e?.[2] || ''))}</span>`;
+  const row = (c, k) => { const tm = tsTime(c);
+    return `<details class="tsrow${c.st === 'rejects' ? ' rej' : ''}${c.inf ? ' inf' : ''}"><summary>${esc(tsVal(c.v) || '–')}${c.t?.orig || tm ? ` <small class="hint">${esc(c.t?.orig || rangeTxt(tm[0], tm[1]))}</small>` : ''} ${wb(c)}${c.st ? ` <small class="tsst">${esc(c.st)}</small>` : ''}${c.inf ? ' <small class="tsst">inferred</small>' : ''}</summary>${tsCard({ st: c })}</details>`; };
+  p.innerHTML = `<div class="tch"><b>${esc(tsName(TS_IX.p[P]?.[0] || P))}</b><button type="button" data-tmpclose="side" aria-label="Close">✕</button></div>`
+    + `<p class="hint small">${L.length} statements · ${P}${TS_IX.p[P]?.[1] != null ? ' · Smith’s article' : ''}. Tap one for its words and source. <span class="tswit anc">ancient text</span> <span class="tswit">Smith</span> <span class="tswit rep">a view Smith reports</span></p>`
+    + keys.map(k => `<div class="tph">${esc(k === 'kind' ? 'Kind' : (TS_PL[k] || k.replace(/-/g, ' ')) || k)} <small class="hint">${by.get(k).length}</small></div>` + by.get(k).map(c => row(c, k)).join('')).join('');
+}
+async function tsSetPanel() {                                    // the persons read so far: whole sets added as lanes at once
+  const ix = await tsIx(); if (!ix) return toast('Download “Tempora – persons” first: ☰ → Instruments → Suda – Encyclopaedias and Lexica.');
+  TS_IX = ix; const p = $('#tmpSide'); p.hidden = false; p.dataset.k = 'tsset'; p.scrollTop = 0;
+  const refOf = P => ix.p[P]?.[1] != null ? 'people-smith|' + ix.p[P][1] : 'tp|' + P;
+  p.innerHTML = `<div class="tch"><b>Persons read from the texts</b><button type="button" data-tmpclose="side" aria-label="Close">✕</button></div>`
+    + `<p class="hint small">${Object.keys(ix.p).length} persons so far. Each comes with every statement read about him – tap a bar, then “All statements”.</p>`
+    + Object.entries(ix.sets || {}).map(([k, s]) => `<p><button type="button" data-tsset="${esc(k)}">Add as lanes: ${esc(s.t)} (${s.p.length})</button> <button type="button" data-tsunset="${esc(k)}">Remove them</button></p>`).join('')
+    + `<div class="tph">All persons read</div>` + Object.entries(ix.p).sort((a, b) => a[1][0].localeCompare(b[1][0])).map(([P, r]) => { const ref = refOf(P), on = (TP.cfg.persons || []).includes(ref);
+      return `<p class="tsp"><button type="button" class="tpadd${on ? ' on' : ''}" data-tmpadd2="${esc(ref)}">${esc(tsName(r[0]))} <small class="hint">${r[3]} statements · ${P}</small></button> <button type="button" data-tsall="${P}">All statements</button></p>`; }).join('');
+}
+
 async function tmpData() {
   const cfg = await tmpCfg(), F = await fastiTab(), lanes = [];
   if (!S.catWork) await cachedCatalog().catch(() => null);
@@ -530,7 +641,10 @@ async function tmpData() {
   }
   // persons added from the Suda tab
   if (!TP.chrono) { const ch = Object.values(S.installed || {}).find(d => d.kind === 'chrono'); TP.chrono = ch ? (await pplRec(ch, '#s'))?.e || [] : []; }
-  for (const ref of cfg.persons || []) { const P = await tmpPersonIts(ref, F, works, wTitle); if (P) lanes.push({ id: 'p:' + ref, g: 'Persons', t: P.r.name, sh: P.r.name, its: P.its, ref, have: true }); }
+  for (const ref of cfg.persons || []) { const P = await tmpPersonIts(ref, F, works, wTitle); if (!P) continue;
+    const L = { id: 'p:' + ref, g: 'Persons', t: P.r.name, sh: P.r.name, its: P.its, ref, have: true };
+    if (P.levels) { L.levels = [0, 1]; L.avg = [0, 1].map(k => { const s = P.its.filter(i => i.lv === k); return s.reduce((z, i) => z + i.t1 - i.t0, 0) / Math.max(1, s.length); }); }
+    lanes.push(L); }
   // words of the filter: the books they occur in (the index of all texts), at the years the books narrate
   for (const f of (cfg.flt || []).filter(f => f.t === 'word')) {
     const its = [], by = typeof idxLookup === 'function' ? await idxLookup(f.keys || [f.v]).catch(() => new Map()) : new Map();
@@ -788,8 +902,8 @@ function tmpDraw() {
 }
 function drawItem(g, C, it, x0, x1, y, h, font, lim = Infinity, W = 1e9) {
   const sel = TP.sel?.it === it, dim = it.pass === false;
-  const base = it.ev ? `hsl(${evHue(it.ev.toLowerCase())},55%,52%)` : it.kind === 'own' ? C.acc : it.kind === 'office' ? C.acc : it.kind === 'date' ? C.acc2 : C.acc2;
-  const alpha = dim ? 0.07 : it.kind === 'book' ? 0.28 : it.kind === 'life' || it.kind === 'cite' || it.kind === 'word' ? 0.22 : it.kind === 'work' ? 0.25 : it.uneven ? 0.2 : 0.38;
+  const base = it.ev ? `hsl(${evHue(it.ev.toLowerCase())},55%,52%)` : it.kind === 'own' ? C.acc : it.kind === 'office' ? C.acc : it.kind === 'st' ? (it.anc ? C.acc : C.acc2) : it.kind === 'date' ? C.acc2 : C.acc2;
+  const alpha = dim ? 0.07 : it.kind === 'book' ? 0.28 : it.kind === 'st' ? (it.anc ? 0.5 : 0.3) : it.kind === 'life' || it.kind === 'cite' || it.kind === 'word' ? 0.22 : it.kind === 'work' ? 0.25 : it.uneven ? 0.2 : 0.38;
   // fuzzy ends: a gradient fading out
   const grd = g.createLinearGradient(x0, 0, x1, 0), w = Math.max(1, x1 - x0), fw = Math.min(0.45, 24 / w);
   grd.addColorStop(0, it.fa ? 'transparent' : base); grd.addColorStop(it.fa ? fw : 0, base); grd.addColorStop(it.fb ? 1 - fw : 1, base); grd.addColorStop(1, it.fb ? 'transparent' : base);
@@ -798,7 +912,8 @@ function drawItem(g, C, it, x0, x1, y, h, font, lim = Infinity, W = 1e9) {
   if (dim || it._lab === false) { g.globalAlpha = 1; return; }  // (while folding: only the level more than half there keeps its names)
   if (it.kind === 'date' || it.kind === 'own' || sel) { g.strokeStyle = sel ? C.fg : base; g.lineWidth = sel ? 1.6 : 1; roundRect(g, x0, y, x1 - x0, h, 4); g.stroke(); }
   if (TP.fOn && it.pass && !sel) { g.strokeStyle = C.acc; g.lineWidth = 1.6; roundRect(g, x0 - 0.5, y - 0.5, x1 - x0 + 1, h + 1, 4); g.stroke(); }   // (848a: what passes the filter, outlined)
-  if (it.uneven) { g.strokeStyle = C.acc; g.setLineDash([3, 2]); roundRect(g, x0, y, x1 - x0, h, 4); g.stroke(); g.setLineDash([]); }
+  if (it.uneven || it.read || it.st?.inf) { g.strokeStyle = it.read ? '#c0392b' : C.acc; g.setLineDash([3, 2]); roundRect(g, x0, y, x1 - x0, h, 4); g.stroke(); g.setLineDash([]); }   // (983a: a misprint's reading; an inference: dotted)
+  if (it.blood && !it.fb) { g.fillStyle = '#b3261e'; g.globalAlpha = fa * 0.85; g.fillRect(Math.max(x0, x1 - 5), y, Math.min(5, x1 - x0), h); g.globalAlpha = fa; }   // (920a: a violent end – the bar ends in red)
   // the label, once: at the bar's start – or, while the bar runs on past the screen's left edge, held at that edge, and pushed
   // off with the bar's end; past a short bar it may run on up to the next item in its row (807a)
   const fs = Math.max(9.5, Math.min(11, h - 2)), txt = it.lab; g.font = font(fs); const tw = g.measureText(txt).width;   // (rows pinched small: smaller type)
@@ -872,7 +987,8 @@ async function showTempora() {
       + `<span class="tmpq"><input id="tmpQ" type="search" enterkeyhint="search" placeholder="Find an event …" autocomplete="off" autocapitalize="off" spellcheck="false"><div id="tmpRes" class="tmpres" hidden></div></span>`
       + `<button type="button" data-tmp="writ" id="tmpWritBtn" class="${TP.cfg.written ? 'on' : ''}" title="Also show when each work was written – joined by a thin line to what it narrates">Written</button>`
       + `<button type="button" data-tmp="add" title="Add your own statement">＋ Statement</button>`
-      + `<button type="button" data-tmp="here" title="The years of the text being read">This text</button></div>`
+      + `<button type="button" data-tmp="here" title="The years of the text being read">This text</button>`
+      + `<button type="button" data-tmp="persons" title="The persons read from Smith and the texts – add them as lanes, see every statement">Persons read</button></div>`
       + `<div class="tmprow"><div class="tmpwrap"><canvas id="tmpCanvas"></canvas><div id="tmpNav" class="tmpnav" hidden></div></div><aside id="tmpSide" class="tmppanel tmpside" hidden></aside></div><div id="tmpCard" class="tmpcard" hidden></div><div id="tmpPanel" class="tmppanel" hidden></div>`;
     tmpWire($('#tmpCanvas'));
   }
@@ -940,6 +1056,11 @@ function tmpCardEmp(e) {
 const tmpWorkOf = it => it.go?.w || it.kids?.find(k => k.go?.w)?.go.w || null;   // (the work an item belongs to – for a whole work's bar, from its parts)
 function tmpCardItem(h) {
   const it = h.it, c = $('#tmpCard'); c.hidden = false;
+  if (it.st || (it.life && it.P)) {                              // (a person read from the texts)
+    c.innerHTML = `<div class="tch"><b>${esc(it.st ? it.lab : it.lab + ' – life (estimated)')}</b><button type="button" data-tmpclose="1" aria-label="Close">✕</button></div>`
+      + (it.st ? tsCard(it) : `<p>${esc(rangeTxt(it.t0, it.t1))} <small>(estimated)</small>${it.blood ? ' · <b>violent end</b>' : ''}</p><p class="hint small">${esc(it.note)}</p>`)
+      + `<p class="tact"><button type="button" data-tsall="${it.P}">All statements of ${esc(TS_IX?.p?.[it.P]?.[0] || 'this person')}</button>${it.st?.e?.[0] === 'texts' ? `<button type="button" data-tsgo="1">Open the passage</button>` : ''}${it.ref?.startsWith('people-') ? `<button type="button" data-tmpperson="${esc(it.ref)}">Smith’s article</button>` : ''}</p>`;
+    return; }
   c.innerHTML = `<div class="tch"><b>${esc(it.lab)}</b><button type="button" data-tmpclose="1" aria-label="Close">✕</button></div>`
     + `<p>${esc(rangeTxt(it.t0, it.t1))}${it.fa || it.fb ? ' <small>(vague)</small>' : ''} · <span class="hint">${esc(it.src || '')}</span></p>`
     + (it.text ? `<p class="gk tmptext">${esc(it.text)}</p>` : '') + (it.note ? `<p class="hint">${esc(it.note)}</p>` : '')
@@ -1248,6 +1369,15 @@ document.addEventListener('click', async ev => {
   if (D.tmpperson) { await showPeople(); return pplGo({ t: 'person', ref: D.tmpperson }); }
   if (D.tmpadd) { if (!TP.cfg.persons.includes(D.tmpadd)) TP.cfg.persons.push(D.tmpadd); tmpSave(); await tmpData(); return tmpRedraw(); }
   if (D.tmpedit) return tmpEdit(D.tmpedit);
+  if (D.tsall) return tsAllPanel(D.tsall);
+  if (D.tmp === 'persons') { const p = $('#tmpSide'); if (sideOpen() && p.dataset.k === 'tsset') { p.hidden = true; return; } return tsSetPanel(); }
+  if (D.tmpadd2) { const ps = TP.cfg.persons; const i = ps.indexOf(D.tmpadd2); if (i >= 0) ps.splice(i, 1); else ps.push(D.tmpadd2); tmpSave(); await tmpData(); tmpRedraw(); return tsSetPanel(); }
+  if (D.tsset || D.tsunset) { const ix = await tsIx(), s = ix?.sets?.[D.tsset || D.tsunset]; if (!s) return;
+    const refs = s.p.map(P => ix.p[P]?.[1] != null ? 'people-smith|' + ix.p[P][1] : 'tp|' + P);
+    TP.cfg.persons = D.tsset ? [...new Set([...(TP.cfg.persons || []), ...refs])] : (TP.cfg.persons || []).filter(r => !refs.includes(r));
+    tmpSave(); await tmpData(); tmpRedraw(); if (D.tsset) { TP.ppy = Math.max(TP.ppy, 0.6); } toast(D.tsset ? `${refs.length} persons added as lanes` : 'removed'); return tsSetPanel(); }
+  if (D.tsgo) { const c = TP.sel?.it?.st, loc = c?.e?.[2]; if (!loc) return; const [bk, ...r] = loc.split('.'); const wid = c.e[1];
+    const w = await libGet('works', wid); if (!w) return libMenu(wid); const bi = Math.max(0, (w.books || []).indexOf(bk)); return pplPassage(wid, bi, r.join('.'), ''); }
   if (D.tmpyear) { TP.cur = ax(+D.tmpyear) + 0.5; tmpCardYear(+D.tmpyear); return tmpRedraw(); }
   if (D.tmpmap) { const p = TP.sel?.it?.place; if (!p) return; toggleMapTab(true); setTimeout(() => { if (p.id != null) selectPlace(p.id); else M.map?.easeTo({ center: [p.lon, p.lat], zoom: 7 }); tmpMapMarkers(); }, 700); return; }
   if (D.tmpget) { for (const id of ['fasti-liebenam', 'chrono-texts']) if (!S.installed?.[id]) queueDownload(id);

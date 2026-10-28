@@ -2347,3 +2347,11 @@ body:not(.nofade) #tabPeople{transition:border-color .333s ease}body:not(.nofade
 .tmpnav[hidden]{display:none}
 .tmpnav button{font:inherit;font-size:.86rem;padding:4px 10px;border:0;border-radius:14px;background:var(--bar);color:var(--fg)}
 .tmpnav .tnc{background:none;color:var(--acc)}
+/* Tempora – persons read from the texts (tempora-persons) */
+.tmppanel .tsrow{border-bottom:1px solid var(--line);padding:3px 0}.tmppanel .tsrow>summary{cursor:pointer;list-style:none;line-height:1.35}
+.tmppanel .tsrow.rej>summary{opacity:.6;text-decoration:line-through;text-decoration-thickness:1px}.tmppanel .tsrow.inf>summary{font-style:italic}
+.tswit{display:inline-block;font-size:.72rem;padding:0 5px;border-radius:6px;border:1px solid var(--acc2);color:var(--mut);white-space:nowrap}
+.tswit.anc{background:var(--acc);border-color:var(--acc);color:var(--bg)}.tswit.rep{border-style:dashed}
+.tsst{color:var(--mut)}.tsread{color:#c0392b}
+.tsq{margin:.3em 0;padding:.2em .6em;border-left:3px solid var(--acc2);font-style:italic;font-family:var(--greek)}
+.tmppanel .tsp{margin:.2em 0}.tmppanel .tsp button.tpadd.on{border-color:var(--acc)}
