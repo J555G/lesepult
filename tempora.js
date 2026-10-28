@@ -821,7 +821,9 @@ function laneOrder(lanes) {
 // 991a: the dates of writing only of the work selected (in its card, and as its line); your library's authors by century: Filter → Display
 const wrOn = it => !!TP.wsel && (it.wks || [it.wk]).some(w => w && (TP.wsel.startsWith(w) || w.startsWith(TP.wsel)));
 const wrVis = it => !it.wr || it.lib || wrOn(it);
-const denseRH = () => TP.ppy < 1.5 ? 3 : TP.ppy < 6 ? 6 : TP.ppy < 20 ? 10 : 15;      // (997a: the persons' rows grow as you zoom in)
+// 997a, 1024a: the persons' rows – their height from the time zoom, scaled by the vertical zoom (pinching apart up and down);
+// what the rows show (names, ages, marks) still needs the time zoom too: it appears only where it fits
+const denseRH = () => { const base = TP.ppy < 1.5 ? 3 : TP.ppy < 6 ? 6 : TP.ppy < 20 ? 10 : 15; return Math.round(Math.min(40, Math.max(2, base * TP.lh / 30)) * 2) / 2; };
 const laneRH = L => L.dense ? denseRH() : TP.lh;
 function tmpLayout(A0, A1) {
   // 810a/812a: lanes keep their place; the space before and after a lane is free for others – lanes whose spans do not meet share
@@ -882,19 +884,19 @@ function tmpDraw() {
   const laneH = (n, L) => TT + Math.max(0, n) * laneRH(L) + (n > 0.02 ? 6 : 4);
   const lay = []; let off = 0;
   for (const SL of slots) { const ls = SL.map(r => Object.assign(r, { box: r.L.na < A1 && r.L.nb > A0, h: 0 })).map(r => Object.assign(r, { h: laneH(r.n, r.L) })), hs = Math.max(8, ...ls.map(r => r.h));
-    lay.push({ ls, off, hs, key: ls.map(r => r.L.id).join('|') }); off += hs + 4; }
+    lay.push({ ls, off, hs, key: ls.map(r => r.L.id).join('|'), rh: Math.max(...ls.map(r => laneRH(r.L))) }); off += hs + 4; }
   TP.contentH = off;
   // anchoring: the point under the fingers or the cursor (or the top of the lanes) keeps its place on screen while heights change
   const P = TP.prevLay;
   if (P && P.slots.length) { const fy = TP.focusY ?? (P.RH + 6), cy = fy - (P.RH + 6) + P.sy;
     const p = P.slots.find(s => cy < s.off + s.hs + 4) || P.slots[P.slots.length - 1], q = p && lay.find(s => s.key === p.key);
     if (q && TP.focusY != null) {                          // (zooming: the row under the fingers stays under them – rows are counted, not the slot's fraction)
-      const TT = 14, d = cy - p.off - TT - 3, rho = d / (P.lh || TP.lh);
-      TP.sy += d <= 0 ? q.off - p.off : (q.off + TT + 3 + rho * TP.lh) - cy; }
+      const TT = 14, d = cy - p.off - TT - 3, rho = d / (p.rh || P.lh || TP.lh);
+      TP.sy += d <= 0 ? q.off - p.off : (q.off + TT + 3 + rho * (q.rh || TP.lh)) - cy; }
     else if (q) { const f = Math.min(1, Math.max(0, (cy - p.off) / (p.hs + 4))); TP.sy += (q.off + f * (q.hs + 4)) - (p.off + f * (p.hs + 4)); }
     if (P.sy > 0 && Date.now() - (TP.userMove || 0) < 500) { TP.sy += RH - P.RH; TP.over = Math.max(0, (TP.over || 0) + RH - P.RH); } }   // (only while you move it yourself, and not at the very top)                                                    // (820a: the header grows over the lanes – they stay where they are)
   tmpClampY();
-  TP.prevLay = { RH, lh: TP.lh, sy: TP.sy, slots: lay.map(s => ({ key: s.key, off: s.off, hs: s.hs })) };
+  TP.prevLay = { RH, lh: TP.lh, sy: TP.sy, slots: lay.map(s => ({ key: s.key, off: s.off, hs: s.hs, rh: s.rh })) };
   const y0 = RH + 6 - TP.sy, centers = [], marks = new Map(), from = [];
   TP.laneTop = {};
   g.save(); g.beginPath(); g.rect(0, RH, W, H - RH - RB); g.clip();
@@ -1030,7 +1032,7 @@ const TS_SYM = { born: '*', died: '†', wrote: '✎', 'wrote-against': '✎', k
 function lifeAges(g, C, it, x0, x1, y, h, font, W, avoid) {
   if (lifeDeg() < 1 || h < 5 || /start unknown/.test(it.note || '')) return;
   const est = !!it.fa, X = a => (a - TP.x0) * TP.ppy, st = [1, 2, 5, 10, 20, 25, 50].find(s => s * TP.ppy >= (est ? 54 : 40)); if (!st) return;
-  g.font = font(8); const num = h >= 12;
+  g.font = font(8); const num = h >= 12 && lifeDeg() >= 2;   // (the numbers only when zoomed in in time as well)
   for (let age = st; it.t0 + age < it.t1 - 0.01; age += st) { const x = X(it.t0 + age); if (x < -30 || x > W + 30) continue;
     g.globalAlpha = (est ? 0.35 : 0.6) * (it._al ?? 1); g.fillStyle = C.fg; g.fillRect(x - 0.5, y + h - 3, 1, 3);
     if (!num) continue; const lab = (est ? 'ca. ' : '') + age, w = g.measureText(lab).width;
@@ -1067,7 +1069,7 @@ function drawLife(g, C, it, x0, x1, y, h, font, lim, W, dense) {
   const [nm, tw] = fitName(g, it.lab, Math.min(end, W) - Math.max(x0, 0) - 8);       // (the longest form of the name that fits)
   const cps = nameCopies(it, it.t0, it.t1, x0, x1, tw, end, W, 5), p = cps[0]?.x ?? -1e9;
   if (!it.yrs) lifeAges(g, C, it, x0, x1, y, h, font, W, cps.map(c => [c.x - 3, c.x + tw + 3]));
-  g.fillStyle = C.fg; for (const cp of cps) { g.globalAlpha = fa * cp.a; g.fillText(nm, cp.x, y + h / 2 + fs * 0.36); } g.globalAlpha = fa;
+  g.font = font(fs); g.fillStyle = C.fg; for (const cp of cps) { g.globalAlpha = fa * cp.a; g.fillText(nm, cp.x, y + h / 2 + fs * 0.36); } g.globalAlpha = fa;
   if (deg < 2 || it.yrs || !it.P) { g.globalAlpha = 1; return; }
   const L = it.sts || TS_ST.get(it.P); if (!L) { tsWant(it.P); g.globalAlpha = 1; return; }
   const ms = []; for (const c of L) { if (!TS_SYM[c.p] || c.st === 'rejects') continue; const tm = tsTime(c); if (!tm) continue; const x = X((tm[0] + tm[1]) / 2); if (x < Math.max(x0, 0) || x > Math.min(x1, W) || (x > p - 4 && x < p + tw + 6)) continue; ms.push({ x, c }); }   // (not over the name)
@@ -1198,9 +1200,11 @@ function tmpWire(cv) {
     if (pinch && TP.ptr.size === 2) { const [p, q] = [...TP.ptr.values()], dx = Math.abs(p.x - q.x), dy = Math.abs(p.y - q.y), mx = (p.x + q.x) / 2;
       const a = pinch.x0 + pinch.mx / pinch.ppy;                 // two fingers: across = time, up and down = lane height
       // one direction per pinch: across (time) or up and down (rows) – whichever the fingers are set apart in more
-      pinch.ax ??= pinch.dx >= pinch.dy ? 'x' : 'y';
-      if (pinch.ax === 'x' && pinch.dx > 20) TP.ppy = Math.min(400000, Math.max(0.005, pinch.ppy * dx / pinch.dx));
-      if (pinch.ax === 'y' && pinch.dy > 20) TP.lh = Math.min(90, Math.max(16, pinch.lh * dy / pinch.dy));
+      if (!pinch.ax) { const mx_ = Math.abs(dx - pinch.dx), my_ = Math.abs(dy - pinch.dy);   // (1025a: the direction by how the fingers move, once they have moved about 12 px)
+        if (mx_ + my_ < 12) return; pinch.ax = mx_ >= my_ ? 'x' : 'y'; Object.assign(pinch, { dx, dy, ppy: TP.ppy, lh: TP.lh }); }
+      const ratio = (d, d0) => d0 >= 80 ? d / d0 : (d + 60) / (d0 + 60);   // (fingers set down close together in that direction: a gentler, steady scale)
+      if (pinch.ax === 'x') TP.ppy = Math.min(400000, Math.max(0.005, pinch.ppy * ratio(dx, pinch.dx)));
+      if (pinch.ax === 'y') TP.lh = Math.min(90, Math.max(16, pinch.lh * ratio(dy, pinch.dy)));
       if (pinch.sp) { TP.x0 = a - pinch.sp.x / TP.ppy; TP.focusY = pinch.sp.y; } else { TP.x0 = a - mx / TP.ppy; TP.focusY = (p.y + q.y) / 2; } moved = true; tmpSave(); tmpRedraw(); return; }
     if (!down) return; const dx = e.offsetX - down.x, dy = e.offsetY - down.y;
     if (Math.abs(dx) + Math.abs(dy) > 6) moved = true;
