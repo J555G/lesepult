@@ -399,26 +399,35 @@ const ROMN = n => ['', 'I', 'II', 'III', 'IIII', 'V', 'VI', 'VII', 'VIII', 'VIII
 const SM = 'Smith’s Dictionary: ', DIOCL = [284, 305], CONST = [306, 337];
 const haSmith = (ids, [y0, y1], who, how) => ids.map(n => [`phi2331.phi${String(n).padStart(3, '0')}`, y0, y1, `Smith: ${how} ${who}`, SM + `this life is ${how} ${who} (reigned ${y0}–${y1}) – the articles Spartianus, Capitolinus, Lampridius`, true, 'smith', `Smith: to ${who}`]);
 const COLL = [['phi2331', 'Scriptores Historiae Augustae', 'Hist. Aug.', 'Historia Augusta'], ['phi1348.abo', 'Suetonius', 'Suetonius', 'De vita Caesarum']];   // (856a: lane = author, bar = the work)
-const WSRC = [['hb', 'Pult’s estimate (no source yet)'], ['claim', 'What the work claims'], ['smith', 'Smith’s Dictionary (1849)']];   // (992a: the 'hb' dates are to be re-sourced from Teuffel, Christ, Schanz)
-const WRITTEN = [
-  ['stoa0023.stoa001', 389, 391, 'written c. AD 390', 'finished in Rome about AD 390/391 (the last events narrated: 378)', true, 'hb'],
+// 992a: every date of writing names its source – the handbooks (Teuffel–Schwabe, Schanz, Christ; public domain, read from the
+// archive.org scans), Smith's Dictionary, and what the work itself claims. Views a handbook reports (Dessau, Mommsen …) under it.
+const TS_ = 'Teuffel–Schwabe, History of Roman Literature, tr. Warr, II (1892) ', SZ_ = 'Schanz, Geschichte der römischen Litteratur IV 1², 1914, ', CH_ = 'W. Christ, Geschichte der griechischen Litteratur³ (1898) ';
+const WSRC = [['teuffel', 'Teuffel–Schwabe (1892)'], ['schanz', 'Schanz (1914)'], ['christ', 'Christ (1898)'], ['claim', 'What the work claims'], ['smith', 'Smith’s Dictionary (1849)']];
+const WRITTEN = [   // [work, from, to (null: open), label, the source's words and where, vague, source, short label]
+  ['stoa0023.stoa001', 390, 391, 'Teuffel: c. AD 390', TS_ + '§ 429 n. 3, p. 391: “The extant books were, so far as we can judge, composed c. a. 390 and their publication appears to have been gradual. Chronological data: 22, 16, 12 was written before the destruction of the Serapeum at Alexandria, July 391; 26, 5, 14 after the consulship of Neoterius (a. 390).”', true, 'teuffel', 'Teuffel'],
+  ['stoa0023.stoa001', 395, null, 'Schanz: finished after AD 395', SZ_ + '§ 808: read out in parts (Libanius’ letter “in der ersten Zeit der neunziger Jahre”); “in der Tat lässt sich wahrscheinlich machen, dass er erst nach dem Tode des Theodosius mit der grossen Aufgabe … zu Ende kam”', true, 'schanz', 'Schanz'],
   ['stoa0023.stoa001', 390, 395, 'Smith: after AD 390', SM + '“composed his history” in Rome; his death “must have happened later than 390, since a reference occurs to the consulship of Neoterius”', true, 'smith'],
-  ['phi1351.phi004', 105, 110, 'Histories written c. AD 105–110', 'about AD 105–110, under Trajan', true, 'hb'],
+  ['phi1351.phi004', 106, 109, 'Teuffel: c. AD 106–109', TS_ + '§ 337 and n. 3, pp. 170–171: “written under Trajan”; Pliny’s letters 6, 16. 20. 7, 33 “were written as contributions to the materials of the historiae, which Tac. was then composing … These notices in Pliny belong to about a. 106-109.”', true, 'teuffel', 'Teuffel'],
   ['phi1351.phi004', 98, 110, 'Smith: after AD 98', SM + '“The Historiae were written after the death of Nerva, AD 98, and before the Annales”', true, 'smith'],
-  ['phi1351.phi005', 114, 120, 'Annals written c. AD 114–120', 'about AD 114–120, under Trajan and Hadrian (Smith: “the work of a mature age”, no year)', true, 'hb'],
-  ['phi1348.abo', 119, 122, 'Lives of the Caesars written c. AD 120', 'about AD 119–122: dedicated to Septicius Clarus, praetorian prefect in those years (Smith gives no year)', true, 'hb'],
-  ['stoa0121.stoa001', 369, 370, 'written AD 369/370', 'AD 369/370, dedicated to the emperor Valens', false, 'hb'],
+  ['phi1351.phi005', 115, 117, 'Teuffel: published AD 115–117', TS_ + '§ 338 and n. 2, p. 172: “likewise written under Trajan and published between a. 115 and 117” – Ann. 2, 61 presupposes Trajan’s conquest of about 115, given up by Hadrian on his accession (August 117)', true, 'teuffel', 'Teuffel'],
+  ['phi1348.abo', 119, 121, 'Teuffel: published c. AD 120', TS_ + '§ 347 n. 8, p. 201: “De vita Caesarum, dedicated to the praef. praet. C. Septicius Clarus …, who held this position a. 119-121, hence published a. 120.”', true, 'teuffel', 'Teuffel'],
+  ['stoa0121.stoa001', 364, 378, 'Teuffel: under Valens', TS_ + '§ 415, p. 351: “Under Valens, Eutropius wrote his brief account of the entire history of Rome” (the dedication: “Domino Valenti Gothico Maximo Perpetuo Augusto”, p. 352)', true, 'teuffel', 'Teuffel'],
+  ['stoa0121.stoa001', 364, 375, 'Schanz: AD 364–375', SZ_ + '§ 802: “Die Regierung der gegenwärtigen Kaiser, Valens und Valentinian (364—375), zu schildern, lehnt der Autor vorerst ab”', true, 'schanz', 'Schanz'],
   ['stoa0121.stoa001', 364, 378, 'Smith: under Valens', SM + 'composed “by command” of Valens, “to whom it is inscribed” (Valens reigned 364–378)', true, 'smith'],
   ['phi2331', 293, 330, 'written – as it claims (293–330)', 'as the work claims: six authors writing under Diocletian and Constantine', true, 'claim'],
-  ['phi2331', 390, 400, 'written – the modern view (c. 395)', 'as now generally held (since Dessau 1889): one author, late 4th century', true, 'hb'],
+  ['phi2331', 364, 395, 'Dessau (1889): under Valentinian–Theodosius', SZ_ + '§ 795: H. Dessau, Hermes 24 (1889) p. 337, “dass die Kaiserbiographien … nicht der constantinisch-diokletianischen, sondern der valentinianisch-theodosischen Zeit angehören”; likewise Teuffel–Schwabe § 392 n. 1, p. 299: Dessau “towards the end of the fourth century”', true, 'schanz', 'Dessau'],
+  ['phi2331', 330, 395, 'Mommsen (1890): c. 330, revised later', SZ_ + '§ 795: Th. Mommsen, Hermes 25 (1890) p. 228: the collection “im grossen Ganzen ein Werk der diokletianisch-constantinischen Zeit”, closed “um 330”, revised again “in der valentinianisch-theodosischen Zeit”', true, 'schanz', 'Mommsen'],
+  ['phi2331', 284, 330, 'Peter (1892): closed 330', SZ_ + '§ 795: H. Peter, Die Script. hist. Aug. (1892) p. 242, “als ein Produkt der diokletianisch-constantinischen Zeit … mit dem Jahre 330 abgeschlossen”', true, 'schanz', 'Peter'],
+  ['phi2331', 409, 410, 'Seeck (1912): AD 409–410', SZ_ + '§ 795: O. Seeck, Rh. Mus. 67 (1912) p. 603, “dass die Hist. Aug. in ihrem vollen Umfange unter Honorius entstanden ist … gegen Ende 409 … ungefähr in der zweiten Hälfte des Jahres 410”', true, 'schanz', 'Seeck'],
   ...haSmith([1, 2, 3, 4, 5, 7, 9, 10, 11], DIOCL, 'Diocletian', 'inscribed to'),
   ...haSmith([12, 14, 15, 18, 19, 20], CONST, 'Constantine', 'inscribed to'),
   ...haSmith([17], CONST, 'Constantine', 'addressed to'),
-  ['tlg0060.tlg001', -60, -30, 'written c. 60–30 BC', 'about 60–30 BC: thirty years’ work, he says (1.4.1); the last events he mentions are of the 40s–30s BC', true, 'hb'],
+  ['tlg0060.tlg001', -21, null, 'Christ: after 21 BC', CH_ + '§ 459 n. 3, p. 631: “Sicher lebte er bis 21 v. Chr.; denn auf Ereignisse dieses Jahres bezieht er sich 16,7” (Diodorus “blühte unter Augustus”; thirty years’ work, 1.4.1)', true, 'christ', 'Christ'],
   ['tlg0060.tlg001', -8, 1, 'Smith: after 8 BC', SM + 'Scaliger “has made it highly probable that Diodorus wrote his work after the year B. C. 8, when Augustus corrected the calendar”', true, 'smith'],
-  ['tlg0081.tlg001', -30, -7, 'written 30–7 BC', 'begun after his arrival in Rome about 30 BC; published 7 BC, twenty-two years later (1.3.4, 1.7.2)', false, 'hb'],
+  ['tlg0081.tlg001', -30, -8, 'Christ: 30–8 BC', CH_ + '§ 462, p. 637: “im Jahre 30 v. Chr. nach Rom gekommen und hatte in den 22 Jahren, die er daselbst zubrachte …”; “nach Vollendung seines Geschichtswerkes im Jahre 8 v. Chr.”', false, 'christ', 'Christ'],
+  ['tlg0081.tlg001', -30, -8, 'as it claims: 22 years after Ol. 187', 'Ant. Rom. 1.7.2: “καταπλεύσας εἰς Ἰταλίαν ἅμα τῷ καταλυθῆναι τὸν ἐμφύλιον πόλεμον … ἑβδόμης καὶ ὀγδοηκοστῆς καὶ ἑκατοστῆς ὀλυμπιάδος μεσούσης, καὶ τὸν ἐξ ἐκείνου χρόνον ἐτῶν δύο καὶ εἴκοσι μέχρι τοῦ παρόντος” – the middle of Ol. 187 is 30 BC, twenty-two years on 8 BC', true, 'claim'],
   ['tlg0081.tlg001', -29, -7, 'Smith: 29–7 BC', SM + 'came to Rome “about the middle of Ol. 187, that is, B. C. 29”; “B. C. 7, the year in which he completed and published his great work”', false, 'smith'],
-  ['tlg0004.tlg001', 200, 250, 'written c. AD 200–250 (?)', 'probably the first half of the 3rd century AD – uncertain (Smith: “nothing can be said with certainty”)', true, 'hb'],
+  ['tlg0004.tlg001', 222, 249, 'Christ: under Alexander Severus and his successors', CH_ + '§ 514, p. 708: after Sextus Empiricus and before Stephanus of Byzantium; “Am wahrscheinlichsten ist es, dass er vor dem Aufblühen des Neuplatonismus, unter Alexander Severus und seinen nächsten Nachfolgern geschrieben hat” (Alexander Severus 222–235; “his next successors” taken here to Philip, 249 – the end is open)', true, 'christ', 'Christ'],
 ];
 async function tmpPersonIts(ref, F, works = new Map(), wTitle = id => id) {    // a person's items: life, offices, Diogenes' dates, passages citing him
   const TS = await tsPerson(ref); if (TS) return TS;                                // (read from the texts: the statements – tempora-persons)
@@ -473,7 +482,7 @@ const TS_PL = { kind: 'kind', gender: 'gender', origin: 'origin', citizenship: '
   role: '', office: '', reign: 'reigned', born: 'born', died: 'died', floruit: 'flourished', attested: 'attested', 'age-at': 'age', 'death-manner': 'death', phase: '', honour: '', 'took-part': '',
   wrote: 'wrote', 'wrote-against': 'wrote against', killed: 'killed', 'killed-by': 'killed by', name: 'name', character: 'character', school: 'school', family: 'family', status: '', religion: '',
   sources: 'sources', issue: 'problem in the source', varro: 'Varro', see: 'see', 'same-person': 'same person as', 'influenced-by': 'drew on', ancestor: 'ancestor of', descendant: 'descendant of' };
-const tsLab = c => { const l = TS_PL[c.p]; const v = tsVal(c.v); return l == null ? (c.p.replace(/-/g, ' ') + (v ? ': ' + v : '')) : l ? (l + (v ? (c.p === 'age-at' ? ' ' : ': ') + v : '')) : v; };
+const tsLab = c => { const l = TS_PL[c.p] ?? TS_IX?.vocab?.['prop:' + c.p]; const v = tsVal(c.v); return l == null ? (c.p.replace(/-/g, ' ') + (v ? ': ' + v : '')) : l ? (l + (v ? (c.p === 'age-at' || /\b(of|by|at|against|to|from|with)$/.test(l) ? ' ' : ': ') + v : '')) : v; };
 const tsWit = c => c.w?.[0] || '';
 const tsAncient = c => c.e?.[0] === 'texts';                       // (the witness is an ancient text itself)
 function tsTime(c) {                                             // → [t0, t1, fuzzy start, fuzzy end] on the axis, or null
@@ -542,7 +551,7 @@ const tsWitCls = c => tsAncient(c) ? 'anc' : (c.w?.[0] && c.w[0] !== 'Smith') ? 
 const tsWitBadge = c => { const k = tsWitCls(c);
   return `<span class="tswit ${k}">${esc(k === 'anc' ? (c.w?.[0] || '').replace(/ Marcellinus/, '') + ' ' + (c.e?.[2] || '') : k === 'rep' ? c.w[0] + ' (Smith)' : k === 'rule' ? (/fasti|liebenam/.test(c.m) ? 'Liebenam' : /xref/.test(c.m || c.i) ? 'cross-ref.' : 'Smith, by rule') : 'Smith ' + (c.e?.[2] || ''))}</span>`; };
 const tsRow = c => { const tm = tsTime(c);
-  return `<details class="tsrow${c.st === 'rejects' ? ' rej' : ''}${c.inf ? ' inf' : ''}" id="tsr-${esc(c.i)}"><summary>${esc(tsLab(c) || '–')}${c.t?.orig || tm ? ` <small class="hint">${esc(c.t?.orig || rangeTxt(tm[0], tm[1]))}</small>` : ''} ${tsWitBadge(c)}${c.st ? ` <small class="tsst">${esc(c.st)}</small>` : ''}${c.inf ? ' <small class="tsst">inferred</small>' : ''}</summary>${tsCard({ st: c })}</details>`; };
+  return `<details class="tsrow${c.st === 'rejects' ? ' rej' : ''}${c.inf ? ' inf' : ''}" data-tsr="${esc(c.i)}"><summary>${esc(tsLab(c) || '–')}${c.t?.orig || tm ? ` <small class="hint">${esc(c.t?.orig || rangeTxt(tm[0], tm[1]))}</small>` : ''} ${tsWitBadge(c)}${c.st ? ` <small class="tsst">${esc(c.st)}</small>` : ''}${c.inf ? ' <small class="tsst">inferred</small>' : ''}</summary>${tsCard({ st: c })}</details>`; };
 const tsRefOf = P => TS_IX?.p?.[P]?.[1] != null ? 'people-smith|' + TS_IX.p[P][1] : 'tp|' + P;
 function tsOverview(L, name) {                                    // composed by rule from the statements; every fact links to its statement
   const ok = L.filter(c => c.st !== 'rejects'), first = p => ok.find(c => c.p === p), all = p => ok.filter(c => c.p === p);
@@ -555,23 +564,24 @@ function tsOverview(L, name) {                                    // composed by
   if (di || pd || dm) out.push(`Died ${di ? f(di, when(di)) : ''}${pd ? ' at ' + f(pd, tsVal(pd.v)) : ''}${dm ? ' – ' + f(dm, tsVal(dm.v)) : ''}${kb ? ', killed by ' + f(kb, tsVal(kb.v)) : ''}.`);
   const rg = all('reign'); if (rg.length) out.push(rg.slice(0, 3).map(c => f(c, tsVal(c.v) + ' ' + when(c))).join('; ') + '.');
   const of = all('office'); if (of.length) out.push('Offices: ' + of.slice(0, 8).map(c => f(c, tsVal(c.v) + (when(c) ? ' ' + when(c) : ''))).join(', ') + (of.length > 8 ? ` and ${of.length - 8} more` : '') + '.');
-  const kin = ['parent', 'spouse', 'child', 'sibling'].map(p => [p, all(p)]).filter(x => x[1].length);
-  if (kin.length) out.push(kin.map(([p, cs]) => ({ parent: 'Parents', spouse: 'Married', child: 'Children', sibling: 'Siblings' })[p] + ': ' + cs.slice(0, 5).map(c => f(c, tsVal(c.v))).join(', ')).join('. ') + '.');
+  const kin = ['child', 'spouse', 'parent', 'sibling']                       // ("child" = this person is the child of v: v is a parent).map(p => [p, all(p)]).filter(x => x[1].length);
+  if (kin.length) out.push(kin.map(([p, cs]) => ({ parent: 'Children', spouse: 'Married', child: 'Parents', sibling: 'Siblings' })[p] + ': ' + cs.slice(0, 5).map(c => f(c, tsVal(c.v))).join(', ')).join('. ') + '.');
   const wr = all('wrote'); if (wr.length) out.push('Wrote: ' + wr.slice(0, 6).map(c => f(c, tsVal(c.v))).join('; ') + (wr.length > 6 ? ` and ${wr.length - 6} more` : '') + '.');
   const ch = first('character'); if (ch) out.push('Character: ' + f(ch, tsVal(ch.v)) + '.');
   return `<p class="tsov">${out.join(' ')}</p>`;
 }
-async function tsPanel(refOrP) {
-  TS_IX = await tsIx(); const ref = String(refOrP).startsWith('P-') ? tsRefOf(refOrP) : refOrP, P = await tsRefP(ref);
-  const p = $('#tmpSide'); p.hidden = false; p.dataset.k = 'person'; p.dataset.ref = ref; p.scrollTop = 0;
+// 1002a: one renderer for the person – in Tempora's panel (with the encyclopaedias folded below it) and at the top of the Suda
+// tab's person page (open, above the encyclopaedias)
+async function tsPersonHTML(ref, where = 'tempora') {
+  TS_IX = await tsIx(); const P = await tsRefP(ref);
   const L = P ? await tsStatements(P) || [] : [], lv = P ? TS_IX?.life?.[P] : null, { d, i } = pplParse(ref), r = d ? await pplRow(d, i) : null;
-  const name = P ? tsName(TS_IX.p[P][0]) : r?.name || ref, on = (TP.cfg.persons || []).includes(ref);
+  const name = P ? tsName(TS_IX.p[P][0]) : tsName(r?.name || ref), on = (TP.cfg?.persons || []).includes(ref);
   const roles = (lv?.[6] || []).filter(x => /^(role|off|status):/.test(x)).map(x => `<span class="tskind">${esc(TSV(x))}</span>`).join(' ');
   const og = (lv?.[6] || []).filter(x => /^(orig|gender):/.test(x)).map(TSV).join(', ');
-  let h = `<div class="tch"><b>${esc(name)}</b><button type="button" data-tmpclose="side" aria-label="Close">✕</button></div>`
-    + `<p class="tsdates">${lv ? `<b>${esc(rangeTxt(lv[0], lv[1]))}</b> <small class="hint">estimated – ${esc(lv[8])}</small>` : r?.y0 != null ? `<small class="hint">no life dated yet · the years Smith’s article mentions: ${esc(yearsTxt(r.y0, r.y1))}</small>` : '<small class="hint">no dates yet</small>'}</p>`
+  let h = `<p class="tsdates">${lv ? `<b>${esc(rangeTxt(lv[0], lv[1]))}</b> <small class="hint">estimated – ${esc(lv[8])}</small>` : r?.y0 != null ? `<small class="hint">no life dated yet · the years Smith’s article mentions: ${esc(yearsTxt(r.y0, r.y1))}</small>` : '<small class="hint">no dates yet</small>'}</p>`
     + (roles || og ? `<p>${roles}${og ? ` <small class="hint">${esc(og)}</small>` : ''}</p>` : '')
-    + `<p class="tact"><button type="button" data-tslane="${esc(ref)}">${on ? 'Close the full lane' : 'Open the full lane'}</button>${L.length ? ` <small class="hint">${L.length} statements · ${P}</small>` : ''}</p>`;
+    + (where === 'tempora' ? `<p class="tact"><button type="button" data-tslane="${esc(ref)}">${on ? 'Close the full lane' : 'Open the full lane'}</button>${L.length ? ` <small class="hint">${L.length} statements · ${P}</small>` : ''}</p>`
+      : L.length ? `<p class="hint small">${L.length} statements · ${P}</p>` : '');
   if (L.length) {
     h += tsOverview(L, name);
     const by = new Map(TS_SEC.map(([k]) => [k, []])); for (const c of L) by.get(TS_SECOF(c)).push(c);
@@ -579,17 +589,35 @@ async function tsPanel(refOrP) {
     for (const [k, t] of TS_SEC) { const cs = by.get(k).sort(ord); if (!cs.length && k !== 'src') continue;
       let extra = '';
       if (k === 'src') { const pas = new Map(); for (const c of L) if (tsAncient(c) && c.e?.[2]) pas.set(c.e[1] + '|' + c.e[2], [c.e[1], c.e[2], c.w?.[0]]);
-        extra = (r?.d?.id === 'people-smith' || TS_IX.p[P]?.[1] != null ? `<p><button type="button" data-tmpperson="${esc(ref)}">Smith’s article (Suda tab)</button></p>` : '')
-          + (pas.size ? `<p class="tchips">${[...pas.values()].sort((a, b) => a[1].localeCompare(b[1], undefined, { numeric: true })).map(([w, l, a]) => `<button type="button" class="tpadd sm" data-tsloc="${esc(w + '|' + l)}">${esc((a || '').replace(/ Marcellinus/, ''))} ${esc(l)}</button>`).join('')}</p>` : ''); }
+        extra = (where === 'tempora' && (d?.id === 'people-smith' || TS_IX.p[P]?.[1] != null) ? `<p><button type="button" data-tmpperson="${esc(ref)}">Smith’s article (Suda tab)</button></p>` : '')
+          + (pas.size ? `<p class="tchips">${[...pas.values()].sort((a, b) => a[1].localeCompare(b[1], undefined, { numeric: true })).map(([w, l, a]) => `<button type="button" class="tpadd sm" data-tsloc="${esc(w + '|' + l)}">${esc((a || '').replace(/ Marcellinus/, ''))} ${esc(l)}</button>`).join('')}</p>` : '');
+        if (!cs.length && !extra) continue; }
       h += `<details class="tssec" open data-sec="${k}"><summary>${t} <small class="hint">${cs.length || ''}</small></summary>${extra}${cs.map(tsRow).join('')}</details>`; }
     h += `<p class="hint small"><span class="tswit anc">ancient text</span> <span class="tswit smith">Smith</span> <span class="tswit rep">a view Smith reports</span> <span class="tswit rule">lists and rules</span></p>`;
   }
-  if (d) h += `<details class="tssec tsenc" data-encref="${esc(ref)}"><summary>Smith and the other encyclopaedias <small class="hint">as in the Suda tab</small></summary><div class="tsencb"></div></details>`;
-  p.innerHTML = h;
+  return { h, name, P, n: L.length, d };
 }
+async function tsPanel(refOrP) {
+  TS_IX = await tsIx(); const ref = String(refOrP).startsWith('P-') ? tsRefOf(refOrP) : refOrP;
+  const p = $('#tmpSide'); p.hidden = false; p.dataset.k = 'person'; p.dataset.ref = ref; p.scrollTop = 0;
+  const x = await tsPersonHTML(ref, 'tempora');
+  p.innerHTML = `<div class="tch"><b>${esc(x.name)}</b><button type="button" data-tmpclose="side" aria-label="Close">✕</button></div><div class="tsbody">${x.h}</div>`
+    + (x.d ? `<details class="tssec tsenc" data-encref="${esc(ref)}"><summary>Smith and the other encyclopaedias <small class="hint">as in the Suda tab</small></summary><div class="tsencb"></div></details>` : '');
+}
+function tsFact(a) {                                               // an overview's fact: its statement opened, in the same page
+  const root = a.closest('.tsbody') || document, r = root.querySelector(`[data-tsr="${CSS.escape(a.dataset.tsf)}"]`); if (!r) return;
+  r.open = true; r.closest('details.tssec')?.setAttribute('open', ''); r.scrollIntoView({ block: 'center', behavior: 'smooth' }); r.classList.add('flash'); setTimeout(() => r.classList.remove('flash'), 1200);
+}
+async function tsOpenLoc(v) { const [wid, loc] = v.split('|'), [bk, ...r] = loc.split('.'); const w = await libGet('works', wid); if (!w) return libMenu(wid);
+  return pplPassage(wid, Math.max(0, (w.books || []).indexOf(bk)), r.join('.'), ''); }
+document.addEventListener('click', ev => {                          // (the same in the Suda tab's person page)
+  if (!ev.target.closest?.('#peopleBody .tsbody')) return;
+  const a = ev.target.closest('a[data-tsf]'); if (a) { ev.preventDefault(); ev.stopPropagation(); return tsFact(a); }
+  const l = ev.target.closest('[data-tsloc]'); if (l) { ev.stopPropagation(); return tsOpenLoc(l.dataset.tsloc); }
+}, true);
 document.addEventListener('toggle', async ev => {                   // the encyclopaedias' section: filled when first opened
   const s = ev.target; if (!s.matches?.('details.tsenc') || !s.open) return; const b = s.querySelector('.tsencb'); if (b.dataset.done) return;
-  b.dataset.done = 1; b.innerHTML = '<p class="hint">…</p>'; b.innerHTML = await pplPersonHTML(s.dataset.encref).catch(() => '<p class="hint">Not available.</p>');
+  b.dataset.done = 1; b.innerHTML = '<p class="hint">…</p>'; b.innerHTML = await pplPersonHTML(s.dataset.encref, null, { noTempora: true }).catch(() => '<p class="hint">Not available.</p>');
 }, true);
 
 async function tmpData() {
@@ -657,7 +685,7 @@ async function tmpData() {
   {                                                       // (always built – shown only with “Written”, so that switching it moves nothing)
     const wl = wid => WRITTEN.filter(([p]) => wid.startsWith(p));
     const src = cfg.wsrc || {}, pick = cfg.wpick || {};                   // (which dates: by source – Settings – and, for a work, the one you chose)
-    const short = r => r[6] === 'hb' ? 'written' : r[6] === 'claim' ? 'written (as it claims)' : r[7] || 'Smith';   // (829b: the full text in the card)
+    const short = r => r[7] || (r[6] === 'claim' ? 'written (as it claims)' : r[6] === 'smith' ? 'Smith' : 'written');   // (829b: the full text in the card)
     for (const L of lanes) { if (!L.wid) continue;
       let ws = (L.col ? WRITTEN.filter(r => r[0].startsWith(L.wid) || L.wid.startsWith(r[0])) : wl(L.wid)).filter(r => src[r[6]] !== false);
       const all = ws.length, ww = L.its.find(i => i.go?.w)?.go.w;
@@ -666,7 +694,7 @@ async function tmpData() {
       for (const r of ws) { const k = [r[1], r[2], short(r)].join('|'); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
       for (const rs of groups.values()) { const [p, y0, y1, lab, note, fz, so] = rs[0], per = L.col && p.length > L.wid.length;
         const names = per ? rs.map(r => L.its.find(i => i.go?.w?.startsWith(r[0]))?.lab).filter(Boolean) : [];
-        L.its.push({ t0: ax(y0), t1: ax(y1) + 1, fa: !!fz, fb: !!fz, lab: short(rs[0]), kind: 'work', k2: 'written', wr: true, wks: rs.map(r => per ? r[0] : L.wid), wk: L.wid, wlab: lab, wn: all, lv: per ? 1 : undefined,
+        L.its.push({ t0: ax(y0), t1: y1 == null ? ax(y0) + 15 : ax(y1) + 1, fa: !!fz, fb: !!fz || y1 == null,   // (an open end: drawn fading out) lab: short(rs[0]), kind: 'work', k2: 'written', wr: true, wks: rs.map(r => per ? r[0] : L.wid), wk: L.wid, wlab: lab, wn: all, lv: per ? 1 : undefined,
           sid: so === 'smith' ? 'people-smith' : 'written', src: WSRC.find(s => s[0] === so)[1],
           note: per ? note.replace(/this life is/, 'these lives are') + ': ' + names.join(', ') : lab + ' – ' + note, go: ww && !L.col ? { w: ww, bi: 0, r: null } : null }); }
     }
@@ -1190,7 +1218,7 @@ function tmpCardItem(h) {
     + `<p>${esc(rangeTxt(it.t0, it.t1))}${it.fa || it.fb ? ' <small>(vague)</small>' : ''} · <span class="hint">${esc(it.src || '')}</span></p>`
     + (it.text ? `<p class="gk tmptext">${esc(it.text)}</p>` : '') + (it.note ? `<p class="hint">${esc(it.note)}</p>` : '')
     + (() => { const w = it.wr ? null : tmpWorkOf(it), rs = w ? WRITTEN.filter(r => w.startsWith(r[0]) || (r[0].startsWith(w) && it.lv === 0)) : [];   // (991a, 992a: each date of writing with its source)
-      return rs.length ? `<div class="tswr"><b>Written</b>${rs.map(r => `<p class="small">${esc(rangeTxt(ax(r[1]), ax(r[2]) + 1))} · <span class="${r[6] === 'hb' ? 'tsnosrc' : 'hint'}">${esc(WSRC.find(x => x[0] === r[6])[1])}</span><br><small class="hint">${esc(r[4].replace(SM, ''))}</small></p>`).join('')}</div>` : ''; })()
+      return rs.length ? `<div class="tswr"><b>Written</b>${rs.map(r => `<p class="small">${esc(r[2] == null ? 'after ' + yTxt(r[1]) : rangeTxt(ax(r[1]), ax(r[2]) + 1))} · <b>${esc(r[3])}</b> · <span class="hint">${esc(WSRC.find(x => x[0] === r[6])?.[1] || r[6])}</span><br><small class="hint">${esc(r[4].replace(SM, ''))}</small></p>`).join('')}</div>` : ''; })()
     + (it.wr && it.wn > 1 ? `<p class="tact">${TP.cfg.wpick?.[it.wk] ? `<button type="button" data-tmpwpick="" data-wid="${esc(it.wk)}">Show all its dates of writing</button>` : `<button type="button" data-tmpwpick="${esc(it.wlab)}" data-wid="${esc(it.wk)}">Show only this date for this work</button>`}</p>` : '')
     + `<p class="tact">${it.go?.w && TP.instW?.has(it.go.w) ? `<button type="button" data-tmpgo="1">Open the passage</button>` : ''}${tmpWorkOf(it) ? `<button type="button" data-tmpwork="${esc(tmpWorkOf(it))}">The work’s page</button>` : ''}${it.ref ? `<button type="button" data-tmpperson="${esc(it.ref)}">Person page</button>` : ''}`
     + `${it.place ? `<button type="button" data-tmpmap="1">Show on the map</button>` : ''}${it.own ? `<button type="button" data-tmpedit="${esc(it.own.id)}">Edit</button>` : ''}`
@@ -1509,7 +1537,7 @@ async function tmpMapMarkers() {
 // ---------------------------------------------------------------- clicks
 document.addEventListener('click', async ev => {
   const t = ev.target; if (!t.closest?.('#temporaBody,.tmpfilt')) return;
-  const fa = t.closest('a[data-tsf]'); if (fa) { ev.preventDefault(); const r = document.getElementById('tsr-' + fa.dataset.tsf); if (r) { r.open = true; r.closest('details.tssec')?.setAttribute('open', ''); r.scrollIntoView({ block: 'center', behavior: 'smooth' }); r.classList.add('flash'); setTimeout(() => r.classList.remove('flash'), 1200); } return; }
+  const fa = t.closest('a[data-tsf]'); if (fa) { ev.preventDefault(); return tsFact(fa); }
   if (t.closest('#tmpSide .tsencb')) {                          // (the encyclopaedias in the panel: another person – his panel; a passage – the text)
     const pr = t.closest('[data-ppref]'); if (pr) return tsPanel(pr.dataset.ppref);
     const ps = t.closest('[data-pppass]'); if (ps) return pplPassage(ps.dataset.pppass, +ps.dataset.bi, ps.dataset.r, ps.dataset.ref);
@@ -1568,8 +1596,7 @@ document.addEventListener('click', async ev => {
   if (D.tsall) return tsPanel(D.tsall);
   if (D.tslane) { const an = tmpAnchorGet(), ps = TP.cfg.persons, i = ps.indexOf(D.tslane); if (i >= 0) ps.splice(i, 1); else ps.push(D.tslane);   // (997a: the full lane – opened, closed)
     tmpSave(); await tmpData(); tmpAnchorKeep(an); return tsPanel(D.tslane); }
-  if (D.tsloc) { const [wid, loc] = D.tsloc.split('|'), [bk, ...r] = loc.split('.'); const w = await libGet('works', wid); if (!w) return libMenu(wid);
-    return pplPassage(wid, Math.max(0, (w.books || []).indexOf(bk)), r.join('.'), ''); }
+  if (D.tsloc) return tsOpenLoc(D.tsloc);
   if (D.tsgo) { const c = TP.sel?.it?.st, loc = c?.e?.[2]; if (!loc) return; const [bk, ...r] = loc.split('.'); const wid = c.e[1];
     const w = await libGet('works', wid); if (!w) return libMenu(wid); const bi = Math.max(0, (w.books || []).indexOf(bk)); return pplPassage(wid, bi, r.join('.'), ''); }
   if (D.tmpyear) { TP.cur = ax(+D.tmpyear) + 0.5; tmpCardYear(+D.tmpyear); return tmpRedraw(); }

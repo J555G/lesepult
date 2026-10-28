@@ -482,7 +482,7 @@ async function pplSearchHTML(q, all = false) {
   const more = !all && ids.length > shown.length ? ` <small>– the first ${shown.length}; Enter shows all</small>` : '';
   return { head: `<div class="navh3">${ids.length.toLocaleString('en')} entr${ids.length === 1 ? 'y' : 'ies'}${more}</div><div class="list plain"></div>`, rows };
 }
-async function pplPersonHTML(ref, ti) {
+async function pplPersonHTML(ref, ti, opts = {}) {
   const { d, i } = pplParse(ref); if (!d) return '<p class="hint">This person’s package is not installed.</p>';
   if (d.kind === 'ident') {                                        // (770) a person known only from an edition's index of names
     const rw = await pplRow(d, i), h1 = ti != null ? S.prs?.get(ti) : null;
@@ -502,6 +502,9 @@ async function pplPersonHTML(ref, ti) {
     + officesHTML(await fastiTab(), ref) + `<div class="pptmp"><button type="button" data-tmpshow="${esc(ref)}">Show in Tempora</button></div>`
     + (h0 ? `<div class="ppat">${h0.sure ? `Marked in the text: ${esc(h0.why)}.` : 'Not yet certain in the text.'} <button type="button" data-ppname="${esc(h0.k)}" data-ti="${ti}">${h0.cands.length > 1 ? 'Someone else?' : 'Not this person?'}</button></div>` : '')
     + '</div>';
+  // 1002a: what Tempora has of the person – open, above the encyclopaedias (the same renderer as Tempora's panel)
+  if (!opts.noTempora && typeof tsPersonHTML === 'function' && tsPkg()) { const x = await tsPersonHTML(ref, 'suda').catch(() => null);
+    if (x && (x.n || x.P)) h += `<details class="src tssrc" open><summary>Tempora <small>${x.n ? x.n + ' statements, read from Smith and the texts' : 'dates'}</small></summary><div class="tsbody">${x.h}</div></details>`; }
   // the sources, each by itself (as in the dictionary): the encyclopaedia, then the Suda under the person's Greek names
   let secs = '';
   if (sudaMerge()) { const ix = await pplIx(d); for (let j = i + 1; j < ix.p.length && j < i + 40; j++) if (ix.p[j]?.[7] === i) { const se = await pplEntry(d, j); if (se) secs += `<div class="ppsec">${se.html}</div>`; } }

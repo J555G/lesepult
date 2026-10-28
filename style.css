@@ -2385,3 +2385,15 @@ body:not(.nofade) #tabPeople{transition:border-color .333s ease}body:not(.nofade
 .tswr{margin:.4em 0}.tswr p{margin:.2em 0}.tsnosrc{color:#b3261e}
 .tmppanel .tsencb .src{margin:.3em 0}
 .tmpfilt .tpadd.on,.tmpfilt .tpadd.sm.on{background:var(--card)!important;color:var(--fg)!important;border-color:var(--acc)!important}
+/* 1002a: the Tempora section in the Suda tab's person page – as in Tempora's panel */
+.tssrc .tsbody{padding:2px 2px 6px}
+.tsbody .tskind{display:inline-block;font-size:.78rem;padding:0 6px;margin:1px 2px 1px 0;border-radius:8px;background:var(--bar);border:1px solid var(--line)}
+.tsbody .tsov{line-height:1.5;margin:.6em 0}.tsbody .tsov a{color:inherit;text-decoration:underline dotted;text-underline-offset:2px}
+.tsbody details.tssec{border-top:1px solid var(--line);margin-top:4px}
+.tsbody details.tssec>summary{cursor:pointer;list-style:none;font-weight:600;padding:5px 0}
+.tsbody details.tssec>summary::before{content:"▸ ";color:var(--mut)}.tsbody details.tssec[open]>summary::before{content:"▾ "}
+.tsbody .tsrow{border-bottom:1px solid var(--line);padding:3px 0}.tsbody .tsrow>summary{cursor:pointer;list-style:none;line-height:1.35}
+.tsbody .tsrow.rej>summary{opacity:.6;text-decoration:line-through;text-decoration-thickness:1px}.tsbody .tsrow.inf>summary{font-style:italic}
+.tsbody .tsrow.flash>summary{background:color-mix(in srgb,var(--acc) 22%,transparent)}
+.tsbody .tchips{display:flex;flex-wrap:wrap;gap:5px}
+.tsbody button{font:inherit;font-size:.85rem;padding:3px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bar);color:var(--fg)}
