@@ -396,39 +396,25 @@ const ROMN = n => ['', 'I', 'II', 'III', 'IIII', 'V', 'VI', 'VII', 'VIII', 'VIII
 // when the works that have lanes were written (814a+b): [work id prefix, from, to, label, note, vague, source]. Two sources side by side:
 // the usual dates of today's handbooks (a first table, by hand) and what Smith's Dictionary (1849) says – the sentences its articles
 // give, found by a search of the articles for writing, composing, publishing, dedicating with a year, and read by hand.
-const SM = 'Smith’s Dictionary: ', DIOCL = [284, 305], CONST = [306, 337];
-const haSmith = (ids, [y0, y1], who, how) => ids.map(n => [`phi2331.phi${String(n).padStart(3, '0')}`, y0, y1, `Smith: ${how} ${who}`, SM + `this life is ${how} ${who} (reigned ${y0}–${y1}) – the articles Spartianus, Capitolinus, Lampridius`, true, 'smith', `Smith: to ${who}`]);
+const SM = 'Smith’s Dictionary: ';
 const COLL = [['phi2331', 'Scriptores Historiae Augustae', 'Hist. Aug.', 'Historia Augusta'], ['phi1348.abo', 'Suetonius', 'Suetonius', 'De vita Caesarum']];   // (856a: lane = author, bar = the work)
-// 992a: every date of writing names its source – the handbooks (Teuffel–Schwabe, Schanz, Christ; public domain, read from the
-// archive.org scans), Smith's Dictionary, and what the work itself claims. Views a handbook reports (Dessau, Mommsen …) under it.
-const TS_ = 'Teuffel–Schwabe, History of Roman Literature, tr. Warr, II (1892) ', SZ_ = 'Schanz, Geschichte der römischen Litteratur IV 1², 1914, ', CH_ = 'W. Christ, Geschichte der griechischen Litteratur³ (1898) ';
+// 992a, 1010a: when the works were written – statements in the toolkit (tempora-persons, bucket "wr": on W-<work>), each with its
+// source's own words: the handbooks (Teuffel–Schwabe, Schanz, Christ), Smith's Dictionary, what the work itself claims, and the
+// views a handbook reports (Dessau, Mommsen …). Here they become rows: [work, from, to (null: open), label, words and place,
+// vague, source, short label, the statement]
 const WSRC = [['teuffel', 'Teuffel–Schwabe (1892)'], ['schanz', 'Schanz (1914)'], ['christ', 'Christ (1898)'], ['claim', 'What the work claims'], ['smith', 'Smith’s Dictionary (1849)']];
-const WRITTEN = [   // [work, from, to (null: open), label, the source's words and where, vague, source, short label]
-  ['stoa0023.stoa001', 390, 391, 'Teuffel: c. AD 390', TS_ + '§ 429 n. 3, p. 391: “The extant books were, so far as we can judge, composed c. a. 390 and their publication appears to have been gradual. Chronological data: 22, 16, 12 was written before the destruction of the Serapeum at Alexandria, July 391; 26, 5, 14 after the consulship of Neoterius (a. 390).”', true, 'teuffel', 'Teuffel'],
-  ['stoa0023.stoa001', 395, null, 'Schanz: finished after AD 395', SZ_ + '§ 808: read out in parts (Libanius’ letter “in der ersten Zeit der neunziger Jahre”); “in der Tat lässt sich wahrscheinlich machen, dass er erst nach dem Tode des Theodosius mit der grossen Aufgabe … zu Ende kam”', true, 'schanz', 'Schanz'],
-  ['stoa0023.stoa001', 390, 395, 'Smith: after AD 390', SM + '“composed his history” in Rome; his death “must have happened later than 390, since a reference occurs to the consulship of Neoterius”', true, 'smith'],
-  ['phi1351.phi004', 106, 109, 'Teuffel: c. AD 106–109', TS_ + '§ 337 and n. 3, pp. 170–171: “written under Trajan”; Pliny’s letters 6, 16. 20. 7, 33 “were written as contributions to the materials of the historiae, which Tac. was then composing … These notices in Pliny belong to about a. 106-109.”', true, 'teuffel', 'Teuffel'],
-  ['phi1351.phi004', 98, 110, 'Smith: after AD 98', SM + '“The Historiae were written after the death of Nerva, AD 98, and before the Annales”', true, 'smith'],
-  ['phi1351.phi005', 115, 117, 'Teuffel: published AD 115–117', TS_ + '§ 338 and n. 2, p. 172: “likewise written under Trajan and published between a. 115 and 117” – Ann. 2, 61 presupposes Trajan’s conquest of about 115, given up by Hadrian on his accession (August 117)', true, 'teuffel', 'Teuffel'],
-  ['phi1348.abo', 119, 121, 'Teuffel: published c. AD 120', TS_ + '§ 347 n. 8, p. 201: “De vita Caesarum, dedicated to the praef. praet. C. Septicius Clarus …, who held this position a. 119-121, hence published a. 120.”', true, 'teuffel', 'Teuffel'],
-  ['stoa0121.stoa001', 364, 378, 'Teuffel: under Valens', TS_ + '§ 415, p. 351: “Under Valens, Eutropius wrote his brief account of the entire history of Rome” (the dedication: “Domino Valenti Gothico Maximo Perpetuo Augusto”, p. 352)', true, 'teuffel', 'Teuffel'],
-  ['stoa0121.stoa001', 364, 375, 'Schanz: AD 364–375', SZ_ + '§ 802: “Die Regierung der gegenwärtigen Kaiser, Valens und Valentinian (364—375), zu schildern, lehnt der Autor vorerst ab”', true, 'schanz', 'Schanz'],
-  ['stoa0121.stoa001', 364, 378, 'Smith: under Valens', SM + 'composed “by command” of Valens, “to whom it is inscribed” (Valens reigned 364–378)', true, 'smith'],
-  ['phi2331', 293, 330, 'written – as it claims (293–330)', 'as the work claims: six authors writing under Diocletian and Constantine', true, 'claim'],
-  ['phi2331', 364, 395, 'Dessau (1889): under Valentinian–Theodosius', SZ_ + '§ 795: H. Dessau, Hermes 24 (1889) p. 337, “dass die Kaiserbiographien … nicht der constantinisch-diokletianischen, sondern der valentinianisch-theodosischen Zeit angehören”; likewise Teuffel–Schwabe § 392 n. 1, p. 299: Dessau “towards the end of the fourth century”', true, 'schanz', 'Dessau'],
-  ['phi2331', 330, 395, 'Mommsen (1890): c. 330, revised later', SZ_ + '§ 795: Th. Mommsen, Hermes 25 (1890) p. 228: the collection “im grossen Ganzen ein Werk der diokletianisch-constantinischen Zeit”, closed “um 330”, revised again “in der valentinianisch-theodosischen Zeit”', true, 'schanz', 'Mommsen'],
-  ['phi2331', 284, 330, 'Peter (1892): closed 330', SZ_ + '§ 795: H. Peter, Die Script. hist. Aug. (1892) p. 242, “als ein Produkt der diokletianisch-constantinischen Zeit … mit dem Jahre 330 abgeschlossen”', true, 'schanz', 'Peter'],
-  ['phi2331', 409, 410, 'Seeck (1912): AD 409–410', SZ_ + '§ 795: O. Seeck, Rh. Mus. 67 (1912) p. 603, “dass die Hist. Aug. in ihrem vollen Umfange unter Honorius entstanden ist … gegen Ende 409 … ungefähr in der zweiten Hälfte des Jahres 410”', true, 'schanz', 'Seeck'],
-  ...haSmith([1, 2, 3, 4, 5, 7, 9, 10, 11], DIOCL, 'Diocletian', 'inscribed to'),
-  ...haSmith([12, 14, 15, 18, 19, 20], CONST, 'Constantine', 'inscribed to'),
-  ...haSmith([17], CONST, 'Constantine', 'addressed to'),
-  ['tlg0060.tlg001', -21, null, 'Christ: after 21 BC', CH_ + '§ 459 n. 3, p. 631: “Sicher lebte er bis 21 v. Chr.; denn auf Ereignisse dieses Jahres bezieht er sich 16,7” (Diodorus “blühte unter Augustus”; thirty years’ work, 1.4.1)', true, 'christ', 'Christ'],
-  ['tlg0060.tlg001', -8, 1, 'Smith: after 8 BC', SM + 'Scaliger “has made it highly probable that Diodorus wrote his work after the year B. C. 8, when Augustus corrected the calendar”', true, 'smith'],
-  ['tlg0081.tlg001', -30, -8, 'Christ: 30–8 BC', CH_ + '§ 462, p. 637: “im Jahre 30 v. Chr. nach Rom gekommen und hatte in den 22 Jahren, die er daselbst zubrachte …”; “nach Vollendung seines Geschichtswerkes im Jahre 8 v. Chr.”', false, 'christ', 'Christ'],
-  ['tlg0081.tlg001', -30, -8, 'as it claims: 22 years after Ol. 187', 'Ant. Rom. 1.7.2: “καταπλεύσας εἰς Ἰταλίαν ἅμα τῷ καταλυθῆναι τὸν ἐμφύλιον πόλεμον … ἑβδόμης καὶ ὀγδοηκοστῆς καὶ ἑκατοστῆς ὀλυμπιάδος μεσούσης, καὶ τὸν ἐξ ἐκείνου χρόνον ἐτῶν δύο καὶ εἴκοσι μέχρι τοῦ παρόντος” – the middle of Ol. 187 is 30 BC, twenty-two years on 8 BC', true, 'claim'],
-  ['tlg0081.tlg001', -29, -7, 'Smith: 29–7 BC', SM + 'came to Rome “about the middle of Ol. 187, that is, B. C. 29”; “B. C. 7, the year in which he completed and published his great work”', false, 'smith'],
-  ['tlg0004.tlg001', 222, 249, 'Christ: under Alexander Severus and his successors', CH_ + '§ 514, p. 708: after Sextus Empiricus and before Stephanus of Byzantium; “Am wahrscheinlichsten ist es, dass er vor dem Aufblühen des Neuplatonismus, unter Alexander Severus und seinen nächsten Nachfolgern geschrieben hat” (Alexander Severus 222–235; “his next successors” taken here to Philip, 249 – the end is open)', true, 'christ', 'Christ'],
-];
+const WSRCT = { teuffel: 'Teuffel–Schwabe, History of Roman Literature, tr. Warr, II (1892) ', schanz: 'Schanz, Geschichte der römischen Litteratur IV 1² (1914) ', christ: 'W. Christ, Geschichte der griechischen Litteratur³ (1898) ' };
+let WRITTEN = [];
+async function tmpWritten() {
+  const d = tsPkg(); const r = d ? await pplRec(d, 'wr').catch(() => null) : null; const out = [];
+  for (const [w, cs] of Object.entries(r?.e || {})) for (const c of cs) {
+    const t = c.t || {}, e = c.e || [], claim = c.k === 'work:text', so = claim ? 'claim' : e[0];
+    const where = e[0] === 'smith' ? `${SM}${e[1]} ${e[2]}: ` : e[0] === 'texts' ? `${e[2]}: ` : `${WSRCT[e[0]] || ''}${e[2]}: `;
+    const note = `${where}“${e[3] || ''}”${c.n ? ' – ' + c.n : ''}${c.w?.[1] ? ` (the view of ${c.w[0]}, reported there)` : ''}${c.st === 'rejects' ? ' – Smith rejects this' : ''}`;
+    const short = claim ? 'written (as it claims)' : c.w?.[1] ? c.w[0] : e[0] === 'smith' ? (/ to /.test(t.orig || '') ? t.orig.replace(/^Smith: (inscribed |addressed )?/, 'Smith: ').replace(/ – .*$/, '') : 'Smith') : (WSRC.find(x => x[0] === so)?.[1] || so).replace(/ \(.*$/, '').replace(/–Schwabe/, '');
+    out.push([w, hy(t.lo), t.open === 'hi' ? null : hy(t.hi - 1), t.orig || '', note, t.w === 'triangular', so, short + (c.st === 'rejects' ? ' (rejected)' : ''), c]); }
+  WRITTEN = out; return out;
+}
 async function tmpPersonIts(ref, F, works = new Map(), wTitle = id => id) {    // a person's items: life, offices, Diogenes' dates, passages citing him
   const TS = await tsPerson(ref); if (TS) return TS;                                // (read from the texts: the statements – tempora-persons)
   const { d, i } = pplParse(ref); if (!d) return null; const r = await pplRow(d, i); if (!r) return null;
@@ -683,6 +669,7 @@ async function tmpData() {
   }
   // "Written": when each work was written, in its own lane, joined to what it narrates by thin lines (drawn in tmpDraw)
   {                                                       // (always built – shown only with “Written”, so that switching it moves nothing)
+    await tmpWritten();
     const wl = wid => WRITTEN.filter(([p]) => wid.startsWith(p));
     const src = cfg.wsrc || {}, pick = cfg.wpick || {};                   // (which dates: by source – Settings – and, for a work, the one you chose)
     const short = r => r[7] || (r[6] === 'claim' ? 'written (as it claims)' : r[6] === 'smith' ? 'Smith' : 'written');   // (829b: the full text in the card)
@@ -695,7 +682,7 @@ async function tmpData() {
       for (const rs of groups.values()) { const [p, y0, y1, lab, note, fz, so] = rs[0], per = L.col && p.length > L.wid.length;
         const names = per ? rs.map(r => L.its.find(i => i.go?.w?.startsWith(r[0]))?.lab).filter(Boolean) : [];
         L.its.push({ t0: ax(y0), t1: y1 == null ? ax(y0) + 15 : ax(y1) + 1, fa: !!fz, fb: !!fz || y1 == null, lab: short(rs[0]), kind: 'work', k2: 'written', wr: true, wks: rs.map(r => per ? r[0] : L.wid), wk: L.wid, wlab: lab, wn: all, lv: per ? 1 : undefined,
-          sid: so === 'smith' ? 'people-smith' : 'written', src: WSRC.find(s => s[0] === so)[1],
+          sid: so === 'smith' ? 'people-smith' : 'written', src: WSRC.find(s => s[0] === so)?.[1] || so, wso: so,
           note: per ? note.replace(/this life is/, 'these lives are') + ': ' + names.join(', ') : lab + ' – ' + note, go: ww && !L.col ? { w: ww, bi: 0, r: null } : null }); }
     }
     // the other works of your library: only the author's century in the catalogue
@@ -1240,7 +1227,7 @@ function tmpCardItem(h) {
     + `<p>${esc(rangeTxt(it.t0, it.t1))}${it.fa || it.fb ? ' <small>(vague)</small>' : ''} · <span class="hint">${esc(it.src || '')}</span></p>`
     + (it.text ? `<p class="gk tmptext">${esc(it.text)}</p>` : '') + (it.note ? `<p class="hint">${esc(it.note)}</p>` : '')
     + (() => { const w = it.wr ? null : tmpWorkOf(it), rs = w ? WRITTEN.filter(r => w.startsWith(r[0]) || (r[0].startsWith(w) && it.lv === 0)) : [];   // (991a, 992a: each date of writing with its source)
-      return rs.length ? `<div class="tswr"><b>Written</b>${rs.map(r => `<p class="small">${esc(r[2] == null ? 'after ' + yTxt(r[1]) : rangeTxt(ax(r[1]), ax(r[2]) + 1))} · <b>${esc(r[3])}</b> · <span class="hint">${esc(WSRC.find(x => x[0] === r[6])?.[1] || r[6])}</span><br><small class="hint">${esc(r[4].replace(SM, ''))}</small></p>`).join('')}</div>` : ''; })()
+      return rs.length ? `<div class="tswr"><b>Written</b>${rs.map(r => `<p class="small">${esc(r[2] == null ? 'after ' + yTxt(r[1]) : rangeTxt(ax(r[1]), ax(r[2]) + 1))} · <b>${esc(r[3])}</b> · <span class="hint">${esc(WSRC.find(x => x[0] === r[6])?.[1] || r[6])}</span><br><small class="hint">${esc(r[4])}</small></p>`).join('')}</div>` : ''; })()
     + (it.wr && it.wn > 1 ? `<p class="tact">${TP.cfg.wpick?.[it.wk] ? `<button type="button" data-tmpwpick="" data-wid="${esc(it.wk)}">Show all its dates of writing</button>` : `<button type="button" data-tmpwpick="${esc(it.wlab)}" data-wid="${esc(it.wk)}">Show only this date for this work</button>`}</p>` : '')
     + `<p class="tact">${it.go?.w && TP.instW?.has(it.go.w) ? `<button type="button" data-tmpgo="1">Open the passage</button>` : ''}${tmpWorkOf(it) ? `<button type="button" data-tmpwork="${esc(tmpWorkOf(it))}">The work’s page</button>` : ''}${it.ref ? `<button type="button" data-tmpperson="${esc(it.ref)}">Person page</button>` : ''}`
     + `${it.place ? `<button type="button" data-tmpmap="1">Show on the map</button>` : ''}${it.own ? `<button type="button" data-tmpedit="${esc(it.own.id)}">Edit</button>` : ''}`
@@ -1301,10 +1288,12 @@ const tfold = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f\u034
 const FCAT = { work: 'text', book: 'text', person: 'person', pset: 'person', place: 'place', word: 'word', pkind: 'kind', wit: 'wit', time: 'time' };
 const FCATN = { text: 'Texts', person: 'Persons', place: 'Places', word: 'Words', kind: 'Kinds', wit: 'Witnesses', time: 'Time' };
 const FCAT1 = { text: 'text', person: 'person', place: 'place', word: 'word', kind: 'kind', wit: 'witness', time: 'time' };
-const WITN = [['anc', 'An ancient text itself'], ['smith', 'Smith’s Dictionary – read by the helpers'], ['rep', 'A view Smith reports (another author’s)'], ['rule', 'Lists and rules – the fasti, Smith’s years by rule, cross-references'], ['yrs', 'Smith’s index – only the years an article mentions']];
+const WITN = [['anc', 'An ancient text itself'], ['hb', 'Modern handbooks – Teuffel, Schanz, Christ'], ['smith', 'Smith’s Dictionary – read by the helpers'], ['rep', 'A view Smith reports (another author’s)'], ['rule', 'Lists and rules – the fasti, Smith’s years by rule, cross-references'], ['yrs', 'Smith’s index – only the years an article mentions']];
 function itWit(it) {                                               // the witnesses an item rests on (993a)
   if (it.st) return [tsWitCls(it.st)]; if (it.yrs) return ['yrs']; if (it.life) return it.wit || it.wit2 || [];
-  if (it.sid === 'liebenam') return ['rule']; return [];
+  if (it.sid === 'liebenam') return ['rule'];
+  if (it.wr && it.wso) return [it.wso === 'claim' ? 'anc' : it.wso === 'smith' ? 'smith' : 'hb'];   // (1010a: the dates of writing by their witness)
+  return [];
 }
 const itKinds = it => it._k ??= new Set([...(it.roles || it.par?.roles || []), ...((it.segs || it.par?.segs || []).some(x => x[2] === 'emp') ? ['off:emperor'] : []), ...(it.sk || []).map(k => 'sk:' + k)]);
 function fMatch(it, f) {
