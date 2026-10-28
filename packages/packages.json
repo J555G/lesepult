@@ -211,11 +211,11 @@
    "name": "Tempora – persons (statements read from Smith and the texts)",
    "kind": "tstmt",
    "src": "grc",
-   "title": "178 persons read so far (Ammianus book 14 and the trial batch): every statement with its source and words",
+   "title": "1072 dated persons (178 read from the texts): every statement with its source and words",
    "source": "W. Smith, Dictionary of Greek and Roman Biography (1849); Ammianus Marcellinus (Perseus); read by helpers, checked by program",
    "license": "CC BY-SA 4.0",
-   "bytes": 477165,
-   "version": "d15972e133f4"
+   "bytes": 645650,
+   "version": "82b2676348ce"
   }
  ]
 }

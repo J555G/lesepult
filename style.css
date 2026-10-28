@@ -2362,3 +2362,26 @@ body:not(.nofade) #tabPeople{transition:border-color .333s ease}body:not(.nofade
 .dbrq{width:100%;box-sizing:border-box;font:inherit;padding:5px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--fg)}
 .dbrlist{display:flex;flex-direction:column}.dbrk{font:inherit;text-align:left;padding:3px 6px;border:0;border-bottom:1px solid var(--line);background:none;color:var(--fg);font-family:var(--greek)}.dbrk.on{background:var(--bar);font-weight:600;color:var(--fg);outline:1px solid var(--acc)}
 .dbrmore{display:block;margin:.4em auto}
+/* Tempora v468 (991–1001): divider of the reference rows, the filter's sections, the person's panel */
+.tref .trow.tdiv{border-top:2px solid var(--acc2);border-bottom:2px solid var(--acc2);color:var(--mut);font-size:.82rem;padding:3px 0;margin:3px 0}
+.tmpfilt .tfhead{display:flex;gap:8px;align-items:center}.tmpfilt .tfhead .tfq{flex:1}
+.tmpfilt .tfhead .tfhere{font:inherit;font-size:.95rem;padding:6px 12px;border:1px solid var(--acc);color:var(--acc);border-radius:8px;background:var(--card);white-space:nowrap}
+.tmpfilt details.tfsec{border-top:1px solid var(--line);padding:2px 0}
+.tmpfilt details.tfsec>summary{cursor:pointer;list-style:none;padding:9px 2px;font-weight:600}
+.tmpfilt details.tfsec>summary::before{content:"▸ ";color:var(--mut)}.tmpfilt details.tfsec[open]>summary::before{content:"▾ "}
+.tmpfilt details.tfsec>summary small{font-weight:400}
+.tmpfilt .tfsb{padding:0 2px 10px}.tmpfilt .tfsb .tph{font-size:.85rem;color:var(--mut);margin-top:.7em}
+.tmpfilt .tchips.tcol{flex-direction:column;align-items:flex-start}
+.tmpfilt .tpadd.sm:disabled{opacity:.45}.tmpfilt .tpadd.sm.on:disabled{opacity:.8;border-color:var(--acc)}
+.tmpfilt .tftime input{font:inherit;width:9em;padding:5px 8px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--fg)}
+.tchip .top.op{color:var(--fg)!important;font-weight:600}
+.tmppanel .tsdates{margin:.2em 0}.tmppanel .tskind{display:inline-block;font-size:.78rem;padding:0 6px;margin:1px 2px 1px 0;border-radius:8px;background:var(--bar);border:1px solid var(--line)}
+.tmppanel .tsov{line-height:1.5;margin:.6em 0}.tmppanel .tsov a{color:inherit;text-decoration:underline dotted;text-underline-offset:2px}
+.tmppanel details.tssec{border-top:1px solid var(--line);margin-top:4px}
+.tmppanel details.tssec>summary{cursor:pointer;list-style:none;font-weight:600;padding:5px 0}
+.tmppanel details.tssec>summary::before{content:"▸ ";color:var(--mut)}.tmppanel details.tssec[open]>summary::before{content:"▾ "}
+.tmppanel .tsrow.flash>summary{background:color-mix(in srgb,var(--acc) 22%,transparent)}
+.tswit.smith{border-color:var(--acc2)}.tswit.rule{border-color:var(--line);border-style:dotted}
+.tswr{margin:.4em 0}.tswr p{margin:.2em 0}.tsnosrc{color:#b3261e}
+.tmppanel .tsencb .src{margin:.3em 0}
+.tmpfilt .tpadd.on,.tmpfilt .tpadd.sm.on{background:var(--card)!important;color:var(--fg)!important;border-color:var(--acc)!important}
