@@ -694,7 +694,7 @@ async function tmpData() {
       for (const r of ws) { const k = [r[1], r[2], short(r)].join('|'); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
       for (const rs of groups.values()) { const [p, y0, y1, lab, note, fz, so] = rs[0], per = L.col && p.length > L.wid.length;
         const names = per ? rs.map(r => L.its.find(i => i.go?.w?.startsWith(r[0]))?.lab).filter(Boolean) : [];
-        L.its.push({ t0: ax(y0), t1: y1 == null ? ax(y0) + 15 : ax(y1) + 1, fa: !!fz, fb: !!fz || y1 == null,   // (an open end: drawn fading out) lab: short(rs[0]), kind: 'work', k2: 'written', wr: true, wks: rs.map(r => per ? r[0] : L.wid), wk: L.wid, wlab: lab, wn: all, lv: per ? 1 : undefined,
+        L.its.push({ t0: ax(y0), t1: y1 == null ? ax(y0) + 15 : ax(y1) + 1, fa: !!fz, fb: !!fz || y1 == null, lab: short(rs[0]), kind: 'work', k2: 'written', wr: true, wks: rs.map(r => per ? r[0] : L.wid), wk: L.wid, wlab: lab, wn: all, lv: per ? 1 : undefined,
           sid: so === 'smith' ? 'people-smith' : 'written', src: WSRC.find(s => s[0] === so)[1],
           note: per ? note.replace(/this life is/, 'these lives are') + ': ' + names.join(', ') : lab + ' – ' + note, go: ww && !L.col ? { w: ww, bi: 0, r: null } : null }); }
     }
@@ -935,7 +935,8 @@ function tmpDraw() {
           // its name, once – at the box's left edge, or held at the screen's edge while the box runs on
           // a work not on this device: a dashed box and a small download arrow before its name (no words)
           if (!L.have) { g.strokeStyle = C.mut; g.globalAlpha = 0.7; g.setLineDash([4, 3]); g.strokeRect(xa + 0.5, top - 1.5, xb - xa - 1, h + 2); g.setLineDash([]); g.globalAlpha = 1; }
-          const nm = L.t + (TP.fOn ? ` · ${L.nPass || 0} found` : ''); g.font = font(10.5); const tw = g.measureText(nm).width;
+          g.font = font(10.5); const lb = L.ref && L.its.find(i => i.life && i.lv === 0), onBar = lb && atLv(lb) && (lb._al ?? 1) >= 0.5;   // (a person's lane: while his bar is drawn, his name is on it – not twice)
+          const nm = (onBar ? '' : fitName(g, L.t, Math.max(60, X(L.nb) - X(L.na)))[0]) + (TP.fOn ? `${onBar ? '' : ' · '}${L.nPass || 0} found` : ''); const tw = g.measureText(nm).width;
           const room = Math.min(W, k + 1 < ls.length ? X(ls[k + 1].L.na ?? ls[k + 1].a) - 6 : W), end = Math.max(xb, Math.min(room, Math.max(xa + 4, 4) + tw + 6));   // (855a: past a narrow box, up to the next one)
           const tx = Math.max(xa + 4, Math.min(Math.max(xa + 4, 4), end - tw - 4));
           if (end - xa > 20) { g.save(); g.beginPath(); g.rect(xa + 2, top - 2, end - xa - 2, TT + 2); g.clip(); g.fillStyle = C.mut; g.fillText(nm, tx, top + 9.5); g.restore(); } } }
@@ -1018,9 +1019,9 @@ function drawItem(g, C, it, x0, x1, y, h, font, lim = Infinity, W = 1e9) {
   if (it.blood && !it.fb) { g.fillStyle = '#b3261e'; g.globalAlpha = fa * 0.85; g.fillRect(Math.max(x0, x1 - 5), y, Math.min(5, x1 - x0), h); g.globalAlpha = fa; }   // (920a: a violent end – the bar ends in red)
   // the label, once: at the bar's start – or, while the bar runs on past the screen's left edge, held at that edge, and pushed
   // off with the bar's end; past a short bar it may run on up to the next item in its row (807a)
-  const fs = Math.max(9.5, Math.min(11, h - 2)), txt = it.lab; g.font = font(fs); const tw = g.measureText(txt).width;   // (rows pinched small: smaller type)
-  const p = Math.max(x0 + 4, Math.min(Math.max(x0 + 4, 4), x1 - tw - 6));
-  const end = Math.min(Math.max(x1 - 3, lim), W + 2000), room = end - p;
+  const fs = Math.max(9.5, Math.min(11, h - 2)); g.font = font(fs);   // (rows pinched small: smaller type)
+  const end = Math.min(Math.max(x1 - 3, lim), W + 2000), [txt, tw] = it.ref ? fitName(g, it.lab, end - Math.max(x0 + 4, 4) - 2) : [it.lab, g.measureText(it.lab).width];
+  const p = Math.max(x0 + 4, Math.min(Math.max(x0 + 4, 4), x1 - tw - 6)), room = end - p;
   if (room >= 14) { g.fillStyle = C.fg; g.save(); g.beginPath(); g.rect(p, y - 1, room, h + 2); g.clip(); g.fillText(txt, p, y + h / 2 + fs * 0.36); g.restore(); }
   g.globalAlpha = 1;
 }
@@ -1063,9 +1064,10 @@ function drawLife(g, C, it, x0, x1, y, h, font, lim, W, dense) {
   }
   if (dim || it._lab === false || h < 9) { g.globalAlpha = 1; return; }
   // the name: at the bar's start, held at the screen's edge while the bar runs on (807a)
-  const fs = Math.max(8.5, Math.min(11, h - 3)); g.font = font(fs); const tw = g.measureText(it.lab).width;
-  const p = Math.max(x0 + 5, Math.min(Math.max(x0 + 5, 4), x1 - tw - 6)), end = Math.min(Math.max(x1 - 3, lim), W + 2000);
-  if (end - p >= 14) { g.fillStyle = C.fg; g.save(); g.beginPath(); g.rect(p, y - 1, end - p, h + 2); g.clip(); g.fillText(it.lab, p, y + h / 2 + fs * 0.36); g.restore(); }
+  const fs = Math.max(8.5, Math.min(11, h - 3)); g.font = font(fs); const end = Math.min(Math.max(x1 - 3, lim), W + 2000);
+  const vis0 = Math.max(x0 + 5, 4), [nm, tw] = fitName(g, it.lab, end - vis0 - 2);       // (the longest form of the name that fits)
+  const p = Math.max(x0 + 5, Math.min(vis0, x1 - tw - 6));
+  if (end - p >= 14) { g.fillStyle = C.fg; g.save(); g.beginPath(); g.rect(p, y - 1, end - p, h + 2); g.clip(); g.fillText(nm, p, y + h / 2 + fs * 0.36); g.restore(); }
   if (deg < 2 || it.yrs || !it.P) { g.globalAlpha = 1; return; }
   const L = it.sts || TS_ST.get(it.P); if (!L) { tsWant(it.P); g.globalAlpha = 1; return; }
   const ms = []; for (const c of L) { if (!TS_SYM[c.p] || c.st === 'rejects') continue; const tm = tsTime(c); if (!tm) continue; const x = X((tm[0] + tm[1]) / 2); if (x < Math.max(x0, p + tw + 6) || x > Math.min(x1, W)) continue; ms.push({ x, c }); }
@@ -1078,6 +1080,15 @@ function drawLife(g, C, it, x0, x1, y, h, font, lim, W, dense) {
     const lab = tsLab(c).slice(0, 22), lw = g.measureText(lab).width; if (nx - m.x - 12 > lw + 4) { g.fillStyle = C.mut; g.fillText(lab, m.x + 10, cy + 3.5); } });
   g.globalAlpha = 1;
 }
+// a name as long as there is room for it: in full, then its first form (before "or"), then without the rest after the comma
+// ("CONSTANTINUS I., FLAVIUS VALERIUS AURELIUS or Constantine the Great" → "Constantinus I.") – Smith's capitals in ordinary case
+const ROMANUM = /^(?:[IVXL]+\.?|[IVXL]+[,.]?)$/;
+const tcase = s => s.replace(/[A-ZÀ-Þ][A-ZÀ-Þ'’]{2,}\.?/g, w => ROMANUM.test(w) ? w : w[0] + w.slice(1).toLowerCase());
+const NAMEF = new Map();
+function nameForms(lab) {
+  let f = NAMEF.get(lab); if (f) return f; const full = tcase(String(lab || '')), first = full.split(/\s+or\s+/)[0], bare = first.split(/,\s*/)[0];
+  f = [...new Set([full, first, bare])]; NAMEF.set(lab, f); return f; }
+function fitName(g, lab, room) { const fs = nameForms(lab); for (const n of fs) { const w = g.measureText(n).width; if (w <= room) return [n, w]; } const n = fs[fs.length - 1]; return [n, g.measureText(n).width]; }
 function roundRect(g, x, y, w, h, r) { r = Math.min(r, w / 2, h / 2); g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
 function gridStep(ppy) { for (const s of [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000]) if (s * ppy >= 70) return s; return 10000; }
 function drawRuler(g, C, id, y, h, W, X, A0, A1, emps, font, chevW = 0) {
