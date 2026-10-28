@@ -315,7 +315,7 @@ async function showWord(word, opts = {}) {
 }
 // ---- back and forward between entries: a slim bar at the top of the dictionary pane ("‹ λόγος" … "φημί ›");
 // holding it opens the whole history as a scrollable list
-const viewName = v => v ? (v.search != null ? '“' + v.search + '”' : v.lemma || v.pick || v.form || '') : '';
+const viewName = v => v ? (v.browse ? (v.browse.ix ? 'index' : v.browse.k) : v.search != null ? '“' + v.search + '”' : v.lemma || v.pick || v.form || '') : '';
 function refAt(i) { const R = S.refs || []; let r = null; for (const x of R) { if (x.i > i) break; r = x; } return r?.s || null; }
 function navButtons() {
   const bar = $('#dictNav'); if (!bar) return;
@@ -393,6 +393,7 @@ async function renderView() {
   const keep = S.lastRendered === v ? $('#dictPane').scrollTop : null;     // the same entry drawn again: stay where it is
   S.dictRendering = true;
   if (S.tsel) { S.tsel = null; paintTsel(); }
+  if (v.browse) { S.lastRendered = v; await renderBrowse(v, body); if (keep != null) $('#dictPane').scrollTop = keep; else $('#dictPane').scrollTop = 0; S.dictRendering = false; return; }
   if (v.search != null) { S.lastRendered = v; await renderSearch(v, body); requestAnimationFrame(alignNav); if (keep != null) $('#dictPane').scrollTop = keep; else $('#dictPane').scrollTop = 0; return; }
   if (!S.dicts.length) { body.innerHTML = '<p class="hint">No dictionaries installed yet. Open the menu ☰ → Instruments → Dictionaries and import the packages (*.gdpkg.gz).</p>'; S.dictRendering = false; return; }
   const lang = langOf(v.form);
@@ -443,6 +444,7 @@ async function renderView() {
       for (const ref of by[d.id + '#m']) { const e = await entryByRef(d.id, ref); if (e && !seen.has(d.id + ':' + e.i)) inner += await renderEntryHTML(e, 0, seen); }
     }
     if (!has) inner = '<p class="none">– no entry –</p>';
+    inner += `<p class="dbrw"><button type="button" data-dbr="-1" data-d="${d.id}" data-k="${esc(k)}">‹ previous</button><button type="button" data-dbr="ix" data-d="${d.id}" data-k="${esc(k)}">Index</button><button type="button" data-dbr="1" data-d="${d.id}" data-k="${esc(k)}">next ›</button></p>`;   // (990a: page through this dictionary)
     h += `<details class="src${has ? '' : ' empty'}" data-d="${d.id}"${has && (isOpen(d.id) || v.openDict === d.id) ? ' open' : ''}><summary>${esc(d.name)} <small>${esc(d.title || '')}</small></summary>${inner}</details>`;
   }
   body.innerHTML = h;
@@ -560,3 +562,56 @@ function showTab(which) {
   $('#dictPane').classList.toggle('mapmode', which === 'map' || which === 'tempora');
   navButtons();
 }
+
+// ---------------------------------------------------------------- 990a: browsing a dictionary like the printed book
+// From any entry: ‹ previous · Index · next › (in that dictionary's own order of headwords); the index: letters, a field that
+// jumps as you type, and the headwords around the place. Each step goes into the history (the pill brings you back).
+const DBR = {};                                              // packed key lists, per dictionary
+async function dbrKeys(d) { const sig = d.id + ':' + (d.version || d.count); if (DBR[d.id]?.sig !== sig) DBR[d.id] = { sig, P: packKeys((await dictKeys(d)).split('\n').filter(Boolean)) }; return DBR[d.id].P; }
+async function showBrowse(dId, k, ix = false) {
+  if (S.view) { S.hist.push(S.view); if (S.hist.length > 200) S.hist.shift(); } S.fwd = [];
+  S.view = { browse: { d: dId, k, ix }, form: k }; navButtons(); showTab('entry'); await renderView();
+}
+async function dbrStep(dId, k, dir) { const d = S.dicts.find(x => x.id === dId); if (!d) return; const P = await dbrKeys(d);
+  let i = lowerBound(P, k); if (dir > 0 && i < P.n && P.key(i) === k) i++; else if (dir < 0) i--;
+  if (i < 0 || i >= P.n) return toast(dir > 0 ? 'The last headword.' : 'The first headword.');
+  return showBrowse(dId, P.key(i)); }
+async function renderBrowse(v, body) {
+  const d = S.dicts.find(x => x.id === v.browse.d); if (!d) { body.innerHTML = '<p class="hint">This dictionary is not installed.</p>'; return; }
+  const P = await dbrKeys(d), k = v.browse.k, pos = Math.min(P.n - 1, lowerBound(P, k));
+  const bar = `<div class="dbrbar"><button type="button" data-dbr="-1" data-d="${d.id}" data-k="${esc(k)}">‹</button><b>${esc(d.name)}</b> <small class="hint">${esc(d.title || '')}</small>`
+    + `<button type="button" data-dbr="ix" data-d="${d.id}" data-k="${esc(k)}">Index</button><button type="button" data-dbr="1" data-d="${d.id}" data-k="${esc(k)}">›</button></div>`;
+  if (v.browse.ix) {                                          // the index: letters, a field, the headwords around the place
+    const letters = []; let last = ''; for (let i = 0; i < P.n; i += Math.max(1, Math.floor(P.n / 4000))) { const c = P.key(i)[0]; if (c && c !== last && !letters.includes(c)) { letters.push(c); last = c; } }
+    const a = Math.max(0, pos - 60), z = Math.min(P.n, pos + 140), rows = [];
+    for (let i = a; i < z; i++) rows.push(`<button type="button" class="dbrk${i === pos ? ' on' : ''}" data-dbk="${esc(P.key(i))}" data-d="${d.id}">${esc(P.key(i).replace(/σ(?=$|[^α-ω])/g, 'ς'))}</button>`);
+    body.innerHTML = bar + `<div class="dbrlet">${letters.map(c => `<button type="button" data-dbl="${esc(c)}" data-d="${d.id}">${esc(c)}</button>`).join('')}</div>`
+      + `<input type="search" class="dbrq" data-d="${d.id}" placeholder="Jump to …" autocomplete="off" autocapitalize="off" spellcheck="false">`
+      + `<p class="hint small">${P.n.toLocaleString('en')} headwords · ${a + 1}–${z}</p>`
+      + (a > 0 ? `<button type="button" class="dbrmore" data-dbk="${esc(P.key(Math.max(0, a - 100)))}" data-d="${d.id}" data-dbix="1">earlier …</button>` : '')
+      + `<div class="dbrlist">${rows.join('')}</div>`
+      + (z < P.n ? `<button type="button" class="dbrmore" data-dbk="${esc(P.key(Math.min(P.n - 1, z + 60)))}" data-d="${d.id}" data-dbix="1">later …</button>` : '');
+    requestAnimationFrame(() => body.querySelector('.dbrk.on')?.scrollIntoView({ block: 'center' }));
+    return;
+  }
+  const b = await bucket(d, k), ents = (b?.e || []).filter(e => e.k.includes(k)).map(e => Object.assign({ d: d.id }, e)).sort((x, y) => x.i - y.i);
+  let inner = ''; for (const e of ents) inner += await renderEntryHTML(e);
+  if (!ents.length && b?.m?.[k]) { inner += '<p class="note">No entry of its own – discussed under:</p>'; for (const r of b.m[k]) { const e = await entryByRef(d.id, r); if (e) inner += await renderEntryHTML(e); } }
+  body.innerHTML = bar + `<div class="src dbrent" data-d="${d.id}">${inner || '<p class="none">– no entry –</p>'}</div>`
+    + `<p class="dbrw"><button type="button" data-dbr="-1" data-d="${d.id}" data-k="${esc(k)}">‹ previous</button><button type="button" data-dbr="all" data-k="${esc(k)}">In all dictionaries</button><button type="button" data-dbr="1" data-d="${d.id}" data-k="${esc(k)}">next ›</button></p>`;
+  wrapGreek(body.querySelector('.dbrent')); if (d.src === 'la') await wrapLatin(body.querySelector('.dbrent'));
+  await applyHighlights(body);
+}
+document.addEventListener('click', async ev => {
+  const b = ev.target.closest?.('#dictBody [data-dbr],#dictBody [data-dbk],#dictBody [data-dbl]'); if (!b) return;
+  ev.preventDefault(); ev.stopPropagation(); const D = b.dataset;
+  if (D.dbr === 'ix') return showBrowse(D.d, D.k, true);
+  if (D.dbr === 'all') return showWord(D.k);
+  if (D.dbr) return dbrStep(D.d, D.k, +D.dbr);
+  if (D.dbk) { if (D.dbix) { S.view.browse.k = D.dbk; return renderView(); } return showBrowse(D.d, D.dbk); }
+  if (D.dbl) { S.view.browse.k = D.dbl; return renderView(); }
+}, true);
+document.addEventListener('input', ev => {
+  const t = ev.target; if (!t.matches?.('#dictBody .dbrq')) return;
+  clearTimeout(t._t); t._t = setTimeout(async () => { const q = gkey(t.value.trim()); if (!q) return; const v = S.view; if (!v?.browse) return; v.browse.k = q; const val = t.value; await renderView(); const f = $('#dictBody .dbrq'); if (f) { f.value = val; f.focus(); } }, 250);
+});
