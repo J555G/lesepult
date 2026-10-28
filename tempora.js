@@ -823,7 +823,11 @@ const wrOn = it => !!TP.wsel && (it.wks || [it.wk]).some(w => w && (TP.wsel.star
 const wrVis = it => !it.wr || it.lib || wrOn(it);
 // 997a, 1024a: the persons' rows – their height from the time zoom, scaled by the vertical zoom (pinching apart up and down);
 // what the rows show (names, ages, marks) still needs the time zoom too: it appears only where it fits
-const denseRH = () => { const base = TP.ppy < 1.5 ? 3 : TP.ppy < 6 ? 6 : TP.ppy < 20 ? 10 : 15; return Math.round(Math.min(40, Math.max(2, base * TP.lh / 30)) * 2) / 2; };
+// 1034a: growing smoothly with the time zoom (no steps – a step made the whole layer jump): 3 px far out, 15 px from about 30 px a year
+const DRH = [[0.75, 3], [3, 6], [11, 10], [30, 15]];
+const denseRH = () => { const l = Math.log(TP.ppy); let base = DRH[0][1];
+  for (let i = 1; i < DRH.length; i++) { const [p0, b0] = DRH[i - 1], [p1, b1] = DRH[i]; if (TP.ppy >= p1) base = b1; else if (TP.ppy > p0) { base = b0 + (b1 - b0) * (l - Math.log(p0)) / (Math.log(p1) - Math.log(p0)); break; } else break; }
+  return Math.min(40, Math.max(2, base * TP.lh / 30)); };
 const laneRH = L => L.dense ? denseRH() : TP.lh;
 function tmpLayout(A0, A1) {
   // 810a/812a: lanes keep their place; the space before and after a lane is free for others – lanes whose spans do not meet share
@@ -887,16 +891,25 @@ function tmpDraw() {
     lay.push({ ls, off, hs, key: ls.map(r => r.L.id).join('|'), rh: Math.max(...ls.map(r => laneRH(r.L))) }); off += hs + 4; }
   TP.contentH = off;
   // anchoring: the point under the fingers or the cursor (or the top of the lanes) keeps its place on screen while heights change
-  const P = TP.prevLay;
-  if (P && P.slots.length) { const fy = TP.focusY ?? (P.RH + 6), cy = fy - (P.RH + 6) + P.sy;
+  const P = TP.prevLay, PIN = TP.pin;
+  // 1029a: a pinch is solved from where it began – the spot (or the selected item) it took hold of is put under the point it is
+  // to be at now, whatever the frames before did; putting the fingers back gives back the view it began with
+  let pinned = false;
+  if (PIN) { let cyN = null;
+    if (PIN.it) for (const s of lay) { const r = s.ls.find(r => r.L === PIN.L); if (r) { const rl = laneRH(r.L), bh = r.L.dense ? Math.max(2, rl - 1) : BH(TP.lh); cyN = s.off + TT + 3 + (PIN.it._y ?? PIN.it.row) * rl + bh / 2; break; } }
+    if (cyN == null) { const s = lay.find(s => s.key === PIN.key); if (s) cyN = s.off + (PIN.rho == null ? PIN.d0 : TT + 3 + PIN.rho * s.rh); }
+    if (cyN != null) { TP.sy = cyN + RH + 6 - PIN.ty; pinned = true; } }
+  const FY = TP.focusY ?? (PIN ? PIN.ty : null);
+  if (!pinned && P && P.slots.length) { const fy = FY ?? (P.RH + 6), cy = fy - (P.RH + 6) + P.sy;
     const p = P.slots.find(s => cy < s.off + s.hs + 4) || P.slots[P.slots.length - 1], q = p && lay.find(s => s.key === p.key);
-    if (q && TP.focusY != null) {                          // (zooming: the row under the fingers stays under them – rows are counted, not the slot's fraction)
+    if (q && FY != null) {                          // (zooming: the row under the fingers stays under them – rows are counted, not the slot's fraction)
       const TT = 14, d = cy - p.off - TT - 3, rho = d / (p.rh || P.lh || TP.lh);
       TP.sy += d <= 0 ? q.off - p.off : (q.off + TT + 3 + rho * (q.rh || TP.lh)) - cy; }
     else if (q) { const f = Math.min(1, Math.max(0, (cy - p.off) / (p.hs + 4))); TP.sy += (q.off + f * (q.hs + 4)) - (p.off + f * (p.hs + 4)); }
     if (P.sy > 0 && Date.now() - (TP.userMove || 0) < 500) { TP.sy += RH - P.RH; TP.over = Math.max(0, (TP.over || 0) + RH - P.RH); } }   // (only while you move it yourself, and not at the very top)                                                    // (820a: the header grows over the lanes – they stay where they are)
   tmpClampY();
-  TP.prevLay = { RH, lh: TP.lh, sy: TP.sy, slots: lay.map(s => ({ key: s.key, off: s.off, hs: s.hs, rh: s.rh })) };
+  TP.prevLay = TP.lastLay = { RH, lh: TP.lh, sy: TP.sy, slots: lay.map(s => ({ key: s.key, off: s.off, hs: s.hs, rh: s.rh })) };
+  if (PIN && !pinned) Object.assign(PIN, tmpPinAt(PIN.ty));   // (its lane gone from where it was: held from here on)
   const y0 = RH + 6 - TP.sy, centers = [], marks = new Map(), from = [];
   TP.laneTop = {};
   g.save(); g.beginPath(); g.rect(0, RH, W, H - RH - RB); g.clip();
@@ -931,7 +944,7 @@ function tmpDraw() {
           g.fillStyle = C.mut; if (nm) for (const cp of nameCopies(L, L.na, L.nb, xa, xb, tw, end, W, 4)) { g.globalAlpha = cp.a; g.fillText(nm, cp.x, top + 9.5); } g.globalAlpha = 1; } }   // (1023a)
       // how far a label may run on (807a): to the next item in its row, and never into the next lane of the slot
       const stop = k + 1 < ls.length ? X(ls[k + 1].a) - 6 : W + 4000;
-      const cutX = new Map(), byLv = new Map(), lean = L.dense && bhL < 9;   // (854a: bars sharing a row – overlapping books – cut where the next one begins; the persons' thin rows need none of it)
+      const cutX = new Map(), byLv = new Map(), lean = L.dense && bhL < 7;   // (854a: bars sharing a row – overlapping books – cut where the next one begins; the persons' thin rows need none of it)
       if (!lean) for (const it of vis) { const k = Math.round(it._y ?? it.row) + '|' + (it.lv ?? 'm'); if (!byLv.has(k)) byLv.set(k, []); byLv.get(k).push(it); }
       for (const r of byLv.values()) { r.sort((p, q) => p.t0 - q.t0); r.forEach((it, j) => { const nx = r[j + 1]; if (nx && nx.t0 < it.t1) cutX.set(it, X(nx.t0)); }); }
       const byRow = new Map(); if (!lean) for (const it of vis) { if (it._al < 0.5) continue; const r = Math.round(it._y ?? it.row); if (!byRow.has(r)) byRow.set(r, []); byRow.get(r).push(it); }
@@ -988,7 +1001,7 @@ function tmpDraw() {
     for (const c of centers) if (c.it.link && c.y > RH && c.y < H - RB) { g.beginPath(); g.moveTo(c.x, c.y); g.lineTo(c.x, cy); g.stroke(); }
     g.setLineDash([]); g.globalAlpha = 1; }
   if (TP.cur != null) { const x = X(TP.cur); g.strokeStyle = C.acc; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, RH); g.moveTo(x, H - RB); g.lineTo(x, H); g.stroke(); }
-  if (TP.focusY != null && TP.sel?.it) {                  // (zooming with something selected: it is held exactly at its place – also in the persons' thin rows)
+  if (TP.focusY != null && TP.sel?.it && !TP.pin) {                  // (zooming with something selected: it is held exactly at its place – also in the persons' thin rows)
     const h = TP.hit.find(h => h.it === TP.sel.it); if (h) { const d = (h.y0 + h.y1) / 2 - TP.focusY; if (Math.abs(d) > 0.5) { TP.sy += d; tmpClampY(); TP.prevLay = null; TP.moving = true; } } }
   if (TP.moving) tmpRedraw();                              // (until every height has reached its value)
 }
@@ -1023,6 +1036,8 @@ const clear = c => /^#[0-9a-f]{6}$/i.test(c) ? c + '00' : /^#[0-9a-f]{3}$/i.test
 const PURPLE = '#7b3fa0', ORIG = { 'orig:greek': '#2f6db5', 'orig:roman': '#b03a2e' };
 const origCol = r => { const o = (r || []).find(x => x.startsWith('orig:')); return o ? ORIG[o] || `hsl(${evHue(o)},45%,45%)` : null; };
 const lifeDeg = () => TP.ppy < 1.5 ? 0 : TP.ppy < 20 ? 1 : 2;
+// 1035a: what each degree adds fades in with the zoom itself, never all at once – half there halfway (and back as you zoom out)
+const degF1 = () => sm(TP.ppy, 1.2, 1.8), degF2 = () => sm(TP.ppy, 16, 24);
 const TS_ST = new Map(), TS_WANT = new Set();
 function tsWant(P) {                                              // (the near degree: a person's statements, loaded when first in view)
   if (TS_ST.has(P) || TS_WANT.has(P)) return; TS_WANT.add(P);
@@ -1032,17 +1047,20 @@ const TS_SYM = { born: '*', died: '†', wrote: '✎', 'wrote-against': '✎', k
 // 1020b, 1021: the ages along a life bar as you zoom in – ticks, and their numbers where the bar is tall enough; counted from the
 // birth, "ca." and fainter where the birth is only estimated; none where the start itself is unknown
 function lifeAges(g, C, it, x0, x1, y, h, font, W, avoid) {
-  if (lifeDeg() < 1 || h < 5 || /start unknown/.test(it.note || '')) return;
-  const est = !!it.fa, X = a => (a - TP.x0) * TP.ppy, st = [1, 2, 5, 10, 20, 25, 50].find(s => s * TP.ppy >= (est ? 54 : 40)); if (!st) return;
-  g.font = font(8); const num = h >= 12 && lifeDeg() >= 2;   // (the numbers only when zoomed in in time as well)
+  const f1 = degF1() * sm(h, 8, 10); if (f1 <= 0 || h < 5 || /start unknown/.test(it.note || '')) return;
+  const est = !!it.fa, X = a => (a - TP.x0) * TP.ppy, minS = est ? 54 : 40, AST = [1, 2, 5, 10, 20, 25, 50];
+  const st = AST.find(s => s * TP.ppy >= minS * 0.6); if (!st) return;
+  g.font = font(8); const fN = degF2() * sm(h, 11, 13);   // (the numbers only when zoomed in in time as well)
+  // 1035a: finer ticks fade in between the coarser ones as the room for them grows; their numbers once there is room to read them
   for (let age = st; it.t0 + age < it.t1 - 0.01; age += st) { const x = X(it.t0 + age); if (x < -30 || x > W + 30) continue;
-    g.globalAlpha = (est ? 0.35 : 0.6) * (it._al ?? 1); g.fillStyle = C.fg; g.fillRect(x - 0.5, y + h - 3, 1, 3);
-    if (!num) continue; const lab = (est ? 'ca. ' : '') + age, w = g.measureText(lab).width;
-    if (avoid.some(([a, b]) => x + 2 < b && x + 2 + w > a)) continue; g.fillText(lab, x + 2, y + h - 2.5); }
+    const lv = AST.reduce((m, s) => age % s === 0 ? s : m, st) * TP.ppy, base = (est ? 0.35 : 0.6) * (it._al ?? 1);
+    g.globalAlpha = base * f1 * sm(lv, minS * 0.6, minS * 0.85); g.fillStyle = C.fg; g.fillRect(x - 0.5, y + h - 3, 1, 3);
+    const aN = fN * sm(lv, minS * 0.85, minS); if (aN <= 0) continue; const lab = (est ? 'ca. ' : '') + age, w = g.measureText(lab).width;
+    if (avoid.some(([a, b]) => x + 2 < b && x + 2 + w > a)) continue; g.globalAlpha = base * aN; g.fillText(lab, x + 2, y + h - 2.5); }
   g.globalAlpha = 1;
 }
 function drawLife(g, C, it, x0, x1, y, h, font, lim, W, dense) {
-  const sel = TP.sel?.it === it || (TP.sel?.it?.P && TP.sel.it.P === it.P && it.pop), dim = it.pass === false, fa = it._al ?? 1, X = a => (a - TP.x0) * TP.ppy, deg = lifeDeg();
+  const sel = TP.sel?.it === it || (TP.sel?.it?.P && TP.sel.it.P === it.P && it.pop), dim = it.pass === false, fa = it._al ?? 1, X = a => (a - TP.x0) * TP.ppy, f1 = degF1(), f2 = degF2();
   if (it.yrs) {                                                   // 997b(i): only the years the article mentions – faint, dashed
     g.globalAlpha = (dim ? 0.06 : sel ? 0.8 : 0.32) * fa;
     if (x1 - x0 < 14) { g.fillStyle = C.mut; g.fillRect(x0, y + (h > 6 ? 1 : 0), x1 - x0, Math.max(1, h - (h > 6 ? 2 : 0))); }   // (too short for dashes)
@@ -1054,33 +1072,34 @@ function drawLife(g, C, it, x0, x1, y, h, font, lim, W, dense) {
       grd.addColorStop(0, it.fa ? nil : base); grd.addColorStop(it.fa ? fw : 0, base); grd.addColorStop(it.fb ? 1 - fw : 1, base); grd.addColorStop(1, it.fb ? nil : base); }
     g.globalAlpha = (dim ? 0.07 : sel ? 0.7 : dense ? 0.42 : 0.3) * fa; g.fillStyle = fill; g.fillRect(x0, y, x1 - x0, h); g.globalAlpha = (dim ? 0.15 : 1) * fa;
     for (const sg of it.segs || []) {                             // the reigns always (purple from the accession); offices from the middle degree on
-      if (sg[2] === 'off' && deg < 1) continue; const a = Math.max(X(sg[0]), x0), b = Math.min(Math.max(X(sg[1]), X(sg[0]) + 2), x1); if (b <= a) continue;
-      g.fillStyle = sg[2] === 'emp' ? PURPLE : sg[2] === 'caesar' ? '#b58ad0' : sg[2] === 'king' ? '#8a6d1d' : C.acc; g.globalAlpha = (dim ? 0.15 : sg[2] === 'off' ? 0.7 : 0.9) * fa;
+      if (sg[2] === 'off' && f1 <= 0) continue; const a = Math.max(X(sg[0]), x0), b = Math.min(Math.max(X(sg[1]), X(sg[0]) + 2), x1); if (b <= a) continue;
+      g.fillStyle = sg[2] === 'emp' ? PURPLE : sg[2] === 'caesar' ? '#b58ad0' : sg[2] === 'king' ? '#8a6d1d' : C.acc; g.globalAlpha = (dim ? 0.15 : sg[2] === 'off' ? 0.7 * f1 : 0.9) * fa;
       if (sg[2] === 'off') g.fillRect(a, y + h * 0.25, b - a, Math.max(1, h * 0.5)); else g.fillRect(a, y, b - a, h); }
     const oc = origCol(it.roles); if (oc && !it.fa) { g.fillStyle = oc; g.globalAlpha = (dim ? 0.15 : 0.9) * fa; g.fillRect(x0, y, Math.min(4, x1 - x0), h); }
     if (it.blood && !it.fb) { g.fillStyle = '#b3261e'; g.globalAlpha = (dim ? 0.15 : 0.9) * fa; g.fillRect(Math.max(x0, x1 - 5), y, Math.min(5, x1 - x0), h); }
-    if (deg >= 1 && !dim) for (const [t, k, anc] of it.ticks || []) { const x = X(t); if (x < x0 - 1 || x > x1 + 1) continue;   // events above, works below
-      g.fillStyle = anc ? C.acc : C.fg; g.globalAlpha = 0.75 * fa; if (k === 'w') g.fillRect(x - 0.6, y + h - 1, 1.2, 3); else g.fillRect(x - 0.6, y - 2, 1.2, 3); }
+    if (f1 > 0 && !dim) for (const [t, k, anc] of it.ticks || []) { const x = X(t); if (x < x0 - 1 || x > x1 + 1) continue;   // events above, works below
+      g.fillStyle = anc ? C.acc : C.fg; g.globalAlpha = 0.75 * fa * f1; if (k === 'w') g.fillRect(x - 0.6, y + h - 1, 1.2, 3); else g.fillRect(x - 0.6, y - 2, 1.2, 3); }
     g.globalAlpha = fa;
     if (sel) { g.strokeStyle = C.fg; g.lineWidth = 1.4; g.strokeRect(x0, y, x1 - x0, h); g.lineWidth = 1; }
     if (TP.fOn && it.pass && !sel && h >= 5) { g.strokeStyle = C.acc; g.lineWidth = 1.4; g.strokeRect(x0 - 0.5, y - 0.5, x1 - x0 + 1, h + 1); g.lineWidth = 1; }
   }
-  if (dim || it._lab === false || h < 9) { g.globalAlpha = 1; return; }
+  if (dim || it._lab === false || h < 8) { g.globalAlpha = 1; return; }
+  const nA = sm(h, 8, 10);                                          // (1035a: the name fades in as its row grows)
   // the name: its copies fixed on the bar, one drawn at a time (1017b–1019a)
   const fs = Math.max(8.5, Math.min(11, h - 3)); g.font = font(fs); const end = Math.min(Math.max(x1 - 3, lim), W + 2000);
   const [nm, tw] = fitName(g, it.lab, Math.min(end, W) - Math.max(x0, 0) - 8);       // (the longest form of the name that fits)
   const cps = nameCopies(it, it.t0, it.t1, x0, x1, tw, end, W, 5), p = cps[0]?.x ?? -1e9;
   if (!it.yrs) lifeAges(g, C, it, x0, x1, y, h, font, W, cps.map(c => [c.x - 3, c.x + tw + 3]));
-  g.font = font(fs); g.fillStyle = C.fg; for (const cp of cps) { g.globalAlpha = fa * cp.a; g.fillText(nm, cp.x, y + h / 2 + fs * 0.36); }
-  if (!cps.length && x0 + 5 >= 0) { const cut = cutName(g, nm, Math.min(end, W) - x0 - 7); if (cut) { g.globalAlpha = fa; g.fillText(cut, x0 + 5, y + h / 2 + fs * 0.36); } }
+  g.font = font(fs); g.fillStyle = C.fg; for (const cp of cps) { g.globalAlpha = fa * nA * cp.a; g.fillText(nm, cp.x, y + h / 2 + fs * 0.36); }
+  if (!cps.length && x0 + 5 >= 0) { const cut = cutName(g, nm, Math.min(end, W) - x0 - 7); if (cut) { g.globalAlpha = fa * nA; g.fillText(cut, x0 + 5, y + h / 2 + fs * 0.36); } }
   g.globalAlpha = fa;
-  if (deg < 2 || it.yrs || !it.P) { g.globalAlpha = 1; return; }
+  if (f2 <= 0 || it.yrs || !it.P) { g.globalAlpha = 1; return; }
   const L = it.sts || TS_ST.get(it.P); if (!L) { tsWant(it.P); g.globalAlpha = 1; return; }
   const ms = []; for (const c of L) { if (!TS_SYM[c.p] || c.st === 'rejects') continue; const tm = tsTime(c); if (!tm) continue; const x = X((tm[0] + tm[1]) / 2); if (x < Math.max(x0, 0) || x > Math.min(x1, W) || (x > p - 4 && x < p + tw + 6)) continue; ms.push({ x, c }); }   // (not over the name)
   ms.sort((a, b) => a.x - b.x); g.font = font(8.5);
   ms.forEach((m, k) => { const c = m.c, cls = tsWitCls(c), r = 2.3, cy = y + h / 2, nx = k + 1 < ms.length ? ms[k + 1].x : x1;
     if (k && m.x - ms[k - 1].x < 9) return;
-    g.globalAlpha = fa; g.fillStyle = C.fg; g.fillText(TS_SYM[c.p], m.x - 3, cy + 3.5);
+    g.globalAlpha = fa * f2; g.fillStyle = C.fg; g.fillText(TS_SYM[c.p], m.x - 3, cy + 3.5);
     g.beginPath(); g.arc(m.x + 6, cy - h / 2 + 3, r, 0, 7); g.strokeStyle = C.acc; g.lineWidth = 1;   // (the witness: filled, ring, half)
     if (cls === 'anc') { g.fillStyle = C.acc; g.fill(); } else if (cls === 'rep' || c.e?.[4]?.length) g.stroke(); else { g.stroke(); g.beginPath(); g.arc(m.x + 6, cy - h / 2 + 3, r, Math.PI / 2, Math.PI * 1.5); g.fillStyle = C.acc; g.fill(); }
     const lab = tsLab(c).slice(0, 22), lw = g.measureText(lab).width; if (nx - m.x - 12 > lw + 4) { g.fillStyle = C.mut; g.fillText(lab, m.x + 10, cy + 3.5); } });
@@ -1193,29 +1212,40 @@ function tmpZoomX(f, px) { const sp = selPt(); if (sp) { px = sp.x; TP.focusY = 
   const a = TP.x0 + px / TP.ppy; TP.ppy = Math.min(400000, Math.max(0.005, TP.ppy * f)); TP.x0 = a - px / TP.ppy; tmpSave(); tmpRedraw(); }
 const BH = lh => Math.max(11, Math.min(lh - 1, Math.max(13, lh - 8)));   // (1026a: rows down to 12 px, bars down to 11 px – still the height of their name in 9 px type)
 function tmpZoomY(f) { const sp = selPt(); if (sp) { TP.focusY = sp.y; clearTimeout(TP.fyT); TP.fyT = setTimeout(() => { TP.focusY = null; }, 400); } TP.lh = Math.min(90, Math.max(12, TP.lh * f)); tmpSave(); tmpRedraw(); }
+// what lies at the height y of the screen as last drawn: a slot, and how many of its rows down (or, in its name strip, pixels)
+function tmpPinAt(y) { const P = TP.lastLay, TT = 14; if (!P || !P.slots.length) return { key: null, d0: 0 };
+  const cy = y - (P.RH + 6) + P.sy, p = P.slots.find(s => cy < s.off + s.hs + 4) || P.slots[P.slots.length - 1], d = cy - p.off - TT - 3;
+  return d <= 0 ? { key: p.key, d0: cy - p.off, rho: null } : { key: p.key, d0: null, rho: d / (p.rh || TP.lh) }; }
 function tmpClampY() { const cv = $('#tmpCanvas'); const max = Math.max(0, (TP.contentH || 0) - 40, TP.over || 0);   // (the lowest lane can be pulled up to the top)
   TP.sy = Math.min(max, Math.max(-(TP.under || 0), TP.sy)); TP.over = Math.min(TP.over || 0, TP.sy); TP.under = Math.max(0, Math.min(TP.under || 0, -TP.sy)); }   // (TP.under: room left above the first lane by an anchoring – it closes as you scroll)   // (TP.over: how far the header has grown over the lanes)
 function tmpWire(cv) {
   new ResizeObserver(() => tmpRedraw()).observe(cv);
   let down = null, pinch = null, moved = false, lastTap = 0;
-  cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); TP.ptr.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
-    if (TP.ptr.size === 1) { down = { x: e.offsetX, y: e.offsetY, x0: TP.x0, ly: e.offsetY }; moved = false; }
-    if (TP.ptr.size === 2) { const [p, q] = [...TP.ptr.values()], sp = selPt(); TP.focusY = sp ? sp.y : (p.y + q.y) / 2;   // (a selected item: held where it is)
-      pinch = { dx: Math.abs(p.x - q.x), dy: Math.abs(p.y - q.y), ppy: TP.ppy, lh: TP.lh, mx: sp ? sp.x : (p.x + q.x) / 2, x0: TP.x0, sp }; down = null; } });
+  const pair = () => [...TP.ptr.values()].slice(0, 2);
+  // 1027b–1032a: two fingers zoom both ways at once – across: time, up and down: the rows – each by how far the fingers move apart
+  // in that direction; what they took hold of (the spot between them, or the selected item) keeps its place relative to them,
+  // so moving them together pans in any direction meanwhile. Each frame is worked out from where the pinch began (1029a)
+  const pinchStart = () => { const [p, q] = pair(), m = { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }, sp = selPt(), h = sp && TP.hit.find(h => h.it === TP.sel.it), f = sp || m;
+    pinch = { dx: Math.abs(p.x - q.x), dy: Math.abs(p.y - q.y), ppy: TP.ppy, lh: TP.lh, m, f, a: TP.x0 + f.x / TP.ppy };
+    TP.pin = Object.assign(tmpPinAt(f.y), { ty: f.y, it: sp ? TP.sel.it : null, L: h?.L || null }); TP.focusY = null; down = null; moved = true; };
+  const ratio = (d, d0, k) => { const c = Math.max(0, k - d0); return (d + c) / (d0 + c); };   // (1028a: fingers set down close together in that direction: gentler)
+  cv.addEventListener('pointerdown', e => { if (TP.ptr.size >= 2) return;                  // (a third finger: ignored)
+    cv.setPointerCapture(e.pointerId); TP.ptr.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+    if (TP.ptr.size === 1) { down = { x: e.offsetX, y: e.offsetY, x0: TP.x0, ly: e.offsetY, arm: true }; moved = false; }
+    if (TP.ptr.size === 2) pinchStart(); });
   cv.addEventListener('pointermove', e => { if (!TP.ptr.has(e.pointerId)) return; TP.userMove = Date.now(); TP.ptr.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
-    if (pinch && TP.ptr.size === 2) { const [p, q] = [...TP.ptr.values()], dx = Math.abs(p.x - q.x), dy = Math.abs(p.y - q.y), mx = (p.x + q.x) / 2;
-      const a = pinch.x0 + pinch.mx / pinch.ppy;                 // two fingers: across = time, up and down = lane height
-      // one direction per pinch: across (time) or up and down (rows) – whichever the fingers are set apart in more
-      if (!pinch.ax) { const mx_ = Math.abs(dx - pinch.dx), my_ = Math.abs(dy - pinch.dy);   // (1025a: the direction by how the fingers move, once they have moved about 12 px)
-        if (mx_ + my_ < 12) return; pinch.ax = mx_ >= my_ ? 'x' : 'y'; Object.assign(pinch, { dx, dy, ppy: TP.ppy, lh: TP.lh }); }
-      const ratio = (d, d0) => d0 >= 80 ? d / d0 : (d + 60) / (d0 + 60);   // (fingers set down close together in that direction: a gentler, steady scale)
-      if (pinch.ax === 'x') TP.ppy = Math.min(400000, Math.max(0.005, pinch.ppy * ratio(dx, pinch.dx)));
-      if (pinch.ax === 'y') TP.lh = Math.min(90, Math.max(12, pinch.lh * ratio(dy, pinch.dy)));
-      if (pinch.sp) { TP.x0 = a - pinch.sp.x / TP.ppy; TP.focusY = pinch.sp.y; } else { TP.x0 = a - mx / TP.ppy; TP.focusY = (p.y + q.y) / 2; } moved = true; tmpSave(); tmpRedraw(); return; }
-    if (!down) return; const dx = e.offsetX - down.x, dy = e.offsetY - down.y;
-    if (Math.abs(dx) + Math.abs(dy) > 6) moved = true;
-    if (moved) { TP.x0 = down.x0 - dx / TP.ppy; TP.sy += down.ly - e.offsetY; down.ly = e.offsetY; tmpClampY(); tmpSave(); tmpRedraw(); } });   // (vertically by steps: the anchoring may move it too)
-  const up = e => { TP.ptr.delete(e.pointerId); if (TP.ptr.size < 2) { pinch = null; TP.focusY = null; }
+    if (pinch && TP.ptr.size === 2) { const [p, q] = pair(), m = { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 };
+      TP.ppy = Math.min(400000, Math.max(0.005, pinch.ppy * ratio(Math.abs(p.x - q.x), pinch.dx, 60)));
+      TP.lh = Math.min(90, Math.max(12, pinch.lh * ratio(Math.abs(p.y - q.y), pinch.dy, 120)));   // (up and down gentler still)
+      TP.x0 = pinch.a - (pinch.f.x + m.x - pinch.m.x) / TP.ppy; TP.pin.ty = pinch.f.y + m.y - pinch.m.y;
+      tmpSave(); tmpRedraw(); return; }
+    if (!down) return; const dx = e.offsetX - down.x;
+    if (down.arm) { if (Math.abs(dx) + Math.abs(e.offsetY - down.y) <= 6) return;            // (6 px before it moves – and then from there, without a jump)
+      Object.assign(down, { x: e.offsetX, y: e.offsetY, x0: TP.x0, ly: e.offsetY, arm: false }); moved = true; return; }
+    TP.x0 = down.x0 - dx / TP.ppy; TP.sy += down.ly - e.offsetY; down.ly = e.offsetY; tmpClampY(); tmpSave(); tmpRedraw(); });
+  const up = e => { if (!TP.ptr.has(e.pointerId)) return; TP.ptr.delete(e.pointerId);
+    if (pinch && TP.ptr.size === 1) { const [r] = TP.ptr.values(); down = { x: r.x, y: r.y, x0: TP.x0, ly: r.y, arm: true }; }   // (1031a: the other finger carries on as a drag)
+    if (TP.ptr.size < 2) { pinch = null; TP.pin = null; }
     if (down && !moved && TP.ptr.size === 0) { const now = Date.now();
       if (now - lastTap < 300) { TP.focusY = selPt()?.y ?? e.offsetY; tmpZoomX(2, e.offsetX); setTimeout(() => { TP.focusY = null; }, 400); lastTap = 0; } else { lastTap = now; tmpTap(e.offsetX, e.offsetY); } }
     if (TP.ptr.size === 0) down = null; };
