@@ -1126,15 +1126,23 @@ const NSTEP = [0.25, 0.5, 1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 
 // in the same year never stand in one column; still fixed on the bar – the row, not the view, decides the shift
 const rowPh = r => (((Math.round(r) || 0) % 3) + 3) % 3 / 3;
 function nameCopies(o, t0, t1, x0, x1, tw, end, W, pad = 5, ph = 0, fz = 0) {   // (fz: the fuzzy start's width – no name over it)
-  const X = a => (a - TP.x0) * TP.ppy, A0 = TP.x0, A1 = TP.x0 + W / TP.ppy, c = (Math.max(x0, 0) + Math.min(x1, W)) / 2, lim = Math.min(W, end);
-  let best = null, si = NSTEP.length - 1; while (si > 0 && NSTEP[si] * TP.ppy > 0.67 * W) si--;
-  for (; si >= 0 && !best && NSTEP[si] * TP.ppy >= 24; si--) {   // (where a bar shows too little of itself for these points, the finer ones between them)
-    const step = NSTEP[si], n = Math.floor((t1 - t0) / step - ph + 1e-9);
-    for (let k = Math.max(0, Math.floor((A0 - t0) / step - ph) - 1); k <= Math.min(n, Math.ceil((A1 - t0) / step) + 1); k++) {
-      const t = t0 + (k + ph) * step, x = Math.max(X(t) + (k || ph ? 2 : pad), x0 + fz + pad); if (x < 0 || x + tw > lim) continue;
-      const d = Math.abs(x + tw / 2 - c); if (!best || d < best.d) best = { t, x, d }; } }
-  if (!best && x0 >= 0) { const xs = x0 + fz + pad + ph * Math.max(0, Math.min(x1 - 3, end) - x0 - fz - pad - tw);   // (1037a: a short bar – shifted within the room it has left)
-    if (ph && xs + tw <= lim) best = { t: t0 + 1e-7, x: xs, d: 0 }; else if (x0 + fz + pad + tw <= lim) best = { t: t0, x: x0 + fz + pad, d: 0 }; }   // (no room on screen for that: its start)
+  const X = a => (a - TP.x0) * TP.ppy, A0 = TP.x0, A1 = TP.x0 + W / TP.ppy, c = (Math.max(x0, 0) + Math.min(x1, W)) / 2, lim = Math.min(W, end), x00 = x0 + fz + pad;
+  // 1040: the copy shown stays as long as it is more than 7 px from both edges of the pane – only there it gives way to another
+  const M = 7, free = x => x >= M && x + tw <= Math.min(lim, W - M), seen = x => x >= 0 && x + tw <= lim;
+  const xs = x00 + ph * Math.max(0, Math.min(x1 - 3, end) - x00 - tw);   // (1037a: a short bar – shifted within the room it has left)
+  const xOf = (t, k) => k === 's' ? xs : k === 'b' ? x00 : Math.max(X(t) + (Math.abs(t - t0) < 1e-9 ? pad : 2), x00);
+  let best = null;
+  if (o._nt != null && o._nk && o._nt >= t0 - 1e-6 && o._nt <= t1 + 1e-6) { const x = xOf(o._nt, o._nk); if (free(x)) best = { t: o._nt, x, k: o._nk }; }
+  const pick = ok => { let b = null, si = NSTEP.length - 1; while (si > 0 && NSTEP[si] * TP.ppy > 0.67 * W) si--;
+    for (; si >= 0 && !b && NSTEP[si] * TP.ppy >= 24; si--) {   // (where a bar shows too little of itself for these points, the finer ones between them)
+      const step = NSTEP[si], n = Math.floor((t1 - t0) / step - ph + 1e-9);
+      for (let k = Math.max(0, Math.floor((A0 - t0) / step - ph) - 1); k <= Math.min(n, Math.ceil((A1 - t0) / step) + 1); k++) {
+        const t = t0 + (k + ph) * step, x = xOf(t, 'g'); if (!ok(x)) continue;
+        const d = Math.abs(x + tw / 2 - c); if (!b || d < b.d) b = { t, x, d, k: 'g' }; } }
+    if (!b && x0 >= 0) { if (ph && ok(xs)) b = { t: t0 + 1e-7, x: xs, k: 's' }; else if (ok(x00)) b = { t: t0, x: x00, k: 'b' }; }   // (no room on screen for that: its start)
+    return b; };
+  if (!best) best = pick(free) || pick(seen);                       // (the new one: clear of the edges too, where there is one)
+  if (best) { o._nk = best.k; o._tw = tw; } o._lim = Math.min(lim, W);
   const now = performance.now();
   if ((best?.t ?? null) !== (o._nt ?? null)) { o._pt = o._nt ?? null; o._px = o._nx; o._pT = now; o._nt = best?.t ?? null; }
   if (best) o._nx = best.x - X(best.t);                     // (its offset from its point: the copy moves with the bar)
