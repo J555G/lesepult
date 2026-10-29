@@ -516,7 +516,7 @@ async function tsPerson(ref) {
   if (a != null && b != null && b > a) {
     const dm = L.filter(c => c.p === 'death-manner' && c.st !== 'rejects').map(c => c.v), blood = lv ? !!lv[4] : dm.includes('death:violent') || dm.includes('death:suicide');
     const life = { t0: a, t1: b, fa, fb, lab: tsName(name), kind: 'life', k2: 'life', sid: 'tempora-persons', P, ref, life: true, blood, dm, src: 'estimated from the statements', note: why.join(' · '), lv: 0,
-      segs: lv?.[5] || [], roles: lv?.[6] || [], wit: lv?.[7] || [], ticks: lv?.[9] || [], sts: L, nojoin: !!lv?.[10]?.nojoin, alts: lv?.[10]?.alts || null };
+      segs: lv?.[5] || [], roles: lv?.[6] || [], wit: lv?.[7] || [], ticks: lv?.[9] || [], sts: L, nojoin: !!lv?.[10]?.nojoin, alts: lv?.[10]?.alts || null, broad: !!lv?.[10]?.broad };
     for (const i of its) { i.lv = 1; i.par = life; } life.kids = its.slice(); its.unshift(life);   // (zoomed out: the life; pinched apart: every statement)
   }
   return { r: { name: tsName(name), ref }, its, P, levels: its[0]?.lv === 0 };
@@ -726,7 +726,7 @@ async function tmpData() {
   if (tix?.life) {
     const its = [];
     for (const [P, v] of Object.entries(tix.life)) { const row = tix.p[P]; if (!row) continue; const ref = tsRefOf(P), sk = row[1] != null ? six?.p?.[row[1]]?.[3] : '';
-      its.push({ t0: v[0], t1: v[1], fa: !!v[2], fb: !!v[3], blood: !!v[4], segs: v[5], roles: v[6], wit: v[7], note: v[8], ticks: v[9] || [], sk: sk ? sk.split(',') : [], nojoin: !!v[10]?.nojoin, alts: v[10]?.alts || null,
+      its.push({ t0: v[0], t1: v[1], fa: !!v[2], fb: !!v[3], blood: !!v[4], segs: v[5], roles: v[6], wit: v[7], note: v[8], ticks: v[9] || [], sk: sk ? sk.split(',') : [], nojoin: !!v[10]?.nojoin, alts: v[10]?.alts || null, broad: !!v[10]?.broad,
         lab: tsName(row[0]), kind: 'life', k2: 'pop', sid: 'tempora-persons', P, ref, life: true, pop: true, src: 'estimated from the statements' }); }
     TP.popN.dated = its.length;
     if (cfg.pop !== false) lanes.push({ id: 'pop', g: 'Persons', t: `Persons – ${its.length} with dated statements (the life estimated)`, its, have: true, dense: true, bare: true });
@@ -1241,7 +1241,7 @@ function drawLife(g, C, it, x0, x1, y, h, font, lim, W, dense) {
   const fz = !it.yrs && it.fa && x1 - x0 > 30 ? Math.min(0.45 * (x1 - x0), 24) : 0;   // (the birth unknown: the names begin after its faded part)
   const nl = nameLay(g, it.lab, true, x0, x1, fz, 5, end, W), nm = nl.txt, tw = nl.tw;       // (the longest form of the name that fits)
   const cps = nameCopies(it, it.t0, it.t1, x0, x1, tw, nl.end, W, 5, rowPh(it._y ?? it.row), fz, nl.so), p = cps[0]?.x ?? -1e9;
-  if (!it.yrs && !it.nojoin) lifeAges(g, C, it, x0, x1, y, h, font, W, cps.map(c => [c.x - 3, c.x + tw + 3]));
+  if (!it.yrs && !it.nojoin && !it.broad) lifeAges(g, C, it, x0, x1, y, h, font, W, cps.map(c => [c.x - 3, c.x + tw + 3]));
   g.font = font(fs); g.fillStyle = C.fg; for (const cp of cps) { g.globalAlpha = fa * nA * cp.a; g.fillText(nm, cp.x, y + h / 2 + fs * 0.36); }
   if (!cps.length && nl.cx != null) { const cut = cutName(g, nm, nl.cr); if (cut) { g.globalAlpha = fa * nA; g.fillText(cut, nl.cx, y + h / 2 + fs * 0.36); } }
   g.globalAlpha = fa;
