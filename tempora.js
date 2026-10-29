@@ -645,13 +645,14 @@ async function tmpData() {
     }
     // Diodorus' own years (chrono-texts)
     const ch = Object.values(S.installed || {}).find(d => d.kind === 'chrono');
+    const sIx = ch && S.installed?.['people-smith'] ? await pplIx(S.installed['people-smith']).catch(() => null) : null;
     if (ch) {
       const L = (await pplRec(ch, '#l'))?.e || [], I = (await pplRec(ch, '#s'))?.e || []; TP.chrono = I;
       for (const [lid, title, wpre, note] of L) {
-        const its = I.filter(x => x[0] === lid).map(x => ({ t0: x[1], t1: x[2], lab: x[3], kind: 'year', k2: lid === 'diodorus' ? 'dyear' : 'ol', sid: lid, uneven: x[6]?.uneven, fixed: x[6]?.fixed, ev: x[6]?.ev || null, ref: x[6]?.ref || null,
+        const its = I.filter(x => x[0] === lid).map(x => ({ t0: x[1], t1: x[2], lab: chLab(x, lid, sIx), lab0: x[3], kind: 'year', k2: lid === 'diodorus' ? 'dyear' : 'ol', sid: lid, uneven: x[6]?.uneven, fixed: x[6]?.fixed, ev: x[6]?.ev || null, ref: x[6]?.ref || null,
           src: title, go: { w: x[6]?.w, bi: x[4], r: x[5] }, text: x[6]?.text || null, fa: !!x[6]?.text && !x[6]?.ol?.[1], fb: !!x[6]?.text && !x[6]?.ol?.[1],
           note: x[6]?.text ? (x[6].ol?.[1] ? '' : 'the Olympiad only – any of its four years') : (x[6]?.fixed ? 'an Olympiad named here fixes the year' : 'counted from the Olympiad named before')
-            + (x[6]?.uneven ? ' – in a stretch where his headers and his Olympiads disagree' : '') }));
+            + (x[6]?.uneven ? ' – in a stretch where his headers and his Olympiads disagree' : '') + (x[6]?.cons ? ` · the consuls: ${x[6].cons}` : '') }));
         for (const it of its) it.lv = 2;
         const byB = new Map(); for (const it of its) { const k = it.go.w + '#' + (it.go.bi ?? 0); if (!byB.has(k)) byB.set(k, []); byB.get(k).push(it); }   // (the books: the passages grouped – by edition and book, since Diodorus is in three editions)
         for (const ps of byB.values()) { const w0 = ps[0].go.w, bi = ps[0].go.bi ?? 0, bl = (works.get(w0) || S.catWork?.[w0])?.books?.[bi];
@@ -822,9 +823,23 @@ function tmpAnchorKeep(an) {
 }
 // 843a: a level opens with the zoom, not at one point – the parts grow out of their bar as you widen or pinch apart, and fold back
 const sm = (x, a, b) => Math.min(1, Math.max(0, (x - a) / (b - a)));
+// 1063a: a dated passage labelled by what tells it apart – Diogenes: the person (Smith's form of the name) and what is dated;
+// Dionysius: the dating and the passage (or the event); Diodorus: the year and its archon (the consuls in the card). The Greek
+// words of the passage stay in the card
+function chLab(x, lid, sIx) {
+  const lab = String(x[3] || ''), o = x[6] || {};
+  if (lid === 'diogenes') { const m = o.sure && o.ref?.match(/^people-smith\|(\d+)$/), nm = m && sIx?.p?.[+m[1]]?.[0];
+    const name = nm ? nameForms(nm).slice(-1)[0] : (o.who || ''); return name ? lab.replace(/^in the life of [^–·]+?(\s*[–·]|$)/, name + '$1') : lab; }
+  if (lid === 'dionysius') { if (o.ev || !/[\u0370-\u03ff\u1f00-\u1fff]/.test(lab.split(' · ')[0])) return lab;
+    const ol = lab.split(' · ').pop(); return `${ol} · ${(x[4] ?? 0) + 1}.${x[5]}`; }
+  if (lid === 'diodorus') return lab.split(' · ').slice(0, 2).join(' · ');
+  return lab;
+}
 function tmpLevels(L) {                                     // → { la, lb, f }: between level la and lb, f of the way
   if (!L.levels) return null; const lh = TP.lh;              // (only the vertical zoom opens or folds the levels – widening never makes a lane taller)
-  const two = L.levels.includes(2), f1 = sm(lh, 17, 24), t = f1 < 1 || !two ? f1 : 1 + sm(lh, 24, 29);
+  const two = L.levels.includes(2), f1 = sm(lh, 17, 24); let t = f1 < 1 || !two ? f1 : 1 + sm(lh, 24, 29);
+  // 1061a: a work's parts (books, then passages) open only when they are wide enough on the screen to carry a few letters
+  if (L.wid && L.avg) { const room = k => sm((L.avg[k] || 0) * TP.ppy, 20, 35); t = Math.min(t, room(1) < 1 ? room(1) : 1 + (two ? room(2) : 0)); }
   // 1057a: the parts grow out of their bar (or fold back) gliding – at most about 10 px a frame, however fast the fingers
   let v = L._lvv ?? t; const cap = 10 / Math.max(10, (L._nMax || 1) * laneRH(L)); v += Math.max(-cap, Math.min(cap, t - v));
   if (Math.abs(t - v) < 1e-3) v = t; else TP.moving = true; L._lvv = v;
@@ -855,7 +870,7 @@ const denseRH = () => Math.min(40, Math.max(2, denseBase() * TP.lh / 30));
 const slimF = () => denseBase() / 15;
 const laneRH = L => L.dense ? denseRH() : TP.lh * slimF();
 const laneBH = L => { const rl = laneRH(L); return L.dense || rl < 12 ? Math.max(2, rl - 1) : BH(rl); };
-const ttOf = () => 6 + 8 * sm(slimF(), 0.2, 0.6);
+const ttOf = () => 9 + 5 * sm(slimF(), 0.2, 0.6);            // (1062: never too narrow for the lane's name)
 // 1042a, 1045a–1050a, 1053a, 1054c: a person's statements stand each in a box as wide as its words, as near beneath its own time
 // as there is room – to the left or the right of it in a row (as far as would still let a box reach within 7 px of the pane's edge
 // with its time in the middle), else in the next row; packed over all his statements (so nothing moves as you pan), and gliding to
@@ -990,7 +1005,7 @@ function tmpDraw() {
   TP.RH = RH; TP.RB = RB; TP.H = H;
   tmpFilterApply();
   // ---- the lanes: their slots, heights (eased), and where each lies in the scrolled content
-  const { slots } = tmpLayout(A0, A1), lh = TP.lh, TT = ttOf(), tA = sm(slimF(), 0.35, 0.6);                 // (TT: the strip with the lane's name, once, at the top of its box)
+  const { slots } = tmpLayout(A0, A1), lh = TP.lh, TT = ttOf(), tA = 1, tfs = Math.min(10.5, TT - 1);                 // (TT: the strip with the lane's name, once, at the top of its box)
   const laneH = (n, L) => TT + Math.max(0, n) * laneRH(L) + (n > 0.02 ? 6 : 4);
   const lay = []; let off = 0;
   for (const SL of slots) { const ls = SL.map(r => Object.assign(r, { box: r.L.na < A1 && r.L.nb > A0, h: 0 })).map(r => Object.assign(r, { h: laneH(r.n, r.L) })), hs = Math.max(8, ...ls.map(r => r.h));
@@ -1036,7 +1051,7 @@ function tmpDraw() {
         if (selIt && L.its.includes(selIt) && tmpWorkOf(selIt)) from.push({ w: tmpWorkOf(selIt), x: X(selIt.t1) - 1, y: ry(selIt), sel: true }); }   // (991a: the selected one's line to its dates of writing)
       if (top >= H || top + hs <= RH) return;
       // 811a: alternate lanes faintly tinted or outlined – only over the span the lane covers
-      if (L.dense && isFinite(L.na)) { g.font = font(10.5); g.fillStyle = C.mut; const nm = L.t + (TP.fOn ? ` · ${L.nPass || 0} found` : ''), tw = g.measureText(nm).width;   // (997a: no box – only its name, 1023a: moving with it)
+      if (L.dense && isFinite(L.na)) { g.font = font(tfs); g.fillStyle = C.mut; const nm = L.t + (TP.fOn ? ` · ${L.nPass || 0} found` : ''), tw = g.measureText(nm).width;   // (997a: no box – only its name, 1023a: moving with it)
         for (const cp of nameCopies(L, L.na, L.nb, X(L.na), X(L.nb), tw, W, W, 4, rowPh(si))) { g.globalAlpha = cp.a * tA; g.fillText(nm, cp.x, top + TT * 0.68); } g.globalAlpha = 1; }
       if (isFinite(L.na) && !L.bare) { const xa = Math.max(-10, X(L.na) - 3), xb = Math.min(W + 10, X(L.nb) + 3);       // (the box: what the work narrates, not when it was written)
         if (xb > xa) { if ((si + k) % 2 === 0) { g.fillStyle = C.fg; g.globalAlpha = 0.045; g.fillRect(xa, top - 2, xb - xa, h + 4); }
@@ -1044,7 +1059,7 @@ function tmpDraw() {
           // its name, once – at the box's left edge, or held at the screen's edge while the box runs on
           // a work not on this device: a dashed box and a small download arrow before its name (no words)
           if (!L.have) { g.strokeStyle = C.mut; g.globalAlpha = 0.7; g.setLineDash([4, 3]); g.strokeRect(xa + 0.5, top - 1.5, xb - xa - 1, h + 2); g.setLineDash([]); g.globalAlpha = 1; }
-          g.font = font(10.5); const lb = L.ref && L.its.find(i => i.life && i.lv === 0), onBar = lb && atLv(lb) && (lb._al ?? 1) >= 0.5;   // (a person's lane: while his bar is drawn, his name is on it – not twice)
+          g.font = font(tfs); const lb = L.ref && L.its.find(i => i.life && i.lv === 0), onBar = lb && atLv(lb) && (lb._al ?? 1) >= 0.5;   // (a person's lane: while his bar is drawn, his name is on it – not twice)
           const nm = (onBar ? '' : fitName(g, L.t, Math.max(60, X(L.nb) - X(L.na)))[0]) + (TP.fOn ? `${onBar ? '' : ' · '}${L.nPass || 0} found` : ''); const tw = g.measureText(nm).width;
           const room = Math.min(W, k + 1 < ls.length ? X(ls[k + 1].L.na ?? ls[k + 1].a) - 6 : W), end = Math.max(xb, room);   // (855a: past a narrow box, up to the next one)
           g.fillStyle = C.mut; if (nm) for (const cp of nameCopies(L, L.na, L.nb, xa, xb, tw, end, W, 4, rowPh(si))) { g.globalAlpha = cp.a * tA; g.fillText(nm, cp.x, top + TT * 0.68); } g.globalAlpha = 1; } }   // (1023a)
