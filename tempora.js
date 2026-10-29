@@ -843,10 +843,16 @@ const wrVis = it => !it.wr || it.lib || wrOn(it);
 // what the rows show (names, ages, marks) still needs the time zoom too: it appears only where it fits
 // 1034a: growing smoothly with the time zoom (no steps – a step made the whole layer jump): 3 px far out, 15 px from about 30 px a year
 const DRH = [[0.75, 3], [3, 6], [11, 10], [30, 15]];
-const denseRH = () => { const l = Math.log(TP.ppy); let base = DRH[0][1];
+const denseBase = () => { const l = Math.log(TP.ppy); let base = DRH[0][1];
   for (let i = 1; i < DRH.length; i++) { const [p0, b0] = DRH[i - 1], [p1, b1] = DRH[i]; if (TP.ppy >= p1) base = b1; else if (TP.ppy > p0) { base = b0 + (b1 - b0) * (l - Math.log(p0)) / (Math.log(p1) - Math.log(p0)); break; } else break; }
-  return Math.min(40, Math.max(2, base * TP.lh / 30)); };
-const laneRH = L => L.dense ? denseRH() : TP.lh;
+  return base; };
+const denseRH = () => Math.min(40, Math.max(2, denseBase() * TP.lh / 30));
+// 1056: every lane slims down as you zoom out in time, by the same curve as the persons' rows (full height from about 30 px a year);
+// the strip with a lane's name narrows with it, its name fading – the bars' own names fade as they get too thin (1035a)
+const slimF = () => denseBase() / 15;
+const laneRH = L => L.dense ? denseRH() : TP.lh * slimF();
+const laneBH = L => { const rl = laneRH(L); return L.dense || rl < 12 ? Math.max(2, rl - 1) : BH(rl); };
+const ttOf = () => 6 + 8 * sm(slimF(), 0.2, 0.6);
 // 1042a, 1045a–1050a, 1053a, 1054c: a person's statements stand each in a box as wide as its words, as near beneath its own time
 // as there is room – to the left or the right of it in a row (as far as would still let a box reach within 7 px of the pane's edge
 // with its time in the middle), else in the next row; packed over all his statements (so nothing moves as you pan), and gliding to
@@ -932,7 +938,7 @@ function tmpLayout(A0, A1) {
   for (const L of lanes) {
     if (hide && TP.fOn && !L.its.some(i => i.pass)) continue;           // (hidden: a lane with nothing that passes goes)
     const Lv = tmpLevels(L), on = i => !(hide && !i.pass) && wrVis(i);
-    if (Lv && L.ref && Lv.lb >= 1) { const ks = L.its.filter(i => i.fr && i.lv === 1); stPack(ks, laneRH(L), BH(TP.lh), L); for (const i of ks) i.row1 = 1 + i._sr; }   // (1045a: a person's statements, each in its own place – for this zoom)   // (816a: room for the dates of writing only while they are shown)
+    if (Lv && L.ref && Lv.lb >= 1) { const ks = L.its.filter(i => i.fr && i.lv === 1); stPack(ks, laneRH(L), laneBH(L), L); for (const i of ks) i.row1 = 1 + i._sr; }   // (1045a: a person's statements, each in its own place – for this zoom)   // (816a: room for the dates of writing only while they are shown)
     let atLv = () => true, n;
     if (!Lv && L.id === 'pop' && (TP.blk?.size || L.its.some(i => i.oP))) n = tmpPopOpen(L, on);
     else if (!Lv) { for (const i of L.its) { i._y = i.row; i._al = 1; i._lab = true; } const all = L.its.filter(on); n = all.length ? 1 + Math.max(...all.map(i => i.row)) : 0; }
@@ -980,7 +986,7 @@ function tmpDraw() {
   TP.RH = RH; TP.RB = RB; TP.H = H;
   tmpFilterApply();
   // ---- the lanes: their slots, heights (eased), and where each lies in the scrolled content
-  const { slots } = tmpLayout(A0, A1), lh = TP.lh, TT = 14;                 // (TT: the strip with the lane's name, once, at the top of its box)
+  const { slots } = tmpLayout(A0, A1), lh = TP.lh, TT = ttOf(), tA = sm(slimF(), 0.35, 0.6);                 // (TT: the strip with the lane's name, once, at the top of its box)
   const laneH = (n, L) => TT + Math.max(0, n) * laneRH(L) + (n > 0.02 ? 6 : 4);
   const lay = []; let off = 0;
   for (const SL of slots) { const ls = SL.map(r => Object.assign(r, { box: r.L.na < A1 && r.L.nb > A0, h: 0 })).map(r => Object.assign(r, { h: laneH(r.n, r.L) })), hs = Math.max(8, ...ls.map(r => r.h));
@@ -992,19 +998,19 @@ function tmpDraw() {
   // to be at now, whatever the frames before did; putting the fingers back gives back the view it began with
   let pinned = false;
   if (PIN) { let cyN = null;
-    if (PIN.it) for (const s of lay) { const r = s.ls.find(r => r.L === PIN.L); if (r) { const rl = laneRH(r.L), bh = r.L.dense ? Math.max(2, rl - 1) : BH(TP.lh); cyN = s.off + TT + 3 + (PIN.it._y ?? PIN.it.row) * rl + bh / 2; break; } }
+    if (PIN.it) for (const s of lay) { const r = s.ls.find(r => r.L === PIN.L); if (r) { const rl = laneRH(r.L), bh = laneBH(r.L); cyN = s.off + TT + 3 + (PIN.it._y ?? PIN.it.row) * rl + bh / 2; break; } }
     if (cyN == null) { const s = lay.find(s => s.key === PIN.key); if (s) cyN = s.off + (PIN.rho == null ? PIN.d0 : TT + 3 + PIN.rho * s.rh); }
     if (cyN != null) { TP.sy = cyN + RH + 6 - PIN.ty; pinned = true; } }
   const FY = TP.focusY ?? (PIN ? PIN.ty : null);
   if (!pinned && P && P.slots.length) { const fy = FY ?? (P.RH + 6), cy = fy - (P.RH + 6) + P.sy;
     const p = P.slots.find(s => cy < s.off + s.hs + 4) || P.slots[P.slots.length - 1], q = p && lay.find(s => s.key === p.key);
     if (q && FY != null) {                          // (zooming: the row under the fingers stays under them – rows are counted, not the slot's fraction)
-      const TT = 14, d = cy - p.off - TT - 3, rho = d / (p.rh || P.lh || TP.lh);
+      const d = cy - p.off - (P.TT ?? 14) - 3, rho = d / (p.rh || P.lh || TP.lh);
       TP.sy += d <= 0 ? q.off - p.off : (q.off + TT + 3 + rho * (q.rh || TP.lh)) - cy; }
     else if (q) { const f = Math.min(1, Math.max(0, (cy - p.off) / (p.hs + 4))); TP.sy += (q.off + f * (q.hs + 4)) - (p.off + f * (p.hs + 4)); }
     if (P.sy > 0 && Date.now() - (TP.userMove || 0) < 500) { TP.sy += RH - P.RH; TP.over = Math.max(0, (TP.over || 0) + RH - P.RH); } }   // (only while you move it yourself, and not at the very top)                                                    // (820a: the header grows over the lanes – they stay where they are)
   tmpClampY();
-  TP.prevLay = TP.lastLay = { RH, lh: TP.lh, sy: TP.sy, slots: lay.map(s => ({ key: s.key, off: s.off, hs: s.hs, rh: s.rh })) };
+  TP.prevLay = TP.lastLay = { RH, TT, lh: TP.lh, sy: TP.sy, slots: lay.map(s => ({ key: s.key, off: s.off, hs: s.hs, rh: s.rh })) };
   if (PIN && !pinned) Object.assign(PIN, tmpPinAt(PIN.ty));   // (its lane gone from where it was: held from here on)
   const y0 = RH + 6 - TP.sy, centers = [], marks = new Map(), from = [];
   TP.laneTop = {};
@@ -1020,14 +1026,14 @@ function tmpDraw() {
     const top = y0 + off;
     ls.forEach(({ L, a, b, n, h, its: vis, atLv }, k) => {
       TP.laneTop[L.id] = top + TP.sy; (TP.laneH ??= {})[L.id] = h;
-      const rl = laneRH(L), bhL = L.dense ? Math.max(2, rl - 1) : BH(lh);
+      const rl = laneRH(L), bhL = laneBH(L);
       const ry = it => n ? top + TT + 3 + Math.min(it._y ?? it.row, Math.max(0, n - 1)) * rl + bhL / 2 : top + 3;   // (an item's middle, kept within the lane as drawn)
       if (TP.wsel) { for (const it of L.its) if (it.wr && !it.lib && wrOn(it) && atLv(it)) { const m = { x: X(it.t0), y: ry(it) }; for (const wk of it.wks || [it.wk]) { if (!marks.has(wk)) marks.set(wk, []); marks.get(wk).push(m); } }
         if (selIt && L.its.includes(selIt) && tmpWorkOf(selIt)) from.push({ w: tmpWorkOf(selIt), x: X(selIt.t1) - 1, y: ry(selIt), sel: true }); }   // (991a: the selected one's line to its dates of writing)
       if (top >= H || top + hs <= RH) return;
       // 811a: alternate lanes faintly tinted or outlined – only over the span the lane covers
       if (L.dense && isFinite(L.na)) { g.font = font(10.5); g.fillStyle = C.mut; const nm = L.t + (TP.fOn ? ` · ${L.nPass || 0} found` : ''), tw = g.measureText(nm).width;   // (997a: no box – only its name, 1023a: moving with it)
-        for (const cp of nameCopies(L, L.na, L.nb, X(L.na), X(L.nb), tw, W, W, 4, rowPh(si))) { g.globalAlpha = cp.a; g.fillText(nm, cp.x, top + 9.5); } g.globalAlpha = 1; }
+        for (const cp of nameCopies(L, L.na, L.nb, X(L.na), X(L.nb), tw, W, W, 4, rowPh(si))) { g.globalAlpha = cp.a * tA; g.fillText(nm, cp.x, top + TT * 0.68); } g.globalAlpha = 1; }
       if (isFinite(L.na) && !L.bare) { const xa = Math.max(-10, X(L.na) - 3), xb = Math.min(W + 10, X(L.nb) + 3);       // (the box: what the work narrates, not when it was written)
         if (xb > xa) { if ((si + k) % 2 === 0) { g.fillStyle = C.fg; g.globalAlpha = 0.045; g.fillRect(xa, top - 2, xb - xa, h + 4); }
           else { g.strokeStyle = C.line; g.globalAlpha = 0.6; g.strokeRect(xa + 0.5, top - 1.5, xb - xa - 1, h + 2); } g.globalAlpha = 1;
@@ -1037,7 +1043,7 @@ function tmpDraw() {
           g.font = font(10.5); const lb = L.ref && L.its.find(i => i.life && i.lv === 0), onBar = lb && atLv(lb) && (lb._al ?? 1) >= 0.5;   // (a person's lane: while his bar is drawn, his name is on it – not twice)
           const nm = (onBar ? '' : fitName(g, L.t, Math.max(60, X(L.nb) - X(L.na)))[0]) + (TP.fOn ? `${onBar ? '' : ' · '}${L.nPass || 0} found` : ''); const tw = g.measureText(nm).width;
           const room = Math.min(W, k + 1 < ls.length ? X(ls[k + 1].L.na ?? ls[k + 1].a) - 6 : W), end = Math.max(xb, room);   // (855a: past a narrow box, up to the next one)
-          g.fillStyle = C.mut; if (nm) for (const cp of nameCopies(L, L.na, L.nb, xa, xb, tw, end, W, 4, rowPh(si))) { g.globalAlpha = cp.a; g.fillText(nm, cp.x, top + 9.5); } g.globalAlpha = 1; } }   // (1023a)
+          g.fillStyle = C.mut; if (nm) for (const cp of nameCopies(L, L.na, L.nb, xa, xb, tw, end, W, 4, rowPh(si))) { g.globalAlpha = cp.a * tA; g.fillText(nm, cp.x, top + TT * 0.68); } g.globalAlpha = 1; } }   // (1023a)
       // how far a label may run on (807a): to the next item in its row, and never into the next lane of the slot
       const stop = k + 1 < ls.length ? X(ls[k + 1].a) - 6 : W + 4000;
       const cutX = new Map(), byLv = new Map(), lean = L.dense && bhL < 7;   // (854a: bars sharing a row – overlapping books – cut where the next one begins; the persons' thin rows need none of it)
@@ -1149,7 +1155,7 @@ function drawItem(g, C, it, x0, x1, y, h, font, lim = Infinity, W = 1e9) {
   const nil = clear(base); grd.addColorStop(0, it.fa ? nil : base); grd.addColorStop(it.fa ? fw : 0, base); grd.addColorStop(it.fb ? 1 - fw : 1, base); grd.addColorStop(1, it.fb ? nil : base);
   const fa = it._al ?? 1;                                     // (843a: a part growing out of its bar, or folding back into it)
   g.globalAlpha = (sel ? 0.75 : alpha) * fa; g.fillStyle = grd; roundRect(g, x0, y, x1 - x0, h, 4); g.fill(); g.globalAlpha = fa;
-  if (dim || it._lab === false) { g.globalAlpha = 1; return; }  // (while folding: only the level more than half there keeps its names)
+  if (dim || it._lab === false || h < 8) { g.globalAlpha = 1; return; }  // (too thin for a name: none, 1056); (while folding: only the level more than half there keeps its names)
   if (it.kind === 'date' || it.kind === 'own' || sel) { g.strokeStyle = sel ? C.fg : base; g.lineWidth = sel ? 1.6 : 1; roundRect(g, x0, y, x1 - x0, h, 4); g.stroke(); }
   if (TP.fOn && it.pass && !sel) { g.strokeStyle = C.acc; g.lineWidth = 1.6; roundRect(g, x0 - 0.5, y - 0.5, x1 - x0 + 1, h + 1, 4); g.stroke(); }   // (848a: what passes the filter, outlined)
   if (it.uneven || it.read || it.st?.inf) { g.strokeStyle = it.read ? '#c0392b' : C.acc; g.setLineDash([3, 2]); roundRect(g, x0, y, x1 - x0, h, 4); g.stroke(); g.setLineDash([]); }   // (983a: a misprint's reading; an inference: dotted)
@@ -1161,8 +1167,8 @@ function drawItem(g, C, it, x0, x1, y, h, font, lim = Infinity, W = 1e9) {
   const nl = nameLay(g, it.lab, !!it.ref, x0, x1, fz, 4, Math.min(Math.max(x1 - 3, lim), W + 2000), W), txt = nl.txt, tw = nl.tw;
   g.fillStyle = C.fg;
   const cps = nameCopies(it, it.t0, it.t1, x0, x1, tw, nl.end, W, 4, rowPh(it._y ?? it.row), fz, nl.so);
-  for (const cp of cps) { g.globalAlpha = fa * cp.a; g.fillText(txt, cp.x, y + h / 2 + fs * 0.36); }
-  if (!cps.length && nl.cx != null) { const cut = cutName(g, txt, nl.cr); if (cut) { g.globalAlpha = fa; g.fillText(cut, nl.cx, y + h / 2 + fs * 0.36); } }
+  const nA = sm(h, 8, 10); for (const cp of cps) { g.globalAlpha = fa * cp.a * nA; g.fillText(txt, cp.x, y + h / 2 + fs * 0.36); }
+  if (!cps.length && nl.cx != null) { const cut = cutName(g, txt, nl.cr); if (cut) { g.globalAlpha = fa * nA; g.fillText(cut, nl.cx, y + h / 2 + fs * 0.36); } }
   g.globalAlpha = 1;
 }
 // 998a: a life bar in three degrees. Far: a plain bar – the origin's colour at its start, imperial purple from the accession, a red end.
@@ -1373,7 +1379,7 @@ function tmpZoomX(f, px) { const sp = selPt(); if (sp) { px = sp.x; TP.focusY = 
 const BH = lh => Math.max(11, Math.min(lh - 1, Math.max(13, lh - 8)));   // (1026a: rows down to 12 px, bars down to 11 px – still the height of their name in 9 px type)
 function tmpZoomY(f) { const sp = selPt(); if (sp) { TP.focusY = sp.y; clearTimeout(TP.fyT); TP.fyT = setTimeout(() => { TP.focusY = null; }, 400); } TP.lh = Math.min(90, Math.max(12, TP.lh * f)); tmpSave(); tmpRedraw(); }
 // what lies at the height y of the screen as last drawn: a slot, and how many of its rows down (or, in its name strip, pixels)
-function tmpPinAt(y) { const P = TP.lastLay, TT = 14; if (!P || !P.slots.length) return { key: null, d0: 0 };
+function tmpPinAt(y) { const P = TP.lastLay, TT = P?.TT ?? 14; if (!P || !P.slots.length) return { key: null, d0: 0 };
   const cy = y - (P.RH + 6) + P.sy, p = P.slots.find(s => cy < s.off + s.hs + 4) || P.slots[P.slots.length - 1], d = cy - p.off - TT - 3;
   return d <= 0 ? { key: p.key, d0: cy - p.off, rho: null } : { key: p.key, d0: null, rho: d / (p.rh || TP.lh) }; }
 function tmpClampY() { const cv = $('#tmpCanvas'); const max = Math.max(0, (TP.contentH || 0) - 40, TP.over || 0);   // (the lowest lane can be pulled up to the top)
