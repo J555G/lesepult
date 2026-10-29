@@ -190,8 +190,8 @@
    "title": "Kleine Texte 41/43, Bonn 1909 · the consuls by year and the table of emperors, read from the scan (archive.org) – used to tell which emperor or consul a name means",
    "source": "archive.org/details/fasticonsularesi0000lieb (the printed text in the public domain)",
    "license": "public domain",
-   "bytes": 32443,
-   "version": "f6b922bce2f2"
+   "bytes": 32438,
+   "version": "b9ea14aa66ed"
   },
   {
    "id": "chrono-texts",
@@ -214,8 +214,8 @@
    "title": "873 dated persons (178 read from the texts): every statement with its source and words",
    "source": "W. Smith, Dictionary of Greek and Roman Biography (1849); Ammianus Marcellinus (Perseus); read by helpers, checked by program",
    "license": "CC BY-SA 4.0",
-   "bytes": 612473,
-   "version": "72273a72d46c"
+   "bytes": 613165,
+   "version": "e8a53f513e7f"
   }
  ]
 }

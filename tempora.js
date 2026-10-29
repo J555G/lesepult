@@ -498,17 +498,17 @@ async function tsPerson(ref) {
   const dated = L.map(c => ({ c, tm: tsTime(c) })).filter(x => x.tm && !['issue', 'sources', 'varro', 'stance'].includes(x.c.p));
   for (const { c, tm } of dated) {
     if (c.st === 'rejects') continue;                              // (a view the witness rejects: in the card, not on the bar)
-    its.push({ t0: tm[0], t1: Math.max(tm[1], tm[0] + 0.25), fa: tm[2], fb: tm[3], lab: tsLab(c), kind: 'st', k2: 'st', sid: c.e?.[0] || 'smith', st: c, P, ref,
+    its.push({ t0: tm[0], t1: Math.max(tm[1], tm[0] + 0.25), fa: tm[2], fb: tm[3], lab: (c.alt ? 'another view: ' : '') + tsLab(c), alt: !!c.alt, kind: 'st', k2: 'st', sid: c.e?.[0] || 'smith', st: c, P, ref,
       anc: tsAncient(c), src: tsWit(c) + (c.w?.[1] ? ' – via ' + c.w[1] : ''), note: c.n || '', read: !!c.tr });
   }
   // the life: estimated (and said so) from what the statements give
-  const one = p => dated.filter(x => x.c.p === p && x.c.st !== 'rejects').sort((x, y) => (y.c.c ?? .8) - (x.c.c ?? .8) || (tsAncient(y.c) - tsAncient(x.c)))[0];
+  const one = p => dated.filter(x => x.c.p === p && x.c.st !== 'rejects' && !x.c.alt).sort((x, y) => (y.c.c ?? .8) - (x.c.c ?? .8) || (tsAncient(y.c) - tsAncient(x.c)))[0];
   const born = one('born'), died = one('died'), ages = L.filter(c => c.p === 'age-at' && c.v?.age != null && /death|died/i.test(JSON.stringify(c.v) + (c.e?.[3] || '')));
   const why = []; let a = null, b = null, fa = false, fb = false;
   if (died) { b = died.tm[1]; why.push('died ' + (died.c.t?.orig || rangeTxt(died.tm[0], died.tm[1])) + ' (' + tsWit(died.c) + ')'); }
   if (born) { a = born.tm[0]; why.push('born ' + (born.c.t?.orig || rangeTxt(born.tm[0], born.tm[1])) + ' (' + tsWit(born.c) + ')'); }
   else if (died && ages.length) { a = died.tm[0] - ages[0].v.age; fa = true; why.push(`born worked back from the age at death, ${ages[0].v.age}`); }
-  const act = dated.filter(x => !['born', 'died'].includes(x.c.p) && x.c.p !== 'same-person'), mn = act.length ? Math.min(...act.map(x => x.tm[0])) : null, mx = act.length ? Math.max(...act.map(x => x.tm[1])) : null;
+  const act = dated.filter(x => !['born', 'died'].includes(x.c.p) && x.c.p !== 'same-person' && !x.c.alt && x.c.st !== 'rejects'), mn = act.length ? Math.min(...act.map(x => x.tm[0])) : null, mx = act.length ? Math.max(...act.map(x => x.tm[1])) : null;
   if (a == null && mn != null) { a = mn - 18; fa = true; why.push('start: 18 years before the first dated activity (no birth given)'); }
   if (b == null && mx != null) { b = mx + 5; fb = true; why.push('end: after the last dated activity (no death given)'); }
   const lv = TS_IX.life?.[P];                                       // (the toolkit's estimate – the same rules, and activities after a death given left out)
@@ -516,7 +516,7 @@ async function tsPerson(ref) {
   if (a != null && b != null && b > a) {
     const dm = L.filter(c => c.p === 'death-manner' && c.st !== 'rejects').map(c => c.v), blood = lv ? !!lv[4] : dm.includes('death:violent') || dm.includes('death:suicide');
     const life = { t0: a, t1: b, fa, fb, lab: tsName(name), kind: 'life', k2: 'life', sid: 'tempora-persons', P, ref, life: true, blood, dm, src: 'estimated from the statements', note: why.join(' · '), lv: 0,
-      segs: lv?.[5] || [], roles: lv?.[6] || [], wit: lv?.[7] || [], ticks: lv?.[9] || [], sts: L };
+      segs: lv?.[5] || [], roles: lv?.[6] || [], wit: lv?.[7] || [], ticks: lv?.[9] || [], sts: L, nojoin: !!lv?.[10]?.nojoin, alts: lv?.[10]?.alts || null };
     for (const i of its) { i.lv = 1; i.par = life; } life.kids = its.slice(); its.unshift(life);   // (zoomed out: the life; pinched apart: every statement)
   }
   return { r: { name: tsName(name), ref }, its, P, levels: its[0]?.lv === 0 };
@@ -531,7 +531,8 @@ function tsCard(it) {                                            // the card of 
     + (e[3] ? `<blockquote class="tsq">${esc(e[3])}</blockquote>` : '')
     + `<p class="hint small">${srcTxt}${e[4]?.length ? ' · cites ' + e[4].map(esc).join('; ') : ''}${c.b ? ' · basis: ' + esc(TSV(c.b)) : ''}${c.c != null ? ' · confidence ' + c.c : ''}</p>`
     + (c.r?.length ? `<p class="hint small">${c.r.map(r => esc(r[0] + ' ' + r[1] + (r[2] ? ' (block)' : ''))).join(' · ')}</p>` : '')
-    + (c.inf ? `<p class="hint small"><b>inferred</b> – not stated in words</p>` : '') + (c.n ? `<p class="hint small">${esc(c.n)}</p>` : '');
+    + (c.inf ? `<p class="hint small"><b>inferred</b> – not stated in words</p>` : '') + (c.n ? `<p class="hint small">${esc(c.n)}</p>` : '')
+    + (c.alt ? `<p class="hint small"><b>another view</b> – not used for the life (1058a)</p>` : '') + (c.rv ? `<p class="hint small">checked: ${esc(c.rv)}</p>` : '');
 }
 // 999a: a person's panel at the side – who, when (estimated, with the reason), an overview composed by rule from the statements
 // (each fact linked to its statement), the statements by section, the sources; below, folded, the encyclopaedias as in the Suda tab
@@ -548,7 +549,7 @@ const tsWitCls = c => tsAncient(c) ? 'anc' : (c.w?.[0] && c.w[0] !== 'Smith') ? 
 const tsWitBadge = c => { const k = tsWitCls(c);
   return `<span class="tswit ${k}">${esc(k === 'anc' ? (c.w?.[0] || '').replace(/ Marcellinus/, '') + ' ' + (c.e?.[2] || '') : k === 'rep' ? c.w[0] + ' (Smith)' : k === 'rule' ? (/fasti|liebenam/.test(c.m) ? 'Liebenam' : /xref/.test(c.m || c.i) ? 'cross-ref.' : 'Smith, by rule') : 'Smith ' + (c.e?.[2] || ''))}</span>`; };
 const tsRow = c => { const tm = tsTime(c);
-  return `<details class="tsrow${c.st === 'rejects' ? ' rej' : ''}${c.inf ? ' inf' : ''}" data-tsr="${esc(c.i)}"><summary>${esc(tsLab(c) || '–')}${c.t?.orig || tm ? ` <small class="hint">${esc(c.t?.orig || rangeTxt(tm[0], tm[1]))}</small>` : ''} ${tsWitBadge(c)}${c.st ? ` <small class="tsst">${esc(c.st)}</small>` : ''}${c.inf ? ' <small class="tsst">inferred</small>' : ''}</summary>${tsCard({ st: c })}</details>`; };
+  return `<details class="tsrow${c.st === 'rejects' ? ' rej' : ''}${c.inf ? ' inf' : ''}" data-tsr="${esc(c.i)}"><summary>${esc(tsLab(c) || '–')}${c.t?.orig || tm ? ` <small class="hint">${esc(c.t?.orig || rangeTxt(tm[0], tm[1]))}</small>` : ''} ${tsWitBadge(c)}${c.st ? ` <small class="tsst">${esc(c.st)}</small>` : ''}${c.alt ? ' <small class="tsst">another view</small>' : ''}${c.inf ? ' <small class="tsst">inferred</small>' : ''}</summary>${tsCard({ st: c })}</details>`; };
 const tsRefOf = P => TS_IX?.p?.[P]?.[1] != null ? 'people-smith|' + TS_IX.p[P][1] : 'tp|' + P;
 function tsOverview(L, name) {                                    // composed by rule from the statements; every fact links to its statement
   const ok = L.filter(c => c.st !== 'rejects'), first = p => ok.find(c => c.p === p), all = p => ok.filter(c => c.p === p);
@@ -725,7 +726,7 @@ async function tmpData() {
   if (tix?.life) {
     const its = [];
     for (const [P, v] of Object.entries(tix.life)) { const row = tix.p[P]; if (!row) continue; const ref = tsRefOf(P), sk = row[1] != null ? six?.p?.[row[1]]?.[3] : '';
-      its.push({ t0: v[0], t1: v[1], fa: !!v[2], fb: !!v[3], blood: !!v[4], segs: v[5], roles: v[6], wit: v[7], note: v[8], ticks: v[9] || [], sk: sk ? sk.split(',') : [],
+      its.push({ t0: v[0], t1: v[1], fa: !!v[2], fb: !!v[3], blood: !!v[4], segs: v[5], roles: v[6], wit: v[7], note: v[8], ticks: v[9] || [], sk: sk ? sk.split(',') : [], nojoin: !!v[10]?.nojoin, alts: v[10]?.alts || null,
         lab: tsName(row[0]), kind: 'life', k2: 'pop', sid: 'tempora-persons', P, ref, life: true, pop: true, src: 'estimated from the statements' }); }
     TP.popN.dated = its.length;
     if (cfg.pop !== false) lanes.push({ id: 'pop', g: 'Persons', t: `Persons – ${its.length} with dated statements (the life estimated)`, its, have: true, dense: true, bare: true });
@@ -823,10 +824,12 @@ function tmpAnchorKeep(an) {
 const sm = (x, a, b) => Math.min(1, Math.max(0, (x - a) / (b - a)));
 function tmpLevels(L) {                                     // → { la, lb, f }: between level la and lb, f of the way
   if (!L.levels) return null; const lh = TP.lh;              // (only the vertical zoom opens or folds the levels – widening never makes a lane taller)
-  const f1 = sm(lh, 17, 24);
-  if (f1 < 1 || !L.levels.includes(2)) return f1 <= 0 ? { la: 0, lb: 0, f: 0 } : f1 >= 1 ? { la: 1, lb: 1, f: 0 } : { la: 0, lb: 1, f: f1 };
-  const f2 = sm(lh, 24, 29);
-  return f2 <= 0 ? { la: 1, lb: 1, f: 0 } : f2 >= 1 ? { la: 2, lb: 2, f: 0 } : { la: 1, lb: 2, f: f2 };
+  const two = L.levels.includes(2), f1 = sm(lh, 17, 24), t = f1 < 1 || !two ? f1 : 1 + sm(lh, 24, 29);
+  // 1057a: the parts grow out of their bar (or fold back) gliding – at most about 10 px a frame, however fast the fingers
+  let v = L._lvv ?? t; const cap = 10 / Math.max(10, (L._nMax || 1) * laneRH(L)); v += Math.max(-cap, Math.min(cap, t - v));
+  if (Math.abs(t - v) < 1e-3) v = t; else TP.moving = true; L._lvv = v;
+  const la = Math.floor(v + 1e-9), lb = Math.min(two ? 2 : 1, Math.ceil(v - 1e-9)), f = lb > la ? v - la : 0;
+  return { la, lb: Math.max(la, lb), f };
 }
 function laneShown(L) { return (L.have || TP.cfg.all) && !TP.cfg.lhide?.[L.id] && (!L.wronly || TP.cfg.libw); }
 // 828: the order of the lanes – pinned ones first in your order; then the text being read, what passes the filter, the rest by time
@@ -875,6 +878,7 @@ function stInfo(it) {                                             // (what the c
   L.push({ t: (e[0] === 'texts' ? `${wit[0] || ''}, ${e[2] || ''}` : `Smith, Dictionary (1849), ${e[1] || ''}${e[2] ? ' · ' + e[2] : ''}`) + (e[4]?.length ? ' · cites ' + e[4].join('; ') : '') + (c.b ? ' · basis: ' + TSV(c.b) : '') + (c.c != null ? ' · confidence ' + c.c : ''), k: 's' });
   if (c.r?.length) L.push({ t: c.r.map(r => r[0] + ' ' + r[1] + (r[2] ? ' (block)' : '')).join(' · '), k: 's' });
   if (c.inf) L.push({ t: 'inferred – not stated in words', k: 's' }); if (c.n) L.push({ t: c.n, k: 's' });
+  if (c.alt) L.push({ t: 'another view – not used for the life', k: 's' }); if (c.rv) L.push({ t: 'checked: ' + c.rv, k: 's' });
   const B = [['All about ' + tsName(TS_IX?.p?.[it.P]?.[0] || 'the person'), 'all']]; if (e[0] === 'texts') B.push(['Open the passage', 'go']); if (it.ref?.startsWith('people-') || it.fr?.ref?.startsWith('people-')) B.push(['Smith’s article', 'smith']);
   return { l2: when + ' · ' + who, L, B };
 }
@@ -949,7 +953,7 @@ function tmpLayout(A0, A1) {
         else if (i.lv === lb && la !== lb) { const p = i.par?.lv === la ? rw(i.par, la) : rw(i, lb); i._y = p + f * (rw(i, lb) - p); i._al = f; }
         else if (i.lv === la) { i._y = rw(i, la); i._al = 1; } }
       const nOf = k => { const s = L.its.filter(i => (all(i) || i.lv === k) && on(i)); return s.length ? 1 + Math.max(...s.map(i => rw(i, k) + (i.fr && i._spE ? i._spE - 1 : 0))) : 0; };
-      n = nOf(la) + f * (nOf(lb) - nOf(la));
+      n = nOf(la) + f * (nOf(lb) - nOf(la)); L._nMax = Math.max(nOf(la), nOf(lb));
       atLv = i => all(i) || i.lv === (f < 0.5 ? la : lb); }
     const its = L.its.filter(i => i._al > 0.01 && i.t1 > A0 && i.t0 < A1 && on(i));   // (the dates of writing: only the selected work's)
     const wx = L.its.some(i => i.wr && wrVis(i)), a0 = wx ? L.a : L.na, b0 = wx ? L.b : L.nb, a = isFinite(a0) ? a0 : -1e9, b = isFinite(b0) ? b0 : 1e9;
@@ -998,7 +1002,7 @@ function tmpDraw() {
   // to be at now, whatever the frames before did; putting the fingers back gives back the view it began with
   let pinned = false;
   if (PIN) { let cyN = null;
-    if (PIN.it) for (const s of lay) { const r = s.ls.find(r => r.L === PIN.L); if (r) { const rl = laneRH(r.L), bh = laneBH(r.L); cyN = s.off + TT + 3 + (PIN.it._y ?? PIN.it.row) * rl + bh / 2; break; } }
+    if (PIN.it) for (const s of lay) { const r = s.ls.find(r => r.L === PIN.L); if (r) { const rl = laneRH(r.L), bh = laneBH(r.L); cyN = s.off + TT + 3 + (PIN.it._y ?? PIN.it.row) * rl + bh / 2 + (PIN.fr || 0) * rl; break; } }
     if (cyN == null) { const s = lay.find(s => s.key === PIN.key); if (s) cyN = s.off + (PIN.rho == null ? PIN.d0 : TT + 3 + PIN.rho * s.rh); }
     if (cyN != null) { TP.sy = cyN + RH + 6 - PIN.ty; pinned = true; } }
   const FY = TP.focusY ?? (PIN ? PIN.ty : null);
@@ -1120,6 +1124,7 @@ function tmpDraw() {
   if (TP.cur != null) { const x = X(TP.cur); g.strokeStyle = C.acc; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, RH); g.moveTo(x, H - RB); g.lineTo(x, H); g.stroke(); }
   if (TP.focusY != null && TP.sel?.it && !TP.pin) {                  // (zooming with something selected: it is held exactly at its place – also in the persons' thin rows)
     const h = TP.hit.find(h => h.it === TP.sel.it); if (h) { const d = (h.y0 + h.y1) / 2 - TP.focusY; if (Math.abs(d) > 0.5) { TP.sy += d; tmpClampY(); TP.prevLay = null; TP.moving = true; } } }
+  if (TP.pin?.rel && (!TP.moving || Date.now() - TP.pin.relT > 1500)) TP.pin = null;           // (a pinch let go: held until what glides has settled)
   if (TP.moving) tmpRedraw();                              // (until every height has reached its value)
 }
 function drawStBox(g, C, it, x0, x1, y, h, bh, font, L) {      // (1050a, 1054c: a statement's box – as wide as its words; its time is on the life bar)
@@ -1208,6 +1213,10 @@ function drawLife(g, C, it, x0, x1, y, h, font, lim, W, dense) {
     if (x1 - x0 < 14) { g.fillStyle = C.mut; g.fillRect(x0, y + (h > 6 ? 1 : 0), x1 - x0, Math.max(1, h - (h > 6 ? 2 : 0))); }   // (too short for dashes)
     else { g.strokeStyle = C.mut; g.lineWidth = Math.max(1, h - (h > 6 ? 2 : 0)); g.setLineDash([4, 3]); g.beginPath(); g.moveTo(x0, y + h / 2); g.lineTo(x1, y + h / 2); g.stroke(); g.setLineDash([]); g.lineWidth = 1; }
     g.globalAlpha = fa;
+  } else if (it.nojoin && it.alts) {                              // 1058a: the statements disagree and none is preferred – only the datings, faint, no life
+    g.globalAlpha = (dim ? 0.06 : sel ? 0.8 : 0.35) * fa; g.strokeStyle = C.acc2; g.lineWidth = Math.max(1, h - (h > 6 ? 2 : 0)); g.setLineDash([4, 3]);
+    for (const [a, b] of it.alts) { const xa = X(a), xb = Math.max(X(b), xa + 2); g.beginPath(); g.moveTo(xa, y + h / 2); g.lineTo(xb, y + h / 2); g.stroke(); }
+    g.setLineDash([]); g.lineWidth = 1; g.globalAlpha = fa;
   } else {
     const base = C.acc2, w = Math.max(1, x1 - x0); let fill = base;
     if ((it.fa || it.fb) && w > 30) { const nil = clear(base), grd = g.createLinearGradient(x0, 0, x1, 0), fw = Math.min(0.45, 24 / w); fill = grd;   // (fuzzy ends – where there is room to see them)
@@ -1232,13 +1241,13 @@ function drawLife(g, C, it, x0, x1, y, h, font, lim, W, dense) {
   const fz = !it.yrs && it.fa && x1 - x0 > 30 ? Math.min(0.45 * (x1 - x0), 24) : 0;   // (the birth unknown: the names begin after its faded part)
   const nl = nameLay(g, it.lab, true, x0, x1, fz, 5, end, W), nm = nl.txt, tw = nl.tw;       // (the longest form of the name that fits)
   const cps = nameCopies(it, it.t0, it.t1, x0, x1, tw, nl.end, W, 5, rowPh(it._y ?? it.row), fz, nl.so), p = cps[0]?.x ?? -1e9;
-  if (!it.yrs) lifeAges(g, C, it, x0, x1, y, h, font, W, cps.map(c => [c.x - 3, c.x + tw + 3]));
+  if (!it.yrs && !it.nojoin) lifeAges(g, C, it, x0, x1, y, h, font, W, cps.map(c => [c.x - 3, c.x + tw + 3]));
   g.font = font(fs); g.fillStyle = C.fg; for (const cp of cps) { g.globalAlpha = fa * nA * cp.a; g.fillText(nm, cp.x, y + h / 2 + fs * 0.36); }
   if (!cps.length && nl.cx != null) { const cut = cutName(g, nm, nl.cr); if (cut) { g.globalAlpha = fa * nA; g.fillText(cut, nl.cx, y + h / 2 + fs * 0.36); } }
   g.globalAlpha = fa;
   if (f2 <= 0 || it.yrs || !it.P) { g.globalAlpha = 1; return; }
   const L = it.sts || TS_ST.get(it.P); if (!L) { tsWant(it.P); g.globalAlpha = 1; return; }
-  const ms = []; for (const c of L) { if (!TS_SYM[c.p] || c.st === 'rejects') continue; const tm = tsTime(c); if (!tm) continue; const x = X((tm[0] + tm[1]) / 2); if (x < Math.max(x0, 0) || x > Math.min(x1, W) || (x > p - 4 && x < p + tw + 6)) continue; ms.push({ x, c }); }   // (not over the name)
+  const ms = []; for (const c of L) { if (!TS_SYM[c.p] || c.st === 'rejects' || c.alt) continue; const tm = tsTime(c); if (!tm) continue; const x = X((tm[0] + tm[1]) / 2); if (x < Math.max(x0, 0) || x > Math.min(x1, W) || (x > p - 4 && x < p + tw + 6)) continue; ms.push({ x, c }); }   // (not over the name)
   ms.sort((a, b) => a.x - b.x); g.font = font(8.5);
   ms.forEach((m, k) => { const c = m.c, cls = tsWitCls(c), r = 2.3, cy = y + h / 2, nx = k + 1 < ms.length ? ms[k + 1].x : x1;
     if (k && m.x - ms[k - 1].x < 9) return;
@@ -1393,11 +1402,16 @@ function tmpWire(cv) {
   // so moving them together pans in any direction meanwhile. Each frame is worked out from where the pinch began (1029a)
   const pinchStart = () => { const [p, q] = pair(), m = { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }, sp = selPt(), h = sp && TP.hit.find(h => h.it === TP.sel.it), f = sp || m;
     pinch = { dx: Math.abs(p.x - q.x), dy: Math.abs(p.y - q.y), ppy: TP.ppy, lh: TP.lh, m, f, a: TP.x0 + f.x / TP.ppy };
-    TP.pin = Object.assign(tmpPinAt(f.y), { ty: f.y, it: sp ? TP.sel.it : null, L: h?.L || null }); TP.focusY = null; down = null; moved = true; };
+    // what the fingers hold: the selected item; else the bar nearest the point between them (its parts may open or fold meanwhile),
+    // and only where there is none, the row of the lanes there
+    const near = sp ? null : TP.hit.filter(x => x.it && x.L && Math.abs((x.y0 + x.y1) / 2 - f.y) < 40 && f.x >= x.x0 - 60 && f.x <= x.x1 + 60)
+      .sort((p, q) => Math.abs((p.y0 + p.y1) / 2 - f.y) - Math.abs((q.y0 + q.y1) / 2 - f.y))[0];
+    TP.pin = Object.assign(tmpPinAt(f.y), { ty: f.y, it: sp ? TP.sel.it : near?.it || null, L: (sp ? h?.L : near?.L) || null, rel: false,
+      fr: near ? (f.y - (near.y0 + near.y1) / 2) / laneRH(near.L) : 0 }); TP.focusY = null; down = null; moved = true; };
   const ratio = (d, d0, k) => { const c = Math.max(0, k - d0); return (d + c) / (d0 + c); };   // (1028a: fingers set down close together in that direction: gentler)
   cv.addEventListener('pointerdown', e => { if (TP.ptr.size >= 2) return;                  // (a third finger: ignored)
     cv.setPointerCapture(e.pointerId); TP.ptr.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
-    if (TP.ptr.size === 1) { down = { x: e.offsetX, y: e.offsetY, x0: TP.x0, ly: e.offsetY, arm: true }; moved = false; }
+    if (TP.ptr.size === 1) { down = { x: e.offsetX, y: e.offsetY, x0: TP.x0, ly: e.offsetY, arm: true }; moved = false; TP.pin = null; }
     if (TP.ptr.size === 2) pinchStart(); });
   cv.addEventListener('pointermove', e => { if (!TP.ptr.has(e.pointerId)) return; TP.userMove = Date.now(); TP.ptr.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
     if (pinch && TP.ptr.size === 2) { const [p, q] = pair(), m = { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 };
@@ -1411,13 +1425,13 @@ function tmpWire(cv) {
     TP.x0 = down.x0 - dx / TP.ppy; TP.sy += down.ly - e.offsetY; down.ly = e.offsetY; tmpClampY(); tmpSave(); tmpRedraw(); });
   const up = e => { if (!TP.ptr.has(e.pointerId)) return; TP.ptr.delete(e.pointerId);
     if (pinch && TP.ptr.size === 1) { const [r] = TP.ptr.values(); down = { x: r.x, y: r.y, x0: TP.x0, ly: r.y, arm: true }; }   // (1031a: the other finger carries on as a drag)
-    if (TP.ptr.size < 2) { pinch = null; TP.pin = null; }
+    if (TP.ptr.size < 2) { pinch = null; if (TP.pin) { TP.pin.rel = true; TP.pin.relT = Date.now(); } }   // (1057a: held until what glides has settled – 1.5 s at most)
     if (down && !moved && TP.ptr.size === 0) { const now = Date.now();
       if (now - lastTap < 300) { TP.focusY = selPt()?.y ?? e.offsetY; tmpZoomX(2, e.offsetX); setTimeout(() => { TP.focusY = null; }, 400); lastTap = 0; } else { lastTap = now; tmpTap(e.offsetX, e.offsetY); } }
     if (TP.ptr.size === 0) down = null; };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
   let wt = 0;
-  cv.addEventListener('wheel', e => { e.preventDefault(); TP.userMove = Date.now();
+  cv.addEventListener('wheel', e => { e.preventDefault(); TP.userMove = Date.now(); TP.pin = null;
     if (e.ctrlKey || e.metaKey || e.shiftKey) { TP.focusY = selPt()?.y ?? e.offsetY; clearTimeout(wt); wt = setTimeout(() => { TP.focusY = null; }, 400); }   // (the spot under the cursor stays put)
     if (e.ctrlKey || e.metaKey) tmpZoomX(Math.exp(-e.deltaY / 200), e.offsetX);
     else if (e.shiftKey) tmpZoomY(Math.exp(-e.deltaY / 300));
