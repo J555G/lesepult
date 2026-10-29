@@ -1022,11 +1022,12 @@ function drawItem(g, C, it, x0, x1, y, h, font, lim = Infinity, W = 1e9) {
   // the label, once: at the bar's start – or, while the bar runs on past the screen's left edge, held at that edge, and pushed
   // off with the bar's end; past a short bar it may run on up to the next item in its row (807a)
   const fs = Math.max(9, Math.min(11, h - 2)); g.font = font(fs);   // (rows pinched small: smaller type)
-  const end = Math.min(Math.max(x1 - 3, lim), W + 2000), [txt, tw] = it.ref ? fitName(g, it.lab, Math.min(end, W) - Math.max(x0, 0) - 6) : [it.lab, g.measureText(it.lab).width];
+  const fz = it.fa ? Math.min(0.45 * Math.max(1, x1 - x0), 24) : 0;   // (1039a: a faded start – the name begins after it)
+  const end = Math.min(Math.max(x1 - 3, lim), W + 2000), [txt, tw] = it.ref ? fitName(g, it.lab, Math.min(end, W) - Math.max(x0 + fz, 0) - 6) : [it.lab, g.measureText(it.lab).width];
   g.fillStyle = C.fg;
-  const cps = nameCopies(it, it.t0, it.t1, x0, x1, tw, end, W, 4, rowPh(it._y ?? it.row));
+  const cps = nameCopies(it, it.t0, it.t1, x0, x1, tw, end, W, 4, rowPh(it._y ?? it.row), fz);
   for (const cp of cps) { g.globalAlpha = fa * cp.a; g.fillText(txt, cp.x, y + h / 2 + fs * 0.36); }
-  if (!cps.length && x0 + 4 >= 0) { const cut = cutName(g, txt, Math.min(end, W) - x0 - 6); if (cut) { g.globalAlpha = fa; g.fillText(cut, x0 + 4, y + h / 2 + fs * 0.36); } }
+  if (!cps.length && x0 + fz + 4 >= 0) { const cut = cutName(g, txt, Math.min(end, W) - x0 - fz - 6); if (cut) { g.globalAlpha = fa; g.fillText(cut, x0 + fz + 4, y + h / 2 + fs * 0.36); } }
   g.globalAlpha = 1;
 }
 // 998a: a life bar in three degrees. Far: a plain bar – the origin's colour at its start, imperial purple from the accession, a red end.
