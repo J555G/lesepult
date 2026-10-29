@@ -769,6 +769,9 @@ async function tmpData() {
         const nPrev = 1 + Math.max(0, ...L.its.filter(i => i.lv === k - 1).map(i => i['row' + (k - 1)]));
         const start = []; let s = 0; for (let R = 0; R < nPrev; R++) { start[R] = s; s += H[R] || 1; }
         for (const i of kids) { const R = i.par ? i.par['row' + (k - 1)] : 0; i.row = i['row' + k] = (start[R] ?? 0) + i._loc; }
+        // 1064a: the deepest level, fully open (its parents folded away by then), packed together by time – no block of rows per part;
+        // while it opens, each still grows out of its part (from the part's row to its own)
+        if (k >= 2 && k === L.levels[L.levels.length - 1]) { pack(kids); for (const i of kids) i.row = i['row' + k] = i._loc; }
       }
       // 1042a: a person's own lane – pinched apart, his life bar stays as the first row; the statements open beneath it
       const life = L.ref && L.its.find(i => i.life && i.lv === 0);
