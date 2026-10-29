@@ -770,13 +770,17 @@ async function tmpData() {
       }
       // 1042a: a person's own lane – pinched apart, his life bar stays as the first row; the statements open beneath it
       const life = L.ref && L.its.find(i => i.life && i.lv === 0);
-      if (life) { life.keep = true; for (const i of L.its) if (i.lv === 1) i.row1 += 1; life.row1 = 0; }
+      if (life) { life.keep = true; for (const i of L.its) if (i.lv === 1) { i.row1 += 1; if (i.kind === 'st') i.fr = life; } life.row1 = 0; }
       for (const k of L.levels) {                        // (the dates of writing and the like: in the first free row at each level)
         const occ = []; for (const i of L.its.filter(i => i.lv === k)) (occ[i['row' + k]] ??= []).push([i.t0, i.t1]);
         for (const it of L.its.filter(i => i.lv == null).sort((a, b) => a.t0 - b.t0)) { let r = 0; while ((occ[r] || []).some(([a, b]) => it.t0 < b - 1e-6 && it.t1 > a + 1e-6)) r++; (occ[r] ??= []).push([it.t0, it.t1]); it['row' + k] = r; it.row = r; } }
     }
     for (const it of L.its) it.full = (L.id === 'own' || L.id === 'wr:lib' || it.wr ? '' : sh + ' · ') + it.lab;
   }
+  // 1052c: persons opened in the persons' layer (a tap on the bar) – their statements beneath their row, inside the layer
+  const popL = lanes.find(L => L.id === 'pop');
+  if (popL) for (const P of cfg.popen || []) { const pi = popL.its.find(i => i.P === P); if (!pi) continue; const r = await tsPerson('tp|' + P); if (!r) continue;
+    for (const i of r.its) if (i.kind === 'st') { i.fr = pi; i.oP = true; i.full = pi.lab + ' · ' + i.lab; popL.its.push(i); } }
   if (TP.sel?.it) {                                       // (the lanes are new objects: the selection moves to the same item in them)
     const o = TP.sel.it, k = i => [i.k2, i.ref || '', i.lab, i.t0, i.t1, i.st?.i || ''].join('|'), ko = k(o);
     for (const L of lanes) { const n = L.its.find(i => k(i) === ko); if (n) { n._lid = L.id; TP.sel = Object.assign({}, TP.sel, { it: n, L }); break; } } }
@@ -843,26 +847,81 @@ const denseRH = () => { const l = Math.log(TP.ppy); let base = DRH[0][1];
   for (let i = 1; i < DRH.length; i++) { const [p0, b0] = DRH[i - 1], [p1, b1] = DRH[i]; if (TP.ppy >= p1) base = b1; else if (TP.ppy > p0) { base = b0 + (b1 - b0) * (l - Math.log(p0)) / (Math.log(p1) - Math.log(p0)); break; } else break; }
   return Math.min(40, Math.max(2, base * TP.lh / 30)); };
 const laneRH = L => L.dense ? denseRH() : TP.lh;
-// 1042a, 1045a–1050a: a person's statements, pinched apart, stand each in a box as wide as its words, as near beneath its own time
-// as there is room – moved a little sideways, or down a row; packed over all his statements (so nothing moves as you pan), and
-// gliding to a new place when the zoom makes them meet. Each is joined to its exact time on the life bar by a bending line
+// 1042a, 1045a–1050a, 1053a, 1054c: a person's statements stand each in a box as wide as its words, as near beneath its own time
+// as there is room – to the left or the right of it in a row (as far as would still let a box reach within 7 px of the pane's edge
+// with its time in the middle), else in the next row; packed over all his statements (so nothing moves as you pan), and gliding to
+// a new place when the zoom makes them meet. Zoomed in, a second line: when, and whose words; tapped, the box opens in place with
+// all the card would say. Each is joined to its exact time on the life bar by a bending line
 const stMC = document.createElement('canvas').getContext('2d');
-function tmpStPack(L) {
-  const kids = L.its.filter(i => i.lv === 1 && i.kind === 'st'); if (!kids.length) return;
-  const W = $('#tmpCanvas')?.clientWidth || 800, bh = BH(TP.lh), fs = Math.max(9, Math.min(11, bh - 2)), GAP = 6;
-  stMC.font = `${fs}px ${TP.C?.ui || 'sans-serif'}`; const maxW = Math.max(80, Math.min(320, W * 0.6));
-  if (L._stFs !== fs || L._stW !== maxW) { L._stFs = fs; L._stW = maxW;           // (the words and their width: only when the type size changes)
-    for (const i of kids) { let t = i.lab, w = stMC.measureText(t).width;
-      if (w + 12 > maxW) { while (t.length > 3 && stMC.measureText(t + '…').width + 12 > maxW) t = t.slice(0, -1); t = t.trimEnd() + '…'; w = stMC.measureText(t).width; }
-      i._stTxt = t; i._bw = Math.ceil(w) + 12; } }
-  const P = kids.map(i => ({ i, xm: (i.t0 + i.t1) / 2 * TP.ppy })).sort((a, b) => a.xm - b.xm || a.i.t0 - b.i.t0), ends = [];
-  for (const { i, xm } of P) { const a = xm - i._bw / 2, sh = Math.min(40, i._bw * 0.5); let r = 0, x;
-    for (;; r++) { const c = Math.max(a, (ends[r] ?? -Infinity) + GAP); if (c - a <= sh) { x = c; break; } }
-    ends[r] = x + i._bw;
-    // gliding: a change the zoom makes smoothly is followed at once; a sudden one (a box moving over or down) is eased
-    const glide = (k, t, cap, fol) => { const pv = i['_' + k + 'T'], v0 = i['_' + k]; let v = v0 == null ? t : v0 + (pv != null && Math.abs(t - pv) <= fol ? t - pv : 0);
-      const d = (t - v) * 0.35; v += Math.max(-cap, Math.min(cap, d)); if (Math.abs(t - v) < 0.05) v = t; else TP.moving = true; i['_' + k + 'T'] = t; i['_' + k] = v; return v; };
-    i._dx = glide('sx', x - xm, 10, 4); i.row1 = 1 + glide('sr', r, 10 / Math.max(12, TP.lh), 0); }   // (at most about 10 px a frame)
+const stKey = it => (it.P || '') + '|' + (it.st?.i ?? (it.lab + '|' + it.t0));
+const stF = fs => `${fs}px ${TP.C?.ui || 'sans-serif'}`;
+function stWrap(txt, w, font) { stMC.font = font; const out = []; let line = '';
+  for (const word of String(txt).split(/\s+/)) { const t = line ? line + ' ' + word : word; if (stMC.measureText(t).width <= w || !line) line = t; else { out.push(line); line = word; } }
+  if (line) out.push(line); return out; }
+function stCut(txt, w, font) { stMC.font = font; if (stMC.measureText(txt).width <= w) return txt; let t = txt; while (t.length > 3 && stMC.measureText(t + '…').width > w) t = t.slice(0, -1); return t.trimEnd() + '…'; }
+function stInfo(it) {                                             // (what the card says, as lines: when, whose words, the words, the source)
+  const c = it.st || {}, e = c.e || [], wit = c.w || [], tm = tsTime(c), rt = tm ? rangeTxt(tm[0], tm[1]) : rangeTxt(it.t0, it.t1);
+  const when = c.t?.orig ? c.t.orig + (tm && c.t.orig !== rt ? ` (${rt})` : '') : rt, who = e[0] === 'texts' ? (wit[0] || 'the text') : wit[0] && wit[0] !== 'Smith' ? wit[0] + (wit[1] ? ', via ' + wit[1] : '') + ' (Smith)' : 'Smith';
+  const L = [{ t: when + (c.tr ? ' · read: ' + c.tr.why : ''), k: '' }];
+  if (wit[0] && wit[0] !== 'Smith' && e[0] !== 'texts') L.push({ t: `The view of ${wit[0]}${wit[1] ? ', reported by ' + wit[1] : ''}`, k: '' });
+  if (c.st) L.push({ t: { accepts: 'Smith accepts this view', doubts: 'Smith doubts this view', rejects: 'Smith rejects this view' }[c.st] || c.st, k: 'b' });
+  if (e[3]) L.push({ t: '“' + e[3] + '”', k: 'q' });
+  L.push({ t: (e[0] === 'texts' ? `${wit[0] || ''}, ${e[2] || ''}` : `Smith, Dictionary (1849), ${e[1] || ''}${e[2] ? ' · ' + e[2] : ''}`) + (e[4]?.length ? ' · cites ' + e[4].join('; ') : '') + (c.b ? ' · basis: ' + TSV(c.b) : '') + (c.c != null ? ' · confidence ' + c.c : ''), k: 's' });
+  if (c.r?.length) L.push({ t: c.r.map(r => r[0] + ' ' + r[1] + (r[2] ? ' (block)' : '')).join(' · '), k: 's' });
+  if (c.inf) L.push({ t: 'inferred – not stated in words', k: 's' }); if (c.n) L.push({ t: c.n, k: 's' });
+  const B = [['All about ' + tsName(TS_IX?.p?.[it.P]?.[0] || 'the person'), 'all']]; if (e[0] === 'texts') B.push(['Open the passage', 'go']); if (it.ref?.startsWith('people-') || it.fr?.ref?.startsWith('people-')) B.push(['Smith’s article', 'smith']);
+  return { l2: when + ' · ' + who, L, B };
+}
+// the size of a statement's box: its words (cut to the widest a box may be), a second line from 30 px rows, all of it when opened
+function stSize(it, bh, rl, maxW) {
+  const fs = Math.max(9, Math.min(11, bh - 2)), f2 = sm(bh, 30, 36), ex = TP.stx === stKey(it), key = [fs, maxW, f2 > 0, ex, rl].join('|');
+  if (it._szK === key) return; it._szK = key; const inf = it._inf || (it._inf = stInfo(it));
+  it._stTxt = stCut(it.lab, maxW - 12, stF(fs)); stMC.font = stF(fs); let w = stMC.measureText(it._stTxt).width;
+  if (f2 > 0) { it._st2 = stCut(inf.l2, maxW - 12, stF(fs - 1.5)); stMC.font = stF(fs - 1.5); w = Math.max(w, stMC.measureText(it._st2).width); } else it._st2 = null;
+  if (!ex) { it._bw = Math.ceil(w) + 12; it._span = 1; it._exL = null; return; }
+  const iw = maxW - 12, lines = []; lines.push(...stWrap(it.lab, iw, 'bold ' + stF(fs)).map(t => ({ t, k: 'h' })));
+  for (const l of inf.L) lines.push(...stWrap(l.t, iw, (l.k === 'q' ? 'italic ' : '') + stF(l.k === 's' ? fs - 1.5 : fs)).map(t => ({ t, k: l.k })));
+  it._exL = lines; it._bw = maxW; const hpx = 6 + lines.reduce((z, l) => z + (l.k === 's' ? fs + 1.5 : fs + 4), 0) + 6 + fs + 10 + 6;
+  it._exH = hpx; it._span = Math.max(1, Math.ceil((hpx + (rl - bh)) / rl));
+}
+function stGlide(i, k, t, cap, fol) { const pv = i['_' + k + 'T'], v0 = i['_' + k]; let v = v0 == null ? t : v0 + (pv != null && Math.abs(t - pv) <= fol ? t - pv : 0);
+  v += Math.max(-cap, Math.min(cap, (t - v) * 0.35)); if (Math.abs(t - v) < 0.02) v = t; else TP.moving = true; i['_' + k + 'T'] = t; i['_' + k] = v; return v; }
+// → the rows they take (gliding); on each: _dx (from its time's middle), _sr (its row), _spE (rows it spans)
+function stPack(kids, rl, bh, owner) {
+  if (!kids.length) return 0;
+  const W = $('#tmpCanvas')?.clientWidth || 800, maxW = Math.max(80, Math.min(340, W * 0.6)), GAP = 6;
+  for (const i of kids) stSize(i, bh, rl, maxW);
+  const ck = [TP.ppy, bh, rl, W, TP.stx, kids.length].join('|');
+  if (owner._stK !== ck) { owner._stK = ck; const occ = [], T = new Map();          // (laid out again only when the zoom or the opened box changes)
+    const P = kids.map(i => ({ i, xm: (i.t0 + i.t1) / 2 * TP.ppy })).sort((a, b) => a.xm - b.xm || a.i.t0 - b.i.t0);
+    const free = (r, k, p, w) => { for (let q = r; q < r + k; q++) for (const iv of occ[q] || []) if (p < iv[1] + GAP && p + w + GAP > iv[0]) return false; return true; };
+    for (const { i, xm } of P) { const w = i._bw, k = i._span, a = xm - w / 2, lim = Math.max(0, W / 2 - 7 - w / 2);
+      for (let r = 0; ; r++) { const cand = [a]; for (let q = r; q < r + k; q++) for (const iv of occ[q] || []) cand.push(iv[0] - GAP - w, iv[1] + GAP);
+        const c = cand.filter(p => Math.abs(p - a) <= lim + 0.01).sort((p, q) => Math.abs(p - a) - Math.abs(q - a)).find(p => free(r, k, p, w));
+        if (c != null) { for (let q = r; q < r + k; q++) (occ[q] ??= []).push([c, c + w]); T.set(i, [c - xm, r]); break; } } }
+    owner._stT = T; }
+  let n = 0;
+  for (const i of kids) { const [dx, r] = owner._stT.get(i) || [0, 0];
+    i._dx = stGlide(i, 'sx', dx, 10, 4); i._sr = stGlide(i, 'sr', r, 10 / rl, 0); i._spE = stGlide(i, 'sp', i._span, 10 / rl, 0); n = Math.max(n, i._sr + i._spE); }
+  return n;
+}
+// 1052c: the persons' layer with persons opened in it – a block of rows beneath each, opening and closing gliding, all below moving down
+function tmpPopOpen(L, on) {
+  const rl = laneRH(L), bh = Math.max(2, rl - 1), by = new Map(); TP.blk ??= new Map(); TP.blkRow ??= new Map();
+  for (const i of L.its) if (i.oP) { if (!by.has(i.fr)) by.set(i.fr, []); by.get(i.fr).push(i); }
+  const tgt = new Map();
+  for (const [pi, ks] of by) { tgt.set(pi.P, stPack(ks, rl, bh, pi) + 0.4); TP.blkRow.set(pi.P, [pi.row, pi.t0]); }
+  for (const P of TP.blk.keys()) if (!tgt.has(P)) tgt.set(P, 0);
+  const blocks = [];
+  for (const [P, t] of tgt) { let v = TP.blk.get(P) ?? 0; const cap = 10 / rl; v += Math.max(-cap, Math.min(cap, (t - v) * 0.35)); if (Math.abs(t - v) < 0.02) v = t; else TP.moving = true;
+    if (v <= 0 && t === 0) { TP.blk.delete(P); continue; } TP.blk.set(P, v); const rr = TP.blkRow.get(P); if (rr) blocks.push({ P, row: rr[0], t0: rr[1], v }); }
+  blocks.sort((a, b) => a.row - b.row || a.t0 - b.t0); let s = 0; for (const b of blocks) { b.start = b.row + 1 + s; s += b.v; }
+  const off = r => { let o = 0; for (const b of blocks) { if (b.row >= r) break; o += b.v; } return o; };
+  let n = 0;
+  for (const i of L.its) { if (i.oP) continue; i._y = i.row + off(i.row); i._al = 1; i._lab = true; if (on(i)) n = Math.max(n, i._y + 1); }
+  for (const b of blocks) { n = Math.max(n, b.start + b.v); const ks = [...by].find(([pi]) => pi.P === b.P)?.[1] || [];
+    for (const i of ks) { i._y = b.start + i._sr; i._al = sm(b.v - i._sr, 0, 1); i._lab = true; } }
+  return n;
 }
 function tmpLayout(A0, A1) {
   // 810a/812a: lanes keep their place; the space before and after a lane is free for others – lanes whose spans do not meet share
@@ -873,16 +932,17 @@ function tmpLayout(A0, A1) {
   for (const L of lanes) {
     if (hide && TP.fOn && !L.its.some(i => i.pass)) continue;           // (hidden: a lane with nothing that passes goes)
     const Lv = tmpLevels(L), on = i => !(hide && !i.pass) && wrVis(i);
-    if (Lv && L.ref && Lv.lb >= 1) tmpStPack(L);                      // (1045a: a person's statements, each in its own place – for this zoom)   // (816a: room for the dates of writing only while they are shown)
+    if (Lv && L.ref && Lv.lb >= 1) { const ks = L.its.filter(i => i.fr && i.lv === 1); stPack(ks, laneRH(L), BH(TP.lh), L); for (const i of ks) i.row1 = 1 + i._sr; }   // (1045a: a person's statements, each in its own place – for this zoom)   // (816a: room for the dates of writing only while they are shown)
     let atLv = () => true, n;
-    if (!Lv) { for (const i of L.its) { i._y = i.row; i._al = 1; i._lab = true; } const all = L.its.filter(on); n = all.length ? 1 + Math.max(...all.map(i => i.row)) : 0; }
+    if (!Lv && L.id === 'pop' && (TP.blk?.size || L.its.some(i => i.oP))) n = tmpPopOpen(L, on);
+    else if (!Lv) { for (const i of L.its) { i._y = i.row; i._al = 1; i._lab = true; } const all = L.its.filter(on); n = all.length ? 1 + Math.max(...all.map(i => i.row)) : 0; }
     else { const { la, lb, f } = Lv, rw = (i, k) => i['row' + k] ?? i.row, all = i => i.lv == null || i.keep;
       for (const i of L.its) { i._al = 0; i._lab = all(i) || (i.lv === la ? f <= 0.5 : f > 0.5);
         if (all(i)) { i._y = rw(i, la) + f * (rw(i, lb) - rw(i, la)); i._al = 1; }
         else if (i.lv === la && la !== lb) { i._y = rw(i, la); i._al = 1 - f; }
         else if (i.lv === lb && la !== lb) { const p = i.par?.lv === la ? rw(i.par, la) : rw(i, lb); i._y = p + f * (rw(i, lb) - p); i._al = f; }
         else if (i.lv === la) { i._y = rw(i, la); i._al = 1; } }
-      const nOf = k => { const s = L.its.filter(i => (all(i) || i.lv === k) && on(i)); return s.length ? 1 + Math.max(...s.map(i => rw(i, k))) : 0; };
+      const nOf = k => { const s = L.its.filter(i => (all(i) || i.lv === k) && on(i)); return s.length ? 1 + Math.max(...s.map(i => rw(i, k) + (i.fr && i._spE ? i._spE - 1 : 0))) : 0; };
       n = nOf(la) + f * (nOf(lb) - nOf(la));
       atLv = i => all(i) || i.lv === (f < 0.5 ? la : lb); }
     const its = L.its.filter(i => i._al > 0.01 && i.t1 > A0 && i.t0 < A1 && on(i));   // (the dates of writing: only the selected work's)
@@ -981,24 +1041,27 @@ function tmpDraw() {
       // how far a label may run on (807a): to the next item in its row, and never into the next lane of the slot
       const stop = k + 1 < ls.length ? X(ls[k + 1].a) - 6 : W + 4000;
       const cutX = new Map(), byLv = new Map(), lean = L.dense && bhL < 7;   // (854a: bars sharing a row – overlapping books – cut where the next one begins; the persons' thin rows need none of it)
-      if (!lean) for (const it of vis) { const k = Math.round(it._y ?? it.row) + '|' + (it.lv ?? 'm'); if (!byLv.has(k)) byLv.set(k, []); byLv.get(k).push(it); }
+      if (!lean) for (const it of vis) { if (it.fr) continue; const k = Math.round(it._y ?? it.row) + '|' + (it.lv ?? 'm'); if (!byLv.has(k)) byLv.set(k, []); byLv.get(k).push(it); }
       for (const r of byLv.values()) { r.sort((p, q) => p.t0 - q.t0); r.forEach((it, j) => { const nx = r[j + 1]; if (nx && nx.t0 < it.t1) cutX.set(it, X(nx.t0)); }); }
-      const byRow = new Map(); if (!lean) for (const it of vis) { if (it._al < 0.5) continue; const r = Math.round(it._y ?? it.row); if (!byRow.has(r)) byRow.set(r, []); byRow.get(r).push(it); }
+      const byRow = new Map(); if (!lean) for (const it of vis) { if (it._al < 0.5 || it.fr) continue; const r = Math.round(it._y ?? it.row); if (!byRow.has(r)) byRow.set(r, []); byRow.get(r).push(it); }
       const nextX = new Map(); for (const r of byRow.values()) { r.sort((p, q) => p.t0 - q.t0); r.forEach((it, j) => nextX.set(it, Math.min(stop, j + 1 < r.length ? X(r[j + 1].t0) - 6 : W + 4000))); }
       g.save(); g.beginPath(); g.rect(0, top - 2, W, h + 4); g.clip();                     // (a lane still growing shows only what fits)
-      const life = L.ref && L.its.find(i => i.keep), free = it => life && it.lv === 1 && it._bw != null && it.kind === 'st';
-      if (life) { const yl = top + TT + 3 + (life._y ?? 0) * rl;           // (1047a, 1048a: its exact time marked on the life bar, and a bending line to its box)
-        for (const it of vis) { if (!free(it) || (it._al ?? 1) < 0.02) continue; const a = X(it.t0), b = Math.max(X(it.t1), a + 2), xm = (a + b) / 2, yy = top + TT + 3 + (it._y ?? it.row) * rl;
+      const free = it => it.fr && it._bw != null, boxH = it => Math.max(bhL, (it._spE || 1) * rl - (rl - bhL));
+      {                                                   // (1047a, 1048a: its exact time marked on the life bar, and a bending line to its box)
+        for (const it of vis) { if (!free(it) || (it._al ?? 1) < 0.02) continue; const yl = top + TT + 3 + (it.fr._y ?? it.fr.row ?? 0) * rl;
+          const a = X(it.t0), b = Math.max(X(it.t1), a + 2), xm = (a + b) / 2, yy = top + TT + 3 + (it._y ?? it.row) * rl;
           const bx = X((it.t0 + it.t1) / 2) + it._dx, cx = Math.min(Math.max(xm, bx + 6), bx + it._bw - 6), sel = TP.sel?.it === it, col = it.anc ? C.acc : C.acc2;
-          if (Math.max(bx + it._bw, b) < -20 || Math.min(bx, a) > W + 20 || yy < RH - 200 || yl > H) continue;
-          g.globalAlpha = (it.pass === false ? 0.15 : 0.9) * (it._al ?? 1); g.fillStyle = col; g.fillRect(a, yl + bhL - 3, b - a, 3);
+          if (Math.max(bx + it._bw, b) < -20 || Math.min(bx, a) > W + 20 || yy < RH - 400 || yl > H) continue;
+          g.globalAlpha = (it.pass === false ? 0.15 : 0.9) * (it._al ?? 1); g.fillStyle = col; g.fillRect(a, yl + bhL - Math.min(3, bhL / 2), b - a, Math.min(3, bhL / 2));
           g.strokeStyle = sel ? C.fg : col; g.lineWidth = sel ? 1.8 : 1; g.globalAlpha = (it.pass === false ? 0.12 : sel ? 0.95 : 0.6) * (it._al ?? 1);
           const y0 = yl + bhL, y1 = yy, m = (y1 - y0) * 0.5; g.beginPath(); g.moveTo(xm, y0); g.bezierCurveTo(xm, y0 + m, cx, y1 - m, cx, y1); g.stroke(); }
         g.globalAlpha = 1; g.lineWidth = 1; }
       for (const it of vis) {
-        if (free(it)) { const x0 = X((it.t0 + it.t1) / 2) + it._dx, x1 = x0 + it._bw, yy = top + TT + 3 + (it._y ?? it.row) * rl;
-          if (x1 < 0 || x0 > W || yy > H - RB || yy + bhL < RH) continue; drawStBox(g, C, it, x0, x1, yy, bhL, font);
-          if ((it.pass !== false || TP.cfg.fmode === 'hide') && yy < top + h && (it._al ?? 1) >= 0.5) TP.hit.push({ x0, x1, y0: yy, y1: yy + bhL, it, L }); continue; }
+        if (free(it)) { const x0 = X((it.t0 + it.t1) / 2) + it._dx, x1 = x0 + it._bw, yy = top + TT + 3 + (it._y ?? it.row) * rl, hb = boxH(it);
+          if (x1 < 0 || x0 > W || yy > H - RB || yy + hb < RH || (it._al ?? 1) < 0.02) continue;
+          const ok = (it.pass !== false || TP.cfg.fmode === 'hide') && yy < top + h && (it._al ?? 1) >= 0.5;
+          if (ok) TP.hit.push({ x0, x1, y0: yy, y1: yy + hb, it, L });
+          drawStBox(g, C, it, x0, x1, yy, hb, bhL, font, ok ? L : null); continue; }
         const x0 = X(it.t0), x1 = Math.max(Math.min(X(it.t1), cutX.get(it) ?? Infinity) - 1, x0 + (L.dense ? 1.5 : 3)), yy = top + TT + 3 + (it._y ?? it.row) * rl, bh = bhL;
         if (x1 < 0 && (lean || nextX.get(it) < 0)) continue; if (x0 > W || yy > H - RB || yy + bh < RH) continue;   // (only what is on the screen)
         if (it.life || it.yrs) drawLife(g, C, it, x0, x1, yy, bh, font, nextX.get(it), W, !!L.dense); else drawItem(g, C, it, x0, x1, yy, bh, font, nextX.get(it), W);
@@ -1053,15 +1116,28 @@ function tmpDraw() {
     const h = TP.hit.find(h => h.it === TP.sel.it); if (h) { const d = (h.y0 + h.y1) / 2 - TP.focusY; if (Math.abs(d) > 0.5) { TP.sy += d; tmpClampY(); TP.prevLay = null; TP.moving = true; } } }
   if (TP.moving) tmpRedraw();                              // (until every height has reached its value)
 }
-function drawStBox(g, C, it, x0, x1, y, h, font) {          // (1050a: a statement's box – as wide as its words; its time is on the life bar)
-  const sel = TP.sel?.it === it, dim = it.pass === false, fa = it._al ?? 1, base = it.anc ? C.acc : C.acc2;
+function drawStBox(g, C, it, x0, x1, y, h, bh, font, L) {      // (1050a, 1054c: a statement's box – as wide as its words; its time is on the life bar)
+  const sel = TP.sel?.it === it, dim = it.pass === false, fa = it._al ?? 1, base = it.anc ? C.acc : C.acc2, fs = Math.max(9, Math.min(11, bh - 2));
   g.globalAlpha = fa * (dim ? 0.5 : 1); g.fillStyle = C.bg; roundRect(g, x0, y, x1 - x0, h, 4); g.fill();   // (an opaque ground: the other statements' lines pass behind it)
   g.globalAlpha = (dim ? 0.07 : sel ? 0.75 : it.anc ? 0.5 : 0.3) * fa; g.fillStyle = base; roundRect(g, x0, y, x1 - x0, h, 4); g.fill();
   if (dim) { g.globalAlpha = 1; return; }
   g.globalAlpha = fa; if (sel) { g.strokeStyle = C.fg; g.lineWidth = 1.6; roundRect(g, x0, y, x1 - x0, h, 4); g.stroke(); }
   if (TP.fOn && it.pass && !sel) { g.strokeStyle = C.acc; g.lineWidth = 1.6; roundRect(g, x0 - 0.5, y - 0.5, x1 - x0 + 1, h + 1, 4); g.stroke(); }
   if (it.read || it.st?.inf) { g.strokeStyle = it.read ? '#c0392b' : C.acc; g.lineWidth = 1; g.setLineDash([3, 2]); roundRect(g, x0, y, x1 - x0, h, 4); g.stroke(); g.setLineDash([]); }
-  if (it._lab !== false) { const fs = Math.max(9, Math.min(11, h - 2)); g.font = font(fs); g.fillStyle = C.fg; g.fillText(it._stTxt || it.lab, x0 + 6, y + h / 2 + fs * 0.36); }
+  if (it._lab === false || bh < 8) { g.globalAlpha = 1; g.lineWidth = 1; return; }
+  const nA = sm(bh, 8, 10); g.fillStyle = C.fg;
+  if (it._exL && h > bh + 2) {                                    // (opened: all of it, and the card's buttons)
+    g.save(); g.beginPath(); g.rect(x0, y, x1 - x0, h); g.clip(); let yy = y + 6;
+    for (const l of it._exL) { const f = l.k === 's' ? fs - 1.5 : fs; g.font = (l.k === 'h' ? 'bold ' : l.k === 'q' ? 'italic ' : '') + font(f); g.fillStyle = C.fg; g.globalAlpha = fa * (l.k === 's' ? 0.72 : 1);
+      yy += l.k === 's' ? f + 3 : f + 4; g.fillText(l.t, x0 + 6, yy - 3); }
+    let bx = x0 + 6; const by = y + h - fs - 14; g.font = font(fs - 1);
+    for (const [lab, act] of stInfo(it).B) { const w = g.measureText(lab).width + 12; if (bx + w > x1 - 4) break;
+      g.globalAlpha = fa * 0.9; g.strokeStyle = C.fg; g.lineWidth = 1; roundRect(g, bx, by, w, fs + 8, 4); g.stroke(); g.fillStyle = C.fg; g.fillText(lab, bx + 6, by + fs + 2);
+      if (L) TP.hit.push({ x0: bx, x1: bx + w, y0: by, y1: by + fs + 8, it, L, btn: act }); bx += w + 6; }
+    g.restore(); g.globalAlpha = 1; g.lineWidth = 1; return; }
+  const f2 = it._st2 ? sm(bh, 30, 36) : 0; g.font = font(fs); g.globalAlpha = fa * nA;
+  if (f2 > 0) { const y1 = y + (bh - (fs + fs - 1.5 + 3)) / 2 + fs; g.fillText(it._stTxt || it.lab, x0 + 6, y1 - 1); g.font = font(fs - 1.5); g.fillStyle = C.fg; g.globalAlpha = fa * nA * f2 * 0.75; g.fillText(it._st2, x0 + 6, y1 + fs + 1); }
+  else g.fillText(it._stTxt || it.lab, x0 + 6, y + bh / 2 + fs * 0.36);
   g.globalAlpha = 1; g.lineWidth = 1;
 }
 function drawItem(g, C, it, x0, x1, y, h, font, lim = Infinity, W = 1e9) {
@@ -1346,6 +1422,14 @@ function tmpTap(px, py) {
   if (px > W - 26 && TP.chevT && py >= TP.chevT[0] && py < TP.chevT[1]) { TP.cfg.rcoll = !TP.cfg.rcoll; tmpSave(); return tmpRedraw(); }
   if (px > W - 26 && TP.chevB && py >= TP.chevB[0] && py < TP.chevB[1]) { TP.cfg.rcollB = !TP.cfg.rcollB; tmpSave(); return tmpRedraw(); }
   const h = tmpAt(px, py);
+  if (h?.btn) { const it = h.it;                                  // (an opened statement's buttons)
+    if (h.btn === 'all') return tsPanel(it.P); if (h.btn === 'go') return tsGoSt(it.st);
+    if (h.btn === 'smith') { const ref = it.ref?.startsWith('people-') ? it.ref : it.fr?.ref; return showPeople().then(() => pplGo({ t: 'person', ref })); } }
+  if (h?.it?.fr && h.it.kind === 'st') {                          // 1054c: a statement – its box opens in place (or closes again)
+    const k = stKey(h.it); TP.sel = h; TP.cur = null; $('#tmpCard').hidden = true; TP.stx = TP.stx === k ? null : k; tmpHold(py); return tmpRedraw(); }
+  if (h?.it?.pop && h.it.P) {                                     // 1052c: a person of the layer – opened in place, beneath his row (a tap again: closed)
+    const P = h.it.P, o = TP.cfg.popen = TP.cfg.popen || [], j = o.indexOf(P); TP.sel = h; TP.cur = null; $('#tmpCard').hidden = true; tmpSelWork(null); tsPanel(h.it.ref);
+    if (j >= 0) o.splice(j, 1); else o.push(P); tmpSave(); tmpHold(py); tmpData().then(() => tmpRedraw()); return; }
   if (h?.it && (h.it.life || h.it.yrs || h.it.kind === 'life') && h.it.ref) {        // 999a: a life bar – the person's panel; from the persons' layer also his full lane (997a)
     TP.sel = h; TP.cur = null; $('#tmpCard').hidden = true; tmpSelWork(null); tsPanel(h.it.ref);
     if ((h.it.pop || h.it.yrs) && !(TP.cfg.persons || []).includes(h.it.ref)) { const an = tmpAnchorGet(); TP.cfg.persons.push(h.it.ref); tmpSave(); tmpData().then(() => tmpAnchorKeep(an)); return; }
@@ -1358,6 +1442,9 @@ function tmpTap(px, py) {
   if (TP.wsel && !TP.sel) return tmpSelWork(null);
   tmpRedraw();
 }
+function tmpHold(y) { TP.focusY = y; clearTimeout(TP.fyT); TP.fyT = setTimeout(() => { TP.focusY = null; }, 1200); }   // (what was tapped stays where it is while things glide)
+function tsGoSt(c) { const loc = c?.e?.[2]; if (!loc) return; const [bk, ...r] = loc.split('.'), wid = c.e[1];
+  libGet('works', wid).then(w => { if (!w) return libMenu(wid); const bi = Math.max(0, (w.books || []).indexOf(bk)); pplPassage(wid, bi, r.join('.'), ''); }); }
 function tmpSelWork(w) {                                     // 991a: the selected work's dates of writing come in (the selected item stays where it is)
   if ((TP.wsel || null) === (w || null)) return tmpRedraw();
   const an = tmpAnchorGet(); TP.wsel = w || null; tmpAnchorKeep(an);

@@ -170,9 +170,9 @@ async function privFetch(cfg, path, signal) {
   return r;
 }
 function pkgFetch(p, signal) { return p.priv ? privFetch(p.priv, p.file, signal) : fetch('packages/' + p.file, { cache: 'no-cache', signal }); }
-async function fetchManifest() {
+async function fetchManifest(ms = 6000) {
   let man;
-  try { man = await (await fetchT('packages/packages.json', { cache: 'no-cache' })).json(); } catch (_) { return null; }
+  try { man = await (await fetchT('packages/packages.json', { cache: 'no-cache' }, ms)).json(); } catch (_) { return null; }
   S.privErr = null;
   const cfg = await privCfg();
   if (cfg.token && cfg.repo) {
@@ -326,7 +326,10 @@ document.addEventListener('click', ev => { const b = ev.target.closest?.('#dlg [
 
 async function dictsDialog() {
   await loadDicts(); setTimeout(netCheck, 0);
-  const man = await fetchManifest();
+  // 1055a: it opens at once – with the list of packages from the last look (made at each start); the website is asked meanwhile,
+  // and what it answers fills in the updates (a new package appears the next time it opens)
+  const known = S.manifest, man = known || await fetchManifest(2500);
+  if (known) setTimeout(async () => { try { await updCheck(); updPaint(); } catch (_) { } }, 0);
   const privCfgNow = await privCfg();
   const remote = Object.fromEntries((man?.packages || []).map(p => [p.id, p]));
   const fold = (await setting('instFold')) || {};

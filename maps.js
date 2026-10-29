@@ -58,7 +58,8 @@ async function mapCfg() {
 async function saveMapCfg() { await setting('mapCfg', M.cfg); }
 
 // ---------------------------------------------------------------- packages
-async function mapManifest() {
+async function mapManifest(fast = false) {
+  if (fast) { try { const r = await (await caches.open(MAPCACHE)).match(new URL(MAPS + 'maps.json', location.href).href); if (r) { setTimeout(() => mapManifest().catch(() => { }), 0); return await r.json(); } } catch (_) { } }   // (1055a: the copy kept, the website asked meanwhile)
   try { const r = await fetchT(MAPS + 'maps.json', { cache: 'no-cache' }, 6000); if (r.ok) { const j = await r.json(); (await caches.open(MAPCACHE)).put(new URL(MAPS + 'maps.json', location.href).href, new Response(JSON.stringify(j))); return j; } } catch (_) { }
   try { const r = await (await caches.open(MAPCACHE)).match(new URL(MAPS + 'maps.json', location.href).href); if (r) return await r.json(); } catch (_) { }
   return null;
@@ -127,7 +128,7 @@ const MAP_GROUPS = [['Basic', ['base']],
   ['Appearance', ['landscape', 'ne2', 'ne2-*', 'ancient-land', 'relief', 'relief-*']],
   ['Gazetteers and databases', ['places', 'itinere', 'ancient-built']]];
 async function mapSectionHTML() {
-  const man = await mapManifest(); if (!man) return '';
+  const man = await mapManifest(true); if (!man) return '';
   M.man = man;
   const inst = await mapInstalled(), off = await mapOff(), on = await mapsEnabled();
   const pinfo = inst.places ? await placeIndexInfo() : null;
