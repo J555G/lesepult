@@ -843,6 +843,27 @@ const denseRH = () => { const l = Math.log(TP.ppy); let base = DRH[0][1];
   for (let i = 1; i < DRH.length; i++) { const [p0, b0] = DRH[i - 1], [p1, b1] = DRH[i]; if (TP.ppy >= p1) base = b1; else if (TP.ppy > p0) { base = b0 + (b1 - b0) * (l - Math.log(p0)) / (Math.log(p1) - Math.log(p0)); break; } else break; }
   return Math.min(40, Math.max(2, base * TP.lh / 30)); };
 const laneRH = L => L.dense ? denseRH() : TP.lh;
+// 1042a, 1045a–1050a: a person's statements, pinched apart, stand each in a box as wide as its words, as near beneath its own time
+// as there is room – moved a little sideways, or down a row; packed over all his statements (so nothing moves as you pan), and
+// gliding to a new place when the zoom makes them meet. Each is joined to its exact time on the life bar by a bending line
+const stMC = document.createElement('canvas').getContext('2d');
+function tmpStPack(L) {
+  const kids = L.its.filter(i => i.lv === 1 && i.kind === 'st'); if (!kids.length) return;
+  const W = $('#tmpCanvas')?.clientWidth || 800, bh = BH(TP.lh), fs = Math.max(9, Math.min(11, bh - 2)), GAP = 6;
+  stMC.font = `${fs}px ${TP.C?.ui || 'sans-serif'}`; const maxW = Math.max(80, Math.min(320, W * 0.6));
+  if (L._stFs !== fs || L._stW !== maxW) { L._stFs = fs; L._stW = maxW;           // (the words and their width: only when the type size changes)
+    for (const i of kids) { let t = i.lab, w = stMC.measureText(t).width;
+      if (w + 12 > maxW) { while (t.length > 3 && stMC.measureText(t + '…').width + 12 > maxW) t = t.slice(0, -1); t = t.trimEnd() + '…'; w = stMC.measureText(t).width; }
+      i._stTxt = t; i._bw = Math.ceil(w) + 12; } }
+  const P = kids.map(i => ({ i, xm: (i.t0 + i.t1) / 2 * TP.ppy })).sort((a, b) => a.xm - b.xm || a.i.t0 - b.i.t0), ends = [];
+  for (const { i, xm } of P) { const a = xm - i._bw / 2, sh = Math.min(40, i._bw * 0.5); let r = 0, x;
+    for (;; r++) { const c = Math.max(a, (ends[r] ?? -Infinity) + GAP); if (c - a <= sh) { x = c; break; } }
+    ends[r] = x + i._bw;
+    // gliding: a change the zoom makes smoothly is followed at once; a sudden one (a box moving over or down) is eased
+    const glide = (k, t, cap, fol) => { const pv = i['_' + k + 'T'], v0 = i['_' + k]; let v = v0 == null ? t : v0 + (pv != null && Math.abs(t - pv) <= fol ? t - pv : 0);
+      const d = (t - v) * 0.35; v += Math.max(-cap, Math.min(cap, d)); if (Math.abs(t - v) < 0.05) v = t; else TP.moving = true; i['_' + k + 'T'] = t; i['_' + k] = v; return v; };
+    i._dx = glide('sx', x - xm, 10, 4); i.row1 = 1 + glide('sr', r, 10 / Math.max(12, TP.lh), 0); }   // (at most about 10 px a frame)
+}
 function tmpLayout(A0, A1) {
   // 810a/812a: lanes keep their place; the space before and after a lane is free for others – lanes whose spans do not meet share
   // a slot (packed once over the whole spans, so nothing moves while you pan); a lane with nothing in view thins to a strip
@@ -851,7 +872,8 @@ function tmpLayout(A0, A1) {
   const slots = [];
   for (const L of lanes) {
     if (hide && TP.fOn && !L.its.some(i => i.pass)) continue;           // (hidden: a lane with nothing that passes goes)
-    const Lv = tmpLevels(L), on = i => !(hide && !i.pass) && wrVis(i);   // (816a: room for the dates of writing only while they are shown)
+    const Lv = tmpLevels(L), on = i => !(hide && !i.pass) && wrVis(i);
+    if (Lv && L.ref && Lv.lb >= 1) tmpStPack(L);                      // (1045a: a person's statements, each in its own place – for this zoom)   // (816a: room for the dates of writing only while they are shown)
     let atLv = () => true, n;
     if (!Lv) { for (const i of L.its) { i._y = i.row; i._al = 1; i._lab = true; } const all = L.its.filter(on); n = all.length ? 1 + Math.max(...all.map(i => i.row)) : 0; }
     else { const { la, lb, f } = Lv, rw = (i, k) => i['row' + k] ?? i.row, all = i => i.lv == null || i.keep;
@@ -964,7 +986,19 @@ function tmpDraw() {
       const byRow = new Map(); if (!lean) for (const it of vis) { if (it._al < 0.5) continue; const r = Math.round(it._y ?? it.row); if (!byRow.has(r)) byRow.set(r, []); byRow.get(r).push(it); }
       const nextX = new Map(); for (const r of byRow.values()) { r.sort((p, q) => p.t0 - q.t0); r.forEach((it, j) => nextX.set(it, Math.min(stop, j + 1 < r.length ? X(r[j + 1].t0) - 6 : W + 4000))); }
       g.save(); g.beginPath(); g.rect(0, top - 2, W, h + 4); g.clip();                     // (a lane still growing shows only what fits)
+      const life = L.ref && L.its.find(i => i.keep), free = it => life && it.lv === 1 && it._bw != null && it.kind === 'st';
+      if (life) { const yl = top + TT + 3 + (life._y ?? 0) * rl;           // (1047a, 1048a: its exact time marked on the life bar, and a bending line to its box)
+        for (const it of vis) { if (!free(it) || (it._al ?? 1) < 0.02) continue; const a = X(it.t0), b = Math.max(X(it.t1), a + 2), xm = (a + b) / 2, yy = top + TT + 3 + (it._y ?? it.row) * rl;
+          const bx = X((it.t0 + it.t1) / 2) + it._dx, cx = Math.min(Math.max(xm, bx + 6), bx + it._bw - 6), sel = TP.sel?.it === it, col = it.anc ? C.acc : C.acc2;
+          if (Math.max(bx + it._bw, b) < -20 || Math.min(bx, a) > W + 20 || yy < RH - 200 || yl > H) continue;
+          g.globalAlpha = (it.pass === false ? 0.15 : 0.9) * (it._al ?? 1); g.fillStyle = col; g.fillRect(a, yl + bhL - 3, b - a, 3);
+          g.strokeStyle = sel ? C.fg : col; g.lineWidth = sel ? 1.8 : 1; g.globalAlpha = (it.pass === false ? 0.12 : sel ? 0.95 : 0.6) * (it._al ?? 1);
+          const y0 = yl + bhL, y1 = yy, m = (y1 - y0) * 0.5; g.beginPath(); g.moveTo(xm, y0); g.bezierCurveTo(xm, y0 + m, cx, y1 - m, cx, y1); g.stroke(); }
+        g.globalAlpha = 1; g.lineWidth = 1; }
       for (const it of vis) {
+        if (free(it)) { const x0 = X((it.t0 + it.t1) / 2) + it._dx, x1 = x0 + it._bw, yy = top + TT + 3 + (it._y ?? it.row) * rl;
+          if (x1 < 0 || x0 > W || yy > H - RB || yy + bhL < RH) continue; drawStBox(g, C, it, x0, x1, yy, bhL, font);
+          if ((it.pass !== false || TP.cfg.fmode === 'hide') && yy < top + h && (it._al ?? 1) >= 0.5) TP.hit.push({ x0, x1, y0: yy, y1: yy + bhL, it, L }); continue; }
         const x0 = X(it.t0), x1 = Math.max(Math.min(X(it.t1), cutX.get(it) ?? Infinity) - 1, x0 + (L.dense ? 1.5 : 3)), yy = top + TT + 3 + (it._y ?? it.row) * rl, bh = bhL;
         if (x1 < 0 && (lean || nextX.get(it) < 0)) continue; if (x0 > W || yy > H - RB || yy + bh < RH) continue;   // (only what is on the screen)
         if (it.life || it.yrs) drawLife(g, C, it, x0, x1, yy, bh, font, nextX.get(it), W, !!L.dense); else drawItem(g, C, it, x0, x1, yy, bh, font, nextX.get(it), W);
@@ -1018,6 +1052,17 @@ function tmpDraw() {
   if (TP.focusY != null && TP.sel?.it && !TP.pin) {                  // (zooming with something selected: it is held exactly at its place – also in the persons' thin rows)
     const h = TP.hit.find(h => h.it === TP.sel.it); if (h) { const d = (h.y0 + h.y1) / 2 - TP.focusY; if (Math.abs(d) > 0.5) { TP.sy += d; tmpClampY(); TP.prevLay = null; TP.moving = true; } } }
   if (TP.moving) tmpRedraw();                              // (until every height has reached its value)
+}
+function drawStBox(g, C, it, x0, x1, y, h, font) {          // (1050a: a statement's box – as wide as its words; its time is on the life bar)
+  const sel = TP.sel?.it === it, dim = it.pass === false, fa = it._al ?? 1, base = it.anc ? C.acc : C.acc2;
+  g.globalAlpha = fa * (dim ? 0.5 : 1); g.fillStyle = C.bg; roundRect(g, x0, y, x1 - x0, h, 4); g.fill();   // (an opaque ground: the other statements' lines pass behind it)
+  g.globalAlpha = (dim ? 0.07 : sel ? 0.75 : it.anc ? 0.5 : 0.3) * fa; g.fillStyle = base; roundRect(g, x0, y, x1 - x0, h, 4); g.fill();
+  if (dim) { g.globalAlpha = 1; return; }
+  g.globalAlpha = fa; if (sel) { g.strokeStyle = C.fg; g.lineWidth = 1.6; roundRect(g, x0, y, x1 - x0, h, 4); g.stroke(); }
+  if (TP.fOn && it.pass && !sel) { g.strokeStyle = C.acc; g.lineWidth = 1.6; roundRect(g, x0 - 0.5, y - 0.5, x1 - x0 + 1, h + 1, 4); g.stroke(); }
+  if (it.read || it.st?.inf) { g.strokeStyle = it.read ? '#c0392b' : C.acc; g.lineWidth = 1; g.setLineDash([3, 2]); roundRect(g, x0, y, x1 - x0, h, 4); g.stroke(); g.setLineDash([]); }
+  if (it._lab !== false) { const fs = Math.max(9, Math.min(11, h - 2)); g.font = font(fs); g.fillStyle = C.fg; g.fillText(it._stTxt || it.lab, x0 + 6, y + h / 2 + fs * 0.36); }
+  g.globalAlpha = 1; g.lineWidth = 1;
 }
 function drawItem(g, C, it, x0, x1, y, h, font, lim = Infinity, W = 1e9) {
   const sel = TP.sel?.it === it, dim = it.pass === false;
