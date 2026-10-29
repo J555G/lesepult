@@ -453,13 +453,24 @@ async function tsRefP(ref) {                                   // 'people-smith|
 async function tsStatements(P) { const d = tsPkg(); if (!d) return null; const r = await pplRec(d, 'p:' + (+P.slice(2) >> 6)); return r?.e?.[P] || null; }
 const TSV = v => TS_IX?.vocab?.[v] || String(v).replace(/^[a-z]+:/, '').replace(/-/g, ' ');
 let TS_IX = null;
+// 1044a: a detail that begins with the office's own word (“comes (defending Seleucia …)” under “count (comes)”) – that word only once.
+// Presentation only: the statement keeps its words (917)
+function tsDedup(id, cl, det) {
+  const low = s => s.toLowerCase(), slug = id.replace(/^[a-z]+:/, '').replace(/-/g, ' '), d = det.trim();
+  const after = (t) => { const r = d.slice(t.length).replace(/^[\s,:–-]+/, ''); const m = r.match(/^\((.*)\)$/); return m ? m[1] : r; };
+  if (low(d).startsWith(low(slug)) && (d.length === slug.length || /[\s,(]/.test(d[slug.length]))) {
+    if (!low(cl).includes(low(slug))) cl += ' (' + slug + ')'; return [cl, after(slug)]; }
+  const w = d.match(/^[^\s,(]+/)?.[0]; if (w && low(cl).match(/[a-zà-ÿ]+/g)?.includes(low(w))) return [cl, after(w)];
+  return [cl, d];
+}
 function tsVal(v) {                                             // a value as words
   if (v == null) return '';
   if (typeof v === 'string') return /^[a-z]+:/.test(v) ? TSV(v) : v.startsWith('P-') ? tsName(TS_IX?.p?.[v]?.[0] || v) : v;
   if (typeof v !== 'object') return String(v);
   const parts = [];
-  if (v.concept) parts.push(TSV(v.concept)); if (v.name) parts.push(tsName(v.P && TS_IX?.p?.[v.P] ? TS_IX.p[v.P][0] : v.name)); if (v.title) parts.push('“' + v.title + '”');
-  if (v.event) parts.push(v.event); if (v.age != null) parts.push('aged ' + v.age); if (v.detail) parts.push(v.detail); if (v.iter) parts.push('(' + v.iter + ')');
+  let det = v.detail;
+  if (v.concept) { let cl = TSV(v.concept); if (det) [cl, det] = tsDedup(v.concept, cl, det); parts.push(cl); } if (v.name) parts.push(tsName(v.P && TS_IX?.p?.[v.P] ? TS_IX.p[v.P][0] : v.name)); if (v.title) parts.push('“' + v.title + '”');
+  if (v.event) parts.push(v.event); if (v.age != null) parts.push('aged ' + v.age); if (det) parts.push(det); if (v.iter) parts.push('(' + v.iter + ')');
   if (v.gen) parts.push(v.gen === 2 ? '' : `(${v.gen} generations)`); if (v.list) parts.push(v.list.join('; ')); if (v.text) parts.push(v.text); if (v.place) parts.push(v.place);
   if (v.kind && v.name) parts.push(`(${v.kind})`); if (v.reading) parts.push(`– read: ${v.reading.orig || v.reading.y}`);
   return parts.filter(Boolean).join(' ');
@@ -757,6 +768,9 @@ async function tmpData() {
         const start = []; let s = 0; for (let R = 0; R < nPrev; R++) { start[R] = s; s += H[R] || 1; }
         for (const i of kids) { const R = i.par ? i.par['row' + (k - 1)] : 0; i.row = i['row' + k] = (start[R] ?? 0) + i._loc; }
       }
+      // 1042a: a person's own lane – pinched apart, his life bar stays as the first row; the statements open beneath it
+      const life = L.ref && L.its.find(i => i.life && i.lv === 0);
+      if (life) { life.keep = true; for (const i of L.its) if (i.lv === 1) i.row1 += 1; life.row1 = 0; }
       for (const k of L.levels) {                        // (the dates of writing and the like: in the first free row at each level)
         const occ = []; for (const i of L.its.filter(i => i.lv === k)) (occ[i['row' + k]] ??= []).push([i.t0, i.t1]);
         for (const it of L.its.filter(i => i.lv == null).sort((a, b) => a.t0 - b.t0)) { let r = 0; while ((occ[r] || []).some(([a, b]) => it.t0 < b - 1e-6 && it.t1 > a + 1e-6)) r++; (occ[r] ??= []).push([it.t0, it.t1]); it['row' + k] = r; it.row = r; } }
@@ -840,15 +854,15 @@ function tmpLayout(A0, A1) {
     const Lv = tmpLevels(L), on = i => !(hide && !i.pass) && wrVis(i);   // (816a: room for the dates of writing only while they are shown)
     let atLv = () => true, n;
     if (!Lv) { for (const i of L.its) { i._y = i.row; i._al = 1; i._lab = true; } const all = L.its.filter(on); n = all.length ? 1 + Math.max(...all.map(i => i.row)) : 0; }
-    else { const { la, lb, f } = Lv, rw = (i, k) => i['row' + k] ?? i.row, inA = i => i.lv == null || i.lv === la, inB = i => i.lv == null || i.lv === lb;
-      for (const i of L.its) { i._al = 0; i._lab = i.lv == null || (i.lv === la ? f <= 0.5 : f > 0.5);
-        if (i.lv == null) { i._y = rw(i, la) + f * (rw(i, lb) - rw(i, la)); i._al = 1; }
+    else { const { la, lb, f } = Lv, rw = (i, k) => i['row' + k] ?? i.row, all = i => i.lv == null || i.keep;
+      for (const i of L.its) { i._al = 0; i._lab = all(i) || (i.lv === la ? f <= 0.5 : f > 0.5);
+        if (all(i)) { i._y = rw(i, la) + f * (rw(i, lb) - rw(i, la)); i._al = 1; }
         else if (i.lv === la && la !== lb) { i._y = rw(i, la); i._al = 1 - f; }
         else if (i.lv === lb && la !== lb) { const p = i.par?.lv === la ? rw(i.par, la) : rw(i, lb); i._y = p + f * (rw(i, lb) - p); i._al = f; }
         else if (i.lv === la) { i._y = rw(i, la); i._al = 1; } }
-      const nOf = k => { const s = L.its.filter(i => (i.lv == null || i.lv === k) && on(i)); return s.length ? 1 + Math.max(...s.map(i => rw(i, k))) : 0; };
+      const nOf = k => { const s = L.its.filter(i => (all(i) || i.lv === k) && on(i)); return s.length ? 1 + Math.max(...s.map(i => rw(i, k))) : 0; };
       n = nOf(la) + f * (nOf(lb) - nOf(la));
-      atLv = i => i.lv == null || i.lv === (f < 0.5 ? la : lb); }
+      atLv = i => all(i) || i.lv === (f < 0.5 ? la : lb); }
     const its = L.its.filter(i => i._al > 0.01 && i.t1 > A0 && i.t0 < A1 && on(i));   // (the dates of writing: only the selected work's)
     const wx = L.its.some(i => i.wr && wrVis(i)), a0 = wx ? L.a : L.na, b0 = wx ? L.b : L.nb, a = isFinite(a0) ? a0 : -1e9, b = isFinite(b0) ? b0 : 1e9;
     let s = L.wronly ? -1 : slots.findIndex(S => S.every(M => b + GAP <= M.a || M.b + GAP <= a));   // (your library's dates of writing: below all, sharing no level)
@@ -1023,11 +1037,11 @@ function drawItem(g, C, it, x0, x1, y, h, font, lim = Infinity, W = 1e9) {
   // off with the bar's end; past a short bar it may run on up to the next item in its row (807a)
   const fs = Math.max(9, Math.min(11, h - 2)); g.font = font(fs);   // (rows pinched small: smaller type)
   const fz = it.fa ? Math.min(0.45 * Math.max(1, x1 - x0), 24) : 0;   // (1039a: a faded start – the name begins after it)
-  const end = Math.min(Math.max(x1 - 3, lim), W + 2000), [txt, tw] = it.ref ? fitName(g, it.lab, Math.min(end, W) - Math.max(x0 + fz, 0) - 6) : [it.lab, g.measureText(it.lab).width];
+  const nl = nameLay(g, it.lab, !!it.ref, x0, x1, fz, 4, Math.min(Math.max(x1 - 3, lim), W + 2000), W), txt = nl.txt, tw = nl.tw;
   g.fillStyle = C.fg;
-  const cps = nameCopies(it, it.t0, it.t1, x0, x1, tw, end, W, 4, rowPh(it._y ?? it.row), fz);
+  const cps = nameCopies(it, it.t0, it.t1, x0, x1, tw, nl.end, W, 4, rowPh(it._y ?? it.row), fz, nl.so);
   for (const cp of cps) { g.globalAlpha = fa * cp.a; g.fillText(txt, cp.x, y + h / 2 + fs * 0.36); }
-  if (!cps.length && x0 + fz + 4 >= 0) { const cut = cutName(g, txt, Math.min(end, W) - x0 - fz - 6); if (cut) { g.globalAlpha = fa; g.fillText(cut, x0 + fz + 4, y + h / 2 + fs * 0.36); } }
+  if (!cps.length && nl.cx != null) { const cut = cutName(g, txt, nl.cr); if (cut) { g.globalAlpha = fa; g.fillText(cut, nl.cx, y + h / 2 + fs * 0.36); } }
   g.globalAlpha = 1;
 }
 // 998a: a life bar in three degrees. Far: a plain bar – the origin's colour at its start, imperial purple from the accession, a red end.
@@ -1089,11 +1103,11 @@ function drawLife(g, C, it, x0, x1, y, h, font, lim, W, dense) {
   // the name: its copies fixed on the bar, one drawn at a time (1017b–1019a)
   const fs = Math.max(8.5, Math.min(11, h - 3)); g.font = font(fs); const end = Math.min(Math.max(x1 - 3, lim), W + 2000);
   const fz = !it.yrs && it.fa && x1 - x0 > 30 ? Math.min(0.45 * (x1 - x0), 24) : 0;   // (the birth unknown: the names begin after its faded part)
-  const [nm, tw] = fitName(g, it.lab, Math.min(end, W) - Math.max(x0 + fz, 0) - 8);       // (the longest form of the name that fits)
-  const cps = nameCopies(it, it.t0, it.t1, x0, x1, tw, end, W, 5, rowPh(it._y ?? it.row), fz), p = cps[0]?.x ?? -1e9;
+  const nl = nameLay(g, it.lab, true, x0, x1, fz, 5, end, W), nm = nl.txt, tw = nl.tw;       // (the longest form of the name that fits)
+  const cps = nameCopies(it, it.t0, it.t1, x0, x1, tw, nl.end, W, 5, rowPh(it._y ?? it.row), fz, nl.so), p = cps[0]?.x ?? -1e9;
   if (!it.yrs) lifeAges(g, C, it, x0, x1, y, h, font, W, cps.map(c => [c.x - 3, c.x + tw + 3]));
   g.font = font(fs); g.fillStyle = C.fg; for (const cp of cps) { g.globalAlpha = fa * nA * cp.a; g.fillText(nm, cp.x, y + h / 2 + fs * 0.36); }
-  if (!cps.length && x0 + fz + 5 >= 0) { const cut = cutName(g, nm, Math.min(end, W) - x0 - fz - 7); if (cut) { g.globalAlpha = fa * nA; g.fillText(cut, x0 + fz + 5, y + h / 2 + fs * 0.36); } }
+  if (!cps.length && nl.cx != null) { const cut = cutName(g, nm, nl.cr); if (cut) { g.globalAlpha = fa * nA; g.fillText(cut, nl.cx, y + h / 2 + fs * 0.36); } }
   g.globalAlpha = fa;
   if (f2 <= 0 || it.yrs || !it.P) { g.globalAlpha = 1; return; }
   const L = it.sts || TS_ST.get(it.P); if (!L) { tsWant(it.P); g.globalAlpha = 1; return; }
@@ -1116,6 +1130,17 @@ function nameForms(lab) {
   let f = NAMEF.get(lab); if (f) return f; const full = tcase(String(lab || '')), first = full.split(/\s+or\s+/)[0], bare = first.split(/,\s*/)[0];
   f = [...new Set([full, first, bare])]; NAMEF.set(lab, f); return f; }
 // a bar too short for even the shortest form of its name: as much of it as fits ("Mag" for Magnentius), at the bar's start
+// 1043a: a name stays inside its box whenever the box can hold it (copies only where all of it fits; a box showing too little of
+// itself: as much of the name as fits, from where the box comes into view); only a box too short for its name lets it run on
+// past its end (807a), from its start. → the form of the name, its width, how far it may reach, and where a shortened one stands
+function nameLay(g, lab, forms, x0, x1, fz, pad, end, W) {
+  const x00 = x0 + fz + pad, inEnd = x1 - 3, fit = r => forms ? fitName(g, lab, r) : [lab, g.measureText(lab).width];
+  const sw = g.measureText(forms ? nameForms(lab).slice(-1)[0] : lab).width;
+  if (inEnd - x00 >= sw) { const [txt, tw] = fit(Math.min(inEnd, W) - Math.max(x00, 0) - 2), cx = Math.max(x00, 4);
+    return { txt, tw, end: inEnd, cx: cx < W ? cx : null, cr: Math.min(inEnd, W) - cx - 2 }; }
+  const [txt, tw] = fit(Math.min(end, W) - Math.max(x00, 0) - 2);
+  return { txt, tw, end, so: true, cx: x00 >= 0 ? x00 : null, cr: Math.min(end, W) - x00 - 2 };
+}
 function cutName(g, txt, room) { if (g.measureText(txt.slice(0, 2)).width > room) return ''; let n = txt.length; while (n > 2 && g.measureText(txt.slice(0, n)).width > room) n--; return txt.slice(0, n); }
 function fitName(g, lab, room) { const fs = nameForms(lab); for (const n of fs) { const w = g.measureText(n).width; if (w <= room) return [n, w]; } const n = fs[fs.length - 1]; return [n, g.measureText(n).width]; }
 // 1017b–1019a: a name is never pinned to the screen. It stands at points fixed on its bar – the start, then every so many years
@@ -1125,21 +1150,21 @@ const NSTEP = [0.25, 0.5, 1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 
 // 1036a–1038a: neighbouring rows take turns between three positions (ph = 0, ⅓, ⅔ of the spacing), so names of bars that begin
 // in the same year never stand in one column; still fixed on the bar – the row, not the view, decides the shift
 const rowPh = r => (((Math.round(r) || 0) % 3) + 3) % 3 / 3;
-function nameCopies(o, t0, t1, x0, x1, tw, end, W, pad = 5, ph = 0, fz = 0) {   // (fz: the fuzzy start's width – no name over it)
+function nameCopies(o, t0, t1, x0, x1, tw, end, W, pad = 5, ph = 0, fz = 0, so = false) {   // (so: a box too short for its name – only from its start)   // (fz: the fuzzy start's width – no name over it)
   const X = a => (a - TP.x0) * TP.ppy, A0 = TP.x0, A1 = TP.x0 + W / TP.ppy, c = (Math.max(x0, 0) + Math.min(x1, W)) / 2, lim = Math.min(W, end), x00 = x0 + fz + pad;
   // 1040: the copy shown stays as long as it is more than 7 px from both edges of the pane – only there it gives way to another
   const M = 7, free = x => x >= M && x + tw <= Math.min(lim, W - M), seen = x => x >= 0 && x + tw <= lim;
   const xs = x00 + ph * Math.max(0, Math.min(x1 - 3, end) - x00 - tw);   // (1037a: a short bar – shifted within the room it has left)
   const xOf = (t, k) => k === 's' ? xs : k === 'b' ? x00 : Math.max(X(t) + (Math.abs(t - t0) < 1e-9 ? pad : 2), x00);
   let best = null;
-  if (o._nt != null && o._nk && o._nt >= t0 - 1e-6 && o._nt <= t1 + 1e-6) { const x = xOf(o._nt, o._nk); if (free(x)) best = { t: o._nt, x, k: o._nk }; }
+  if (o._nt != null && o._nk && !(so && o._nk !== 'b') && o._nt >= t0 - 1e-6 && o._nt <= t1 + 1e-6) { const x = xOf(o._nt, o._nk); if (free(x)) best = { t: o._nt, x, k: o._nk }; }
   const pick = ok => { let b = null, si = NSTEP.length - 1; while (si > 0 && NSTEP[si] * TP.ppy > 0.67 * W) si--;
-    for (; si >= 0 && !b && NSTEP[si] * TP.ppy >= 24; si--) {   // (where a bar shows too little of itself for these points, the finer ones between them)
+    for (; !so && si >= 0 && !b && NSTEP[si] * TP.ppy >= 24; si--) {   // (where a bar shows too little of itself for these points, the finer ones between them)
       const step = NSTEP[si], n = Math.floor((t1 - t0) / step - ph + 1e-9);
       for (let k = Math.max(0, Math.floor((A0 - t0) / step - ph) - 1); k <= Math.min(n, Math.ceil((A1 - t0) / step) + 1); k++) {
         const t = t0 + (k + ph) * step, x = xOf(t, 'g'); if (!ok(x)) continue;
         const d = Math.abs(x + tw / 2 - c); if (!b || d < b.d) b = { t, x, d, k: 'g' }; } }
-    if (!b && x0 >= 0) { if (ph && ok(xs)) b = { t: t0 + 1e-7, x: xs, k: 's' }; else if (ok(x00)) b = { t: t0, x: x00, k: 'b' }; }   // (no room on screen for that: its start)
+    if (!b && x0 >= 0) { if (ph && !so && ok(xs)) b = { t: t0 + 1e-7, x: xs, k: 's' }; else if (ok(x00)) b = { t: t0, x: x00, k: 'b' }; }   // (no room on screen for that: its start)
     return b; };
   if (!best) best = pick(free) || pick(seen);                       // (the new one: clear of the edges too, where there is one)
   if (best) { o._nk = best.k; o._tw = tw; } o._lim = Math.min(lim, W);
