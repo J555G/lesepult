@@ -931,7 +931,7 @@ function tmpDraw() {
       if (top >= H || top + hs <= RH) return;
       // 811a: alternate lanes faintly tinted or outlined – only over the span the lane covers
       if (L.dense && isFinite(L.na)) { g.font = font(10.5); g.fillStyle = C.mut; const nm = L.t + (TP.fOn ? ` · ${L.nPass || 0} found` : ''), tw = g.measureText(nm).width;   // (997a: no box – only its name, 1023a: moving with it)
-        for (const cp of nameCopies(L, L.na, L.nb, X(L.na), X(L.nb), tw, W, W, 4)) { g.globalAlpha = cp.a; g.fillText(nm, cp.x, top + 9.5); } g.globalAlpha = 1; }
+        for (const cp of nameCopies(L, L.na, L.nb, X(L.na), X(L.nb), tw, W, W, 4, rowPh(si))) { g.globalAlpha = cp.a; g.fillText(nm, cp.x, top + 9.5); } g.globalAlpha = 1; }
       if (isFinite(L.na) && !L.bare) { const xa = Math.max(-10, X(L.na) - 3), xb = Math.min(W + 10, X(L.nb) + 3);       // (the box: what the work narrates, not when it was written)
         if (xb > xa) { if ((si + k) % 2 === 0) { g.fillStyle = C.fg; g.globalAlpha = 0.045; g.fillRect(xa, top - 2, xb - xa, h + 4); }
           else { g.strokeStyle = C.line; g.globalAlpha = 0.6; g.strokeRect(xa + 0.5, top - 1.5, xb - xa - 1, h + 2); } g.globalAlpha = 1;
@@ -941,7 +941,7 @@ function tmpDraw() {
           g.font = font(10.5); const lb = L.ref && L.its.find(i => i.life && i.lv === 0), onBar = lb && atLv(lb) && (lb._al ?? 1) >= 0.5;   // (a person's lane: while his bar is drawn, his name is on it – not twice)
           const nm = (onBar ? '' : fitName(g, L.t, Math.max(60, X(L.nb) - X(L.na)))[0]) + (TP.fOn ? `${onBar ? '' : ' · '}${L.nPass || 0} found` : ''); const tw = g.measureText(nm).width;
           const room = Math.min(W, k + 1 < ls.length ? X(ls[k + 1].L.na ?? ls[k + 1].a) - 6 : W), end = Math.max(xb, room);   // (855a: past a narrow box, up to the next one)
-          g.fillStyle = C.mut; if (nm) for (const cp of nameCopies(L, L.na, L.nb, xa, xb, tw, end, W, 4)) { g.globalAlpha = cp.a; g.fillText(nm, cp.x, top + 9.5); } g.globalAlpha = 1; } }   // (1023a)
+          g.fillStyle = C.mut; if (nm) for (const cp of nameCopies(L, L.na, L.nb, xa, xb, tw, end, W, 4, rowPh(si))) { g.globalAlpha = cp.a; g.fillText(nm, cp.x, top + 9.5); } g.globalAlpha = 1; } }   // (1023a)
       // how far a label may run on (807a): to the next item in its row, and never into the next lane of the slot
       const stop = k + 1 < ls.length ? X(ls[k + 1].a) - 6 : W + 4000;
       const cutX = new Map(), byLv = new Map(), lean = L.dense && bhL < 7;   // (854a: bars sharing a row – overlapping books – cut where the next one begins; the persons' thin rows need none of it)
@@ -1024,7 +1024,7 @@ function drawItem(g, C, it, x0, x1, y, h, font, lim = Infinity, W = 1e9) {
   const fs = Math.max(9, Math.min(11, h - 2)); g.font = font(fs);   // (rows pinched small: smaller type)
   const end = Math.min(Math.max(x1 - 3, lim), W + 2000), [txt, tw] = it.ref ? fitName(g, it.lab, Math.min(end, W) - Math.max(x0, 0) - 6) : [it.lab, g.measureText(it.lab).width];
   g.fillStyle = C.fg;
-  const cps = nameCopies(it, it.t0, it.t1, x0, x1, tw, end, W, 4);
+  const cps = nameCopies(it, it.t0, it.t1, x0, x1, tw, end, W, 4, rowPh(it._y ?? it.row));
   for (const cp of cps) { g.globalAlpha = fa * cp.a; g.fillText(txt, cp.x, y + h / 2 + fs * 0.36); }
   if (!cps.length && x0 + 4 >= 0) { const cut = cutName(g, txt, Math.min(end, W) - x0 - 6); if (cut) { g.globalAlpha = fa; g.fillText(cut, x0 + 4, y + h / 2 + fs * 0.36); } }
   g.globalAlpha = 1;
@@ -1088,7 +1088,7 @@ function drawLife(g, C, it, x0, x1, y, h, font, lim, W, dense) {
   // the name: its copies fixed on the bar, one drawn at a time (1017b–1019a)
   const fs = Math.max(8.5, Math.min(11, h - 3)); g.font = font(fs); const end = Math.min(Math.max(x1 - 3, lim), W + 2000);
   const [nm, tw] = fitName(g, it.lab, Math.min(end, W) - Math.max(x0, 0) - 8);       // (the longest form of the name that fits)
-  const cps = nameCopies(it, it.t0, it.t1, x0, x1, tw, end, W, 5), p = cps[0]?.x ?? -1e9;
+  const cps = nameCopies(it, it.t0, it.t1, x0, x1, tw, end, W, 5, rowPh(it._y ?? it.row)), p = cps[0]?.x ?? -1e9;
   if (!it.yrs) lifeAges(g, C, it, x0, x1, y, h, font, W, cps.map(c => [c.x - 3, c.x + tw + 3]));
   g.font = font(fs); g.fillStyle = C.fg; for (const cp of cps) { g.globalAlpha = fa * nA * cp.a; g.fillText(nm, cp.x, y + h / 2 + fs * 0.36); }
   if (!cps.length && x0 + 5 >= 0) { const cut = cutName(g, nm, Math.min(end, W) - x0 - 7); if (cut) { g.globalAlpha = fa * nA; g.fillText(cut, x0 + 5, y + h / 2 + fs * 0.36); } }
@@ -1120,15 +1120,19 @@ function fitName(g, lab, room) { const fs = nameForms(lab); for (const n of fs) 
 // (at most two thirds of a screen apart, so one always fits) – and moves with the bar; of the copies that fit whole on the screen only the one nearest
 // the middle of the bar's visible part is drawn; when another comes nearer the middle it takes over, crossfading
 const NSTEP = [0.25, 0.5, 1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
-function nameCopies(o, t0, t1, x0, x1, tw, end, W, pad = 5) {
+// 1036a–1038a: neighbouring rows take turns between three positions (ph = 0, ⅓, ⅔ of the spacing), so names of bars that begin
+// in the same year never stand in one column; still fixed on the bar – the row, not the view, decides the shift
+const rowPh = r => (((Math.round(r) || 0) % 3) + 3) % 3 / 3;
+function nameCopies(o, t0, t1, x0, x1, tw, end, W, pad = 5, ph = 0) {
   const X = a => (a - TP.x0) * TP.ppy, A0 = TP.x0, A1 = TP.x0 + W / TP.ppy, c = (Math.max(x0, 0) + Math.min(x1, W)) / 2, lim = Math.min(W, end);
   let best = null, si = NSTEP.length - 1; while (si > 0 && NSTEP[si] * TP.ppy > 0.67 * W) si--;
   for (; si >= 0 && !best && NSTEP[si] * TP.ppy >= 24; si--) {   // (where a bar shows too little of itself for these points, the finer ones between them)
-    const step = NSTEP[si], n = Math.floor((t1 - t0) / step + 1e-9);
-    for (let k = Math.max(0, Math.floor((A0 - t0) / step) - 1); k <= Math.min(n, Math.ceil((A1 - t0) / step) + 1); k++) {
-      const t = t0 + k * step, x = X(t) + (k ? 2 : pad); if (x < 0 || x + tw > lim) continue;
+    const step = NSTEP[si], n = Math.floor((t1 - t0) / step - ph + 1e-9);
+    for (let k = Math.max(0, Math.floor((A0 - t0) / step - ph) - 1); k <= Math.min(n, Math.ceil((A1 - t0) / step) + 1); k++) {
+      const t = t0 + (k + ph) * step, x = X(t) + (k || ph ? 2 : pad); if (x < 0 || x + tw > lim) continue;
       const d = Math.abs(x + tw / 2 - c); if (!best || d < best.d) best = { t, x, d }; } }
-  if (!best && x0 >= 0 && x0 + pad + tw <= lim) best = { t: t0, x: x0 + pad, d: 0 };     // (a short bar: its start)
+  if (!best && x0 >= 0) { const xs = x0 + pad + ph * Math.max(0, Math.min(x1 - 3, end) - x0 - pad - tw);   // (1037a: a short bar – shifted within the room it has left)
+    if (ph && xs + tw <= lim) best = { t: t0 + 1e-7, x: xs, d: 0 }; else if (x0 + pad + tw <= lim) best = { t: t0, x: x0 + pad, d: 0 }; }   // (no room on screen for that: its start)
   const now = performance.now();
   if ((best?.t ?? null) !== (o._nt ?? null)) { o._pt = o._nt ?? null; o._px = o._nx; o._pT = now; o._nt = best?.t ?? null; }
   if (best) o._nx = best.x - X(best.t);                     // (its offset from its point: the copy moves with the bar)
